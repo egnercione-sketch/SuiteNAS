@@ -1,0 +1,92 @@
+{
+  "Los Angeles Lakers@Boston Celtics": {
+    "home": "Boston Celtics",
+    "away": "Los Angeles Lakers",
+    "spread": -8.5,
+    "total": 228.5
+  },
+  "Miami Heat@Orlando Magic": {
+    "home": "Orlando Magic",
+    "away": "Miami Heat",
+    "spread": -5.5,
+    "total": 241.5
+  },
+  "Denver Nuggets@Atlanta Hawks": {
+    "home": "Atlanta Hawks",
+    "away": "Denver Nuggets",
+    "spread": 4.5,
+    "total": 239.5
+  },
+  "Charlotte Hornets@Toronto Raptors": {
+    "home": "Toronto Raptors",
+    "away": "Charlotte Hornets",
+    "spread": -7.0,
+    "total": 230.0
+  },
+  "San Antonio Spurs@Cleveland Cavaliers": {
+    "home": "Cleveland Cavaliers",
+    "away": "San Antonio Spurs",
+    "spread": -4.0,
+    "total": 240.0
+  },
+  "Portland Trail Blazers@Detroit Pistons": {
+    "home": "Detroit Pistons",
+    "away": "Portland Trail Blazers",
+    "spread": -7.5,
+    "total": 236.0
+  },
+  "Utah Jazz@New York Knicks": {
+    "home": "New York Knicks",
+    "away": "Utah Jazz",
+    "spread": -15.5,
+    "total": 242.0
+  },
+  "Indiana Pacers@Chicago Bulls": {
+    "home": "Chicago Bulls",
+    "away": "Indiana Pacers",
+    "spread": -4.5,
+    "total": 238.0
+  },
+  "Phoenix Suns@Houston Rockets": {
+    "home": "Houston Rockets",
+    "away": "Phoenix Suns",
+    "spread": -9.5,
+    "total": 219.5
+  },
+  "Los Angeles Clippers@Memphis Grizzlies": {
+    "home": "Memphis Grizzlies",
+    "away": "Los Angeles Clippers",
+    "spread": 2.0,
+    "total": 223.0
+  },
+  "Philadelphia 76ers@Milwaukee Bucks": {
+    "home": "Milwaukee Bucks",
+    "away": "Philadelphia 76ers",
+    "spread": 1.5,
+    "total": 222.0
+  },
+  "Dallas Mavericks@Oklahoma City Thunder": {
+    "home": "Oklahoma City Thunder",
+    "away": "Dallas Mavericks",
+    "spread": -15.5,
+    "total": 231.0
+  },
+  "New York Knicks@Toronto Raptors": {
+    "home": "Toronto Raptors",
+    "away": "New York Knicks",
+    "spread": 2.0,
+    "total": 231.5
+  },
+  "Phoenix Suns@Oklahoma City Thunder": {
+    "home": "Oklahoma City Thunder",
+    "away": "Phoenix Suns",
+    "spread": -16.0,
+    "total": 224.5
+  },
+  "San Antonio Spurs@Los Angeles Lakers": {
+    "home": "Los Angeles Lakers",
+    "away": "San Antonio Spurs",
+    "spread": -3.5,
+    "total": 234.5
+  }
+}

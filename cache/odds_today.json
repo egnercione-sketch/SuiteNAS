@@ -1,0 +1,142 @@
+{
+  "HOU@BKN": {
+    "spread": -12.5,
+    "total": 216.5,
+    "home_full": "Brooklyn Nets",
+    "away_full": "Houston Rockets",
+    "bookmaker": "ESPN (Free)"
+  },
+  "HOU @ BKN": {
+    "spread": -12.5,
+    "total": 216.5,
+    "home_full": "Brooklyn Nets",
+    "away_full": "Houston Rockets",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Houston Rockets@Brooklyn Nets": {
+    "spread": -12.5,
+    "total": 216.5,
+    "home_full": "Brooklyn Nets",
+    "away_full": "Houston Rockets",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Houston Rockets @ Brooklyn Nets": {
+    "spread": -12.5,
+    "total": 216.5,
+    "home_full": "Brooklyn Nets",
+    "away_full": "Houston Rockets",
+    "bookmaker": "ESPN (Free)"
+  },
+  "MIA@DET": {
+    "spread": -4.5,
+    "total": 236.5,
+    "home_full": "Detroit Pistons",
+    "away_full": "Miami Heat",
+    "bookmaker": "ESPN (Free)"
+  },
+  "MIA @ DET": {
+    "spread": -4.5,
+    "total": 236.5,
+    "home_full": "Detroit Pistons",
+    "away_full": "Miami Heat",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Miami Heat@Detroit Pistons": {
+    "spread": -4.5,
+    "total": 236.5,
+    "home_full": "Detroit Pistons",
+    "away_full": "Miami Heat",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Miami Heat @ Detroit Pistons": {
+    "spread": -4.5,
+    "total": 236.5,
+    "home_full": "Detroit Pistons",
+    "away_full": "Miami Heat",
+    "bookmaker": "ESPN (Free)"
+  },
+  "PHI@DAL": {
+    "spread": -2.5,
+    "total": 230.5,
+    "home_full": "Dallas Mavericks",
+    "away_full": "Philadelphia 76ers",
+    "bookmaker": "ESPN (Free)"
+  },
+  "PHI @ DAL": {
+    "spread": -2.5,
+    "total": 230.5,
+    "home_full": "Dallas Mavericks",
+    "away_full": "Philadelphia 76ers",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Philadelphia 76ers@Dallas Mavericks": {
+    "spread": -2.5,
+    "total": 230.5,
+    "home_full": "Dallas Mavericks",
+    "away_full": "Philadelphia 76ers",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Philadelphia 76ers @ Dallas Mavericks": {
+    "spread": -2.5,
+    "total": 230.5,
+    "home_full": "Dallas Mavericks",
+    "away_full": "Philadelphia 76ers",
+    "bookmaker": "ESPN (Free)"
+  },
+  "BOS@SAC": {
+    "spread": -9.5,
+    "total": 229.5,
+    "home_full": "Sacramento Kings",
+    "away_full": "Boston Celtics",
+    "bookmaker": "ESPN (Free)"
+  },
+  "BOS @ SAC": {
+    "spread": -9.5,
+    "total": 229.5,
+    "home_full": "Sacramento Kings",
+    "away_full": "Boston Celtics",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Boston Celtics@Sacramento Kings": {
+    "spread": -9.5,
+    "total": 229.5,
+    "home_full": "Sacramento Kings",
+    "away_full": "Boston Celtics",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Boston Celtics @ Sacramento Kings": {
+    "spread": -9.5,
+    "total": 229.5,
+    "home_full": "Sacramento Kings",
+    "away_full": "Boston Celtics",
+    "bookmaker": "ESPN (Free)"
+  },
+  "UTAH@LAC": {
+    "spread": -14.5,
+    "total": 229.5,
+    "home_full": "Los Angeles Clippers",
+    "away_full": "Utah Jazz",
+    "bookmaker": "ESPN (Free)"
+  },
+  "UTAH @ LAC": {
+    "spread": -14.5,
+    "total": 229.5,
+    "home_full": "Los Angeles Clippers",
+    "away_full": "Utah Jazz",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Utah Jazz@Los Angeles Clippers": {
+    "spread": -14.5,
+    "total": 229.5,
+    "home_full": "Los Angeles Clippers",
+    "away_full": "Utah Jazz",
+    "bookmaker": "ESPN (Free)"
+  },
+  "Utah Jazz @ Los Angeles Clippers": {
+    "spread": -14.5,
+    "total": 229.5,
+    "home_full": "Los Angeles Clippers",
+    "away_full": "Utah Jazz",
+    "bookmaker": "ESPN (Free)"
+  }
+}

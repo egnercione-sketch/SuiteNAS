@@ -1,0 +1,302 @@
+{
+  "ATL": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "BOS": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "BKN": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "CHA": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "CHI": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "CLE": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "DAL": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "DEN": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "DET": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "GSW": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "HOU": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "IND": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "LAC": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "LAL": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "MEM": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "MIA": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "MIL": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "MIN": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "NOP": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "NYK": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "OKC": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "ORL": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "PHI": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "PHX": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "POR": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "SAC": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "SAS": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "TOR": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "UTA": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  },
+  "WAS": {
+    "pace": 100.0,
+    "def_reb_rank": 15,
+    "def_ast_rank": 15,
+    "def_3pt_rank": 15,
+    "blk_rate": 4.0,
+    "stl_rate": 7.0,
+    "off_rating": 110.0,
+    "def_rating": 110.0
+  }
+}

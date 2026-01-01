@@ -1,0 +1,86 @@
+[
+  {
+    "id": "401810193",
+    "away": "LAL",
+    "home": "BOS",
+    "time": "2025-12-06T00:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810194",
+    "away": "MIA",
+    "home": "ORL",
+    "time": "2025-12-06T00:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810195",
+    "away": "DEN",
+    "home": "ATL",
+    "time": "2025-12-06T00:30Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810196",
+    "away": "SA",
+    "home": "CLE",
+    "time": "2025-12-06T00:30Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810197",
+    "away": "POR",
+    "home": "DET",
+    "time": "2025-12-06T00:30Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810198",
+    "away": "UTAH",
+    "home": "NY",
+    "time": "2025-12-06T00:30Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810199",
+    "away": "CHA",
+    "home": "TOR",
+    "time": "2025-12-06T00:30Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810200",
+    "away": "IND",
+    "home": "CHI",
+    "time": "2025-12-06T01:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810201",
+    "away": "PHX",
+    "home": "HOU",
+    "time": "2025-12-06T01:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810202",
+    "away": "LAC",
+    "home": "MEM",
+    "time": "2025-12-06T01:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810203",
+    "away": "PHI",
+    "home": "MIL",
+    "time": "2025-12-06T01:00Z",
+    "status": "Scheduled"
+  },
+  {
+    "id": "401810204",
+    "away": "DAL",
+    "home": "OKC",
+    "time": "2025-12-06T02:30Z",
+    "status": "Scheduled"
+  }
+]

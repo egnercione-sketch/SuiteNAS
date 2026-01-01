@@ -1,0 +1,205 @@
+{
+  "ATL": {
+    "PACE": 103.09,
+    "OFF_RATING": 115.0,
+    "DEF_RATING": 115.8,
+    "NET_RATING": -0.7,
+    "TS_PCT": 0.594
+  },
+  "BOS": {
+    "PACE": 96.72,
+    "OFF_RATING": 121.1,
+    "DEF_RATING": 114.3,
+    "NET_RATING": 6.7,
+    "TS_PCT": 0.588
+  },
+  "BRO": {
+    "PACE": 97.9,
+    "OFF_RATING": 112.3,
+    "DEF_RATING": 116.1,
+    "NET_RATING": -3.8,
+    "TS_PCT": 0.574
+  },
+  "CHA": {
+    "PACE": 99.71,
+    "OFF_RATING": 115.1,
+    "DEF_RATING": 118.1,
+    "NET_RATING": -3.0,
+    "TS_PCT": 0.579
+  },
+  "CHI": {
+    "PACE": 103.69,
+    "OFF_RATING": 113.6,
+    "DEF_RATING": 117.4,
+    "NET_RATING": -3.8,
+    "TS_PCT": 0.586
+  },
+  "CLE": {
+    "PACE": 102.26,
+    "OFF_RATING": 116.3,
+    "DEF_RATING": 113.9,
+    "NET_RATING": 2.4,
+    "TS_PCT": 0.579
+  },
+  "DAL": {
+    "PACE": 102.32,
+    "OFF_RATING": 109.6,
+    "DEF_RATING": 113.2,
+    "NET_RATING": -3.6,
+    "TS_PCT": 0.567
+  },
+  "DEN": {
+    "PACE": 100.41,
+    "OFF_RATING": 123.5,
+    "DEF_RATING": 116.4,
+    "NET_RATING": 7.1,
+    "TS_PCT": 0.629
+  },
+  "DET": {
+    "PACE": 101.06,
+    "OFF_RATING": 117.2,
+    "DEF_RATING": 110.7,
+    "NET_RATING": 6.6,
+    "TS_PCT": 0.58
+  },
+  "GOL": {
+    "PACE": 100.69,
+    "OFF_RATING": 114.3,
+    "DEF_RATING": 111.8,
+    "NET_RATING": 2.5,
+    "TS_PCT": 0.587
+  },
+  "HOU": {
+    "PACE": 97.19,
+    "OFF_RATING": 121.5,
+    "DEF_RATING": 112.9,
+    "NET_RATING": 8.6,
+    "TS_PCT": 0.594
+  },
+  "IND": {
+    "PACE": 101.44,
+    "OFF_RATING": 107.9,
+    "DEF_RATING": 116.7,
+    "NET_RATING": -8.8,
+    "TS_PCT": 0.545
+  },
+  "LA ": {
+    "PACE": 96.76,
+    "OFF_RATING": 115.1,
+    "DEF_RATING": 117.0,
+    "NET_RATING": -1.9,
+    "TS_PCT": 0.599
+  },
+  "LOS": {
+    "PACE": 99.66,
+    "OFF_RATING": 117.1,
+    "DEF_RATING": 117.8,
+    "NET_RATING": -0.6,
+    "TS_PCT": 0.61
+  },
+  "MEM": {
+    "PACE": 101.84,
+    "OFF_RATING": 112.9,
+    "DEF_RATING": 113.9,
+    "NET_RATING": -0.9,
+    "TS_PCT": 0.57
+  },
+  "MIA": {
+    "PACE": 104.59,
+    "OFF_RATING": 115.1,
+    "DEF_RATING": 112.2,
+    "NET_RATING": 2.9,
+    "TS_PCT": 0.581
+  },
+  "MIL": {
+    "PACE": 99.35,
+    "OFF_RATING": 113.1,
+    "DEF_RATING": 115.9,
+    "NET_RATING": -2.8,
+    "TS_PCT": 0.597
+  },
+  "MIN": {
+    "PACE": 100.93,
+    "OFF_RATING": 116.4,
+    "DEF_RATING": 112.7,
+    "NET_RATING": 3.7,
+    "TS_PCT": 0.592
+  },
+  "NEW": {
+    "PACE": 99.55,
+    "OFF_RATING": 121.7,
+    "DEF_RATING": 115.2,
+    "NET_RATING": 6.5,
+    "TS_PCT": 0.598
+  },
+  "OKL": {
+    "PACE": 101.59,
+    "OFF_RATING": 118.8,
+    "DEF_RATING": 104.5,
+    "NET_RATING": 14.2,
+    "TS_PCT": 0.609
+  },
+  "ORL": {
+    "PACE": 101.12,
+    "OFF_RATING": 114.5,
+    "DEF_RATING": 113.1,
+    "NET_RATING": 1.5,
+    "TS_PCT": 0.574
+  },
+  "PHI": {
+    "PACE": 100.31,
+    "OFF_RATING": 114.2,
+    "DEF_RATING": 113.9,
+    "NET_RATING": 0.3,
+    "TS_PCT": 0.566
+  },
+  "PHO": {
+    "PACE": 99.97,
+    "OFF_RATING": 114.6,
+    "DEF_RATING": 113.6,
+    "NET_RATING": 1.1,
+    "TS_PCT": 0.576
+  },
+  "POR": {
+    "PACE": 102.69,
+    "OFF_RATING": 112.5,
+    "DEF_RATING": 116.3,
+    "NET_RATING": -3.9,
+    "TS_PCT": 0.565
+  },
+  "SAC": {
+    "PACE": 101.3,
+    "OFF_RATING": 108.7,
+    "DEF_RATING": 119.5,
+    "NET_RATING": -10.8,
+    "TS_PCT": 0.556
+  },
+  "SAN": {
+    "PACE": 100.94,
+    "OFF_RATING": 118.4,
+    "DEF_RATING": 112.8,
+    "NET_RATING": 5.5,
+    "TS_PCT": 0.598
+  },
+  "TOR": {
+    "PACE": 99.49,
+    "OFF_RATING": 113.7,
+    "DEF_RATING": 112.5,
+    "NET_RATING": 1.2,
+    "TS_PCT": 0.572
+  },
+  "UTA": {
+    "PACE": 102.98,
+    "OFF_RATING": 115.1,
+    "DEF_RATING": 121.5,
+    "NET_RATING": -6.4,
+    "TS_PCT": 0.584
+  },
+  "WAS": {
+    "PACE": 101.92,
+    "OFF_RATING": 110.2,
+    "DEF_RATING": 121.7,
+    "NET_RATING": -11.5,
+    "TS_PCT": 0.565
+  }
+}

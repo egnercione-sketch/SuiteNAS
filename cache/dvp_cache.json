@@ -1,0 +1,719 @@
+{
+  "data": {
+    "SAC": {
+      "points_allowed_pg": {
+        "PG": 16.6,
+        "SG": 14.7,
+        "SF": 11.2,
+        "PF": 9.4,
+        "C": 4.1
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.8,
+        "SG": 2.0,
+        "SF": 2.2,
+        "PF": 4.0,
+        "C": 8.0
+      },
+      "assists_allowed_pg": {
+        "PG": 4.4,
+        "SG": 1.8,
+        "SF": 0.8,
+        "PF": 0.7,
+        "C": 0.4
+      }
+    },
+    "HOU": {
+      "points_allowed_pg": {
+        "PG": 16.6,
+        "SG": 13.1,
+        "SF": 12.5,
+        "PF": 9.7,
+        "C": 5.2
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.2,
+        "SG": 4.4,
+        "SF": 5.3,
+        "PF": 6.0,
+        "C": 8.4
+      },
+      "assists_allowed_pg": {
+        "PG": 4.5,
+        "SG": 1.9,
+        "SF": 1.0,
+        "PF": 0.8,
+        "C": 0.5
+      }
+    },
+    "MIA": {
+      "points_allowed_pg": {
+        "PG": 18.3,
+        "SG": 10.4,
+        "SF": 8.6,
+        "PF": 6.6,
+        "C": 5.7
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.9,
+        "SG": 2.6,
+        "SF": 2.8,
+        "PF": 4.1,
+        "C": 7.6
+      },
+      "assists_allowed_pg": {
+        "PG": 3.5,
+        "SG": 2.4,
+        "SF": 1.5,
+        "PF": 0.9,
+        "C": 0.5
+      }
+    },
+    "TOR": {
+      "points_allowed_pg": {
+        "PG": 16.7,
+        "SG": 9.7,
+        "SF": 7.4,
+        "PF": 6.8,
+        "C": 5.3
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.6,
+        "SG": 2.0,
+        "SF": 3.2,
+        "PF": 4.5,
+        "C": 6.4
+      },
+      "assists_allowed_pg": {
+        "PG": 4.9,
+        "SG": 1.6,
+        "SF": 0.8,
+        "PF": 0.4,
+        "C": 0.3
+      }
+    },
+    "MEM": {
+      "points_allowed_pg": {
+        "PG": 15.3,
+        "SG": 14.5,
+        "SF": 12.2,
+        "PF": 9.3,
+        "C": 7.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.4,
+        "SG": 2.7,
+        "SF": 3.2,
+        "PF": 4.5,
+        "C": 5.8
+      },
+      "assists_allowed_pg": {
+        "PG": 5.2,
+        "SG": 2.1,
+        "SF": 1.3,
+        "PF": 1.2,
+        "C": 1.0
+      }
+    },
+    "NOP": {
+      "points_allowed_pg": {
+        "PG": 17.4,
+        "SG": 14.5,
+        "SF": 11.1,
+        "PF": 8.0,
+        "C": 7.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 3.1,
+        "SG": 3.5,
+        "SF": 4.0,
+        "PF": 4.5,
+        "C": 7.8
+      },
+      "assists_allowed_pg": {
+        "PG": 3.8,
+        "SG": 2.4,
+        "SF": 1.4,
+        "PF": 1.3,
+        "C": 1.2
+      }
+    },
+    "ATL": {
+      "points_allowed_pg": {
+        "PG": 18.5,
+        "SG": 14.5,
+        "SF": 11.0,
+        "PF": 8.4,
+        "C": 5.9
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.8,
+        "SG": 1.9,
+        "SF": 2.4,
+        "PF": 4.0,
+        "C": 7.3
+      },
+      "assists_allowed_pg": {
+        "PG": 7.2,
+        "SG": 3.2,
+        "SF": 1.4,
+        "PF": 0.5,
+        "C": 0.4
+      }
+    },
+    "PHX": {
+      "points_allowed_pg": {
+        "PG": 18.6,
+        "SG": 14.8,
+        "SF": 10.6,
+        "PF": 8.3,
+        "C": 5.6
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.9,
+        "SG": 2.6,
+        "SF": 2.8,
+        "PF": 4.0,
+        "C": 5.3
+      },
+      "assists_allowed_pg": {
+        "PG": 4.0,
+        "SG": 2.0,
+        "SF": 1.2,
+        "PF": 0.7,
+        "C": 0.2
+      }
+    },
+    "CLE": {
+      "points_allowed_pg": {
+        "PG": 14.0,
+        "SG": 12.6,
+        "SF": 10.0,
+        "PF": 7.8,
+        "C": 6.0
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.6,
+        "SG": 2.6,
+        "SF": 3.3,
+        "PF": 5.2,
+        "C": 7.5
+      },
+      "assists_allowed_pg": {
+        "PG": 5.5,
+        "SG": 2.0,
+        "SF": 1.6,
+        "PF": 1.3,
+        "C": 1.0
+      }
+    },
+    "MIL": {
+      "points_allowed_pg": {
+        "PG": 15.0,
+        "SG": 12.1,
+        "SF": 8.6,
+        "PF": 5.4,
+        "C": 5.3
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.2,
+        "SG": 1.2,
+        "SF": 2.4,
+        "PF": 4.0,
+        "C": 6.5
+      },
+      "assists_allowed_pg": {
+        "PG": 4.8,
+        "SG": 1.9,
+        "SF": 1.5,
+        "PF": 0.7,
+        "C": 0.4
+      }
+    },
+    "NYK": {
+      "points_allowed_pg": {
+        "PG": 16.0,
+        "SG": 14.2,
+        "SF": 10.9,
+        "PF": 5.6,
+        "C": 3.6
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.5,
+        "SG": 2.0,
+        "SF": 2.2,
+        "PF": 3.3,
+        "C": 8.5
+      },
+      "assists_allowed_pg": {
+        "PG": 4.5,
+        "SG": 2.0,
+        "SF": 0.8,
+        "PF": 0.4,
+        "C": 0.2
+      }
+    },
+    "POR": {
+      "points_allowed_pg": {
+        "PG": 16.6,
+        "SG": 11.9,
+        "SF": 9.4,
+        "PF": 7.6,
+        "C": 5.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.9,
+        "SG": 2.2,
+        "SF": 3.1,
+        "PF": 5.1,
+        "C": 8.3
+      },
+      "assists_allowed_pg": {
+        "PG": 5.7,
+        "SG": 2.0,
+        "SF": 1.0,
+        "PF": 0.9,
+        "C": 0.8
+      }
+    },
+    "LAL": {
+      "points_allowed_pg": {
+        "PG": 14.0,
+        "SG": 9.3,
+        "SF": 7.6,
+        "PF": 6.6,
+        "C": 5.4
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.3,
+        "SG": 1.6,
+        "SF": 2.9,
+        "PF": 4.1,
+        "C": 7.1
+      },
+      "assists_allowed_pg": {
+        "PG": 6.7,
+        "SG": 1.2,
+        "SF": 0.8,
+        "PF": 0.7,
+        "C": 0.4
+      }
+    },
+    "WAS": {
+      "points_allowed_pg": {
+        "PG": 11.2,
+        "SG": 10.8,
+        "SF": 10.4,
+        "PF": 7.4,
+        "C": 7.1
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.9,
+        "SG": 2.6,
+        "SF": 2.7,
+        "PF": 3.7,
+        "C": 6.0
+      },
+      "assists_allowed_pg": {
+        "PG": 4.0,
+        "SG": 1.6,
+        "SF": 1.2,
+        "PF": 0.8,
+        "C": 0.6
+      }
+    },
+    "UTA": {
+      "points_allowed_pg": {
+        "PG": 13.0,
+        "SG": 11.4,
+        "SF": 9.9,
+        "PF": 8.6,
+        "C": 8.2
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.6,
+        "SG": 2.8,
+        "SF": 3.0,
+        "PF": 4.7,
+        "C": 8.1
+      },
+      "assists_allowed_pg": {
+        "PG": 4.3,
+        "SG": 3.0,
+        "SF": 1.5,
+        "PF": 1.2,
+        "C": 0.9
+      }
+    },
+    "SAS": {
+      "points_allowed_pg": {
+        "PG": 14.9,
+        "SG": 13.2,
+        "SF": 12.5,
+        "PF": 6.4,
+        "C": 4.4
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.3,
+        "SG": 1.8,
+        "SF": 2.9,
+        "PF": 4.4,
+        "C": 6.5
+      },
+      "assists_allowed_pg": {
+        "PG": 5.6,
+        "SG": 1.9,
+        "SF": 1.2,
+        "PF": 0.5,
+        "C": 0.4
+      }
+    },
+    "ORL": {
+      "points_allowed_pg": {
+        "PG": 17.0,
+        "SG": 14.1,
+        "SF": 10.4,
+        "PF": 7.6,
+        "C": 6.6
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.5,
+        "SG": 3.6,
+        "SF": 3.8,
+        "PF": 5.0,
+        "C": 6.5
+      },
+      "assists_allowed_pg": {
+        "PG": 4.2,
+        "SG": 2.1,
+        "SF": 1.2,
+        "PF": 0.9,
+        "C": 0.8
+      }
+    },
+    "LAC": {
+      "points_allowed_pg": {
+        "PG": 13.2,
+        "SG": 11.3,
+        "SF": 9.0,
+        "PF": 8.5,
+        "C": 5.9
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.9,
+        "SG": 2.2,
+        "SF": 2.4,
+        "PF": 3.1,
+        "C": 6.0
+      },
+      "assists_allowed_pg": {
+        "PG": 3.6,
+        "SG": 2.0,
+        "SF": 1.3,
+        "PF": 1.0,
+        "C": 0.8
+      }
+    },
+    "PHI": {
+      "points_allowed_pg": {
+        "PG": 14.0,
+        "SG": 12.4,
+        "SF": 10.6,
+        "PF": 8.8,
+        "C": 6.3
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.5,
+        "SG": 4.1,
+        "SF": 4.4,
+        "PF": 4.8,
+        "C": 5.9
+      },
+      "assists_allowed_pg": {
+        "PG": 4.6,
+        "SG": 2.5,
+        "SF": 1.4,
+        "PF": 0.8,
+        "C": 0.8
+      }
+    },
+    "BOS": {
+      "points_allowed_pg": {
+        "PG": 13.6,
+        "SG": 12.0,
+        "SF": 10.1,
+        "PF": 6.6,
+        "C": 4.3
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.8,
+        "SG": 1.9,
+        "SF": 2.8,
+        "PF": 4.3,
+        "C": 6.7
+      },
+      "assists_allowed_pg": {
+        "PG": 5.3,
+        "SG": 1.2,
+        "SF": 0.9,
+        "PF": 0.8,
+        "C": 0.4
+      }
+    },
+    "IND": {
+      "points_allowed_pg": {
+        "PG": 14.9,
+        "SG": 13.6,
+        "SF": 11.4,
+        "PF": 10.8,
+        "C": 8.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 3.2,
+        "SG": 3.4,
+        "SF": 4.4,
+        "PF": 4.8,
+        "C": 6.1
+      },
+      "assists_allowed_pg": {
+        "PG": 4.7,
+        "SG": 2.1,
+        "SF": 1.4,
+        "PF": 0.9,
+        "C": 0.4
+      }
+    },
+    "CHA": {
+      "points_allowed_pg": {
+        "PG": 15.2,
+        "SG": 10.3,
+        "SF": 7.0,
+        "PF": 5.4,
+        "C": 5.3
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.8,
+        "SG": 2.4,
+        "SF": 2.6,
+        "PF": 4.0,
+        "C": 5.4
+      },
+      "assists_allowed_pg": {
+        "PG": 3.5,
+        "SG": 1.6,
+        "SF": 1.0,
+        "PF": 0.6,
+        "C": 0.5
+      }
+    },
+    "DEN": {
+      "points_allowed_pg": {
+        "PG": 15.6,
+        "SG": 13.6,
+        "SF": 10.8,
+        "PF": 9.1,
+        "C": 7.4
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.5,
+        "SG": 2.0,
+        "SF": 3.6,
+        "PF": 4.4,
+        "C": 6.3
+      },
+      "assists_allowed_pg": {
+        "PG": 5.0,
+        "SG": 2.0,
+        "SF": 0.8,
+        "PF": 0.5,
+        "C": 0.2
+      }
+    },
+    "GSW": {
+      "points_allowed_pg": {
+        "PG": 12.1,
+        "SG": 10.9,
+        "SF": 9.6,
+        "PF": 8.2,
+        "C": 8.1
+      },
+      "rebounds_allowed_pg": {
+        "PG": 4.0,
+        "SG": 4.0,
+        "SF": 4.2,
+        "PF": 4.6,
+        "C": 5.5
+      },
+      "assists_allowed_pg": {
+        "PG": 4.6,
+        "SG": 2.9,
+        "SF": 2.0,
+        "PF": 1.8,
+        "C": 1.0
+      }
+    },
+    "DAL": {
+      "points_allowed_pg": {
+        "PG": 15.8,
+        "SG": 14.8,
+        "SF": 10.4,
+        "PF": 9.9,
+        "C": 6.2
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.1,
+        "SG": 2.4,
+        "SF": 2.7,
+        "PF": 5.7,
+        "C": 8.0
+      },
+      "assists_allowed_pg": {
+        "PG": 4.5,
+        "SG": 2.2,
+        "SF": 1.4,
+        "PF": 1.1,
+        "C": 0.8
+      }
+    },
+    "MIN": {
+      "points_allowed_pg": {
+        "PG": 14.8,
+        "SG": 13.0,
+        "SF": 9.9,
+        "PF": 5.2,
+        "C": 3.7
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.0,
+        "SG": 1.3,
+        "SF": 1.4,
+        "PF": 4.7,
+        "C": 6.6
+      },
+      "assists_allowed_pg": {
+        "PG": 4.6,
+        "SG": 2.5,
+        "SF": 0.9,
+        "PF": 0.6,
+        "C": 0.5
+      }
+    },
+    "BKN": {
+      "points_allowed_pg": {
+        "PG": 12.8,
+        "SG": 11.2,
+        "SF": 10.6,
+        "PF": 7.1,
+        "C": 6.2
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.2,
+        "SG": 1.2,
+        "SF": 3.0,
+        "PF": 3.9,
+        "C": 6.4
+      },
+      "assists_allowed_pg": {
+        "PG": 3.3,
+        "SG": 2.6,
+        "SF": 1.8,
+        "PF": 1.4,
+        "C": 1.0
+      }
+    },
+    "DET": {
+      "points_allowed_pg": {
+        "PG": 11.8,
+        "SG": 10.0,
+        "SF": 7.8,
+        "PF": 6.8,
+        "C": 5.7
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.8,
+        "SG": 2.3,
+        "SF": 2.5,
+        "PF": 4.9,
+        "C": 7.6
+      },
+      "assists_allowed_pg": {
+        "PG": 2.8,
+        "SG": 1.6,
+        "SF": 1.0,
+        "PF": 0.8,
+        "C": 0.6
+      }
+    },
+    "CHI": {
+      "points_allowed_pg": {
+        "PG": 14.6,
+        "SG": 13.5,
+        "SF": 8.9,
+        "PF": 7.8,
+        "C": 5.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.4,
+        "SG": 2.4,
+        "SF": 2.7,
+        "PF": 3.9,
+        "C": 7.9
+      },
+      "assists_allowed_pg": {
+        "PG": 4.8,
+        "SG": 1.8,
+        "SF": 1.0,
+        "PF": 1.0,
+        "C": 0.7
+      }
+    },
+    "OKC": {
+      "points_allowed_pg": {
+        "PG": 13.2,
+        "SG": 11.4,
+        "SF": 9.8,
+        "PF": 7.4,
+        "C": 7.2
+      },
+      "rebounds_allowed_pg": {
+        "PG": 2.4,
+        "SG": 2.6,
+        "SF": 2.8,
+        "PF": 3.9,
+        "C": 7.1
+      },
+      "assists_allowed_pg": {
+        "PG": 5.1,
+        "SG": 2.2,
+        "SF": 2.0,
+        "PF": 1.3,
+        "C": 1.2
+      }
+    },
+    "": {
+      "points_allowed_pg": {
+        "PG": 3.7,
+        "SG": 3.3,
+        "SF": 2.8,
+        "PF": 2.0,
+        "C": 1.8
+      },
+      "rebounds_allowed_pg": {
+        "PG": 1.1,
+        "SG": 1.2,
+        "SF": 1.3,
+        "PF": 3.8,
+        "C": 4.7
+      },
+      "assists_allowed_pg": {
+        "PG": 1.8,
+        "SG": 0.5,
+        "SF": 0.3,
+        "PF": 0.1,
+        "C": 0.0
+      }
+    }
+  },
+  "last_updated": "2025-12-15T10:46:25.328659",
+  "source": "NBA.com / Basketball Reference"
+}

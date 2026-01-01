@@ -1,0 +1,3081 @@
+[
+  {
+    "id": "20251231_025213_4c38daf9",
+    "created_at": "2025-12-31T02:52:13.995671",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "9+ PTS",
+        "market_type": "PTS",
+        "line": 9.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 18.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025214_31968212",
+    "created_at": "2025-12-31T02:52:14.736738",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "2+ 3PM",
+        "market_type": "3PM",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "11+ PTS",
+        "market_type": "PTS",
+        "line": 11.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 27.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025216_9a3f1c99",
+    "created_at": "2025-12-31T02:52:16.419839",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "23+ PTS",
+        "market_type": "PTS",
+        "line": 23.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 23.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025217_092d4b77",
+    "created_at": "2025-12-31T02:52:17.086654",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "18+ PTS",
+        "market_type": "PTS",
+        "line": 18.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 37.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "4+ AST",
+        "market_type": "AST",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025217_dfac1117",
+    "created_at": "2025-12-31T02:52:17.857460",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Isaiah Collier",
+        "team": "UTA",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 8.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025220_7648f4e4",
+    "created_at": "2025-12-31T02:52:20.140952",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "18+ PTS",
+        "market_type": "PTS",
+        "line": 18.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 22.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "4+ REB",
+        "market_type": "REB",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 9.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025226_69687d88",
+    "created_at": "2025-12-31T02:52:26.395985",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "20+ PTS",
+        "market_type": "PTS",
+        "line": 20.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 30.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "4+ REB",
+        "market_type": "REB",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025230_694e161b",
+    "created_at": "2025-12-31T02:52:30.235264",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "DeMar DeRozan",
+        "team": "SAC",
+        "market_display": "9+ PTS",
+        "market_type": "PTS",
+        "line": 9.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "LOSS",
+        "actual_value": 8.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "DeMar DeRozan",
+        "team": "SAC",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025231_15a88eeb",
+    "created_at": "2025-12-31T02:52:31.061585",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_display": "7+ PTS",
+        "market_type": "PTS",
+        "line": 7.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 12.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_display": "4+ AST",
+        "market_type": "AST",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_display": "0+ 3PM",
+        "market_type": "3PM",
+        "line": 0.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025232_afc20191",
+    "created_at": "2025-12-31T02:52:32.662764",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "2+ 3PM",
+        "market_type": "3PM",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "21+ PTS",
+        "market_type": "PTS",
+        "line": 21.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 34.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "4+ AST",
+        "market_type": "AST",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 12.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025233_167ea39b",
+    "created_at": "2025-12-31T02:52:33.471022",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaylen Wells",
+        "team": "MEM",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 14.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jaylen Wells",
+        "team": "MEM",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025234_35db93d7",
+    "created_at": "2025-12-31T02:52:34.649684",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaren Jackson Jr.",
+        "team": "MEM",
+        "market_display": "11+ PTS",
+        "market_type": "PTS",
+        "line": 11.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 15.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jaren Jackson Jr.",
+        "team": "MEM",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 12.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jaren Jackson Jr.",
+        "team": "MEM",
+        "market_display": "0+ 3PM",
+        "market_type": "3PM",
+        "line": 0.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025237_de411829",
+    "created_at": "2025-12-31T02:52:37.061296",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "7+ PTS",
+        "market_type": "PTS",
+        "line": 7.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025237_bcb7b4fe",
+    "created_at": "2025-12-31T02:52:37.773212",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "VJ Edgecombe",
+        "team": "PHI",
+        "market_display": "9+ PTS",
+        "market_type": "PTS",
+        "line": 9.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 25.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "VJ Edgecombe",
+        "team": "PHI",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "VJ Edgecombe",
+        "team": "PHI",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "VJ Edgecombe",
+        "team": "PHI",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025246_4ec4c777",
+    "created_at": "2025-12-31T02:52:46.402928",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Cade Cunningham",
+        "team": "DET",
+        "market_display": "14+ PTS",
+        "market_type": "PTS",
+        "line": 14.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 24.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Cade Cunningham",
+        "team": "DET",
+        "market_display": "5+ AST",
+        "market_type": "AST",
+        "line": 5.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Cade Cunningham",
+        "team": "DET",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025247_a330c68a",
+    "created_at": "2025-12-31T02:52:47.670458",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jalen Duren",
+        "team": "DET",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 8.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025248_7798bf64",
+    "created_at": "2025-12-31T02:52:48.302118",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "LeBron James",
+        "team": "LAL",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 17.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "LeBron James",
+        "team": "LAL",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025250_afc20191",
+    "created_at": "2025-12-31T02:52:50.326503",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "12+ PTS",
+        "market_type": "PTS",
+        "line": 12.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 34.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 12.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025250_6cbeb0df",
+    "created_at": "2025-12-31T02:52:50.881435",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Joel Embiid",
+        "team": "PHI",
+        "market_display": "12+ PTS",
+        "market_type": "PTS",
+        "line": 12.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 34.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Joel Embiid",
+        "team": "PHI",
+        "market_display": "4+ REB",
+        "market_type": "REB",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025251_85a36080",
+    "created_at": "2025-12-31T02:52:51.367335",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Cedric Coward",
+        "team": "MEM",
+        "market_display": "11+ PTS",
+        "market_type": "PTS",
+        "line": 11.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 28.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cedric Coward",
+        "team": "MEM",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025251_9aeecd2d",
+    "created_at": "2025-12-31T02:52:51.917890",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Ja Morant",
+        "team": "MEM",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025252_de411829",
+    "created_at": "2025-12-31T02:52:52.315335",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025252_1b2cd711",
+    "created_at": "2025-12-31T02:52:52.711548",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Paul George",
+        "team": "PHI",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Paul George",
+        "team": "PHI",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025253_bcb7b4fe",
+    "created_at": "2025-12-31T02:52:53.364773",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "VJ Edgecombe",
+        "team": "PHI",
+        "market_display": "10+ PTS",
+        "market_type": "PTS",
+        "line": 10.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 25.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025253_35db93d7",
+    "created_at": "2025-12-31T02:52:53.987353",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaren Jackson Jr.",
+        "team": "MEM",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 12.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025255_9a3f1c99",
+    "created_at": "2025-12-31T02:52:55.996845",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.84,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "12+ PTS",
+        "market_type": "PTS",
+        "line": 12.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 23.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Jaylen Brown",
+        "team": "BOS",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025256_7648f4e4",
+    "created_at": "2025-12-31T02:52:56.479955",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "12+ PTS",
+        "market_type": "PTS",
+        "line": 12.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 22.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "4+ REB",
+        "market_type": "REB",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 9.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Lauri Markkanen",
+        "team": "UTA",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025257_4c38daf9",
+    "created_at": "2025-12-31T02:52:57.020399",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "9+ PTS",
+        "market_type": "PTS",
+        "line": 9.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 18.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025257_31968212",
+    "created_at": "2025-12-31T02:52:57.910046",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "11+ PTS",
+        "market_type": "PTS",
+        "line": 11.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 27.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025258_092d4b77",
+    "created_at": "2025-12-31T02:52:58.460720",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 37.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Keyonte George",
+        "team": "UTA",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025301_58c45441",
+    "created_at": "2025-12-31T02:53:01.824150",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_display": "11+ PTS",
+        "market_type": "PTS",
+        "line": 11.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 21.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025302_69687d88",
+    "created_at": "2025-12-31T02:53:02.240377",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "18+ PTS",
+        "market_type": "PTS",
+        "line": 18.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 30.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kawhi Leonard",
+        "team": "LAC",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025303_831c65c6",
+    "created_at": "2025-12-31T02:53:03.833866",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Maxime Raynaud",
+        "team": "SAC",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Maxime Raynaud",
+        "team": "SAC",
+        "market_display": "6+ REB",
+        "market_type": "REB",
+        "line": 6.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025304_694e161b",
+    "created_at": "2025-12-31T02:53:04.235669",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.96,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "DeMar DeRozan",
+        "team": "SAC",
+        "market_display": "9+ PTS",
+        "market_type": "PTS",
+        "line": 9.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "LOSS",
+        "actual_value": 8.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "DeMar DeRozan",
+        "team": "SAC",
+        "market_display": "3+ REB",
+        "market_type": "REB",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025304_15a88eeb",
+    "created_at": "2025-12-31T02:53:04.863934",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_display": "3+ AST",
+        "market_type": "AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025305_20ce1ec0",
+    "created_at": "2025-12-31T02:53:05.348880",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "John Collins",
+        "team": "LAC",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 16.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025305_5f0ab945",
+    "created_at": "2025-12-31T02:53:05.842976",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Kris Dunn",
+        "team": "LAC",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "LOSS",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025306_4e841359",
+    "created_at": "2025-12-31T02:53:06.981589",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "SGP_LAB",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 1.4,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Nicolas Batum",
+        "team": "LAC",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab Elite",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025310_5f0ab945",
+    "created_at": "2025-12-31T02:53:10.708438",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.25,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Kris Dunn",
+        "team": "LAC",
+        "market_display": "2+ AST",
+        "market_type": "AST",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Kris Dunn",
+        "team": "LAC",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025311_20ce1ec0",
+    "created_at": "2025-12-31T02:53:11.334545",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "John Collins",
+        "team": "LAC",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 16.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "John Collins",
+        "team": "LAC",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "John Collins",
+        "team": "LAC",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025311_831c65c6",
+    "created_at": "2025-12-31T02:53:11.895441",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Maxime Raynaud",
+        "team": "SAC",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 10.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Maxime Raynaud",
+        "team": "SAC",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Maxime Raynaud",
+        "team": "SAC",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 0.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025312_24c42c0a",
+    "created_at": "2025-12-31T02:53:12.295068",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Keegan Murray",
+        "team": "SAC",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 11.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Keegan Murray",
+        "team": "SAC",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Keegan Murray",
+        "team": "SAC",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025312_024e3d95",
+    "created_at": "2025-12-31T02:53:12.859608",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAC",
+      "away": "SAC",
+      "game_id": "401810316"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Dennis Schröder",
+        "team": "SAC",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Dennis Schröder",
+        "team": "SAC",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 0,
+        "game_id": "401810316"
+      },
+      {
+        "player_name": "Dennis Schröder",
+        "team": "SAC",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 0,
+        "game_id": "401810316"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025314_85a36080",
+    "created_at": "2025-12-31T02:53:14.120024",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 100.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Cedric Coward",
+        "team": "MEM",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 28.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cedric Coward",
+        "team": "MEM",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 16.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cedric Coward",
+        "team": "MEM",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025315_de411829",
+    "created_at": "2025-12-31T02:53:15.173778",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 3.38,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "LOSS",
+        "actual_value": 1.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Cam Spencer",
+        "team": "MEM",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 5.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025315_ac705add",
+    "created_at": "2025-12-31T02:53:15.852578",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Quentin Grimes",
+        "team": "PHI",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 11.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Quentin Grimes",
+        "team": "PHI",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Quentin Grimes",
+        "team": "PHI",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025316_c4ca62b2",
+    "created_at": "2025-12-31T02:53:16.342846",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jock Landale",
+        "team": "MEM",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jock Landale",
+        "team": "MEM",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jock Landale",
+        "team": "MEM",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025316_167ea39b",
+    "created_at": "2025-12-31T02:53:16.893796",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "MEM",
+      "away": "PHI",
+      "game_id": "401810313"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Jaylen Wells",
+        "team": "MEM",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 14.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jaylen Wells",
+        "team": "MEM",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810313"
+      },
+      {
+        "player_name": "Jaylen Wells",
+        "team": "MEM",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810313"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025319_e88233b2",
+    "created_at": "2025-12-31T02:53:19.185463",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UTA",
+      "away": "BOS",
+      "game_id": "401810314"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 90.0,
+    "total_odd": 2.25,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Anfernee Simons",
+        "team": "BOS",
+        "market_display": "6+ PTS",
+        "market_type": "PTS",
+        "line": 6.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 20.0,
+        "game_id": "401810314"
+      },
+      {
+        "player_name": "Anfernee Simons",
+        "team": "BOS",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810314"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025321_ecbb3c46",
+    "created_at": "2025-12-31T02:53:21.558389",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 2.25,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Duncan Robinson",
+        "team": "DET",
+        "market_display": "6+ PTS",
+        "market_type": "PTS",
+        "line": 6.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Duncan Robinson",
+        "team": "DET",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 1.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025322_99924157",
+    "created_at": "2025-12-31T02:53:22.179720",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Marcus Smart",
+        "team": "LAL",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 6.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Marcus Smart",
+        "team": "LAL",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Marcus Smart",
+        "team": "LAL",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 4.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_025322_012091a8",
+    "created_at": "2025-12-31T02:53:22.706797",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "LAL",
+      "away": "DET",
+      "game_id": "401810315"
+    },
+    "category": "TRIDENT",
+    "source": "HIT_PROP_HUNTER_V38",
+    "score_confidence": 80.0,
+    "total_odd": 3.38,
+    "status": "WIN",
+    "legs": [
+      {
+        "player_name": "Ausar Thompson",
+        "team": "DET",
+        "market_display": "4+ PTS",
+        "market_type": "PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Ausar Thompson",
+        "team": "DET",
+        "market_display": "2+ REB",
+        "market_type": "REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 2.0,
+        "game_id": "401810315"
+      },
+      {
+        "player_name": "Ausar Thompson",
+        "team": "DET",
+        "market_display": "1+ AST",
+        "market_type": "AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "WIN",
+        "actual_value": 3.0,
+        "game_id": "401810315"
+      }
+    ]
+  },
+  {
+    "id": "20251231_115557_fce2fba3",
+    "created_at": "2025-12-31T11:55:57.041446",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "ATL",
+      "away": "MIN",
+      "game_id": "401810318"
+    },
+    "category": "STAIRWAY_COMBO",
+    "source": "HIT_PROP_HUNTER_V43",
+    "score_confidence": 90.0,
+    "total_odd": 2.74,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Naz Reid",
+        "team": "MIN",
+        "market_display": "1+ 3PM",
+        "market_type": "3PM",
+        "line": 1.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "LOSS",
+        "actual_value": 0.0,
+        "game_id": "401810318"
+      },
+      {
+        "player_name": "Naz Reid",
+        "team": "MIN",
+        "market_display": "8+ PTS",
+        "market_type": "PTS",
+        "line": 8.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "LOSS",
+        "actual_value": 6.0,
+        "game_id": "401810318"
+      },
+      {
+        "player_name": "Naz Reid",
+        "team": "MIN",
+        "market_display": "4+ REB",
+        "market_type": "REB",
+        "line": 4.0,
+        "odds": 1.4,
+        "thesis": "Stairway SAFE Combo",
+        "status": "WIN",
+        "actual_value": 7.0,
+        "game_id": "401810318"
+      }
+    ]
+  },
+  {
+    "id": "20251231_145505_998f18c5",
+    "created_at": "2025-12-31T14:55:05.418288",
+    "date": "2025-12-31",
+    "game_info": {
+      "home": "UNK",
+      "away": "UNK",
+      "game_id": "401810322"
+    },
+    "category": "MATRIX_COVERAGE",
+    "source": "HIT_PROP_HUNTER_V45",
+    "score_confidence": 90.0,
+    "total_odd": 15.0,
+    "status": "LOSS",
+    "legs": [
+      {
+        "player_name": "Victor Wembanyama",
+        "team": "SAS",
+        "market_display": "22+ PTS",
+        "market_type": "PTS",
+        "line": 22.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "WIN",
+        "actual_value": 31.0,
+        "game_id": "401810322"
+      },
+      {
+        "player_name": "Victor Wembanyama",
+        "team": "SAS",
+        "market_display": "11+ REB",
+        "market_type": "REB",
+        "line": 11.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "WIN",
+        "actual_value": 13.0,
+        "game_id": "401810322"
+      },
+      {
+        "player_name": "Shaedon Sharpe",
+        "team": "POR",
+        "market_display": "23+ PTS",
+        "market_type": "PTS",
+        "line": 23.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "LOSS",
+        "actual_value": 14.0,
+        "game_id": "401810325"
+      },
+      {
+        "player_name": "Shaedon Sharpe",
+        "team": "POR",
+        "market_display": "2+ 3PM",
+        "market_type": "3PM",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "LOSS",
+        "actual_value": 0.0,
+        "game_id": "401810325"
+      },
+      {
+        "player_name": "Jamal Murray",
+        "team": "DEN",
+        "market_display": "27+ PTS",
+        "market_type": "PTS",
+        "line": 27.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "LOSS",
+        "actual_value": 21.0,
+        "game_id": "401810323"
+      },
+      {
+        "player_name": "Jamal Murray",
+        "team": "DEN",
+        "market_display": "3+ 3PM",
+        "market_type": "3PM",
+        "line": 3.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "LOSS",
+        "actual_value": 2.0,
+        "game_id": "401810323"
+      },
+      {
+        "player_name": "Anthony Edwards",
+        "team": "MIN",
+        "market_display": "6+ REB",
+        "market_type": "REB",
+        "line": 6.0,
+        "odds": 1.5,
+        "thesis": "Matrix Coverage",
+        "status": "LOSS",
+        "actual_value": 5.0,
+        "game_id": "401810318"
+      }
+    ]
+  },
+  {
+    "id": "MATRIX_1767288798_71b339",
+    "created_at": "2026-01-01T14:33:18.744227",
+    "date": "2026-01-01",
+    "category": "STAIRWAY_COMBO",
+    "total_odd": 5.06,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "PTS",
+        "market_display": "18+ PTS",
+        "line": 18.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810330"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "REB",
+        "market_display": "2+ REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810330"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "AST",
+        "market_display": "6+ AST",
+        "line": 6.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810330"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "3PM",
+        "market_display": "1+ 3PM",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810330"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810330",
+      "home": "LAC",
+      "away": "UTAH",
+      "matchup_str": "UTAH @ LAC",
+      "multi_game": false,
+      "game_count": 1,
+      "game_ids": [
+        "401810330"
+      ]
+    },
+    "metadata": {
+      "legs_count": 4,
+      "player_count": 1,
+      "strategy": "Smart Matrix",
+      "version": "V48.0"
+    }
+  },
+  {
+    "id": "MATRIX_1767288803_9047e0",
+    "created_at": "2026-01-01T14:33:23.611453",
+    "date": "2026-01-01",
+    "category": "SGP_LAB",
+    "total_odd": 1.4,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Russell Westbrook",
+        "team": "SAC",
+        "market_type": "AST",
+        "market_display": "3+ AST",
+        "line": 3.0,
+        "odds": 1.4,
+        "thesis": "SGP Lab",
+        "status": "PENDING",
+        "game_id": "401810329"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810329",
+      "home": "SAC",
+      "away": "BOS",
+      "matchup_str": "BOS @ SAC",
+      "multi_game": false,
+      "game_count": 1,
+      "game_ids": [
+        "401810329"
+      ]
+    },
+    "metadata": {
+      "legs_count": 1,
+      "player_count": 1,
+      "strategy": "Smart Matrix",
+      "version": "V48.0"
+    }
+  },
+  {
+    "id": "MATRIX_1767288807_205d16",
+    "created_at": "2026-01-01T14:33:27.445793",
+    "date": "2026-01-01",
+    "category": "TRIDENT",
+    "total_odd": 3.38,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "PTS",
+        "market_display": "4+ PTS",
+        "line": 4.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "PENDING",
+        "game_id": "401810330"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "REB",
+        "market_display": "2+ REB",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "PENDING",
+        "game_id": "401810330"
+      },
+      {
+        "player_name": "James Harden",
+        "team": "LAC",
+        "market_type": "AST",
+        "market_display": "1+ AST",
+        "line": 1.0,
+        "odds": 1.5,
+        "thesis": "Trident",
+        "status": "PENDING",
+        "game_id": "401810330"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810330",
+      "home": "LAC",
+      "away": "UTAH",
+      "matchup_str": "UTAH @ LAC",
+      "multi_game": false,
+      "game_count": 1,
+      "game_ids": [
+        "401810330"
+      ]
+    },
+    "metadata": {
+      "legs_count": 3,
+      "player_count": 1,
+      "strategy": "Smart Matrix",
+      "version": "V48.0"
+    }
+  },
+  {
+    "id": "TKT_1767290715_69c6e2",
+    "created_at": "2026-01-01T15:05:15.122024",
+    "date": "2026-01-01",
+    "category": "STAIRWAY_COMBO",
+    "total_odd": 5.06,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Zach LaVine",
+        "team": "SAC",
+        "market_type": "PTS",
+        "market_display": "19+ PTS",
+        "line": 19.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Zach LaVine",
+        "team": "SAC",
+        "market_type": "REB",
+        "market_display": "3+ REB",
+        "line": 3.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Zach LaVine",
+        "team": "SAC",
+        "market_type": "AST",
+        "market_display": "2+ AST",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Zach LaVine",
+        "team": "SAC",
+        "market_type": "3PM",
+        "market_display": "2+ 3PM",
+        "line": 2.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810329",
+      "home": "SAC",
+      "away": "BOS",
+      "matchup_str": "BOS @ SAC"
+    }
+  },
+  {
+    "id": "TKT_1767290737_153cb0",
+    "created_at": "2026-01-01T15:05:37.201026",
+    "date": "2026-01-01",
+    "category": "STAIRWAY_COMBO",
+    "total_odd": 5.06,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_type": "PTS",
+        "market_display": "29+ PTS",
+        "line": 29.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_type": "REB",
+        "market_display": "6+ REB",
+        "line": 6.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_type": "AST",
+        "market_display": "8+ AST",
+        "line": 8.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Payton Pritchard",
+        "team": "BOS",
+        "market_type": "3PM",
+        "market_display": "5+ 3PM",
+        "line": 5.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810329",
+      "home": "SAC",
+      "away": "BOS",
+      "matchup_str": "BOS @ SAC"
+    }
+  },
+  {
+    "id": "TKT_1767290738_377bdf",
+    "created_at": "2026-01-01T15:05:38.864751",
+    "date": "2026-01-01",
+    "category": "STAIRWAY_COMBO",
+    "total_odd": 5.06,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_type": "PTS",
+        "market_display": "27+ PTS",
+        "line": 27.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_type": "REB",
+        "market_display": "7+ REB",
+        "line": 7.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_type": "AST",
+        "market_display": "8+ AST",
+        "line": 8.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      },
+      {
+        "player_name": "Derrick White",
+        "team": "BOS",
+        "market_type": "3PM",
+        "market_display": "5+ 3PM",
+        "line": 5.0,
+        "odds": 1.5,
+        "thesis": "Standard Pick",
+        "status": "PENDING",
+        "game_id": "401810329"
+      }
+    ],
+    "game_info": {
+      "game_id": "401810329",
+      "home": "SAC",
+      "away": "BOS",
+      "matchup_str": "BOS @ SAC"
+    }
+  },
+  {
+    "id": "TKT_1767306097_c25bd6",
+    "created_at": "2026-01-01T19:21:37.872601",
+    "date": "2026-01-01",
+    "category": "MATRIX_GOLD",
+    "total_odd": 1.0,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Kevin Durant",
+        "team": "HOU",
+        "market_type": "PTS",
+        "market_display": "22+ PTS",
+        "line": 22.0,
+        "odds": 1.0,
+        "thesis": "ANCHOR Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Naji Marshall",
+        "team": "DAL",
+        "market_type": "PTS",
+        "market_display": "14+ PTS",
+        "line": 14.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Jalen Duren",
+        "team": "DET",
+        "market_type": "PTS",
+        "market_display": "11+ PTS",
+        "line": 11.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Andrew Wiggins",
+        "team": "MIA",
+        "market_type": "PTS",
+        "market_display": "10+ PTS",
+        "line": 10.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      }
+    ],
+    "game_info": {
+      "game_id": "UNK",
+      "home": "UNK",
+      "away": "UNK",
+      "matchup_str": "UNK @ UNK"
+    }
+  },
+  {
+    "id": "TKT_1767306111_8d93c8",
+    "created_at": "2026-01-01T19:21:51.844232",
+    "date": "2026-01-01",
+    "category": "MATRIX_GOLD",
+    "total_odd": 1.0,
+    "status": "PENDING",
+    "legs": [
+      {
+        "player_name": "Tyrese Maxey",
+        "team": "PHI",
+        "market_type": "PTS",
+        "market_display": "20+ PTS",
+        "line": 20.0,
+        "odds": 1.0,
+        "thesis": "ANCHOR Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Jabari Smith Jr.",
+        "team": "HOU",
+        "market_type": "PTS",
+        "market_display": "14+ PTS",
+        "line": 14.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Jalen Duren",
+        "team": "DET",
+        "market_type": "PTS",
+        "market_display": "11+ PTS",
+        "line": 11.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      },
+      {
+        "player_name": "Andrew Wiggins",
+        "team": "MIA",
+        "market_type": "PTS",
+        "market_display": "10+ PTS",
+        "line": 10.0,
+        "odds": 1.0,
+        "thesis": "BOOSTER Pick",
+        "status": "PENDING",
+        "game_id": "UNK"
+      }
+    ],
+    "game_info": {
+      "game_id": "UNK",
+      "home": "UNK",
+      "away": "UNK",
+      "matchup_str": "UNK @ UNK"
+    }
+  }
+]

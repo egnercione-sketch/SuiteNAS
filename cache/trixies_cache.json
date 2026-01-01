@@ -1,0 +1,2044 @@
+{
+  "version": "1.0",
+  "created_at": "2025-12-20T13:25:28.390110",
+  "trixies": {
+    "2bad76a7": {
+      "id": "2bad76a7",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DEN",
+        "away": "HOU",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.93,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Alperen Sengun",
+          "team": "HOU",
+          "market": "PTS",
+          "line": 21.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (33 min/jogo) com produção consistente",
+          "market_display": "21.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jabari Smith Jr.",
+          "team": "HOU",
+          "market": "PTS",
+          "line": 14.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (34 min/jogo) com produção consistente",
+          "market_display": "14.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Cameron Johnson",
+          "team": "DEN",
+          "market": "PTS",
+          "line": 14.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (36 min/jogo) com produção consistente | Def REB Fraca",
+          "market_display": "14.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Cameron Johnson** ( - DEN)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n2. **Alperen Sengun** ( - HOU)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Jabari Smith Jr.** ( - HOU)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390196",
+      "last_accessed": "2025-12-20T14:07:57.433170",
+      "cache_key": "LAC_LAL_"
+    },
+    "d46d4127": {
+      "id": "d46d4127",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "PHI",
+        "away": "DAL",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.8,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Quentin Grimes",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 15.5,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (37 min/jogo) com produção consistente",
+          "market_display": "15.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Naji Marshall",
+          "team": "DAL",
+          "market": "PTS",
+          "line": 14.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (32 min/jogo) com produção consistente",
+          "market_display": "14.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Paul George",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 12.0,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Scorer volume (14.2 PTS L5) em contexto favorável",
+          "market_display": "12.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Paul George** ( - PHI)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n2. **Quentin Grimes** ( - PHI)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Naji Marshall** ( - DAL)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390271",
+      "last_accessed": "2025-12-20T14:07:57.433225",
+      "cache_key": "LAC_LAL_"
+    },
+    "61fbc2a1": {
+      "id": "61fbc2a1",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "TOR",
+        "away": "BOS",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.96,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Derrick White",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 20.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (33 min/jogo) com produção consistente | Def PTS Fraca | Def 3PM Fraca",
+          "market_display": "20.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Payton Pritchard",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 17.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (31 min/jogo) com produção consistente | Def PTS Fraca | Def 3PM Fraca",
+          "market_display": "17.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jakob Poeltl",
+          "team": "TOR",
+          "market": "PTS",
+          "line": 7.0,
+          "odds": 1.82,
+          "confidence": 0.73,
+          "primary_thesis": "GlassCleaner",
+          "thesis": "GlassCleaner: Dominante no garrafão (9.4 REB L5)",
+          "market_display": "7.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Jakob Poeltl** ( - TOR)\n   • Confiança: 0%\n   • Tese Principal: Glasscleaner\n\n2. **Payton Pritchard** ( - BOS)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Derrick White** ( - BOS)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390327",
+      "last_accessed": "2025-12-20T14:07:57.433264",
+      "cache_key": "LAC_LAL_"
+    },
+    "2af053ba": {
+      "id": "2af053ba",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.93,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Zion Williamson",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 19.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (30 min/jogo) com produção consistente | Def PTS Fraca | Def 3PM Fraca",
+          "market_display": "19.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Bennedict Mathurin",
+          "team": "IND",
+          "market": "PTS",
+          "line": 16.5,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (32 min/jogo) com produção consistente",
+          "market_display": "16.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jeremiah Fears",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 15.5,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (31 min/jogo) com produção consistente | Def PTS Fraca | Def 3PM Fraca",
+          "market_display": "15.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Jeremiah Fears** ( - NOP)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n2. **Bennedict Mathurin** ( - IND)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Zion Williamson** ( - NOP)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390376",
+      "last_accessed": "2025-12-20T14:07:57.433299",
+      "cache_key": "LAC_LAL_"
+    },
+    "6fb4c1e2": {
+      "id": "6fb4c1e2",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND",
+        "game_date": ""
+      },
+      "category": "OUSADA",
+      "sub_category": "UPSIDE COM CEILING",
+      "total_odd": 7.68,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Zion Williamson",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 21.5,
+          "odds": 1.98,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (30 min/jogo) com produção consistente",
+          "market_display": "21.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jeremiah Fears",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 1.98,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (31 min/jogo) com produção consistente",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jordan Poole",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 16.5,
+          "odds": 1.96,
+          "confidence": 0.65,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Scorer volume (16.6 PTS L5) em contexto favorável",
+          "market_display": "16.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Foco em jogadores com teto estatístico elevado e teses de explosão, aproveitando matchups favoráveis.",
+      "created_at": "2025-12-20T13:25:28.390452",
+      "last_accessed": "2025-12-20T14:07:57.433332",
+      "cache_key": "LAC_LAL_"
+    },
+    "e746879d": {
+      "id": "e746879d",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DET",
+        "away": "CHA",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.73,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Kon Knueppel",
+          "team": "CHA",
+          "market": "PTS",
+          "line": 15.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (34 min/jogo) com produção consistente | Def PTS Fraca | Def REB Fraca",
+          "market_display": "15.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Tobias Harris",
+          "team": "DET",
+          "market": "PTS",
+          "line": 14.5,
+          "odds": 1.79,
+          "confidence": 0.65,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Scorer volume (16.6 PTS L5) em contexto favorável | Def PTS Fraca | Def REB Fraca",
+          "market_display": "14.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Tolu Smith",
+          "team": "DET",
+          "market": "PTS",
+          "line": 7.5,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Produção básica de pontos (8.5 PTS L5) | Def PTS Fraca | Def REB Fraca",
+          "market_display": "7.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Tobias Harris** ( - DET)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n2. **Kon Knueppel** ( - CHA)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Tolu Smith** ( - DET)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390508",
+      "last_accessed": "2025-12-20T14:07:57.433365",
+      "cache_key": "LAC_LAL_"
+    },
+    "6ec39114": {
+      "id": "6ec39114",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "MEM",
+        "away": "WSH",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.8,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Kyshawn George",
+          "team": "WAS",
+          "market": "PTS",
+          "line": 10.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (31 min/jogo) com produção consistente | Def BLK Fraca",
+          "market_display": "10.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jaren Jackson Jr.",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 15.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (32 min/jogo) com produção consistente | Def PTS Fraca | Def REB Fraca",
+          "market_display": "15.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Cam Spencer",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 13.0,
+          "odds": 1.77,
+          "confidence": 0.56,
+          "primary_thesis": "Playmaker",
+          "thesis": "Playmaker: Facilitador primário (5.4 AST L5) em ritmo normal | Def PTS Fraca | Def REB Fraca",
+          "market_display": "13.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Kyshawn George** ( - WAS)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n2. **Jaren Jackson Jr.** ( - MEM)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Cam Spencer** ( - MEM)\n   • Confiança: 0%\n   • Tese Principal: Playmaker\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390546",
+      "last_accessed": "2025-12-20T14:07:57.433397",
+      "cache_key": "LAC_LAL_"
+    },
+    "52248826": {
+      "id": "52248826",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "GS",
+        "away": "PHX",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.64,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Mark Williams",
+          "team": "PHX",
+          "market": "PTS",
+          "line": 12.5,
+          "odds": 1.8,
+          "confidence": 0.6799999999999999,
+          "primary_thesis": "GlassCleaner",
+          "thesis": "GlassCleaner: Dominante no garrafão (10.0 REB L5)",
+          "market_display": "12.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "De'Anthony Melton",
+          "team": "GSW",
+          "market": "PTS",
+          "line": 12.0,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Scorer volume (14.0 PTS L5) em contexto favorável | Def AST Fraca",
+          "market_display": "12.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Quinten Post",
+          "team": "GSW",
+          "market": "PTS",
+          "line": 7.5,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Produção básica de pontos (9.0 PTS L5) | Def AST Fraca",
+          "market_display": "7.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **De'Anthony Melton** ( - GSW)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n2. **Quinten Post** ( - GSW)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Mark Williams** ( - PHX)\n   • Confiança: 0%\n   • Tese Principal: Glasscleaner\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390584",
+      "last_accessed": "2025-12-20T14:07:57.433429",
+      "cache_key": "LAC_LAL_"
+    },
+    "ead208c8": {
+      "id": "ead208c8",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "UTAH",
+        "away": "ORL",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.73,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Lauri Markkanen",
+          "team": "UTA",
+          "market": "PTS",
+          "line": 21.5,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (33 min/jogo) com produção consistente",
+          "market_display": "21.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jusuf Nurkić",
+          "team": "UTA",
+          "market": "PTS",
+          "line": 9.0,
+          "odds": 1.77,
+          "confidence": 0.58,
+          "primary_thesis": "GlassCleaner",
+          "thesis": "GlassCleaner: Dominante no garrafão (8.2 REB L5)",
+          "market_display": "9.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Wendell Carter Jr.",
+          "team": "ORL",
+          "market": "PTS",
+          "line": 8.5,
+          "odds": 1.79,
+          "confidence": 0.63,
+          "primary_thesis": "GlassCleaner",
+          "thesis": "GlassCleaner: Dominante no garrafão (8.2 REB L5) | Def AST Fraca | Def 3PM Fraca",
+          "market_display": "8.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Wendell Carter Jr.** ( - ORL)\n   • Confiança: 0%\n   • Tese Principal: Glasscleaner\n\n2. **Lauri Markkanen** ( - UTA)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Jusuf Nurkić** ( - UTA)\n   • Confiança: 0%\n   • Tese Principal: Glasscleaner\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390630",
+      "last_accessed": "2025-12-20T14:07:57.433468",
+      "cache_key": "LAC_LAL_"
+    },
+    "648761b1": {
+      "id": "648761b1",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "SAC",
+        "away": "POR",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.58,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "Dennis Schröder",
+          "team": "SAC",
+          "market": "PTS",
+          "line": 12.5,
+          "odds": 1.78,
+          "confidence": 0.6,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (27 min/jogo) com produção consistente | Def PTS Fraca | Def REB Fraca",
+          "market_display": "12.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Robert Williams III",
+          "team": "POR",
+          "market": "PTS",
+          "line": 6.5,
+          "odds": 1.77,
+          "confidence": 0.58,
+          "primary_thesis": "GlassCleaner",
+          "thesis": "GlassCleaner: Dominante no garrafão (7.6 REB L5)",
+          "market_display": "6.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Devin Carter",
+          "team": "SAC",
+          "market": "PTS",
+          "line": 2.0,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Produção básica de pontos (2.6 PTS L5) | Def PTS Fraca | Def REB Fraca",
+          "market_display": "2.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Devin Carter** ( - SAC)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n2. **Dennis Schröder** ( - SAC)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Robert Williams III** ( - POR)\n   • Confiança: 0%\n   • Tese Principal: Glasscleaner\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390673",
+      "last_accessed": "2025-12-20T14:07:57.433503",
+      "cache_key": "LAC_LAL_"
+    },
+    "f537f982": {
+      "id": "f537f982",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "LAC",
+        "away": "LAL",
+        "game_date": ""
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.8,
+      "legs": [
+        {
+          "player_id": null,
+          "name": "LeBron James",
+          "team": "LAL",
+          "market": "PTS",
+          "line": 13.0,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (33 min/jogo) com produção consistente",
+          "market_display": "13.0+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Rui Hachimura",
+          "team": "LAL",
+          "market": "PTS",
+          "line": 9.5,
+          "odds": 1.81,
+          "confidence": 0.7,
+          "primary_thesis": "SafeMinutes",
+          "thesis": "SafeMinutes: Minutagem segura (31 min/jogo) com produção consistente",
+          "market_display": "9.5+ PTS"
+        },
+        {
+          "player_id": null,
+          "name": "Jarred Vanderbilt",
+          "team": "LAL",
+          "market": "PTS",
+          "line": 3.5,
+          "odds": 1.77,
+          "confidence": 0.55,
+          "primary_thesis": "VolumeScorer",
+          "thesis": "VolumeScorer: Contribuição em rebotes (6.2 REB L5)",
+          "market_display": "3.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Rui Hachimura** ( - LAL)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n2. **LeBron James** ( - LAL)\n   • Confiança: 0%\n   • Tese Principal: Safeminutes\n\n3. **Jarred Vanderbilt** ( - LAL)\n   • Confiança: 0%\n   • Tese Principal: Volumescorer\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T13:25:28.390712",
+      "last_accessed": "2025-12-20T14:07:57.433534",
+      "cache_key": "LAC_LAL_"
+    },
+    "ad468a20": {
+      "id": "ad468a20",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DEN",
+        "away": "HOU"
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 9.82,
+      "legs": [
+        {
+          "name": "Alperen Sengun",
+          "team": "HOU",
+          "market": "PTS",
+          "line": 20.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "20.5+ PTS"
+        },
+        {
+          "name": "Alperen Sengun",
+          "team": "HOU",
+          "market": "REB",
+          "line": 5.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "5.5+ REB"
+        },
+        {
+          "name": "Jabari Smith Jr.",
+          "team": "HOU",
+          "market": "PTS",
+          "line": 13.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "13.5+ PTS"
+        },
+        {
+          "name": "Cameron Johnson",
+          "team": "DEN",
+          "market": "PTS",
+          "line": 13.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "13.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 4\n\n1. **Jogador** (Pos - HOU)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n2. **Jogador** (Pos - HOU)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n3. **Jogador** (Pos - HOU)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n4. **Jogador** (Pos - DEN)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T14:01:44.830319",
+      "last_accessed": "2025-12-20T15:16:34.940953",
+      "cache_key": "LAC_LAL_"
+    },
+    "69aa1783": {
+      "id": "69aa1783",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "TOR",
+        "away": "BOS"
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 17.37,
+      "legs": [
+        {
+          "name": "Derrick White",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 19.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "19.5+ PTS"
+        },
+        {
+          "name": "Derrick White",
+          "team": "BOS",
+          "market": "AST",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ AST"
+        },
+        {
+          "name": "Payton Pritchard",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 16.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.5+ PTS"
+        },
+        {
+          "name": "Payton Pritchard",
+          "team": "BOS",
+          "market": "AST",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ AST"
+        },
+        {
+          "name": "Jakob Poeltl",
+          "team": "TOR",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 5\n\n1. **Jogador** (Pos - BOS)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n2. **Jogador** (Pos - BOS)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n3. **Jogador** (Pos - BOS)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n4. **Jogador** (Pos - BOS)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n5. **Jogador** (Pos - TOR)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T14:01:44.830421",
+      "last_accessed": "2025-12-20T15:16:34.941053",
+      "cache_key": "LAC_LAL_"
+    },
+    "cc75f512": {
+      "id": "cc75f512",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND"
+      },
+      "category": "CONSERVADORA",
+      "sub_category": "PRINCIPAL - VOLUME SEGURO",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Zion Williamson",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 18.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.0+ PTS"
+        },
+        {
+          "name": "Bennedict Mathurin",
+          "team": "IND",
+          "market": "PTS",
+          "line": 16.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.0+ PTS"
+        },
+        {
+          "name": "Jeremiah Fears",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 15.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "15.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "🎯 **MÚLTIPLA DO DIA - VERSÃO CONSERVADORA**\n\n**Estratégia:** Segurança e consistência\n**Número de Jogadores:** 3\n\n1. **Jogador** (Pos - NOP)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n2. **Jogador** (Pos - IND)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n3. **Jogador** (Pos - NOP)\n   • Confiança: 55%\n   • Tese Principal: Volumescorer\n\n**🎯 Estratégia Resumida:**\n• Foco em jogadores com alta disponibilidade e baixa volatilidade\n• Prioriza minutos consistentes e produção estável\n• Ideal para apostas de baixo risco e alta confiança",
+      "created_at": "2025-12-20T14:01:44.830476",
+      "last_accessed": "2025-12-20T15:16:34.941117",
+      "cache_key": "LAC_LAL_"
+    },
+    "eaa405df": {
+      "id": "eaa405df",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DEN",
+        "away": "HOU"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Cameron Johnson",
+          "team": "DEN",
+          "market": "REB",
+          "line": 3.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "3.5+ REB"
+        },
+        {
+          "name": "Jonas Valančiūnas",
+          "team": "DEN",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Zeke Nnaji",
+          "team": "DEN",
+          "market": "REB",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ REB"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620474",
+      "last_accessed": "2025-12-20T14:09:35.620478",
+      "cache_key": "LAC_LAL_"
+    },
+    "7c68cd15": {
+      "id": "7c68cd15",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "PHI",
+        "away": "DAL"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Naji Marshall",
+          "team": "DAL",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Paul George",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 12.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "12.5+ PTS"
+        },
+        {
+          "name": "Brandon Williams",
+          "team": "DAL",
+          "market": "AST",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ AST"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.620536",
+      "last_accessed": "2025-12-20T15:16:34.941004",
+      "cache_key": "LAC_LAL_"
+    },
+    "30cbed19": {
+      "id": "30cbed19",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "PHI",
+        "away": "DAL"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Quentin Grimes",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 18.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.5+ PTS"
+        },
+        {
+          "name": "Naji Marshall",
+          "team": "DAL",
+          "market": "PTS",
+          "line": 16.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.5+ PTS"
+        },
+        {
+          "name": "Paul George",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 15.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "15.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620617",
+      "last_accessed": "2025-12-20T14:09:35.620620",
+      "cache_key": "LAC_LAL_"
+    },
+    "87bc4ca5": {
+      "id": "87bc4ca5",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "TOR",
+        "away": "BOS"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Jakob Poeltl",
+          "team": "TOR",
+          "market": "REB",
+          "line": 8.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.5+ REB"
+        },
+        {
+          "name": "Anfernee Simons",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 10.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "10.5+ PTS"
+        },
+        {
+          "name": "Sam Hauser",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 8.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.620699",
+      "last_accessed": "2025-12-20T15:16:34.941085",
+      "cache_key": "LAC_LAL_"
+    },
+    "fbbb48a6": {
+      "id": "fbbb48a6",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "TOR",
+        "away": "BOS"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Sam Hauser",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 9.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "9.5+ PTS"
+        },
+        {
+          "name": "Anfernee Simons",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 12.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "12.5+ PTS"
+        },
+        {
+          "name": "Baylor Scheierman",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 2.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "2.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620740",
+      "last_accessed": "2025-12-20T14:09:35.620743",
+      "cache_key": "LAC_LAL_"
+    },
+    "01af7020": {
+      "id": "01af7020",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Jordan Poole",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 14.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "14.5+ PTS"
+        },
+        {
+          "name": "Derik Queen",
+          "team": "NOP",
+          "market": "REB",
+          "line": 5.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "5.5+ REB"
+        },
+        {
+          "name": "Quenton Jackson",
+          "team": "IND",
+          "market": "PTS",
+          "line": 10.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "10.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.620806",
+      "last_accessed": "2025-12-20T15:16:34.941148",
+      "cache_key": "LAC_LAL_"
+    },
+    "bc35aa8e": {
+      "id": "bc35aa8e",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Derik Queen",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 12.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "12.0+ PTS"
+        },
+        {
+          "name": "Jordan Poole",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "name": "Bryce McGowens",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 11.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "11.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620845",
+      "last_accessed": "2025-12-20T14:09:35.620848",
+      "cache_key": "LAC_LAL_"
+    },
+    "d53b9f64": {
+      "id": "d53b9f64",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DET",
+        "away": "CHA"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Tobias Harris",
+          "team": "DET",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Liam McNeeley",
+          "team": "CHA",
+          "market": "PTS",
+          "line": 5.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "5.0+ PTS"
+        },
+        {
+          "name": "Daniss Jenkins",
+          "team": "DET",
+          "market": "PTS",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.620881",
+      "last_accessed": "2025-12-20T15:16:34.941177",
+      "cache_key": "LAC_LAL_"
+    },
+    "d258f564": {
+      "id": "d258f564",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DET",
+        "away": "CHA"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Kon Knueppel",
+          "team": "CHA",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "name": "Tobias Harris",
+          "team": "DET",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "name": "Tolu Smith",
+          "team": "DET",
+          "market": "PTS",
+          "line": 9.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "9.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620919",
+      "last_accessed": "2025-12-20T14:09:35.620922",
+      "cache_key": "LAC_LAL_"
+    },
+    "d66361ba": {
+      "id": "d66361ba",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "MEM",
+        "away": "WSH"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Cam Spencer",
+          "team": "MEM",
+          "market": "AST",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ AST"
+        },
+        {
+          "name": "Vince Williams Jr.",
+          "team": "MEM",
+          "market": "AST",
+          "line": 4.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ AST"
+        },
+        {
+          "name": "Cam Whitmore",
+          "team": "WAS",
+          "market": "PTS",
+          "line": 6.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "6.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.620955",
+      "last_accessed": "2025-12-20T15:16:34.941205",
+      "cache_key": "LAC_LAL_"
+    },
+    "83ffd2fa": {
+      "id": "83ffd2fa",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "MEM",
+        "away": "WSH"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Cam Spencer",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 16.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.0+ PTS"
+        },
+        {
+          "name": "Jaren Jackson Jr.",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 18.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.0+ PTS"
+        },
+        {
+          "name": "Vince Williams Jr.",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 8.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.620992",
+      "last_accessed": "2025-12-20T14:09:35.620996",
+      "cache_key": "LAC_LAL_"
+    },
+    "6fd0c596": {
+      "id": "6fd0c596",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "GS",
+        "away": "PHX"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Mark Williams",
+          "team": "PHX",
+          "market": "REB",
+          "line": 8.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.5+ REB"
+        },
+        {
+          "name": "De'Anthony Melton",
+          "team": "GSW",
+          "market": "PTS",
+          "line": 12.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "12.5+ PTS"
+        },
+        {
+          "name": "Quinten Post",
+          "team": "GSW",
+          "market": "PTS",
+          "line": 8.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.621029",
+      "last_accessed": "2025-12-20T15:16:34.941233",
+      "cache_key": "LAC_LAL_"
+    },
+    "510d75cd": {
+      "id": "510d75cd",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "GS",
+        "away": "PHX"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "De'Anthony Melton",
+          "team": "GSW",
+          "market": "AST",
+          "line": 3.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "3.5+ AST"
+        },
+        {
+          "name": "Quinten Post",
+          "team": "GSW",
+          "market": "AST",
+          "line": 2.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "2.5+ AST"
+        },
+        {
+          "name": "Trayce Jackson-Davis",
+          "team": "GSW",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.621068",
+      "last_accessed": "2025-12-20T14:09:35.621072",
+      "cache_key": "LAC_LAL_"
+    },
+    "f12cdceb": {
+      "id": "f12cdceb",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "UTAH",
+        "away": "ORL"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Jusuf Nurkić",
+          "team": "UTA",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        },
+        {
+          "name": "Wendell Carter Jr.",
+          "team": "ORL",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        },
+        {
+          "name": "Jett Howard",
+          "team": "ORL",
+          "market": "PTS",
+          "line": 10.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "10.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.621110",
+      "last_accessed": "2025-12-20T15:16:34.941300",
+      "cache_key": "LAC_LAL_"
+    },
+    "b70068d6": {
+      "id": "b70068d6",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "UTAH",
+        "away": "ORL"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Wendell Carter Jr.",
+          "team": "ORL",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        },
+        {
+          "name": "Jett Howard",
+          "team": "ORL",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        },
+        {
+          "name": "Lauri Markkanen",
+          "team": "UTA",
+          "market": "PTS",
+          "line": 25.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "25.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.621147",
+      "last_accessed": "2025-12-20T14:09:35.621151",
+      "cache_key": "LAC_LAL_"
+    },
+    "f2e4dbff": {
+      "id": "f2e4dbff",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "SAC",
+        "away": "POR"
+      },
+      "category": "EXPLOSÃO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Dennis Schröder",
+          "team": "SAC",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Devin Carter",
+          "team": "SAC",
+          "market": "REB",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ REB"
+        },
+        {
+          "name": "Doug McDermott",
+          "team": "SAC",
+          "market": "PTS",
+          "line": 6.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "6.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:09:35.621184",
+      "last_accessed": "2025-12-20T14:09:35.621187",
+      "cache_key": "LAC_LAL_"
+    },
+    "0cefd64c": {
+      "id": "0cefd64c",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "LAC",
+        "away": "LAL"
+      },
+      "category": "BANCO",
+      "sub_category": "IMPACTO ROTACIONAL",
+      "total_odd": 5.55,
+      "legs": [
+        {
+          "name": "Jarred Vanderbilt",
+          "team": "LAL",
+          "market": "REB",
+          "line": 5.5,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "5.5+ REB"
+        },
+        {
+          "name": "Jaxson Hayes",
+          "team": "LAL",
+          "market": "PTS",
+          "line": 5.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "5.0+ PTS"
+        },
+        {
+          "name": "Nick Smith Jr.",
+          "team": "LAL",
+          "market": "PTS",
+          "line": 6.0,
+          "odds": 1.77,
+          "thesis": "VolumeScorer (Safe)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "6.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Jogadores de rotação com alta eficiência.",
+      "created_at": "2025-12-20T14:09:35.621219",
+      "last_accessed": "2025-12-20T15:16:34.941328",
+      "cache_key": "LAC_LAL_"
+    },
+    "ffb26a34": {
+      "id": "ffb26a34",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DEN",
+        "away": "HOU"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Cameron Johnson",
+          "team": "DEN",
+          "market": "REB",
+          "line": 3.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "3.5+ REB"
+        },
+        {
+          "name": "Jonas Valančiūnas",
+          "team": "DEN",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Zeke Nnaji",
+          "team": "DEN",
+          "market": "REB",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ REB"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178105",
+      "last_accessed": "2025-12-20T14:23:03.356931",
+      "cache_key": "LAC_LAL_"
+    },
+    "d4c0533c": {
+      "id": "d4c0533c",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "PHI",
+        "away": "DAL"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Quentin Grimes",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 18.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.5+ PTS"
+        },
+        {
+          "name": "Naji Marshall",
+          "team": "DAL",
+          "market": "PTS",
+          "line": 16.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.5+ PTS"
+        },
+        {
+          "name": "Paul George",
+          "team": "PHI",
+          "market": "PTS",
+          "line": 15.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "15.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178232",
+      "last_accessed": "2025-12-20T14:23:03.357010",
+      "cache_key": "LAC_LAL_"
+    },
+    "cc115ef0": {
+      "id": "cc115ef0",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "TOR",
+        "away": "BOS"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Derrick White",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 24.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "24.0+ PTS"
+        },
+        {
+          "name": "Payton Pritchard",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 20.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "20.0+ PTS"
+        },
+        {
+          "name": "Sam Hauser",
+          "team": "BOS",
+          "market": "PTS",
+          "line": 9.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "9.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178372",
+      "last_accessed": "2025-12-20T14:23:03.357102",
+      "cache_key": "LAC_LAL_"
+    },
+    "37d49a0e": {
+      "id": "37d49a0e",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "NO",
+        "away": "IND"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Zion Williamson",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 22.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "22.5+ PTS"
+        },
+        {
+          "name": "Jeremiah Fears",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 18.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.5+ PTS"
+        },
+        {
+          "name": "Derik Queen",
+          "team": "NOP",
+          "market": "PTS",
+          "line": 12.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "12.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178494",
+      "last_accessed": "2025-12-20T14:23:03.357206",
+      "cache_key": "LAC_LAL_"
+    },
+    "95296509": {
+      "id": "95296509",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "DET",
+        "away": "CHA"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Kon Knueppel",
+          "team": "CHA",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "name": "Tobias Harris",
+          "team": "DET",
+          "market": "PTS",
+          "line": 17.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "17.5+ PTS"
+        },
+        {
+          "name": "Tolu Smith",
+          "team": "DET",
+          "market": "PTS",
+          "line": 9.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "9.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178578",
+      "last_accessed": "2025-12-20T14:23:03.357263",
+      "cache_key": "LAC_LAL_"
+    },
+    "b5181215": {
+      "id": "b5181215",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "MEM",
+        "away": "WSH"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Cam Spencer",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 16.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "16.0+ PTS"
+        },
+        {
+          "name": "Jaren Jackson Jr.",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 18.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "18.0+ PTS"
+        },
+        {
+          "name": "Vince Williams Jr.",
+          "team": "MEM",
+          "market": "PTS",
+          "line": 8.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "8.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178662",
+      "last_accessed": "2025-12-20T14:23:03.357318",
+      "cache_key": "LAC_LAL_"
+    },
+    "6063f05a": {
+      "id": "6063f05a",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "GS",
+        "away": "PHX"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "De'Anthony Melton",
+          "team": "GSW",
+          "market": "AST",
+          "line": 3.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "3.5+ AST"
+        },
+        {
+          "name": "Quinten Post",
+          "team": "GSW",
+          "market": "AST",
+          "line": 2.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "2.5+ AST"
+        },
+        {
+          "name": "Trayce Jackson-Davis",
+          "team": "GSW",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178767",
+      "last_accessed": "2025-12-20T14:23:03.357374",
+      "cache_key": "LAC_LAL_"
+    },
+    "0743b358": {
+      "id": "0743b358",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "UTAH",
+        "away": "ORL"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Wendell Carter Jr.",
+          "team": "ORL",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        },
+        {
+          "name": "Jett Howard",
+          "team": "ORL",
+          "market": "AST",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ AST"
+        },
+        {
+          "name": "Lauri Markkanen",
+          "team": "UTA",
+          "market": "PTS",
+          "line": 25.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "25.5+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178859",
+      "last_accessed": "2025-12-20T14:23:03.357437",
+      "cache_key": "LAC_LAL_"
+    },
+    "025677e0": {
+      "id": "025677e0",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "SAC",
+        "away": "POR"
+      },
+      "category": "EXPLOSAO",
+      "sub_category": "TETO MÁXIMO",
+      "total_odd": 9.26,
+      "legs": [
+        {
+          "name": "Dennis Schröder",
+          "team": "SAC",
+          "market": "REB",
+          "line": 4.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "4.5+ REB"
+        },
+        {
+          "name": "Devin Carter",
+          "team": "SAC",
+          "market": "REB",
+          "line": 1.5,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "1.5+ REB"
+        },
+        {
+          "name": "Doug McDermott",
+          "team": "SAC",
+          "market": "PTS",
+          "line": 6.0,
+          "odds": 2.1,
+          "thesis": "VolumeScorer (Ceiling)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "6.0+ PTS"
+        }
+      ],
+      "strategy_narrative": "Busca por tetos estatísticos e matchups favoráveis.",
+      "created_at": "2025-12-20T14:22:57.178909",
+      "last_accessed": "2025-12-20T14:23:03.357480",
+      "cache_key": "LAC_LAL_"
+    },
+    "076f4b7d": {
+      "id": "076f4b7d",
+      "date": "2025-12-20",
+      "game_info": {
+        "home": "UTAH",
+        "away": "ORL"
+      },
+      "category": "OUSADA",
+      "sub_category": "UPSIDE REB/AST",
+      "total_odd": 7.08,
+      "legs": [
+        {
+          "name": "Lauri Markkanen",
+          "team": "UTA",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.92,
+          "thesis": "VolumeScorer (Upside)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        },
+        {
+          "name": "Jusuf Nurkić",
+          "team": "UTA",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.92,
+          "thesis": "VolumeScorer (Upside)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        },
+        {
+          "name": "Wendell Carter Jr.",
+          "team": "ORL",
+          "market": "REB",
+          "line": 7.5,
+          "odds": 1.92,
+          "thesis": "VolumeScorer (Upside)",
+          "primary_thesis": "VolumeScorer",
+          "market_display": "7.5+ REB"
+        }
+      ],
+      "strategy_narrative": "Foco agressivo em Rebotes e Assistências, aproveitando matchups favoráveis e jogadores elite.",
+      "created_at": "2025-12-20T15:10:57.259732",
+      "last_accessed": "2025-12-20T15:16:34.941269",
+      "cache_key": "LAC_LAL_"
+    }
+  },
+  "stats": {
+    "total_trixies": 41,
+    "last_updated": "2025-12-20T15:16:34.941338"
+  }
+}

@@ -1,0 +1,142 @@
+[
+    {
+        "id": "3aff3816",
+        "date": "2025-12-29",
+        "created_at": "19:43:16",
+        "strategy": "NUCLEAR_GAME_\u2b50 ALPHA SQUAD (ATL @ OKC)",
+        "game_info": "ATL @ OKC",
+        "legs": [
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "PTS",
+                "line": 22.0,
+                "odds": 1.4,
+                "meta": "25/25"
+            },
+            {
+                "player_name": "Jalen Johnson",
+                "team": "ATL",
+                "market": "REB",
+                "line": 6.0,
+                "odds": 1.4,
+                "meta": "25/25"
+            },
+            {
+                "player_name": "Jalen Johnson",
+                "team": "ATL",
+                "market": "AST",
+                "line": 4.0,
+                "odds": 1.4,
+                "meta": "25/25"
+            }
+        ],
+        "status": "PENDING",
+        "result": null
+    },
+    {
+        "id": "45b694e4",
+        "date": "2025-12-29",
+        "created_at": "19:43:48",
+        "strategy": "NUCLEAR_GAME_\ud83e\udd77 SHADOW UNIT (ATL @ OKC)",
+        "game_info": "ATL @ OKC",
+        "legs": [
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "25/25"
+            },
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "20/20"
+            },
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 4.0,
+                "odds": 1.4,
+                "meta": "15/15"
+            }
+        ],
+        "status": "PENDING",
+        "result": null
+    },
+    {
+        "id": "95b9c31d",
+        "date": "2025-12-29",
+        "created_at": "19:43:50",
+        "strategy": "NUCLEAR_GAME_\ud83e\udd77 SHADOW UNIT (ATL @ OKC)",
+        "game_info": "ATL @ OKC",
+        "legs": [
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "25/25"
+            },
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "20/20"
+            },
+            {
+                "player_name": "Shai Gilgeous-Alexander",
+                "team": "OKC",
+                "market": "AST",
+                "line": 4.0,
+                "odds": 1.4,
+                "meta": "15/15"
+            }
+        ],
+        "status": "PENDING",
+        "result": null
+    },
+    {
+        "id": "d6c0d107",
+        "date": "2025-12-29",
+        "created_at": "19:43:51",
+        "strategy": "NUCLEAR_GAME_\u2b50 ALPHA SQUAD (CLE @ SA)",
+        "game_info": "CLE @ SA",
+        "legs": [
+            {
+                "player_name": "Donovan Mitchell",
+                "team": "CLE",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "15/15"
+            },
+            {
+                "player_name": "Evan Mobley",
+                "team": "CLE",
+                "market": "REB",
+                "line": 4.0,
+                "odds": 1.4,
+                "meta": "15/15"
+            },
+            {
+                "player_name": "De'Aaron Fox",
+                "team": "SA",
+                "market": "AST",
+                "line": 3.0,
+                "odds": 1.4,
+                "meta": "15/15"
+            }
+        ],
+        "status": "PENDING",
+        "result": null
+    }
+]

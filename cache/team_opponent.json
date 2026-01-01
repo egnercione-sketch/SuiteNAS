@@ -1,0 +1,182 @@
+{
+  "ATL": {
+    "reb_rank": 3,
+    "ast_rank": 26,
+    "pts_rank": 13,
+    "def_rank": 15
+  },
+  "BOS": {
+    "reb_rank": 22,
+    "ast_rank": 26,
+    "pts_rank": 23,
+    "def_rank": 18
+  },
+  "BKN": {
+    "reb_rank": 13,
+    "ast_rank": 5,
+    "pts_rank": 6,
+    "def_rank": 24
+  },
+  "CHA": {
+    "reb_rank": 9,
+    "ast_rank": 20,
+    "pts_rank": 30,
+    "def_rank": 16
+  },
+  "CHI": {
+    "reb_rank": 8,
+    "ast_rank": 17,
+    "pts_rank": 26,
+    "def_rank": 19
+  },
+  "CLE": {
+    "reb_rank": 15,
+    "ast_rank": 2,
+    "pts_rank": 11,
+    "def_rank": 2
+  },
+  "DAL": {
+    "reb_rank": 10,
+    "ast_rank": 15,
+    "pts_rank": 23,
+    "def_rank": 28
+  },
+  "DEN": {
+    "reb_rank": 20,
+    "ast_rank": 15,
+    "pts_rank": 9,
+    "def_rank": 29
+  },
+  "DET": {
+    "reb_rank": 2,
+    "ast_rank": 11,
+    "pts_rank": 13,
+    "def_rank": 3
+  },
+  "GSW": {
+    "reb_rank": 25,
+    "ast_rank": 16,
+    "pts_rank": 27,
+    "def_rank": 27
+  },
+  "HOU": {
+    "reb_rank": 22,
+    "ast_rank": 28,
+    "pts_rank": 6,
+    "def_rank": 27
+  },
+  "IND": {
+    "reb_rank": 25,
+    "ast_rank": 14,
+    "pts_rank": 24,
+    "def_rank": 9
+  },
+  "LAC": {
+    "reb_rank": 27,
+    "ast_rank": 7,
+    "pts_rank": 18,
+    "def_rank": 16
+  },
+  "LAL": {
+    "reb_rank": 25,
+    "ast_rank": 21,
+    "pts_rank": 5,
+    "def_rank": 17
+  },
+  "MEM": {
+    "reb_rank": 12,
+    "ast_rank": 25,
+    "pts_rank": 16,
+    "def_rank": 14
+  },
+  "MIA": {
+    "reb_rank": 30,
+    "ast_rank": 4,
+    "pts_rank": 28,
+    "def_rank": 4
+  },
+  "MIL": {
+    "reb_rank": 24,
+    "ast_rank": 19,
+    "pts_rank": 18,
+    "def_rank": 13
+  },
+  "MIN": {
+    "reb_rank": 29,
+    "ast_rank": 24,
+    "pts_rank": 4,
+    "def_rank": 13
+  },
+  "NOP": {
+    "reb_rank": 14,
+    "ast_rank": 3,
+    "pts_rank": 2,
+    "def_rank": 24
+  },
+  "NYK": {
+    "reb_rank": 26,
+    "ast_rank": 19,
+    "pts_rank": 15,
+    "def_rank": 15
+  },
+  "OKC": {
+    "reb_rank": 19,
+    "ast_rank": 15,
+    "pts_rank": 5,
+    "def_rank": 18
+  },
+  "ORL": {
+    "reb_rank": 18,
+    "ast_rank": 12,
+    "pts_rank": 24,
+    "def_rank": 24
+  },
+  "PHI": {
+    "reb_rank": 5,
+    "ast_rank": 15,
+    "pts_rank": 22,
+    "def_rank": 14
+  },
+  "PHX": {
+    "reb_rank": 11,
+    "ast_rank": 20,
+    "pts_rank": 17,
+    "def_rank": 18
+  },
+  "POR": {
+    "reb_rank": 29,
+    "ast_rank": 16,
+    "pts_rank": 2,
+    "def_rank": 22
+  },
+  "SAC": {
+    "reb_rank": 18,
+    "ast_rank": 20,
+    "pts_rank": 2,
+    "def_rank": 29
+  },
+  "SAS": {
+    "reb_rank": 25,
+    "ast_rank": 30,
+    "pts_rank": 19,
+    "def_rank": 8
+  },
+  "TOR": {
+    "reb_rank": 16,
+    "ast_rank": 30,
+    "pts_rank": 22,
+    "def_rank": 26
+  },
+  "UTA": {
+    "reb_rank": 16,
+    "ast_rank": 22,
+    "pts_rank": 12,
+    "def_rank": 5
+  },
+  "WAS": {
+    "reb_rank": 9,
+    "ast_rank": 20,
+    "pts_rank": 23,
+    "def_rank": 7
+  }
+}

@@ -1,0 +1,1883 @@
+{
+  "timestamp": "2025-12-29T03:09:52.437161",
+  "data": {
+    "ATL_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Jalen Johnson",
+              "Dyson Daniels",
+              "Nickeil Alexander-Walker",
+              "Onyeka Okongwu",
+              "Trae Young"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "ATL_Nickeil Alexander-Walker": {
+            "role": "starter",
+            "minutes": 35.4,
+            "position": "GUARD",
+            "starter": true
+          },
+          "ATL_Dyson Daniels": {
+            "role": "starter",
+            "minutes": 37.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "ATL_N'Faly Dante": {
+            "role": "deep_bench",
+            "minutes": 4.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ATL_Nikola Durisic": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ATL_Mouhamed Gueye": {
+            "role": "rotation",
+            "minutes": 20.6,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ATL_Caleb Houstan": {
+            "role": "deep_bench",
+            "minutes": 7.4,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ATL_Jalen Johnson": {
+            "role": "starter",
+            "minutes": 38.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "ATL_Luke Kennard": {
+            "role": "rotation",
+            "minutes": 16.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ATL_Vit Krejci": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ATL_Eli John N'Diaye": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ATL_Asa Newell": {
+            "role": "deep_bench",
+            "minutes": 6.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ATL_Onyeka Okongwu": {
+            "role": "starter",
+            "minutes": 34.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "ATL_Kristaps Porzingis": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ATL_Zaccharie Risacher": {
+            "role": "key_rotation",
+            "minutes": 26.6,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ATL_Jacob Toppin": {
+            "role": "deep_bench",
+            "minutes": 3.4,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ATL_Keaton Wallace": {
+            "role": "bench",
+            "minutes": 13.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ATL_Trae Young": {
+            "role": "starter",
+            "minutes": 27.8,
+            "position": "GUARD",
+            "starter": true
+          }
+        },
+        "lineup_shocks": [],
+        "medical_report": [
+          {
+            "name": "N'Faly Dante",
+            "status": "Out"
+          },
+          {
+            "name": "Eli John Ndiaye",
+            "status": "Out"
+          },
+          {
+            "name": "Kristaps Porzingis",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "ATL"
+      },
+      "analyzed_at": "2025-12-26T16:50:14.445519"
+    },
+    "MIA_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Andrew Wiggins",
+              "Norman Powell",
+              "Bam Adebayo",
+              "Davion Mitchell",
+              "Jaime Jaquez Jr."
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "MIA_Bam Adebayo": {
+            "role": "starter",
+            "minutes": 30.2,
+            "position": "C",
+            "starter": true
+          },
+          "MIA_Simone Fontecchio": {
+            "role": "rotation",
+            "minutes": 17.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIA_Myron Gardner": {
+            "role": "deep_bench",
+            "minutes": 2.5,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIA_Vladislav Goldin": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "MIA_Tyler Herro": {
+            "role": "key_rotation",
+            "minutes": 31.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIA_Kasparas Jakucionis": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIA_Jaime Jaquez Jr.": {
+            "role": "starter",
+            "minutes": 25.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MIA_Keshad Johnson": {
+            "role": "bench",
+            "minutes": 14.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIA_Nikola Jovic": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIA_Pelle Larsson": {
+            "role": "rotation",
+            "minutes": 19.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIA_Davion Mitchell": {
+            "role": "starter",
+            "minutes": 30.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MIA_Norman Powell": {
+            "role": "starter",
+            "minutes": 30.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MIA_Terry Rozier": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIA_Dru Smith": {
+            "role": "rotation",
+            "minutes": 17.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIA_Kel'el Ware": {
+            "role": "rotation",
+            "minutes": 22.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "MIA_Andrew Wiggins": {
+            "role": "starter",
+            "minutes": 32.4,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MIA_Jahmir Young": {
+            "role": "deep_bench",
+            "minutes": 4.25,
+            "position": "GUARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: Tyler Herro (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "medium"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "Tyler Herro",
+            "status": "Out"
+          },
+          {
+            "name": "Nikola Jovic",
+            "status": "Out"
+          },
+          {
+            "name": "Pelle Larsson",
+            "status": "Out"
+          },
+          {
+            "name": "Terry Rozier",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 1
+      },
+      "game_info": {
+        "team": "MIA"
+      },
+      "analyzed_at": "2025-12-26T16:50:14.450736"
+    },
+    "ORL_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Desmond Bane",
+              "Franz Wagner",
+              "Anthony Black",
+              "Wendell Carter Jr.",
+              "Paolo Banchero"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "ORL_Paolo Banchero": {
+            "role": "starter",
+            "minutes": 27.6,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "ORL_Desmond Bane": {
+            "role": "starter",
+            "minutes": 34.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "ORL_Goga Bitadze": {
+            "role": "rotation",
+            "minutes": 18.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ORL_Anthony Black": {
+            "role": "starter",
+            "minutes": 30.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "ORL_Jamal Cain": {
+            "role": "deep_bench",
+            "minutes": 6.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ORL_Wendell Carter Jr.": {
+            "role": "starter",
+            "minutes": 28.2,
+            "position": "CENTER",
+            "starter": true
+          },
+          "ORL_Colin Castleton": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ORL_Tristan da Silva": {
+            "role": "rotation",
+            "minutes": 22.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ORL_Jett Howard": {
+            "role": "bench",
+            "minutes": 14.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ORL_Jonathan Isaac": {
+            "role": "bench",
+            "minutes": 10.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ORL_Tyus Jones": {
+            "role": "rotation",
+            "minutes": 15.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ORL_Noah Penda": {
+            "role": "bench",
+            "minutes": 12.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "ORL_Jase Richardson": {
+            "role": "bench",
+            "minutes": 10.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ORL_Orlando Robinson": {
+            "role": "deep_bench",
+            "minutes": 7.333333333333333,
+            "position": "CENTER",
+            "starter": false
+          },
+          "ORL_Jalen Suggs": {
+            "role": "key_rotation",
+            "minutes": 27.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "ORL_Franz Wagner": {
+            "role": "starter",
+            "minutes": 33.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "ORL_Moritz Wagner": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "ORL"
+      },
+      "analyzed_at": "2025-12-26T11:36:49.545234"
+    },
+    "CHA_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Miles Bridges",
+              "Kon Knueppel",
+              "LaMelo Ball",
+              "Sion James",
+              "Brandon Miller"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "CHA_LaMelo Ball": {
+            "role": "starter",
+            "minutes": 25.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "CHA_Miles Bridges": {
+            "role": "starter",
+            "minutes": 34.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "CHA_Pat Connaughton": {
+            "role": "bench",
+            "minutes": 11.4,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Moussa Diabate": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "CHA_Josh Green": {
+            "role": "rotation",
+            "minutes": 17.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Sion James": {
+            "role": "starter",
+            "minutes": 24.4,
+            "position": "GUARD",
+            "starter": true
+          },
+          "CHA_Ryan Kalkbrenner": {
+            "role": "key_rotation",
+            "minutes": 26.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "CHA_Kon Knueppel": {
+            "role": "starter",
+            "minutes": 34.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "CHA_Tre Mann": {
+            "role": "rotation",
+            "minutes": 15.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Liam McNeeley": {
+            "role": "bench",
+            "minutes": 14.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Brandon Miller": {
+            "role": "starter",
+            "minutes": 24.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "CHA_Drew Peterson": {
+            "role": "bench",
+            "minutes": 13.5,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "CHA_Mason Plumlee": {
+            "role": "bench",
+            "minutes": 11.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "CHA_Antonio Reeves": {
+            "role": "bench",
+            "minutes": 10.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Tidjane Salaun": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "CHA_Collin Sexton": {
+            "role": "rotation",
+            "minutes": 20.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_KJ Simpson": {
+            "role": "bench",
+            "minutes": 13.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "CHA_Grant Williams": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: Ryan Kalkbrenner (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "medium"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "Ryan Kalkbrenner",
+            "status": "Out"
+          },
+          {
+            "name": "Mason Plumlee",
+            "status": "Out"
+          },
+          {
+            "name": "Grant Williams",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 1
+      },
+      "game_info": {
+        "team": "CHA"
+      },
+      "analyzed_at": "2025-12-29T03:09:52.427946"
+    },
+    "MEM_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Jaren Jackson Jr.",
+              "Jaylen Wells",
+              "Cedric Coward",
+              "Ja Morant",
+              "Zach Edey"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "MEM_Santi Aldama": {
+            "role": "key_rotation",
+            "minutes": 25.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MEM_Kobe Bufkin": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Kentavious Caldwell-Pope": {
+            "role": "rotation",
+            "minutes": 18.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Brandon Clarke": {
+            "role": "rotation",
+            "minutes": 17.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MEM_Cedric Coward": {
+            "role": "starter",
+            "minutes": 30.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MEM_Zach Edey": {
+            "role": "starter",
+            "minutes": 26.4,
+            "position": "CENTER",
+            "starter": true
+          },
+          "MEM_GG Jackson": {
+            "role": "deep_bench",
+            "minutes": 6.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MEM_Jaren Jackson Jr.": {
+            "role": "starter",
+            "minutes": 31.8,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MEM_Ty Jerome": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_John Konchar": {
+            "role": "bench",
+            "minutes": 14.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Jock Landale": {
+            "role": "rotation",
+            "minutes": 19.4,
+            "position": "CENTER",
+            "starter": false
+          },
+          "MEM_Jahmai Mashack": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Ja Morant": {
+            "role": "starter",
+            "minutes": 28.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MEM_Scotty Pippen Jr.": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Olivier-Maxence Prosper": {
+            "role": "bench",
+            "minutes": 13.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MEM_Javon Small": {
+            "role": "deep_bench",
+            "minutes": 7.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Cam Spencer": {
+            "role": "rotation",
+            "minutes": 23.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MEM_Jaylen Wells": {
+            "role": "starter",
+            "minutes": 30.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MEM_Vince Williams Jr.": {
+            "role": "rotation",
+            "minutes": 22.4,
+            "position": "GUARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "MEM"
+      },
+      "analyzed_at": "2025-12-26T11:31:57.918938"
+    },
+    "MIL_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Ryan Rollins",
+              "AJ Green",
+              "Kevin Porter Jr.",
+              "Jericho Sims",
+              "Kyle Kuzma"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "MIL_Alex Antetokounmpo": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIL_Giannis Antetokounmpo": {
+            "role": "rotation",
+            "minutes": 19.0,
+            "position": "PF",
+            "starter": false
+          },
+          "MIL_Thanasis Antetokounmpo": {
+            "role": "deep_bench",
+            "minutes": 2.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIL_Cole Anthony": {
+            "role": "bench",
+            "minutes": 9.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_Amir Coffey": {
+            "role": "deep_bench",
+            "minutes": 2.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_AJ Green": {
+            "role": "starter",
+            "minutes": 33.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MIL_Gary Harris": {
+            "role": "rotation",
+            "minutes": 16.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_Andre Jackson Jr.": {
+            "role": "bench",
+            "minutes": 9.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_Kyle Kuzma": {
+            "role": "starter",
+            "minutes": 24.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "MIL_Pete Nance": {
+            "role": "deep_bench",
+            "minutes": 3.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIL_Kevin Porter Jr.": {
+            "role": "starter",
+            "minutes": 32.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MIL_Bobby Portis": {
+            "role": "rotation",
+            "minutes": 22.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIL_Taurean Prince": {
+            "role": "rotation",
+            "minutes": 18.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "MIL_Ryan Rollins": {
+            "role": "starter",
+            "minutes": 36.4,
+            "position": "GUARD",
+            "starter": true
+          },
+          "MIL_Mark Sears": {
+            "role": "deep_bench",
+            "minutes": 2.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_Jericho Sims": {
+            "role": "starter",
+            "minutes": 26.4,
+            "position": "CENTER",
+            "starter": true
+          },
+          "MIL_Gary Trent Jr.": {
+            "role": "key_rotation",
+            "minutes": 26.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "MIL_Myles Turner": {
+            "role": "rotation",
+            "minutes": 23.2,
+            "position": "CENTER",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: Gary Trent Jr. (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "medium"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "Taurean Prince",
+            "status": "Out"
+          },
+          {
+            "name": "Gary Trent Jr.",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 1
+      },
+      "game_info": {
+        "team": "MIL"
+      },
+      "analyzed_at": "2025-12-29T03:09:52.437148"
+    },
+    "WSH_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "CJ McCollum",
+              "Kyshawn George",
+              "Alex Sarr",
+              "Bilal Coulibaly",
+              "Khris Middleton"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "WSH_Marvin Bagley III": {
+            "role": "key_rotation",
+            "minutes": 25.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "WSH_Malaki Branham": {
+            "role": "deep_bench",
+            "minutes": 7.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Bub Carrington": {
+            "role": "rotation",
+            "minutes": 24.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Justin Champagnie": {
+            "role": "rotation",
+            "minutes": 17.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "WSH_Sharife Cooper": {
+            "role": "deep_bench",
+            "minutes": 2.5,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Bilal Coulibaly": {
+            "role": "starter",
+            "minutes": 29.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "WSH_Kyshawn George": {
+            "role": "starter",
+            "minutes": 31.0,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "WSH_Anthony Gill": {
+            "role": "deep_bench",
+            "minutes": 4.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "WSH_AJ Johnson": {
+            "role": "deep_bench",
+            "minutes": 5.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Tre Johnson": {
+            "role": "rotation",
+            "minutes": 20.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Corey Kispert": {
+            "role": "rotation",
+            "minutes": 21.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "WSH_CJ McCollum": {
+            "role": "starter",
+            "minutes": 31.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "WSH_Khris Middleton": {
+            "role": "starter",
+            "minutes": 27.4,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "WSH_Will Riley": {
+            "role": "bench",
+            "minutes": 13.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Alex Sarr": {
+            "role": "starter",
+            "minutes": 30.8,
+            "position": "CENTER",
+            "starter": true
+          },
+          "WSH_Tristan Vukcevic": {
+            "role": "rotation",
+            "minutes": 15.6,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "WSH_Jamir Watkins": {
+            "role": "bench",
+            "minutes": 10.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "WSH_Cam Whitmore": {
+            "role": "rotation",
+            "minutes": 15.8,
+            "position": "FORWARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "WSH"
+      },
+      "analyzed_at": "2025-12-26T11:36:37.215894"
+    },
+    "TOR_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Brandon Ingram",
+              "Scottie Barnes",
+              "Immanuel Quickley",
+              "Sandro Mamukelashvili",
+              "Ja'Kobe Walter"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "TOR_Ochai Agbaji": {
+            "role": "bench",
+            "minutes": 12.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Scottie Barnes": {
+            "role": "starter",
+            "minutes": 35.4,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "TOR_RJ Barrett": {
+            "role": "key_rotation",
+            "minutes": 28.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "TOR_Jamison Battle": {
+            "role": "bench",
+            "minutes": 11.4,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "TOR_Gradey Dick": {
+            "role": "rotation",
+            "minutes": 18.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Chucky Hepburn": {
+            "role": "deep_bench",
+            "minutes": 5.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Brandon Ingram": {
+            "role": "starter",
+            "minutes": 36.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "TOR_A.J. Lawson": {
+            "role": "bench",
+            "minutes": 13.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Sandro Mamukelashvili": {
+            "role": "starter",
+            "minutes": 23.6,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "TOR_Alijah Martin": {
+            "role": "deep_bench",
+            "minutes": 4.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Jonathan Mogbo": {
+            "role": "deep_bench",
+            "minutes": 4.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "TOR_Collin Murray-Boyles": {
+            "role": "rotation",
+            "minutes": 15.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "TOR_Jakob Poeltl": {
+            "role": "key_rotation",
+            "minutes": 28.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "TOR_Immanuel Quickley": {
+            "role": "starter",
+            "minutes": 34.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "TOR_Jamal Shead": {
+            "role": "rotation",
+            "minutes": 20.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Garrett Temple": {
+            "role": "deep_bench",
+            "minutes": 4.5,
+            "position": "GUARD",
+            "starter": false
+          },
+          "TOR_Ja'Kobe Walter": {
+            "role": "starter",
+            "minutes": 23.2,
+            "position": "GUARD",
+            "starter": true
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: RJ Barrett (Out), Jakob Poeltl (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "high"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "RJ Barrett",
+            "status": "Out"
+          },
+          {
+            "name": "Jakob Poeltl",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 2
+      },
+      "game_info": {
+        "team": "TOR"
+      },
+      "analyzed_at": "2025-12-28T03:46:43.184524"
+    },
+    "SAC_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "DeMar DeRozan",
+              "Russell Westbrook",
+              "Malik Monk",
+              "Precious Achiuwa",
+              "Maxime Raynaud"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "SAC_Precious Achiuwa": {
+            "role": "starter",
+            "minutes": 24.2,
+            "position": "POWER FORWARD",
+            "starter": true
+          },
+          "SAC_Dylan Cardwell": {
+            "role": "bench",
+            "minutes": 11.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "SAC_Devin Carter": {
+            "role": "bench",
+            "minutes": 8.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Nique Clifford": {
+            "role": "bench",
+            "minutes": 12.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_DeMar DeRozan": {
+            "role": "starter",
+            "minutes": 32.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "SAC_Keon Ellis": {
+            "role": "bench",
+            "minutes": 12.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Drew Eubanks": {
+            "role": "bench",
+            "minutes": 13.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "SAC_Zach LaVine": {
+            "role": "key_rotation",
+            "minutes": 31.4,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Doug McDermott": {
+            "role": "bench",
+            "minutes": 8.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "SAC_Malik Monk": {
+            "role": "starter",
+            "minutes": 26.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "SAC_Keegan Murray": {
+            "role": "key_rotation",
+            "minutes": 40.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "SAC_Daeqwon Plowden": {
+            "role": "bench",
+            "minutes": 14.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Maxime Raynaud": {
+            "role": "starter",
+            "minutes": 20.0,
+            "position": "CENTER",
+            "starter": true
+          },
+          "SAC_Domantas Sabonis": {
+            "role": "key_rotation",
+            "minutes": 31.4,
+            "position": "C",
+            "starter": false
+          },
+          "SAC_Dario Saric": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "SAC_Dennis Schroder": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Isaiah Stevens": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "SAC_Russell Westbrook": {
+            "role": "starter",
+            "minutes": 28.2,
+            "position": "GUARD",
+            "starter": true
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: Zach LaVine (Out), Keegan Murray (Out), Domantas Sabonis (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "high"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "Drew Eubanks",
+            "status": "Out"
+          },
+          {
+            "name": "Zach LaVine",
+            "status": "Out"
+          },
+          {
+            "name": "Keegan Murray",
+            "status": "Out"
+          },
+          {
+            "name": "Domantas Sabonis",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 3
+      },
+      "game_info": {
+        "team": "SAC"
+      },
+      "analyzed_at": "2025-12-28T01:58:16.526156"
+    },
+    "DAL_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Cooper Flagg",
+              "P.J. Washington",
+              "Naji Marshall",
+              "Max Christie",
+              "Anthony Davis"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "DAL_Max Christie": {
+            "role": "starter",
+            "minutes": 27.6,
+            "position": "GUARD",
+            "starter": true
+          },
+          "DAL_Moussa Cisse": {
+            "role": "deep_bench",
+            "minutes": 7.6,
+            "position": "CENTER",
+            "starter": false
+          },
+          "DAL_Anthony Davis": {
+            "role": "starter",
+            "minutes": 26.6,
+            "position": "PF",
+            "starter": true
+          },
+          "DAL_Dante Exum": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Cooper Flagg": {
+            "role": "starter",
+            "minutes": 34.4,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "DAL_Daniel Gafford": {
+            "role": "rotation",
+            "minutes": 22.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "DAL_Jaden Hardy": {
+            "role": "deep_bench",
+            "minutes": 7.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Kyrie Irving": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Miles Kelly": {
+            "role": "deep_bench",
+            "minutes": 5.5,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Dereck Lively II": {
+            "role": "rotation",
+            "minutes": 17.2,
+            "position": "CENTER",
+            "starter": false
+          },
+          "DAL_Naji Marshall": {
+            "role": "starter",
+            "minutes": 31.6,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "DAL_Caleb Martin": {
+            "role": "bench",
+            "minutes": 8.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "DAL_Ryan Nembhard": {
+            "role": "key_rotation",
+            "minutes": 26.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Dwight Powell": {
+            "role": "rotation",
+            "minutes": 18.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "DAL_D'Angelo Russell": {
+            "role": "rotation",
+            "minutes": 18.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_Klay Thompson": {
+            "role": "rotation",
+            "minutes": 23.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "DAL_P.J. Washington": {
+            "role": "starter",
+            "minutes": 34.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "DAL_Brandon Williams": {
+            "role": "rotation",
+            "minutes": 20.0,
+            "position": "GUARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "medical_report": [
+          {
+            "name": "Dante Exum",
+            "status": "Out"
+          },
+          {
+            "name": "Kyrie Irving",
+            "status": "Out"
+          },
+          {
+            "name": "Dereck Lively II",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "DAL"
+      },
+      "analyzed_at": "2025-12-28T01:58:16.534189"
+    },
+    "GS_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Stephen Curry",
+              "Jimmy Butler III",
+              "Draymond Green",
+              "Brandin Podziemski",
+              "Moses Moody"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "GS_Jimmy Butler III": {
+            "role": "starter",
+            "minutes": 29.6,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "GS_L.J. Cryer": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Seth Curry": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "SHOOTING GUARD",
+            "starter": false
+          },
+          "GS_Stephen Curry": {
+            "role": "starter",
+            "minutes": 31.6,
+            "position": "PG",
+            "starter": true
+          },
+          "GS_Draymond Green": {
+            "role": "starter",
+            "minutes": 27.4,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "GS_Buddy Hield": {
+            "role": "rotation",
+            "minutes": 21.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Al Horford": {
+            "role": "rotation",
+            "minutes": 21.4,
+            "position": "CENTER",
+            "starter": false
+          },
+          "GS_Trayce Jackson-Davis": {
+            "role": "bench",
+            "minutes": 11.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "GS_Jonathan Kuminga": {
+            "role": "rotation",
+            "minutes": 18.2,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "GS_De'Anthony Melton": {
+            "role": "rotation",
+            "minutes": 21.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Moses Moody": {
+            "role": "starter",
+            "minutes": 24.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "GS_Gary Payton II": {
+            "role": "rotation",
+            "minutes": 16.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Brandin Podziemski": {
+            "role": "starter",
+            "minutes": 25.4,
+            "position": "GUARD",
+            "starter": true
+          },
+          "GS_Quinten Post": {
+            "role": "rotation",
+            "minutes": 22.8,
+            "position": "CENTER",
+            "starter": false
+          },
+          "GS_Will Richard": {
+            "role": "rotation",
+            "minutes": 23.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Jackson Rowe": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "GS_Gui Santos": {
+            "role": "bench",
+            "minutes": 10.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "GS_Pat Spencer": {
+            "role": "rotation",
+            "minutes": 15.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "GS_Alex Toohey": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "FORWARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "medical_report": [],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "GS"
+      },
+      "analyzed_at": "2025-12-28T03:46:43.190376"
+    },
+    "OKC_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Shai Gilgeous-Alexander",
+              "Chet Holmgren",
+              "Jalen Williams",
+              "Cason Wallace",
+              "Luguentz Dort"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "OKC_Brooks Barnhizer": {
+            "role": "deep_bench",
+            "minutes": 7.4,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "OKC_Branden Carlson": {
+            "role": "bench",
+            "minutes": 9.6,
+            "position": "CENTER",
+            "starter": false
+          },
+          "OKC_Alex Caruso": {
+            "role": "rotation",
+            "minutes": 19.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Ousmane Dieng": {
+            "role": "bench",
+            "minutes": 12.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "OKC_Luguentz Dort": {
+            "role": "starter",
+            "minutes": 26.4,
+            "position": "GUARD",
+            "starter": true
+          },
+          "OKC_Shai Gilgeous-Alexander": {
+            "role": "starter",
+            "minutes": 35.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "OKC_Isaiah Hartenstein": {
+            "role": "key_rotation",
+            "minutes": 25.6,
+            "position": "CENTER",
+            "starter": false
+          },
+          "OKC_Chet Holmgren": {
+            "role": "starter",
+            "minutes": 29.2,
+            "position": "CENTER",
+            "starter": true
+          },
+          "OKC_Isaiah Joe": {
+            "role": "rotation",
+            "minutes": 18.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Ajay Mitchell": {
+            "role": "rotation",
+            "minutes": 22.8,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Thomas Sorber": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "CENTER",
+            "starter": false
+          },
+          "OKC_Nikola Topic": {
+            "role": "deep_bench",
+            "minutes": 0.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Cason Wallace": {
+            "role": "starter",
+            "minutes": 28.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "OKC_Aaron Wiggins": {
+            "role": "rotation",
+            "minutes": 23.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Jalen Williams": {
+            "role": "starter",
+            "minutes": 29.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "OKC_Jaylin Williams": {
+            "role": "rotation",
+            "minutes": 20.0,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "OKC_Kenrich Williams": {
+            "role": "rotation",
+            "minutes": 16.2,
+            "position": "GUARD",
+            "starter": false
+          },
+          "OKC_Chris Youngblood": {
+            "role": "deep_bench",
+            "minutes": 5.2,
+            "position": "GUARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [],
+        "medical_report": [
+          {
+            "name": "Ousmane Dieng",
+            "status": "Out"
+          },
+          {
+            "name": "Thomas Sorber",
+            "status": "Out"
+          },
+          {
+            "name": "Nikola Topic",
+            "status": "Out"
+          },
+          {
+            "name": "Jaylin Williams",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 0
+      },
+      "game_info": {
+        "team": "OKC"
+      },
+      "analyzed_at": "2025-12-28T03:46:53.061717"
+    },
+    "PHI_rotation": {
+      "signals": {
+        "stable_lineups": [
+          {
+            "lineup": [
+              "Tyrese Maxey",
+              "Quentin Grimes",
+              "Dominick Barlow",
+              "VJ Edgecombe",
+              "Jared McCain"
+            ],
+            "type": "starting_lineup",
+            "net_rating": "+3.5"
+          }
+        ],
+        "role_definitions": {
+          "PHI_Dominick Barlow": {
+            "role": "starter",
+            "minutes": 29.2,
+            "position": "FORWARD",
+            "starter": true
+          },
+          "PHI_Adem Bona": {
+            "role": "rotation",
+            "minutes": 16.4,
+            "position": "CENTER",
+            "starter": false
+          },
+          "PHI_Johni Broome": {
+            "role": "deep_bench",
+            "minutes": 6.8,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "PHI_Andre Drummond": {
+            "role": "bench",
+            "minutes": 14.6,
+            "position": "CENTER",
+            "starter": false
+          },
+          "PHI_VJ Edgecombe": {
+            "role": "starter",
+            "minutes": 28.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "PHI_Justin Edwards": {
+            "role": "rotation",
+            "minutes": 20.6,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "PHI_Joel Embiid": {
+            "role": "key_rotation",
+            "minutes": 26.4,
+            "position": "C",
+            "starter": false
+          },
+          "PHI_Paul George": {
+            "role": "rotation",
+            "minutes": 23.4,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "PHI_Eric Gordon": {
+            "role": "bench",
+            "minutes": 11.4,
+            "position": "GUARD",
+            "starter": false
+          },
+          "PHI_Quentin Grimes": {
+            "role": "starter",
+            "minutes": 36.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "PHI_Kyle Lowry": {
+            "role": "deep_bench",
+            "minutes": 7.0,
+            "position": "GUARD",
+            "starter": false
+          },
+          "PHI_Tyrese Maxey": {
+            "role": "starter",
+            "minutes": 39.0,
+            "position": "GUARD",
+            "starter": true
+          },
+          "PHI_Jared McCain": {
+            "role": "starter",
+            "minutes": 25.8,
+            "position": "GUARD",
+            "starter": true
+          },
+          "PHI_Kelly Oubre Jr.": {
+            "role": "key_rotation",
+            "minutes": 31.4,
+            "position": "GUARD",
+            "starter": false
+          },
+          "PHI_Hunter Sallis": {
+            "role": "deep_bench",
+            "minutes": 4.6,
+            "position": "GUARD",
+            "starter": false
+          },
+          "PHI_Jabari Walker": {
+            "role": "bench",
+            "minutes": 14.6,
+            "position": "FORWARD",
+            "starter": false
+          },
+          "PHI_Trendon Watford": {
+            "role": "rotation",
+            "minutes": 18.2,
+            "position": "FORWARD",
+            "starter": false
+          }
+        },
+        "lineup_shocks": [
+          {
+            "description": "Ausências de Impacto: Joel Embiid (Out), Kelly Oubre Jr. (Out)",
+            "impact": "Ajuste forçado na rotação",
+            "severity": "high"
+          }
+        ],
+        "medical_report": [
+          {
+            "name": "Joel Embiid",
+            "status": "Out"
+          },
+          {
+            "name": "Kelly Oubre Jr.",
+            "status": "Out"
+          },
+          {
+            "name": "Trendon Watford",
+            "status": "Out"
+          }
+        ],
+        "injured_starters_count": 2
+      },
+      "game_info": {
+        "team": "PHI"
+      },
+      "analyzed_at": "2025-12-28T03:46:53.068783"
+    }
+  }
+}
