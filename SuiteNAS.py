@@ -217,11 +217,6 @@ except ImportError:
         def get_nba_games(self): return []
         def get_player_props(self, game_id): return []
 
-    from modules.new_modules.dvp_analyzer import DvPAnalyzer
-    DVP_MODULE_AVAILABLE = True
-except ImportError:
-    DVP_MODULE_AVAILABLE = False
-    DvPAnalyzer = None
 import logging
 logger = logging.getLogger(__name__)
 
@@ -6084,3 +6079,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
