@@ -2876,7 +2876,7 @@ def show_config_page():
     # --- ENFORCE: Forçar tudo ligado ---
     st.session_state.use_advanced_features = True
     
-    # IMPORTA O CAMINHO DEFINIDO NO INJURIES.PY OU USA O PADRÃO
+    # IMPORTA O CAMINHO DEFINIDO NO INJURIES.PY
     try:
         from injuries import INJURIES_CACHE_FILE
     except ImportError:
@@ -2925,7 +2925,7 @@ def show_config_page():
                     time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Erro L5: {e}")
         
-        # --- BOTÃO DE LESÕES CORRIGIDO (V22) ---
+        # --- BOTÃO DE LESÕES CORRIGIDO ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
         if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
             with st.spinner("Conectando ao Depto. Médico (ESPN API)..."):
@@ -2933,7 +2933,6 @@ def show_config_page():
                     from injuries import InjuryMonitor
                     monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
                     
-                    # Siglas padronizadas para a API da ESPN
                     ALL_TEAMS = [
                         "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
                         "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
@@ -2945,7 +2944,6 @@ def show_config_page():
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
                     
-                    # SALVAMENTO EXPLÍCITO NO DISCO
                     saved = monitor.save_cache()
                     p.empty()
                     
@@ -3000,7 +2998,7 @@ def show_config_page():
                         importlib.reload(pace_adjuster)
                         
                         st.session_state.pace_adjuster = pace_adjuster.PaceAdjuster(new_stats)
-                        st.success(f"✅ Sucesso! PaceAdjuster carregado via {target_dir}")
+                        st.success(f"✅ Sucesso! PaceAdjuster carregado.")
                         time.sleep(1)
                         st.rerun()
                         
@@ -3008,7 +3006,7 @@ def show_config_page():
                         st.error(f"Erro técnico: {e}")
 
     # ==============================================================================
-    # 3. DASHBOARD DE VOLUMETRIA & LIMPEZA
+    # 3. DASHBOARD DE VOLUMETRIA
     # ==============================================================================
     st.markdown("---")
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
@@ -3036,7 +3034,7 @@ def show_config_page():
             st.rerun()
 
     # ==============================================================================
-    # 4. GESTÃO DE ACESSOS (RBAC PREMIUM)
+    # 4. GESTÃO DE ACESSOS (RBAC PREMIUM - TABELA INTERATIVA)
     # ==============================================================================
     st.markdown("---")
     st.header("🔐 Gestão de Acessos (RBAC)")
@@ -3049,24 +3047,9 @@ def show_config_page():
         "📋 Auditoria", "📈 Analytics Dashboard", "⚙️ Config"
     ]
 
-    tab_view, tab_create, tab_edit = st.tabs(["📋 Visão Geral", "➕ Criar Usuário", "🛡️ Editar Permissões"])
+    tab_create, tab_manage = st.tabs(["➕ Criar Usuário", "🛡️ Gerenciar Usuários (Tabela)"])
 
-    # --- ABA 1: VISÃO GERAL (TABELA) ---
-    with tab_view:
-        users_list = user_manager.get_all_users()
-        table_data = []
-        for u in users_list:
-            user_data = user_manager.users["usernames"].get(u, {})
-            perms = user_data.get("permissions", [])
-            status_perm = "👑 ADMIN TOTAL" if "ALL" in perms else f"{len(perms)} Abas permitidas"
-            table_data.append({"Login": u, "Nome": user_data.get("name", "N/A"), "Acesso": status_perm})
-            
-        if table_data:
-            st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum usuário encontrado.")
-
-    # --- ABA 2: CRIAR USUÁRIO ---
+    # --- ABA 1: CRIAR USUÁRIO ---
     with tab_create:
         with st.form("create_user_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -3098,46 +3081,83 @@ def show_config_page():
                 else:
                     st.warning("Preencha login e senha.")
 
-    # --- ABA 3: EDITAR PERMISSÕES ---
-    with tab_edit:
+    # --- ABA 2: GERENCIAR COM TABELA INTERATIVA ---
+    with tab_manage:
+        st.info("👆 Clique em uma linha da tabela abaixo para editar as permissões do usuário.")
+        
         users_list = user_manager.get_all_users()
-        col_sel, col_info = st.columns([1, 2])
         
-        with col_sel:
-            target_user = st.selectbox("Selecione o Usuário:", users_list)
+        # 1. PREPARA DADOS
+        data_for_table = []
+        for u in users_list:
+            u_data = user_manager.users["usernames"].get(u, {})
+            perms = u_data.get("permissions", [])
+            
+            if "ALL" in perms:
+                role = "👑 ADMIN"
+                desc = "Acesso Total"
+            else:
+                role = "👤 USER"
+                desc = f"{len(perms)} Módulos liberados"
+                
+            data_for_table.append({
+                "Login": u,
+                "Nome": u_data.get("name", "---"),
+                "Perfil": role,
+                "Detalhes": desc
+            })
         
-        if target_user:
-            current_perms = user_manager.get_user_permissions(target_user)
-            with col_info:
-                if "ALL" in current_perms:
-                    st.info(f"Usuário **{target_user}** tem acesso de Administrador.")
-                else:
-                    st.warning(f"Usuário **{target_user}** tem acesso restrito ({len(current_perms)} abas).")
+        df_users = pd.DataFrame(data_for_table)
 
-            st.write("---")
-            with st.form("edit_perms_form"):
+        # 2. RENDERIZA TABELA SELECIONÁVEL
+        selection = st.dataframe(
+            df_users,
+            use_container_width=True,
+            hide_index=True,
+            selection_mode="single-row",
+            on_select="rerun", # Recarrega ao clicar
+            column_config={
+                "Login": st.column_config.TextColumn("Login", help="Usuário de acesso"),
+                "Perfil": st.column_config.TextColumn("Perfil", width="small"),
+            }
+        )
+
+        # 3. LÓGICA DE EDIÇÃO (SE TIVER LINHA SELECIONADA)
+        if selection.selection.rows:
+            idx = selection.selection.rows[0]
+            target_user = df_users.iloc[idx]["Login"]
+            
+            st.divider()
+            st.markdown(f"#### ✏️ Editando: <span style='color:#FACC15'>{target_user}</span>", unsafe_allow_html=True)
+            
+            current_perms = user_manager.get_user_permissions(target_user)
+            
+            with st.form("edit_perms_table_form"):
                 is_admin = st.checkbox("👑 Tornar Admin (Acesso Total)", value=("ALL" in current_perms))
                 new_perms_list = []
                 
                 if is_admin:
                     new_perms_list = ["ALL"]
+                    st.success("Acesso total habilitado.")
                 else:
+                    st.write("**Selecione os módulos permitidos:**")
                     cols = st.columns(3)
                     for i, mod in enumerate(ALL_MODULES):
                         with cols[i % 3]:
-                            # A mágica: Marca se já tiver a permissão
                             has_perm = (mod in current_perms)
-                            if st.checkbox(mod, value=has_perm, key=f"edit_{target_user}_{i}"):
+                            if st.checkbox(mod, value=has_perm, key=f"tbl_edit_{target_user}_{i}"):
                                 new_perms_list.append(mod)
                 
-                if st.form_submit_button("💾 Salvar Alterações"):
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.form_submit_button("💾 Salvar Alterações", type="primary"):
+                    # Proteção contra auto-sabotagem do admin
                     if target_user == "admin" and "ALL" not in new_perms_list:
-                        st.error("Não é possível remover acesso do admin principal.")
+                        st.error("ERRO: O super-admin 'admin' não pode ter acesso removido.")
                     else:
                         ok, msg = user_manager.update_permissions(target_user, new_perms_list)
                         if ok:
-                            st.success(msg)
-                            time.sleep(1)
+                            st.toast(f"✅ Permissões de {target_user} atualizadas!")
+                            time.sleep(0.5)
                             st.rerun()
 
 # ============================================================================
@@ -6264,6 +6284,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
