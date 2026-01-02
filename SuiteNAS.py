@@ -2876,7 +2876,7 @@ def show_config_page():
     # --- ENFORCE: Forçar tudo ligado ---
     st.session_state.use_advanced_features = True
     
-    # IMPORTA O CAMINHO DEFINIDO NO INJURIES.PY
+    # IMPORTA O CAMINHO DEFINIDO NO INJURIES.PY OU USA O PADRÃO
     try:
         from injuries import INJURIES_CACHE_FILE
     except ImportError:
@@ -2884,7 +2884,9 @@ def show_config_page():
 
     st.header("⚙️ PAINEL DE CONTROLE")
     
+    # ==============================================================================
     # 1. STATUS DO SISTEMA
+    # ==============================================================================
     st.markdown("### 📡 Status dos Motores")
     c1, c2, c3, c4 = st.columns(4)
     
@@ -2904,7 +2906,9 @@ def show_config_page():
     render_mini_status(c4, "Auditoria", audit_ok)
     st.markdown("---")
 
+    # ==============================================================================
     # 2. AÇÕES DE DADOS
+    # ==============================================================================
     st.subheader("🔄 Sincronização de Dados")
     col_act1, col_act2 = st.columns(2)
     
@@ -2929,7 +2933,7 @@ def show_config_page():
                     from injuries import InjuryMonitor
                     monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
                     
-                    # Siglas padronizadas para a API da ESPN (evita JSON vazio)
+                    # Siglas padronizadas para a API da ESPN
                     ALL_TEAMS = [
                         "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
                         "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
@@ -2938,7 +2942,6 @@ def show_config_page():
                     
                     p = st.progress(0)
                     for i, team in enumerate(ALL_TEAMS):
-                        # Método que você corrigiu no injuries.py com site.web.api
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
                     
@@ -2979,45 +2982,34 @@ def show_config_page():
                 except: st.error("Erro ao carregar DvP.")
         
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
-# Botão de Sincronização (Correção de Escopo)
-    if st.button("🔄 Sincronizar Pace (Temporada 2025-26)"):
-        with st.spinner("Conectando à API da NBA..."):
-            # 1. Busca dados novos
-            new_stats = fetch_real_time_team_stats()
-            
-            if new_stats:
-                try:
-                    import importlib # Este é seguro manter aqui pois raramente é usado globalmente
-                    
-                    # --- CORREÇÃO DE CAMINHO ---
-                    # Usa o 'os' e 'sys' GLOBAIS (do topo do arquivo)
-                    current_dir = os.getcwd() 
-                    target_dir = os.path.join(current_dir, "modules", "new_modules")
-                    
-                    # Adiciona temporariamente ao sys.path se não estiver lá
-                    if target_dir not in sys.path:
-                        sys.path.append(target_dir)
-                    
-                    # --- IMPORTAÇÃO SEGURA ---
-                    import pace_adjuster
-                    
-                    # Força o Python a reler o arquivo do disco
-                    importlib.reload(pace_adjuster)
-                    
-                    # --- INSTANCIAÇÃO ---
-                    # Acessamos a classe de dentro do módulo recarregado
-                    st.session_state.pace_adjuster = pace_adjuster.PaceAdjuster(new_stats)
-                    
-                    st.success(f"✅ Sucesso! PaceAdjuster carregado via {target_dir}")
-                    time.sleep(1)
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"Erro técnico: {e}")
-                    # Debug: Mostra o caminho para termos certeza
-                    st.write(f"Caminho tentado: {os.path.join(os.getcwd(), 'modules', 'new_modules')}")
+        
+        if st.button("🔄 Sincronizar Pace (Temporada 2025-26)"):
+            with st.spinner("Conectando à API da NBA..."):
+                new_stats = fetch_real_time_team_stats()
+                
+                if new_stats:
+                    try:
+                        import importlib
+                        current_dir = os.getcwd() 
+                        target_dir = os.path.join(current_dir, "modules", "new_modules")
+                        
+                        if target_dir not in sys.path:
+                            sys.path.append(target_dir)
+                        
+                        import pace_adjuster
+                        importlib.reload(pace_adjuster)
+                        
+                        st.session_state.pace_adjuster = pace_adjuster.PaceAdjuster(new_stats)
+                        st.success(f"✅ Sucesso! PaceAdjuster carregado via {target_dir}")
+                        time.sleep(1)
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Erro técnico: {e}")
 
-    # 3. DASHBOARD DE VOLUMETRIA
+    # ==============================================================================
+    # 3. DASHBOARD DE VOLUMETRIA & LIMPEZA
+    # ==============================================================================
     st.markdown("---")
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     games = st.session_state.get('scoreboard', [])
@@ -3026,7 +3018,6 @@ def show_config_page():
     col_m1.metric("Jogadores Base", len(df_l5))
     col_m2.metric("Jogos Hoje", len(games))
     
-    # Busca lesões para o KPI
     try:
         from injuries import InjuryMonitor
         m = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
@@ -3036,7 +3027,6 @@ def show_config_page():
     except:
         col_m3.metric("Lesionados", "N/A")
 
-                   
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🗑️ LIMPAR CACHE DE LESÕES", type="secondary", use_container_width=True):
         if os.path.exists(INJURIES_CACHE_FILE):
@@ -3045,82 +3035,110 @@ def show_config_page():
             time.sleep(1)
             st.rerun()
 
+    # ==============================================================================
+    # 4. GESTÃO DE ACESSOS (RBAC PREMIUM)
+    # ==============================================================================
     st.markdown("---")
     st.header("🔐 Gestão de Acessos (RBAC)")
 
-    # LISTA MESTRA DE TODAS AS ABAS DO SEU SISTEMA
-    # (Copie exatamente os nomes que você usa no menu lateral)
     ALL_MODULES = [
-        "🏠 Dashboard",
-        "🏥 Depto Médico",
-        "📈 Estatísticas Jogador",
-        "👥 Escalações",
-        "⚡ Momentum",
-        "🛡️ DvP Analysis",
-        "🎯 Desdobramentos Inteligentes",
-        "🎯 Hit Prop Hunter",
-        "🔄 Mapa de Rotações",
-        "🌪️ Blowout Hunter",
-        "⚔️ Lab Narrativas",
-        "🔥 Las Vegas Sync",
-        "🎯 Matchup Radar",
-        "📋 Auditoria",
-        "📈 Analytics Dashboard",
-        "⚙️ Config"
+        "🏠 Dashboard", "🏥 Depto Médico", "📈 Estatísticas Jogador", "👥 Escalações", 
+        "⚡ Momentum", "🛡️ DvP Analysis", "🎯 Desdobramentos Inteligentes", 
+        "🎯 Hit Prop Hunter", "🔄 Mapa de Rotações", "🌪️ Blowout Hunter", 
+        "⚔️ Lab Narrativas", "🔥 Las Vegas Sync", "🎯 Matchup Radar", 
+        "📋 Auditoria", "📈 Analytics Dashboard", "⚙️ Config"
     ]
 
-    tab1, tab2 = st.tabs(["➕ Criar Usuário", "🛡️ Editar Permissões"])
+    tab_view, tab_create, tab_edit = st.tabs(["📋 Visão Geral", "➕ Criar Usuário", "🛡️ Editar Permissões"])
 
-    # ABA 1: CRIAR USUÁRIO
-    with tab1:
-        with st.form("create_user_form"):
+    # --- ABA 1: VISÃO GERAL (TABELA) ---
+    with tab_view:
+        users_list = user_manager.get_all_users()
+        table_data = []
+        for u in users_list:
+            user_data = user_manager.users["usernames"].get(u, {})
+            perms = user_data.get("permissions", [])
+            status_perm = "👑 ADMIN TOTAL" if "ALL" in perms else f"{len(perms)} Abas permitidas"
+            table_data.append({"Login": u, "Nome": user_data.get("name", "N/A"), "Acesso": status_perm})
+            
+        if table_data:
+            st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum usuário encontrado.")
+
+    # --- ABA 2: CRIAR USUÁRIO ---
+    with tab_create:
+        with st.form("create_user_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             new_user = c1.text_input("Login (Username)")
             new_name = c2.text_input("Nome Completo")
             new_pass = st.text_input("Senha", type="password")
             
-            st.write("Selecione as abas permitidas:")
-            perms_selected = []
-            cols = st.columns(3)
-            for i, mod in enumerate(ALL_MODULES):
-                with cols[i % 3]:
-                    if st.checkbox(mod, key=f"new_{i}"):
-                        perms_selected.append(mod)
+            st.write("---")
+            grant_all = st.checkbox("Dar Acesso Total (Admin)", key="create_grant_all")
             
-            if st.form_submit_button("Cadastrar Usuário"):
+            perms_selected = []
+            if not grant_all:
+                st.write("**Permissões:**")
+                cols = st.columns(3)
+                for i, mod in enumerate(ALL_MODULES):
+                    with cols[i % 3]:
+                        if st.checkbox(mod, key=f"new_{i}"): perms_selected.append(mod)
+            else:
+                perms_selected = ["ALL"]
+            
+            if st.form_submit_button("✅ Cadastrar"):
                 if new_user and new_pass:
                     ok, msg = user_manager.create_user(new_user, new_name, new_pass, perms_selected)
-                    if ok: st.success(msg)
+                    if ok: 
+                        st.success(msg)
+                        time.sleep(1)
+                        st.rerun()
                     else: st.error(msg)
                 else:
                     st.warning("Preencha login e senha.")
 
-    # ABA 2: EDITAR PERMISSÕES
-    with tab2:
+    # --- ABA 3: EDITAR PERMISSÕES ---
+    with tab_edit:
         users_list = user_manager.get_all_users()
-        target_user = st.selectbox("Selecione o Usuário:", users_list)
+        col_sel, col_info = st.columns([1, 2])
+        
+        with col_sel:
+            target_user = st.selectbox("Selecione o Usuário:", users_list)
         
         if target_user:
-            # Carrega permissões atuais
             current_perms = user_manager.get_user_permissions(target_user)
-            st.write(f"Editando acesso de: **{target_user}**")
-            
+            with col_info:
+                if "ALL" in current_perms:
+                    st.info(f"Usuário **{target_user}** tem acesso de Administrador.")
+                else:
+                    st.warning(f"Usuário **{target_user}** tem acesso restrito ({len(current_perms)} abas).")
+
+            st.write("---")
             with st.form("edit_perms_form"):
+                is_admin = st.checkbox("👑 Tornar Admin (Acesso Total)", value=("ALL" in current_perms))
                 new_perms_list = []
-                cols = st.columns(3)
-                for i, mod in enumerate(ALL_MODULES):
-                    with cols[i % 3]:
-                        # Marca se o usuário já tem essa permissão ou se tem acesso ALL
-                        checked = (mod in current_perms) or ("ALL" in current_perms)
-                        if st.checkbox(mod, value=checked, key=f"edit_{target_user}_{i}"):
-                            new_perms_list.append(mod)
+                
+                if is_admin:
+                    new_perms_list = ["ALL"]
+                else:
+                    cols = st.columns(3)
+                    for i, mod in enumerate(ALL_MODULES):
+                        with cols[i % 3]:
+                            # A mágica: Marca se já tiver a permissão
+                            has_perm = (mod in current_perms)
+                            if st.checkbox(mod, value=has_perm, key=f"edit_{target_user}_{i}"):
+                                new_perms_list.append(mod)
                 
                 if st.form_submit_button("💾 Salvar Alterações"):
-                    ok, msg = user_manager.update_permissions(target_user, new_perms_list)
-                    if ok:
-                        st.success(msg)
-                        time.sleep(1)
-                        st.rerun()
+                    if target_user == "admin" and "ALL" not in new_perms_list:
+                        st.error("Não é possível remover acesso do admin principal.")
+                    else:
+                        ok, msg = user_manager.update_permissions(target_user, new_perms_list)
+                        if ok:
+                            st.success(msg)
+                            time.sleep(1)
+                            st.rerun()
 
 # ============================================================================
 # PÁGINA: ANALYTICS DASHBOARD (RANKING & ROI)
@@ -6246,6 +6264,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
