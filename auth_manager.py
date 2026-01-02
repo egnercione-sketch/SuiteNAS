@@ -1,17 +1,15 @@
 import json
 import os
-import bcrypt  # Usaremos a biblioteca padrão de criptografia
+import bcrypt
 from config_manager import PATHS
 
 class UserManager:
     def __init__(self):
         self.db_path = PATHS["USERS_DB"]
-        # Carrega usuários. Se não existir, cria o Admin padrão.
         self.users = self._load_users()
         self._ensure_admin_exists()
 
     def _load_users(self):
-        """Carrega usuários do arquivo JSON."""
         if not os.path.exists(self.db_path):
             return {"usernames": {}}
         try:
@@ -21,54 +19,42 @@ class UserManager:
             return {"usernames": {}}
 
     def _save_users(self):
-        """Salva alterações no arquivo JSON."""
         with open(self.db_path, 'w') as f:
             json.dump(self.users, f, indent=4)
 
     def _generate_hash(self, password):
-        """
-        Gera o hash da senha usando bcrypt diretamente.
-        Isso evita erros de versão do streamlit-authenticator.
-        """
         return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     def _ensure_admin_exists(self):
-        """
-        Cria um usuário ADMIN padrão se não houver nenhum usuário no sistema.
-        """
+        """Cria admin padrão se o banco estiver vazio."""
         if not self.users.get("usernames"):
-            # Senha padrão: admin123
-            # FIX: Usando bcrypt direto, impossível dar TypeError
             hashed_password = self._generate_hash("admin123")
-            
             self.users["usernames"] = {
                 "admin": {
                     "name": "Super Administrator",
                     "password": hashed_password,
-                    "permissions": ["ALL"], # Acesso total
+                    "permissions": ["ALL"], # ALL = Acesso Total
                     "logged_in": False,
                     "email": "admin@system.com"
                 }
             }
             self._save_users()
-            print("⚠️ [SISTEMA] Usuário 'admin' criado automaticamente (Senha: admin123)")
 
     def create_user(self, username, name, password, permissions=None):
-        """Cria usuário com lista de permissões."""
+        """Cria usuário salvando as permissões escolhidas."""
         if username in self.users["usernames"]:
             return False, "Usuário já existe!"
 
-        # Gera o Hash da senha
         hashed_password = self._generate_hash(password)
         
-        # Se não passar permissões, dá acesso básico
+        # Se não vier permissão, dá acesso apenas ao Dashboard por segurança
         if permissions is None:
             permissions = ["🏠 Dashboard"]
 
         self.users["usernames"][username] = {
             "name": name,
             "password": hashed_password,
-            "permissions": permissions,
+            "permissions": permissions, # Salva a lista de abas
             "logged_in": False,
             "email": f"{username}@user.com"
         }
@@ -77,29 +63,29 @@ class UserManager:
         return True, f"Usuário {username} criado com sucesso!"
 
     def update_permissions(self, username, new_permissions):
-        """Atualiza as permissões de um usuário existente."""
+        """Atualiza permissões de um usuário existente."""
         if username not in self.users["usernames"]:
             return False, "Usuário não encontrado."
-            
+        
         self.users["usernames"][username]["permissions"] = new_permissions
         self._save_users()
-        return True, "Permissões atualizadas!"
+        return True, "Permissões atualizadas com sucesso!"
 
     def get_user_permissions(self, username):
-        """Retorna a lista de abas permitidas para o usuário."""
+        """Retorna a lista de abas que o usuário pode ver."""
         user = self.users["usernames"].get(username, {})
-        # Admin mestre sempre vê tudo
+        # Admin sempre tem acesso total
         if username == "admin": 
             return ["ALL"]
         return user.get("permissions", [])
 
     def get_all_users(self):
-        """Retorna lista de todos os usernames."""
+        """Lista todos os logins cadastrados."""
         return list(self.users["usernames"].keys())
 
     def get_authenticator_config(self):
         return {
             "credentials": self.users,
-            "cookie": {"expiry_days": 30, "key": "nba_suite_super_secret_key", "name": "nba_auth_cookie"},
+            "cookie": {"expiry_days": 30, "key": "random_key_nba", "name": "auth_cookie"},
             "preauthorized": {"emails": []}
         }
