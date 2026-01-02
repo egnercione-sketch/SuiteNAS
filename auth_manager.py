@@ -3,6 +3,18 @@ import os
 import streamlit_authenticator as stauth
 from config_manager import PATHS
 
+# --- BLOCO DE COMPATIBILIDADE DE VERSÃO ---
+# Tenta importar o Hasher do local novo (v0.4.x), se não der, pega do antigo.
+try:
+    from streamlit_authenticator.utilities.hasher import Hasher
+except ImportError:
+    try:
+        from streamlit_authenticator.hasher import Hasher
+    except:
+        # Fallback final: tenta pegar direto do pacote principal
+        Hasher = stauth.Hasher
+# -------------------------------------------
+
 class UserManager:
     def __init__(self):
         self.db_path = PATHS["USERS_DB"]
@@ -32,7 +44,8 @@ class UserManager:
         """
         if not self.users.get("usernames"):
             # Senha padrão: admin123
-            hashed_password = stauth.Hasher(["admin123"]).generate()[0]
+            # AQUI ESTAVA O ERRO: Agora usamos a classe Hasher importada corretamente
+            hashed_password = Hasher(["admin123"]).generate()[0]
             
             self.users["usernames"] = {
                 "admin": {
@@ -51,8 +64,8 @@ class UserManager:
         if username in self.users["usernames"]:
             return False, "Usuário já existe!"
 
-        # Gera o Hash da senha
-        hashed_password = stauth.Hasher([password]).generate()[0]
+        # Gera o Hash da senha usando a classe importada
+        hashed_password = Hasher([password]).generate()[0]
         
         # Se não passar permissões, dá acesso básico
         if permissions is None:
