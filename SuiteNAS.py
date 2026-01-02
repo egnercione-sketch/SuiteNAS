@@ -244,12 +244,27 @@ authenticator = stauth.Authenticate(
 # Tela de Login (Bloqueia o resto do app)
 name, authentication_status, username = authenticator.login(location='main')
 
-if authentication_status is False:
+# --- CÓDIGO NOVO E BLINDADO ---
+
+# 1. Apenas renderiza a tela de login (sem tentar pegar variáveis agora)
+# O bloco try/except evita que o app quebre se a biblioteca mudar de novo
+try:
+    authenticator.login(location='main')
+except TypeError:
+    # Fallback para versões antigas, caso o servidor force downgrade
+    authenticator.login('Login', 'main')
+
+# 2. Verifica o status diretamente na memória do Streamlit
+if st.session_state.get('authentication_status') is False:
     st.error('Username/senha incorreto')
     st.stop()
-elif authentication_status is None:
+elif st.session_state.get('authentication_status') is None:
     st.warning('Por favor, faça login')
     st.stop()
+
+# 3. Se passou daqui, está logado! Recupera os dados da memória
+name = st.session_state.get('name')
+username = st.session_state.get('username')
 
 # SE PASSAR DAQUI, O USUÁRIO ESTÁ LOGADO
 st.sidebar.write(f"Bem-vindo, **{name}**")
@@ -6135,6 +6150,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
