@@ -6,7 +6,9 @@ from config_manager import PATHS
 class UserManager:
     def __init__(self):
         self.db_path = PATHS["USERS_DB"]
+        # Carrega usuários. Se não existir, cria o Admin padrão.
         self.users = self._load_users()
+        self._ensure_admin_exists()
 
     def _load_users(self):
         """Carrega usuários do arquivo JSON."""
@@ -23,28 +25,74 @@ class UserManager:
         with open(self.db_path, 'w') as f:
             json.dump(self.users, f, indent=4)
 
-    def create_user(self, username, name, password):
-        """Cria um novo usuário e salva no banco."""
+    def _ensure_admin_exists(self):
+        """
+        Cria um usuário ADMIN padrão se não houver nenhum usuário no sistema.
+        Isso garante o primeiro acesso.
+        """
+        if not self.users.get("usernames"):
+            # Senha padrão: admin123
+            hashed_password = stauth.Hasher(["admin123"]).generate()[0]
+            
+            self.users["usernames"] = {
+                "admin": {
+                    "name": "Super Administrator",
+                    "password": hashed_password,
+                    "permissions": ["ALL"], # Acesso total
+                    "logged_in": False,
+                    "email": "admin@system.com"
+                }
+            }
+            self._save_users()
+            print("⚠️ [SISTEMA] Usuário 'admin' criado automaticamente (Senha: admin123)")
+
+    def create_user(self, username, name, password, permissions=None):
+        """Cria usuário com lista de permissões."""
         if username in self.users["usernames"]:
             return False, "Usuário já existe!"
 
-        # Gera o Hash da senha (Criptografia)
+        # Gera o Hash da senha
         hashed_password = stauth.Hasher([password]).generate()[0]
+        
+        # Se não passar permissões, dá acesso básico
+        if permissions is None:
+            permissions = ["🏠 Dashboard"]
 
         self.users["usernames"][username] = {
             "name": name,
             "password": hashed_password,
-            "email": f"{username}@exemplo.com", # Opcional
-            "logged_in": False
+            "permissions": permissions,
+            "logged_in": False,
+            "email": f"{username}@user.com"
         }
         
         self._save_users()
         return True, f"Usuário {username} criado com sucesso!"
 
+    def update_permissions(self, username, new_permissions):
+        """Atualiza as permissões de um usuário existente."""
+        if username not in self.users["usernames"]:
+            return False, "Usuário não encontrado."
+            
+        self.users["usernames"][username]["permissions"] = new_permissions
+        self._save_users()
+        return True, "Permissões atualizadas!"
+
+    def get_user_permissions(self, username):
+        """Retorna a lista de abas permitidas para o usuário."""
+        user = self.users["usernames"].get(username, {})
+        # Admin mestre sempre vê tudo
+        if username == "admin": 
+            return ["ALL"]
+        return user.get("permissions", [])
+
+    def get_all_users(self):
+        """Retorna lista de todos os usernames."""
+        return list(self.users["usernames"].keys())
+
     def get_authenticator_config(self):
-        """Retorna a configuração pronta para o stauth.Authenticate"""
         return {
             "credentials": self.users,
-            "cookie": {"expiry_days": 30, "key": "random_signature_key", "name": "nba_auth"},
+            "cookie": {"expiry_days": 30, "key": "nba_suite_super_secret_key", "name": "nba_auth_cookie"},
             "preauthorized": {"emails": []}
         }
