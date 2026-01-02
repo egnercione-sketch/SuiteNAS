@@ -177,8 +177,12 @@ try:
     from modules.new_modules.archetype_engine import ArchetypeEngine
     from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
     from modules.audit_system import AuditSystem
-    from modules.new_modules.config_manager import PATHS, CONFIG # Seu novo módulo de configuração
-    from modules.new_modules.auth_manager import UserManager      # Seu novo módulo de autenticação
+    from auth_manager import UserManager
+    from config_manager import PATHS
+
+import streamlit as st
+import streamlit_authenticator as stauth # Certifique-se que instalou esta lib
+import os
 
     NOVOS_MODULOS_DISPONIVEIS = True
     print("✅ Módulos estratégicos carregados com sucesso")
@@ -6131,6 +6135,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
