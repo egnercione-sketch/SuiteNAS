@@ -3011,7 +3011,7 @@ def show_config_page():
     except:
         col_m3.metric("Lesionados", "N/A")
 
-st.markdown("---")
+    st.markdown("---")
     st.header("👤 Gerenciamento de Usuários")
     
     # Formulário para criar novo usuário
@@ -6131,5 +6131,6 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
