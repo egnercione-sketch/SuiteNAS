@@ -229,11 +229,12 @@ logger = logging.getLogger(__name__)
 TEAM_PACE_DATA = {}
 
 # ============================================================================
-# AUTENTICADOR
+# AUTENTICADOR (SISTEMA DE LOGIN BLINDADO)
 # ============================================================================
 user_manager = UserManager()
 auth_config = user_manager.get_authenticator_config()
 
+# Inicializa o objeto autenticador
 authenticator = stauth.Authenticate(
     auth_config['credentials'],
     auth_config['cookie']['name'],
@@ -241,34 +242,39 @@ authenticator = stauth.Authenticate(
     auth_config['cookie']['expiry_days']
 )
 
-# Tela de Login (Bloqueia o resto do app)
-name, authentication_status, username = authenticator.login(location='main')
-
-# --- CÓDIGO NOVO E BLINDADO ---
-
-# 1. Apenas renderiza a tela de login (sem tentar pegar variáveis agora)
-# O bloco try/except evita que o app quebre se a biblioteca mudar de novo
+# 1. RENDERIZA TELA DE LOGIN
+# O try/except garante compatibilidade se o servidor mudar a versão da lib
 try:
+    # Tentativa para versão nova (v0.4.x) - Sem título, só local
     authenticator.login(location='main')
 except TypeError:
-    # Fallback para versões antigas, caso o servidor force downgrade
+    # Fallback para versão antiga (v0.3.x) - Com título
     authenticator.login('Login', 'main')
 
-# 2. Verifica o status diretamente na memória do Streamlit
+# 2. CONTROLE DE FLUXO (VERIFICA O STATUS NA MEMÓRIA)
 if st.session_state.get('authentication_status') is False:
-    st.error('Username/senha incorreto')
-    st.stop()
+    st.error('Username ou senha incorretos')
+    st.stop() # Para o código aqui
 elif st.session_state.get('authentication_status') is None:
-    st.warning('Por favor, faça login')
-    st.stop()
+    st.warning('Por favor, faça login para acessar o sistema.')
+    st.stop() # Para o código aqui
 
-# 3. Se passou daqui, está logado! Recupera os dados da memória
+# 3. SUCESSO - RECUPERA DADOS DO USUÁRIO
+# Se o código passou pelo st.stop() acima, significa que está logado.
 name = st.session_state.get('name')
 username = st.session_state.get('username')
 
-# SE PASSAR DAQUI, O USUÁRIO ESTÁ LOGADO
-st.sidebar.write(f"Bem-vindo, **{name}**")
-authenticator.logout('Sair', 'sidebar')
+# 4. BARRA LATERAL (INFO USUÁRIO + LOGOUT)
+with st.sidebar:
+    st.write(f"Usuário: **{name}**")
+    # Botão de sair
+    try:
+        authenticator.logout(location='sidebar') # Versão nova
+    except:
+        authenticator.logout('Sair', 'sidebar') # Versão antiga
+    st.divider()
+
+# DAQUI PARA BAIXO SEGUE SEU CÓDIGO NORMAL (MENU, ABAS, ETC)...
 
 # ============================================================================
 # FUNÇÕES AUXILIARES
@@ -6150,6 +6156,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
