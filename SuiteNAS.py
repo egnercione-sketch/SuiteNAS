@@ -3045,7 +3045,7 @@ def show_config_page():
             time.sleep(1)
             st.rerun()
 
-st.markdown("---")
+    st.markdown("---")
     st.header("🔐 Gestão de Acessos (RBAC)")
 
     # LISTA MESTRA DE TODAS AS ABAS DO SEU SISTEMA
@@ -6250,6 +6250,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
