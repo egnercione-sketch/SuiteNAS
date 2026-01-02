@@ -5928,20 +5928,58 @@ def main():
     # Carregar dados iniciais
     safe_load_initial_data()
  
-    # Menu lateral (Continuação da Sidebar)
-    menu_options = [
+# ... (Logo após o bloco de login que corrigimos) ...
+
+    # 1. Recupera as permissões do usuário logado
+    user_perms = user_manager.get_user_permissions(username)
+    
+    # 2. Define a lista completa de opções (Deve ser IGUAL à lista ALL_MODULES da config)
+    FULL_MENU_OPTIONS = [
         "🏠 Dashboard",
         "🏥 Depto Médico",
         "📈 Estatísticas Jogador",
         "👥 Escalações",
+        "⚡ Momentum",
+        "🛡️ DvP Analysis",
         "🎯 Desdobramentos Inteligentes",
         "🎯 Hit Prop Hunter",
         "🔄 Mapa de Rotações",
+        "🌪️ Blowout Hunter",
         "⚔️ Lab Narrativas",
+        "🔥 Las Vegas Sync",
+        "🎯 Matchup Radar",
         "📋 Auditoria",
         "📈 Analytics Dashboard",
-        "⚙️ Config",
+        "⚙️ Config"
     ]
+
+    # 3. Lógica de Filtragem
+    if "ALL" in user_perms:
+        # Se for Admin ("ALL"), vê tudo
+        final_menu = FULL_MENU_OPTIONS
+    else:
+        # Se for usuário normal, vê apenas o que está na lista dele
+        final_menu = [opt for opt in FULL_MENU_OPTIONS if opt in user_perms]
+
+    # Fallback se o usuário não tiver nada permitido
+    if not final_menu:
+        st.error("Seu usuário não tem permissão para acessar nenhuma aba. Contate o suporte.")
+        st.stop()
+
+    # 4. Renderiza o Menu (Usando a lista filtrada)
+    with st.sidebar:
+        st.write(f"Usuário: **{name}**")
+        if st.button("Sair"):
+            authenticator.logout(location='unrendered') # Força logout
+            st.rerun()
+        
+        st.divider()
+        
+        # AQUI ESTÁ O TRUQUE: O usuário só vê o 'final_menu'
+        choice = st.radio("Navegação", final_menu)
+
+    # ... (Depois vem os seus if/elif para carregar as páginas baseados no 'choice') ...
+    
     choice = st.sidebar.radio("Navegação", menu_options, label_visibility="collapsed") 
 
     # ============================================================================
@@ -6212,6 +6250,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
