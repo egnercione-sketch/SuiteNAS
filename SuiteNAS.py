@@ -3036,29 +3036,7 @@ def show_config_page():
     except:
         col_m3.metric("Lesionados", "N/A")
 
-    st.markdown("---")
-    st.header("👤 Gerenciamento de Usuários")
-    
-    # Formulário para criar novo usuário
-    with st.expander("➕ Criar Novo Usuário"):
-        with st.form("new_user_form"):
-            new_user = st.text_input("Username (Login)")
-            new_name = st.text_input("Nome Completo")
-            new_pass = st.text_input("Senha", type="password")
-            submitted = st.form_submit_button("Cadastrar Usuário")
-            
-            if submitted:
-                if new_user and new_pass:
-                    success, msg = user_manager.create_user(new_user, new_name, new_pass)
-                    if success:
-                        st.success(msg)
-                        # Força recarregamento para o authenticator pegar o novo usuário
-                        st.rerun() 
-                    else:
-                        st.error(msg)
-                else:
-                    st.warning("Preencha todos os campos.")
-                    
+                   
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🗑️ LIMPAR CACHE DE LESÕES", type="secondary", use_container_width=True):
         if os.path.exists(INJURIES_CACHE_FILE):
@@ -3066,6 +3044,84 @@ def show_config_page():
             st.success("Cache removido. Re-sincronize os 30 times.")
             time.sleep(1)
             st.rerun()
+
+st.markdown("---")
+    st.header("🔐 Gestão de Acessos (RBAC)")
+
+    # LISTA MESTRA DE TODAS AS ABAS DO SEU SISTEMA
+    # (Copie exatamente os nomes que você usa no menu lateral)
+    ALL_MODULES = [
+        "🏠 Dashboard",
+        "🏥 Depto Médico",
+        "📈 Estatísticas Jogador",
+        "👥 Escalações",
+        "⚡ Momentum",
+        "🛡️ DvP Analysis",
+        "🎯 Desdobramentos Inteligentes",
+        "🎯 Hit Prop Hunter",
+        "🔄 Mapa de Rotações",
+        "🌪️ Blowout Hunter",
+        "⚔️ Lab Narrativas",
+        "🔥 Las Vegas Sync",
+        "🎯 Matchup Radar",
+        "📋 Auditoria",
+        "📈 Analytics Dashboard",
+        "⚙️ Config"
+    ]
+
+    tab1, tab2 = st.tabs(["➕ Criar Usuário", "🛡️ Editar Permissões"])
+
+    # ABA 1: CRIAR USUÁRIO
+    with tab1:
+        with st.form("create_user_form"):
+            c1, c2 = st.columns(2)
+            new_user = c1.text_input("Login (Username)")
+            new_name = c2.text_input("Nome Completo")
+            new_pass = st.text_input("Senha", type="password")
+            
+            st.write("Selecione as abas permitidas:")
+            perms_selected = []
+            cols = st.columns(3)
+            for i, mod in enumerate(ALL_MODULES):
+                with cols[i % 3]:
+                    if st.checkbox(mod, key=f"new_{i}"):
+                        perms_selected.append(mod)
+            
+            if st.form_submit_button("Cadastrar Usuário"):
+                if new_user and new_pass:
+                    ok, msg = user_manager.create_user(new_user, new_name, new_pass, perms_selected)
+                    if ok: st.success(msg)
+                    else: st.error(msg)
+                else:
+                    st.warning("Preencha login e senha.")
+
+    # ABA 2: EDITAR PERMISSÕES
+    with tab2:
+        users_list = user_manager.get_all_users()
+        target_user = st.selectbox("Selecione o Usuário:", users_list)
+        
+        if target_user:
+            # Carrega permissões atuais
+            current_perms = user_manager.get_user_permissions(target_user)
+            st.write(f"Editando acesso de: **{target_user}**")
+            
+            with st.form("edit_perms_form"):
+                new_perms_list = []
+                cols = st.columns(3)
+                for i, mod in enumerate(ALL_MODULES):
+                    with cols[i % 3]:
+                        # Marca se o usuário já tem essa permissão ou se tem acesso ALL
+                        checked = (mod in current_perms) or ("ALL" in current_perms)
+                        if st.checkbox(mod, value=checked, key=f"edit_{target_user}_{i}"):
+                            new_perms_list.append(mod)
+                
+                if st.form_submit_button("💾 Salvar Alterações"):
+                    ok, msg = user_manager.update_permissions(target_user, new_perms_list)
+                    if ok:
+                        st.success(msg)
+                        time.sleep(1)
+                        st.rerun()
+
 # ============================================================================
 # PÁGINA: ANALYTICS DASHBOARD (RANKING & ROI)
 # ============================================================================
@@ -6156,6 +6212,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
