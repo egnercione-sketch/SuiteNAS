@@ -1,13 +1,4 @@
 # modules/new_modules/strategy_engine.py
-# VERSÃO 71.1 - WIN RATE OPTIMIZED + NO ODDS + FLEXIBLE BUILDERS
-# Atualizações principais:
-# - Removidas todas as dependências de odds (total_odd, estimated_total_odd, etc.)
-# - Todos os builders (_build_safe_trixie, _build_explosion_trixie, etc.) reescritos para funcionar sem odds
-# - Thresholds mais flexíveis para gerar trixies em todas as abas
-# - Fallback robusto com tese básica quando thesis_engine não retorna nada
-# - Adicionados builders para Versatile e Vulture
-# - _create_leg e _pack_trixie atualizados para novo formato (sem odds, com score simples)
-
 import logging
 import random
 import uuid
