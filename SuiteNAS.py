@@ -17,6 +17,10 @@ import requests
 import pandas as pd
 import streamlit as st
 import numpy as np
+import streamlit as st
+import streamlit_authenticator as stauth # Certifique-se que instalou esta lib
+import os
+
 # ============================================================================
 # CONFIGURAÇÃO (de config.py)
 # ============================================================================
@@ -179,10 +183,6 @@ try:
     from modules.audit_system import AuditSystem
     from auth_manager import UserManager
     from config_manager import PATHS
-
-import streamlit as st
-import streamlit_authenticator as stauth # Certifique-se que instalou esta lib
-import os
 
     NOVOS_MODULOS_DISPONIVEIS = True
     print("✅ Módulos estratégicos carregados com sucesso")
@@ -6135,6 +6135,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
