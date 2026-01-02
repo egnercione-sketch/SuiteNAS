@@ -5977,11 +5977,7 @@ def main():
         
         # AQUI ESTÁ O TRUQUE: O usuário só vê o 'final_menu'
         choice = st.radio("Navegação", final_menu)
-
-    # ... (Depois vem os seus if/elif para carregar as páginas baseados no 'choice') ...
-    
-    choice = st.sidebar.radio("Navegação", menu_options, label_visibility="collapsed") 
-
+  
     # ============================================================================
     # DASHBOARD (VISUAL CYBER-COURT + INSIGHTS)
     # ============================================================================
@@ -6250,6 +6246,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
