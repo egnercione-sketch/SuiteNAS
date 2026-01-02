@@ -1,8 +1,9 @@
 streamlit
-streamlit-authenticator>=0.3.3
+streamlit-authenticator==0.3.3
 pyyaml
 pandas
 numpy
 requests
 nba_api
 bcrypt
+supabase
