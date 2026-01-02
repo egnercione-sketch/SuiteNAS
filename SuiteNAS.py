@@ -242,7 +242,7 @@ authenticator = stauth.Authenticate(
 )
 
 # Tela de Login (Bloqueia o resto do app)
-name, authentication_status, username = authenticator.login('Login', 'main')
+name, authentication_status, username = authenticator.login(location='main')
 
 if authentication_status is False:
     st.error('Username/senha incorreto')
@@ -6135,6 +6135,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
