@@ -14,8 +14,8 @@ except Exception as e:
 
 class UserManager:
     def __init__(self):
-        # Carrega usuários do banco ao iniciar a classe
-        self.users_cache = self._load_users_from_db()
+        # VOLTEI O NOME DA VARIÁVEL PARA 'self.users' PARA MANTER COMPATIBILIDADE
+        self.users = self._load_users_from_db()
         self._ensure_admin_exists()
 
     def _generate_hash(self, password):
@@ -41,7 +41,7 @@ class UserManager:
                 formatted_users["usernames"][row["username"]] = {
                     "name": row["name"],
                     "password": row["password"],
-                    "permissions": row["permissions"], # O Supabase já devolve JSON como lista
+                    "permissions": row["permissions"], 
                     "email": row["email"],
                     "logged_in": False
                 }
@@ -52,7 +52,8 @@ class UserManager:
 
     def _ensure_admin_exists(self):
         """Cria admin no Supabase se a tabela estiver vazia."""
-        if not self.users_cache["usernames"] and DB_CONNECTED:
+        # Ajustado para usar self.users
+        if not self.users["usernames"] and DB_CONNECTED:
             hashed_password = self._generate_hash("admin123")
             
             new_user_data = {
@@ -66,7 +67,7 @@ class UserManager:
             try:
                 supabase.table("users").insert(new_user_data).execute()
                 # Atualiza cache local
-                self.users_cache = self._load_users_from_db()
+                self.users = self._load_users_from_db()
                 print("⚠️ Usuário Admin criado no Supabase.")
             except Exception as e:
                 print(f"Erro ao criar admin: {e}")
@@ -75,7 +76,8 @@ class UserManager:
         if not DB_CONNECTED:
             return False, "Erro: Banco de dados desconectado."
 
-        if username in self.users_cache["usernames"]:
+        # Ajustado para usar self.users
+        if username in self.users["usernames"]:
             return False, "Usuário já existe!"
 
         hashed_password = self._generate_hash(password)
@@ -94,8 +96,8 @@ class UserManager:
             # Envia para o Supabase
             supabase.table("users").insert(new_user).execute()
             
-            # Atualiza a memória local para não precisar recarregar página
-            self.users_cache["usernames"][username] = {
+            # Atualiza a memória local (self.users)
+            self.users["usernames"][username] = {
                 "name": name,
                 "password": hashed_password,
                 "permissions": permissions,
@@ -114,27 +116,27 @@ class UserManager:
             # Atualiza no Supabase
             supabase.table("users").update({"permissions": new_permissions}).eq("username", username).execute()
             
-            # Atualiza memória local
-            if username in self.users_cache["usernames"]:
-                self.users_cache["usernames"][username]["permissions"] = new_permissions
+            # Atualiza memória local (self.users)
+            if username in self.users["usernames"]:
+                self.users["usernames"][username]["permissions"] = new_permissions
                 
             return True, "Permissões atualizadas e salvas na nuvem!"
         except Exception as e:
             return False, f"Erro ao atualizar: {e}"
 
     def get_user_permissions(self, username):
-        user = self.users_cache["usernames"].get(username, {})
+        user = self.users["usernames"].get(username, {})
         if username == "admin": return ["ALL"]
         return user.get("permissions", [])
 
     def get_all_users(self):
-        # Recarrega do banco para garantir que a lista está fresca
-        self.users_cache = self._load_users_from_db()
-        return list(self.users_cache["usernames"].keys())
+        # Recarrega do banco para garantir sincronia
+        self.users = self._load_users_from_db()
+        return list(self.users["usernames"].keys())
 
     def get_authenticator_config(self):
         return {
-            "credentials": self.users_cache,
+            "credentials": self.users,
             "cookie": {"expiry_days": 30, "key": "nba_suite_cloud_key", "name": "nba_auth_cookie"},
             "preauthorized": {"emails": []}
         }
