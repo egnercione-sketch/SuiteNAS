@@ -217,7 +217,7 @@ except ImportError:
         def get_nba_games(self): return []
         def get_player_props(self, game_id): return []
 
-    from modules.new_modules.dvp_analyzer import DvPAnalyzer, DefenseDataFetcher, tese_dvp_points_matchup, tese_dvp_rebound_matchup, tese_dvp_assist_matchup
+    from modules.new_modules.dvp_analyzer import DvPAnalyzer
     DVP_MODULE_AVAILABLE = True
 except ImportError:
     DVP_MODULE_AVAILABLE = False
@@ -6082,4 +6082,5 @@ def main():
 # EXECUÇÃO PRINCIPAL
 # ============================================================================
 if __name__ == "__main__":
+
     main()
