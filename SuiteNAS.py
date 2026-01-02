@@ -177,6 +177,8 @@ try:
     from modules.new_modules.archetype_engine import ArchetypeEngine
     from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
     from modules.audit_system import AuditSystem
+    from config_manager import PATHS, CONFIG # Seu novo módulo de configuração
+    from auth_manager import UserManager      # Seu novo módulo de autenticação
 
     NOVOS_MODULOS_DISPONIVEIS = True
     print("✅ Módulos estratégicos carregados com sucesso")
@@ -221,7 +223,34 @@ import logging
 logger = logging.getLogger(__name__)
 
 TEAM_PACE_DATA = {}
-        
+
+# ============================================================================
+# AUTENTICADOR
+# ============================================================================
+user_manager = UserManager()
+auth_config = user_manager.get_authenticator_config()
+
+authenticator = stauth.Authenticate(
+    auth_config['credentials'],
+    auth_config['cookie']['name'],
+    auth_config['cookie']['key'],
+    auth_config['cookie']['expiry_days']
+)
+
+# Tela de Login (Bloqueia o resto do app)
+name, authentication_status, username = authenticator.login('Login', 'main')
+
+if authentication_status is False:
+    st.error('Username/senha incorreto')
+    st.stop()
+elif authentication_status is None:
+    st.warning('Por favor, faça login')
+    st.stop()
+
+# SE PASSAR DAQUI, O USUÁRIO ESTÁ LOGADO
+st.sidebar.write(f"Bem-vindo, **{name}**")
+authenticator.logout('Sair', 'sidebar')
+
 # ============================================================================
 # FUNÇÕES AUXILIARES
 # ============================================================================
@@ -2982,6 +3011,29 @@ def show_config_page():
     except:
         col_m3.metric("Lesionados", "N/A")
 
+st.markdown("---")
+    st.header("👤 Gerenciamento de Usuários")
+    
+    # Formulário para criar novo usuário
+    with st.expander("➕ Criar Novo Usuário"):
+        with st.form("new_user_form"):
+            new_user = st.text_input("Username (Login)")
+            new_name = st.text_input("Nome Completo")
+            new_pass = st.text_input("Senha", type="password")
+            submitted = st.form_submit_button("Cadastrar Usuário")
+            
+            if submitted:
+                if new_user and new_pass:
+                    success, msg = user_manager.create_user(new_user, new_name, new_pass)
+                    if success:
+                        st.success(msg)
+                        # Força recarregamento para o authenticator pegar o novo usuário
+                        st.rerun() 
+                    else:
+                        st.error(msg)
+                else:
+                    st.warning("Preencha todos os campos.")
+                    
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🗑️ LIMPAR CACHE DE LESÕES", type="secondary", use_container_width=True):
         if os.path.exists(INJURIES_CACHE_FILE):
@@ -6079,4 +6131,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
