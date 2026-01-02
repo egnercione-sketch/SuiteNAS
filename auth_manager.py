@@ -1,19 +1,7 @@
 import json
 import os
-import streamlit_authenticator as stauth
+import bcrypt  # Usaremos a biblioteca padrão de criptografia
 from config_manager import PATHS
-
-# --- BLOCO DE COMPATIBILIDADE DE VERSÃO ---
-# Tenta importar o Hasher do local novo (v0.4.x), se não der, pega do antigo.
-try:
-    from streamlit_authenticator.utilities.hasher import Hasher
-except ImportError:
-    try:
-        from streamlit_authenticator.hasher import Hasher
-    except:
-        # Fallback final: tenta pegar direto do pacote principal
-        Hasher = stauth.Hasher
-# -------------------------------------------
 
 class UserManager:
     def __init__(self):
@@ -37,15 +25,21 @@ class UserManager:
         with open(self.db_path, 'w') as f:
             json.dump(self.users, f, indent=4)
 
+    def _generate_hash(self, password):
+        """
+        Gera o hash da senha usando bcrypt diretamente.
+        Isso evita erros de versão do streamlit-authenticator.
+        """
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
     def _ensure_admin_exists(self):
         """
         Cria um usuário ADMIN padrão se não houver nenhum usuário no sistema.
-        Isso garante o primeiro acesso.
         """
         if not self.users.get("usernames"):
             # Senha padrão: admin123
-            # AQUI ESTAVA O ERRO: Agora usamos a classe Hasher importada corretamente
-            hashed_password = Hasher(["admin123"]).generate()[0]
+            # FIX: Usando bcrypt direto, impossível dar TypeError
+            hashed_password = self._generate_hash("admin123")
             
             self.users["usernames"] = {
                 "admin": {
@@ -64,8 +58,8 @@ class UserManager:
         if username in self.users["usernames"]:
             return False, "Usuário já existe!"
 
-        # Gera o Hash da senha usando a classe importada
-        hashed_password = Hasher([password]).generate()[0]
+        # Gera o Hash da senha
+        hashed_password = self._generate_hash(password)
         
         # Se não passar permissões, dá acesso básico
         if permissions is None:
