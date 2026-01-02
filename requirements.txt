@@ -1,10 +1,8 @@
 streamlit
+streamlit-authenticator==0.3.3
+pyyaml
 pandas
 numpy
 requests
-plotly
 nba_api
-scipy
-streamlit-authenticator==0.3.3
-pyyaml
 bcrypt
