@@ -650,8 +650,11 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (CORREÇÃO DE LÓGICA V3.1)
+# CLASSE NEXUS ENGINE (CORRIGIDA E INTEGRADA COM NOVA SINERGIA)
 # ============================================================================
+import json
+import os
+
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
@@ -664,11 +667,18 @@ class NexusEngine:
         self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
         self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
         self.classifier = PlayerClassifier() if PLAYER_CLASSIFIER_AVAILABLE else None
+        
+        # Novo Motor de Sinergia
+        self.sinergy = SinergyEngine() if SINERGY_ENGINE_AVAILABLE else None
 
     def _load_photo_map(self):
+        # --- CORREÇÃO DO ERRO DE SINTAXE AQUI ---
         if os.path.exists("nba_players_map.json"):
-            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
-            except: pass
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                pass
         return {}
 
     def get_photo(self, name):
@@ -687,24 +697,37 @@ class NexusEngine:
         found = []
         for p_name, data in self.logs.items():
             team = data.get('team')
-            # Pula se time vazio
             if not team: continue
             
             logs = data.get('logs', {})
             ast_logs = logs.get('AST', [])
             
-            # Filtro Garçom
+            # 1. Identifica Garçom (Hero)
             if not ast_logs or len(ast_logs) < 5: continue
             avg_ast = sum(ast_logs[:10]) / len(ast_logs[:10])
             if avg_ast < 6.5: continue
 
-            # CORREÇÃO: Busca parceiro ESTRITAMENTE do mesmo time
-            partner_name, partner_avg = self._find_statistical_partner(team, p_name)
+            # 2. Busca Parceiro (Usando o SinergyEngine ou Fallback Interno)
+            partner_name = None
+            partner_avg = 0
             
-            # Se não achou parceiro válido no mesmo time, pula
+            if self.sinergy:
+                # Usa o novo motor inteligente
+                try:
+                    partner_name, partner_avg = self.sinergy.analyze_synergy(
+                        p_name, team, self.logs, trigger_stat="AST", target_stat="PTS"
+                    )
+                except Exception as e:
+                    print(f"Erro Sinergia: {e}")
+                    pass
+            
+            # Se o módulo falhar ou não achar, usa lógica básica interna
+            if not partner_name:
+                partner_name, partner_avg = self._find_statistical_partner(team, p_name)
+
             if not partner_name: continue
 
-            # Validações Externas (Pace/DvP)
+            # 3. Contexto (Pace/DvP)
             score = 60
             context = []
 
@@ -748,33 +771,29 @@ class NexusEngine:
         
         for team in teams_playing:
             try:
-                # Pega lesões do time
                 injuries = self.injury_monitor.get_team_injuries(team)
             except: continue
             
             pivot_out = False
             missing_player = ""
             
+            # Lista de posições alvo para Vácuo de Rebote (Pivôs e Alas grandes)
+            target_positions = ['C', 'FC', 'CF', 'PF', 'F-C', 'C-F']
+
             for inj in injuries:
                 status = str(inj.get('status', '')).lower()
-                
-                # CORREÇÃO: Só ativa se estiver OUT E for Pivô/Ala-Pivô
                 if 'out' in status:
-                    # Verifica posição no objeto de injury (se existir)
                     pos = str(inj.get('position', '')).upper()
                     name = inj.get('name', '')
                     
-                    # Se não tiver posição explicita, tenta inferir ou usa VacuumMatrix
-                    # Lista de posições alvo para Vácuo de Rebote
-                    target_positions = ['C', 'FC', 'CF', 'PF', 'F-C', 'C-F']
-                    
+                    # Verifica se é Big Man pela posição
                     is_big_man = any(tp in pos for tp in target_positions)
                     
-                    # Fallback: Se não tem pos, checa se VacuumMatrix detecta impacto em REB
-                    impact_confirmed = False
-                    if self.vacuum_matrix and not is_big_man:
-                        # Simula uma análise rápida
-                        pass 
+                    # Se não tiver posição, tenta inferir se o nome está no cache como C ou PF
+                    if not is_big_man and name in self.logs:
+                        log_pos = self.logs[name].get('position', '')
+                        if any(tp in log_pos for tp in target_positions):
+                            is_big_man = True
 
                     if is_big_man:
                         missing_player = name
@@ -793,6 +812,8 @@ class NexusEngine:
             else:
                 impact_score = 5
 
+            if impact_score == 0: continue
+
             # Acha o Herói (Pivô do Oponente)
             opp_team = self._get_opponent(team)
             if not opp_team: continue
@@ -805,7 +826,7 @@ class NexusEngine:
             if not hero_stats: continue
             avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
 
-            # Filtro de Qualidade: Só mostra se o Herói pega > 8 rebotes
+            # Filtro de Qualidade
             if avg_reb < 8.0: continue
 
             score = 65
@@ -825,28 +846,20 @@ class NexusEngine:
 
         return found
 
-    # --- MÉTODOS AUXILIARES CORRIGIDOS ---
+    # --- Métodos Auxiliares ---
     
     def _find_statistical_partner(self, team_code, exclude_player):
-        """Encontra o cestinha do MESMO time"""
+        """Fallback caso o SinergyEngine falhe"""
         best_scorer = None
         max_pts = 0
-        
-        # Normaliza team_code para evitar erros (ex: "BOS" vs "Boston")
-        # Assume que o cache usa siglas padrão
-        
         for name, data in self.logs.items():
-            # CORREÇÃO CRÍTICA: Validação estrita de time
-            p_team = data.get('team')
-            
-            if p_team == team_code and name != exclude_player:
+            if data.get('team') == team_code and name != exclude_player:
                 pts = data.get('logs', {}).get('PTS', [])
                 if pts:
                     avg = sum(pts[:10]) / len(pts[:10])
                     if avg > max_pts:
                         max_pts = avg
                         best_scorer = name
-        
         return best_scorer, max_pts
 
     def _get_teams_playing(self):
@@ -7191,6 +7204,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
