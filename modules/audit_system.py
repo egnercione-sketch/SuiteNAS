@@ -1,6 +1,6 @@
 # modules/audit_system.py
-# VERSÃO V3.9 - DYNAMIC HEADER MAPPING & SYNTAX FIX
-# Resolve erro de colunas trocadas (Naz Reid) e erro de sintaxe.
+# VERSÃO V4.0 - CLOUD NATIVE (SUPABASE INTEGRATION)
+# Histórico persistente na nuvem. Adeus perda de dados.
 
 import os
 import json
@@ -9,15 +9,26 @@ import requests
 import time
 from datetime import datetime
 
+# Tenta importar o gerenciador de banco de dados
+try:
+    # Ajuste de caminho para importar da raiz se necessário
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from db_manager import db
+except ImportError:
+    db = None
+    print("⚠️ AuditSystem: db_manager não encontrado. Usando apenas local.")
+
+# Configuração de Caminhos Locais (Backup)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 AUDIT_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
+KEY_AUDIT = "audit_trixies" # Chave no Supabase
 
 logger = logging.getLogger("AuditSystem")
 
 class AuditSystem:
-    def __init__(self, cache_file=None):
-        self.audit_file = cache_file or AUDIT_FILE
+    def __init__(self):
         self._ensure_file_exists()
         self.audit_data = self._load_data()
 
@@ -25,37 +36,58 @@ class AuditSystem:
         if not os.path.exists(CACHE_DIR):
             try: os.makedirs(CACHE_DIR)
             except: pass
-        if not os.path.exists(self.audit_file):
-            try:
-                with open(self.audit_file, 'w', encoding='utf-8') as f:
-                    json.dump([], f)
-            except: pass
+        # Não precisamos criar o arquivo vazio se vamos ler da nuvem
 
     def _load_data(self):
+        """Carrega dados: Prioridade Nuvem -> Backup Local -> Vazio"""
+        # 1. Tenta Nuvem
+        if db:
+            try:
+                data = db.get_data(KEY_AUDIT)
+                if data:
+                    # print(f"☁️ Audit carregado da nuvem ({len(data)} registros)")
+                    return data
+            except Exception as e:
+                logger.error(f"Erro ao baixar audit da nuvem: {e}")
+
+        # 2. Tenta Local
         try:
-            if os.path.exists(self.audit_file):
-                with open(self.audit_file, 'r', encoding='utf-8') as f:
+            if os.path.exists(AUDIT_FILE):
+                with open(AUDIT_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            return []
-        except: return []
+        except: pass
+        
+        return []
 
     def _persist(self):
+        """Salva dados: Nuvem + Local"""
+        # 1. Nuvem
+        if db:
+            try:
+                db.save_data(KEY_AUDIT, self.audit_data)
+                # print("☁️ Audit salvo na nuvem.")
+            except Exception as e:
+                logger.error(f"Erro ao salvar audit na nuvem: {e}")
+
+        # 2. Local (Backup)
         try:
-            with open(self.audit_file, 'w', encoding='utf-8') as f:
+            with open(AUDIT_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.audit_data, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            logger.error(f"Erro ao salvar audit: {e}")
+            logger.error(f"Erro ao salvar audit local: {e}")
 
     # =========================================================================
     # CORE: LOGGING (PADRONIZADO)
     # =========================================================================
     def log_trixie(self, trixie_data, game_info=None, category=None, source="StrategyEngine"):
+        # Recarrega antes de salvar para evitar conflitos de concorrência
         self.audit_data = self._load_data()
         
         t_id = trixie_data.get('id')
         if not t_id:
             t_id = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{hash(str(trixie_data))}"[:20]
         
+        # Evita duplicatas
         if any(t.get('id') == t_id for t in self.audit_data):
             return False
 
@@ -100,12 +132,19 @@ class AuditSystem:
         self.audit_data.append(final_ticket)
         # Mantém histórico limpo (últimos 500)
         if len(self.audit_data) > 500: self.audit_data = self.audit_data[-500:]
+        
         self._persist()
         return True
 
     def delete_ticket(self, ticket_id):
+        self.audit_data = self._load_data() # Recarrega para garantir
+        initial_len = len(self.audit_data)
         self.audit_data = [t for t in self.audit_data if t.get('id') != ticket_id]
-        self._persist()
+        
+        if len(self.audit_data) < initial_len:
+            self._persist()
+            return True
+        return False
 
     # =========================================================================
     # INTEGRAÇÃO ESPN (COM MAPEAMENTO DINÂMICO DE COLUNAS)
@@ -122,11 +161,9 @@ class AuditSystem:
     def _extract_player_stats(self, boxscore, player_name):
         """
         Extração inteligente: lê os cabeçalhos (labels) para saber o índice correto.
-        Corrige o problema de ler AST como REB se a ordem mudar.
         """
         try:
             bs = boxscore.get('boxscore', {})
-            # Tenta diferentes caminhos comuns da API da ESPN
             teams = bs.get('players', []) 
             if not teams: teams = bs.get('teams', [])
 
@@ -137,19 +174,15 @@ class AuditSystem:
                 if not stats_block: continue
                 
                 # --- MAPA DINÂMICO DE ÍNDICES ---
-                # Lê a lista de labels (ex: ["MIN", "FG", "3PT", "REB", ...])
                 labels = stats_block[0].get('labels', [])
                 idx_map = {label: i for i, label in enumerate(labels)}
                 
-                # Descobre os índices reais para este jogo
                 idx_pts = idx_map.get("PTS", -1)
                 idx_reb = idx_map.get("REB", -1)
                 idx_ast = idx_map.get("AST", -1)
                 idx_stl = idx_map.get("STL", -1)
                 idx_blk = idx_map.get("BLK", -1)
                 idx_to  = idx_map.get("TO", -1)
-                
-                # 3 Pontos pode vir como "3PT" ou "3PM"
                 idx_3pt = idx_map.get("3PT", -1)
                 if idx_3pt == -1: idx_3pt = idx_map.get("3PM", -1)
 
@@ -161,7 +194,6 @@ class AuditSystem:
                     if p_clean in ath_name or ath_name in p_clean:
                         stats = ath.get('stats', [])
                         
-                        # Função segura para pegar valor pelo índice descoberto
                         def get_val(idx):
                             if idx != -1 and idx < len(stats):
                                 try: return float(stats[idx])
@@ -181,7 +213,7 @@ class AuditSystem:
 
                         return {
                             "PTS": get_val(idx_pts),
-                            "REB": get_val(idx_reb), # Agora usa o índice correto!
+                            "REB": get_val(idx_reb),
                             "AST": get_val(idx_ast),
                             "STL": get_val(idx_stl),
                             "BLK": get_val(idx_blk),
@@ -196,7 +228,9 @@ class AuditSystem:
     # SMART VALIDATION COM DIAGNÓSTICO
     # =========================================================================
     def smart_validate_ticket(self, ticket_id):
+        # Recarrega dados frescos da nuvem antes de validar
         self.audit_data = self._load_data()
+        
         ticket = next((t for t in self.audit_data if t.get('id') == ticket_id), None)
         if not ticket: return False, "Bilhete não encontrado."
 
@@ -206,30 +240,24 @@ class AuditSystem:
         
         report = {"total": len(legs), "updated": 0, "no_id": 0, "game_pending": 0}
         
-        all_resolved = True
         any_lost = False
 
         for leg in legs:
-            # Pula se já ganhou (mas revalida LOSS/PENDING)
             if leg.get('status') == 'WIN': continue
 
             g_id = leg.get('game_id')
             
-            # Tenta fallback se não tiver ID na perna
             if not g_id or g_id in ['MULTI', 'MIX', 'UNK']:
                 if ticket.get('game_info', {}).get('game_id') not in ['MULTI', 'MIX']:
                     g_id = ticket.get('game_info', {}).get('game_id')
                 else:
                     report["no_id"] += 1
-                    all_resolved = False
                     continue
 
             if g_id not in bs_cache:
                 bs = self.fetch_espn_boxscore(g_id)
                 if bs: bs_cache[g_id] = bs
-                else:
-                    all_resolved = False
-                    continue 
+                else: continue 
             
             boxscore = bs_cache[g_id]
             stats = self._extract_player_stats(boxscore, leg.get('player_name', ''))
@@ -243,7 +271,6 @@ class AuditSystem:
                 line = float(leg.get('line', 0))
                 actual = 0.0
                 
-                # Validação normal
                 if mkt == "PTS": actual = stats['PTS']
                 elif mkt == "REB": actual = stats['REB']
                 elif mkt == "AST": actual = stats['AST']
@@ -251,14 +278,11 @@ class AuditSystem:
                 elif mkt == "BLK": actual = stats['BLK']
                 elif mkt == "3PM": actual = stats['3PM']
                 elif mkt == "PRA": actual = stats['PTS'] + stats['REB'] + stats['AST']
-                elif mkt == "DD2": actual = 1.0 if sum(1 for v in stats.values() if v >= 10) >= 2 else 0.0
                 
-                # Validação de Combos (PTS+REB)
                 if "+" in mkt:
                     parts = mkt.split('+')
                     val_sum = 0
-                    for p in parts:
-                        val_sum += stats.get(p, 0)
+                    for p in parts: val_sum += stats.get(p, 0)
                     actual = val_sum
 
                 leg['actual_value'] = actual
@@ -280,7 +304,7 @@ class AuditSystem:
                 updates = True
                 report["updated"] += 1
 
-        # Atualiza Status Global do Bilhete
+        # Atualiza Status Global
         current_legs = ticket.get('legs', [])
         has_loss = any(l.get('status') == 'LOSS' for l in current_legs)
         all_wins = all(l.get('status') == 'WIN' for l in current_legs)
@@ -288,7 +312,7 @@ class AuditSystem:
         if has_loss: ticket['status'] = 'LOSS'
         elif all_wins: ticket['status'] = 'WIN'
         
-        if updates: self._persist()
+        if updates: self._persist() # Salva na nuvem
 
         if report["updated"] > 0:
             return True, f"✅ Atualizado! {report['updated']} estatísticas corrigidas."
