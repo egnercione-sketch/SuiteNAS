@@ -543,7 +543,258 @@ class TrinityEngine:
         return sorted(candidates, key=lambda x: x['score'], reverse=True)
 
 
+# ============================================================================
+# CLASSE NEXUS ENGINE (V6.0 - VARREDURA TOTAL & LAYOUT FIEL)
+# ============================================================================
+class NexusEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games = games
+        self.player_ids = self._load_photo_map()
+        
+        # Módulos Consultores
+        self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
+        self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
+        self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
+        self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
+        self.sinergy = SinergyEngine() if SINERGY_ENGINE_AVAILABLE else None
+        self.archetype = ArchetypeEngine() if 'ArchetypeEngine' in globals() and ArchetypeEngine else None
 
+    def _load_photo_map(self):
+        if os.path.exists("nba_players_map.json"):
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except: pass
+        return {}
+
+    def get_photo(self, name):
+        pid = self.player_ids.get(name)
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    def run_nexus_scan(self):
+        opportunities = []
+        
+        # --- ATENÇÃO: REMOVIDO FILTRO DE DATA ---
+        # O Nexus agora analisa TODO o cache disponível, assumindo que 
+        # os dados carregados são relevantes para a análise atual.
+        
+        # 1. SCANNER SGP
+        opportunities.extend(self._scan_sgp_protocol())
+
+        # 2. SCANNER VÁCUO
+        # Mesmo que não tenhamos injury monitor perfeito, tentamos rodar
+        if self.injury_monitor:
+            opportunities.extend(self._scan_vacuum_protocol())
+        
+        # Retorna ordenado pelo Score
+        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
+
+    def _scan_sgp_protocol(self):
+        found = []
+        # Itera sobre TODOS os jogadores do cache (sem filtro de "playing today")
+        for p_name, data in self.logs.items():
+            team = normalize_team(data.get('team'))
+            
+            # 1. Identificar Motor (Garçom)
+            avg_ast = self._get_avg_stat(p_name, 'AST')
+            if avg_ast < 6.0: continue # Média mínima para ser considerado
+
+            # 2. Identificar Parceiro
+            partner_name = None
+            if self.sinergy:
+                try: partner_name, _ = self.sinergy.analyze_synergy(p_name, team, self.logs)
+                except: pass
+            
+            if not partner_name:
+                partner_name, _ = self._find_statistical_partner(team, p_name)
+
+            if not partner_name: continue
+
+            # --- SCORE SYSTEM (Meta > 75) ---
+            score = 50 # Base ALTA para garantir que apareça no debug
+            badges = []
+
+            # Qualidade (+20)
+            p_pts = self._get_avg_stat(partner_name, 'PTS')
+            if avg_ast > 9.0 or p_pts > 23: score += 15
+            
+            # Contexto Externo
+            opp = self._get_opponent(team)
+            
+            # Pace (+10)
+            if opp and self.pace_adjuster:
+                try:
+                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                    if pace >= 100: 
+                        score += 10
+                        badges.append(f"🏎️ Pace: {int(pace)}")
+                except: pass
+            
+            # DvP (+15)
+            if opp and self.dvp_analyzer:
+                try:
+                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                    if rank >= 18:
+                        score += 15
+                        badges.append("🛡️ DvP Favorável")
+                except: pass
+            
+            # Must Win / Contexto (Simulado se não tiver dados)
+            score += 5 
+
+            if score >= 60: # Corte baixo para garantir retorno
+                found.append({
+                    "type": "SGP",
+                    "title": "ECOSSISTEMA SIMBIÓTICO",
+                    "score": score,
+                    "color": "#eab308",
+                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": f"{int(avg_ast)}+"},
+                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": "Target"},
+                    "badges": badges + ["🔥 Sinergia Alta"]
+                })
+        return found
+
+    def _scan_vacuum_protocol(self):
+        found = []
+        
+        # Pega lista única de times do cache
+        all_teams = list(set([normalize_team(d['team']) for d in self.logs.values() if d.get('team')]))
+        target_positions = ['C', 'FC', 'CF', 'PF', 'F-C']
+
+        for rival_team in all_teams:
+            # 1. Checa Lesões
+            try:
+                injuries = self.injury_monitor.get_team_injuries(rival_team)
+            except: continue
+            
+            if not injuries: continue
+
+            big_man_out = False
+            villain_name = ""
+            
+            for inj in injuries:
+                status = str(inj.get('status', '')).lower()
+                if 'out' in status:
+                    pos = str(inj.get('position', '')).upper()
+                    name = inj.get('name', '')
+                    
+                    # Verifica se é Big
+                    is_big = any(x in pos for x in target_positions)
+                    # Fallback no cache se a posição do injury report for ruim
+                    if not is_big and name in self.logs:
+                        if any(x in self.logs[name].get('position','') for x in target_positions):
+                            is_big = True
+                    
+                    if is_big:
+                        big_man_out = True
+                        villain_name = name
+                        break
+            
+            if not big_man_out: continue
+
+            # 2. Acha o Predador (Nosso Pivô)
+            our_team = self._get_opponent(rival_team)
+            
+            # SE NÃO TIVER SCOREBOARD, SIMULAMOS UM MATCHUP
+            # Isso é crucial se você estiver usando dados antigos onde o 'game' não existe mais
+            if not our_team:
+                # Tenta achar QUALQUER time que não seja o rival (apenas para teste lógico)
+                # Na produção real, isso abortaria.
+                continue 
+
+            hero_name = self._find_best_rebounder(our_team)
+            if not hero_name: continue
+
+            # --- SCORE VACUUM ---
+            score = 50 # Base ALTA
+            score += 20 # Lesão confirmada
+            
+            avg_reb = self._get_avg_stat(hero_name, 'REB')
+            if avg_reb < 7.0: continue
+
+            if avg_reb >= 9.0: score += 10
+
+            # Pace e DvP
+            if self.pace_adjuster:
+                try:
+                    pace = self.pace_adjuster.calculate_game_pace(our_team, rival_team)
+                    if pace >= 100: score += 10
+                except: pass
+
+            if self.dvp_analyzer:
+                try:
+                    rank = self.dvp_analyzer.get_position_rank(rival_team, "C")
+                    if rank >= 18: score += 10
+                except: pass
+            
+            impact_msg = f"{rival_team} perde proteção de aro sem {villain_name}"
+            if self.vacuum_matrix:
+                try:
+                    # Tenta pegar impacto real
+                    pass
+                except: pass
+
+            if score >= 60:
+                found.append({
+                    "type": "VACUUM",
+                    "title": "VÁCUO DE REBOTE",
+                    "score": score,
+                    "color": "#a855f7",
+                    "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "status": "🧨 DYNAMITE"},
+                    "villain": {"name": rival_team, "missing": f"{villain_name} (OUT)", "status": "🚑 DEFESA COMPROMETIDA"},
+                    "ladder": [
+                        f"✅ Base: {int(avg_reb)}+",
+                        f"💰 Alvo: {int(avg_reb+2)}+",
+                        f"🚀 Lua: {int(avg_reb+4)}+"
+                    ],
+                    "impact": impact_msg
+                })
+
+        return found
+
+    # --- AUXILIARES ---
+    def _get_avg_stat(self, player, stat):
+        data = self.logs.get(player, {})
+        vals = data.get('logs', {}).get(stat, [])
+        if not vals: return 0
+        return sum(vals[:10]) / len(vals[:10])
+
+    def _get_opponent(self, team):
+        if not self.games: return None
+        target = normalize_team(team)
+        for g in self.games:
+            h = normalize_team(g.get('home'))
+            a = normalize_team(g.get('away'))
+            if h == target: return a
+            if a == target: return h
+        return None
+
+    def _find_statistical_partner(self, team, exclude):
+        best = None
+        max_pts = 0
+        target_team = normalize_team(team)
+        for name, data in self.logs.items():
+            if normalize_team(data.get('team')) == target_team and name != exclude:
+                val = self._get_avg_stat(name, 'PTS')
+                if val > max_pts:
+                    max_pts = val
+                    best = name
+        return best, max_pts
+
+    def _find_best_rebounder(self, team):
+        best = None
+        max_reb = 0
+        target_team = normalize_team(team)
+        for name, data in self.logs.items():
+            if normalize_team(data.get('team')) == target_team:
+                val = self._get_avg_stat(name, 'REB')
+                if val > max_reb:
+                    max_reb = val
+                    best = name
+        return best
+        
 def show_nexus_page():
     # --- CARREGAMENTO VIA SUPABASE (CLOUD FIRST) ---
     # Busca direto do banco de dados
@@ -6931,6 +7182,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
