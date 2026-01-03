@@ -560,72 +560,111 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# STRATEGY ENGINE: 5/7/10 (THE GLUE GUY SCANNER)
+# STRATEGY ENGINE: 5/7/10 (VERSÃO 2.0 - COM FILTRO DE JOGOS & DEBUG)
 # ============================================================================
 import os
+import json
 
 class FiveSevenTenEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
-        self.games = games
-        # Tenta carregar o mapa de fotos (se existir)
+        self.games_raw = games
+        self.games_map = self._map_games(games)
+        
+        # Mapa de Fotos
         self.player_ids = {}
         if os.path.exists("nba_players_map.json"):
-            with open("nba_players_map.json", "r") as f:
-                self.player_ids = json.load(f)
+            try:
+                with open("nba_players_map.json", "r") as f:
+                    self.player_ids = json.load(f)
+            except: pass
+
+    def _normalize_team(self, team_code):
+        """Padroniza siglas da NBA (NY->NYK, GS->GSW, etc)"""
+        mapping = {
+            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
+            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
+        }
+        return mapping.get(team_code, team_code)
+
+    def _map_games(self, games):
+        """Cria um mapa dos times que jogam HOJE."""
+        mapping = {}
+        if not games: return {}
+        for g in games:
+            home = self._normalize_team(g.get('home'))
+            away = self._normalize_team(g.get('away'))
+            if home and away:
+                mapping[home] = {"opp": away, "venue": "CASA"}
+                mapping[away] = {"opp": home, "venue": "FORA"}
+        return mapping
 
     def get_photo_url(self, player_name):
-        """Retorna a URL da foto oficial ou um placeholder."""
         pid = self.player_ids.get(player_name)
         if pid:
             return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        else:
-            # Fallback: Logo genérico ou transparente
-            return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     def analyze_market(self):
         candidates = []
-        if not self.logs: return []
+        diagnostics = {
+            "total_players": len(self.logs),
+            "playing_today": 0,
+            "insufficient_data": 0,
+            "failed_criteria": 0
+        }
+
+        if not self.logs: return [], diagnostics
 
         for player_name, data in self.logs.items():
-            # Filtro básico: Jogador tem time?
-            team = data.get('team')
-            if not team: continue
+            raw_team = data.get('team')
+            if not raw_team: continue
             
-            # Pega logs de AST e REB
-            logs_ast = data.get('logs', {}).get('AST', [])
-            logs_reb = data.get('logs', {}).get('REB', [])
+            # 1. Filtra: O time joga hoje?
+            team = self._normalize_team(raw_team)
+            if team not in self.games_map:
+                continue
+            
+            diagnostics["playing_today"] += 1
+            
+            logs = data.get('logs', {})
+            
+            # Analisa AST e REB
+            for stat_type in ['AST', 'REB']:
+                values = logs.get(stat_type, [])
+                
+                # 2. Filtra: Tem dados suficientes? (Mínimo 10 jogos)
+                if len(values) < 10: 
+                    diagnostics["insufficient_data"] += 1
+                    continue
 
-            # Analisa AST e REB separadamente
-            for stat_type, values in [('AST', logs_ast), ('REB', logs_reb)]:
-                # Critério L25 (Últimos 25 jogos para identidade sólida)
-                if len(values) < 10: continue # Precisa de mínimo de histórico
+                # Pega últimos 25 jogos
                 l25 = values[:25]
                 total_games = len(l25)
 
-                # Contagem da Escada
+                # Contagem
                 count_5 = sum(1 for x in l25 if x >= 5)
                 count_7 = sum(1 for x in l25 if x >= 7)
                 count_10 = sum(1 for x in l25 if x >= 10)
 
-                # Percentuais
                 pct_5 = (count_5 / total_games) * 100
                 pct_7 = (count_7 / total_games) * 100
                 pct_10 = (count_10 / total_games) * 100
 
-                # --- FILTROS DE ELEGIBILIDADE (A Peneira) ---
-                # 1. Tem que ser "Safe" no 5+ (>60% de chance)
-                # 2. Tem que ter algum potencial de explosão no 10+ (>10% de chance)
-                if pct_5 >= 60 and pct_10 >= 8: # 8% é aprox 2 jogos em 25
+                # --- CRITÉRIOS DE CORTE (Ajustados) ---
+                # Safe (5+): > 50% (Era 60%, baixei para pegar mais Glue Guys)
+                # Teto (10+): > 8% (Aprox 2 jogos em 25)
+                if pct_5 >= 50 and pct_10 >= 8:
                     
-                    # Define o Arquétipo
                     archetype = "GLUE GUY"
-                    if pct_10 > 30: archetype = "DYNAMITE 🧨" # Explode muito
-                    elif pct_5 > 90 and pct_10 < 15: archetype = "RELOGINHO 🕰️" # Constante mas não explode
+                    if pct_10 > 25: archetype = "DYNAMITE 🧨"
+                    elif pct_5 > 85 and pct_10 < 15: archetype = "RELOGINHO 🕰️"
                     
                     candidates.append({
                         "player": player_name,
-                        "team": team,
+                        "team": raw_team,
+                        "opp": self.games_map[team]['opp'],
+                        "venue": self.games_map[team]['venue'],
                         "stat": stat_type,
                         "photo": self.get_photo_url(player_name),
                         "metrics": {
@@ -633,136 +672,98 @@ class FiveSevenTenEngine:
                             "Target_7": int(pct_7),
                             "Ceiling_10": int(pct_10)
                         },
-                        "archetype": archetype,
-                        "l25_avg": sum(l25)/total_games
+                        "archetype": archetype
                     })
+                else:
+                    diagnostics["failed_criteria"] += 1
 
-        # Ordena por Potencial de Explosão (Teto 10+)
-        return sorted(candidates, key=lambda x: x['metrics']['Ceiling_10'], reverse=True)
+        # Ordena: Dynamite primeiro
+        return sorted(candidates, key=lambda x: x['metrics']['Ceiling_10'], reverse=True), diagnostics
 
 def show_5_7_10_page():
-    # --- 1. CONFIGURAÇÃO (Versão Blindada) ---
+    # Carregamento seguro
     import json
     import os
-
-    # Função auxiliar local para garantir que o load funcione
     def local_load_json(filepath):
         if os.path.exists(filepath):
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                return {}
+                with open(filepath, "r", encoding="utf-8") as f: return json.load(f)
+            except: return {}
         return {}
 
-    # Define o nome do arquivo se a variável global não existir
-    try:
-        cache_file = LOGS_CACHE_FILE
-    except NameError:
-        cache_file = "logs_cache.json" # Nome padrão do seu arquivo
+    try: cache_file = LOGS_CACHE_FILE
+    except NameError: cache_file = "logs_cache.json"
 
     full_cache = local_load_json(cache_file) or {}
     
-    # Executa a Engine
-    # (Certifique-se que a classe FiveSevenTenEngine foi colada no código também!)
+    # Executa Engine
     engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
-    opportunities = engine.analyze_market()
+    opportunities, diag = engine.analyze_market()
 
     st.header("🎯 Strategy 5 / 7 / 10")
-    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+). Base L25.")
+    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+).")
 
+    # --- ÁREA DE DIAGNÓSTICO (Para entendermos o erro) ---
+    with st.expander("🛠️ Diagnóstico do Sistema (Clique se estiver vazio)"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total DB", diag["total_players"])
+        c2.metric("Jogando Hoje", diag["playing_today"])
+        c3.metric("Dados Insuf.", diag["insufficient_data"])
+        c4.metric("Reprovados", diag["failed_criteria"])
+        
+        if diag["playing_today"] == 0:
+            st.error("⚠️ NENHUM jogador foi detectado jogando hoje. Verifique se o Scoreboard foi atualizado na aba Configurações.")
+    
     if not opportunities:
-        st.info("Nenhum jogador encaixou no perfil 5/7/10 hoje.")
+        st.warning("Nenhum jogador passou nos filtros (50% Safe / 8% Explosão). Tente atualizar os dados.")
         return
 
-    # --- 2. CSS (VISUAL DE CARTÃO DE JOGADOR) ---
+    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
-        
         .card-5710 {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-left: 5px solid #3b82f6;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border-left: 5px solid #3b82f6; border-radius: 8px; padding: 10px; margin-bottom: 12px;
+            display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        
-        /* Foto Circular */
-        .player-img {
-            width: 60px; height: 60px; 
-            border-radius: 50%; 
-            object-fit: cover;
-            border: 2px solid #3b82f6;
-            background: #000;
-        }
-        
-        /* Infos */
+        .player-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; }
         .p-info { margin-left: 15px; width: 140px; }
-        .p-name { font-family: 'Oswald', sans-serif; font-size: 16px; color: #fff; line-height: 1.1; }
+        .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1; }
         .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
         .p-arch { font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; }
-
-        /* A Escada (Barras) */
-        .ladder-container { flex-grow: 1; display: flex; gap: 10px; justify-content: space-around; align-items: center; }
-        .step-box { text-align: center; width: 30%; }
-        .step-label { font-size: 9px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
-        .bar-bg { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; }
+        .ladder-container { flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center; }
+        .step-box { text-align: center; width: 32%; }
+        .step-label { font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
+        .bar-bg { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; }
         .bar-fill { height: 100%; border-radius: 3px; }
-        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 14px; font-weight: bold; margin-top: 2px; }
-        
-        /* Cores dos Degraus */
+        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px; }
         .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
         .target { color: #facc15; } .bg-target { background: #facc15; }
         .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; }
-
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. RENDERIZAÇÃO ---
-    filter_stat = st.radio("Filtrar por:", ["TODOS", "ASSISTÊNCIAS (AST)", "REBOTES (REB)"], horizontal=True)
-    
-    filtered_opps = opportunities
-    if filter_stat == "ASSISTÊNCIAS (AST)": filtered_opps = [x for x in opportunities if x['stat'] == 'AST']
-    if filter_stat == "REBOTES (REB)": filtered_opps = [x for x in opportunities if x['stat'] == 'REB']
+    # --- RENDER ---
+    filter_stat = st.radio("Filtrar:", ["TODOS", "AST", "REB"], horizontal=True)
+    f_opps = opportunities
+    if filter_stat == "AST": f_opps = [x for x in opportunities if x['stat'] == 'AST']
+    if filter_stat == "REB": f_opps = [x for x in opportunities if x['stat'] == 'REB']
 
-    for item in filtered_opps:
-        # Cores baseadas no Arquétipo
+    for item in f_opps:
         border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
-        
-        # HTML Card
         html = f"""
         <div class="card-5710" style="border-left-color: {border_color};">
             <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-            
             <div class="p-info">
                 <div class="p-name">{item['player']}</div>
-                <div class="p-team">{item['team']} • {item['stat']}</div>
+                <div class="p-team">{item['team']} vs {item['opp']} • {item['stat']}</div>
                 <div class="p-arch">{item['archetype']}</div>
             </div>
-            
             <div class="ladder-container">
-                <div class="step-box">
-                    <div class="step-label">SAFE (5+)</div>
-                    <div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div>
-                    <div class="step-val safe">{item['metrics']['Safe_5']}%</div>
-                </div>
-                
-                <div class="step-box">
-                    <div class="step-label">TARGET (7+)</div>
-                    <div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div>
-                    <div class="step-val target">{item['metrics']['Target_7']}%</div>
-                </div>
-                
-                <div class="step-box">
-                    <div class="step-label">EXPLOSÃO (10+)</div>
-                    <div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div>
-                    <div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div>
-                </div>
+                <div class="step-box"><div class="step-label">SAFE (5+)</div><div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div><div class="step-val safe">{item['metrics']['Safe_5']}%</div></div>
+                <div class="step-box"><div class="step-label">TARGET (7+)</div><div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div><div class="step-val target">{item['metrics']['Target_7']}%</div></div>
+                <div class="step-box"><div class="step-label">EXPLOSÃO (10+)</div><div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div><div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div></div>
             </div>
         </div>
         """
@@ -6499,6 +6500,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
