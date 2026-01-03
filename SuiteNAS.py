@@ -81,23 +81,51 @@ def get_data_universal(key_db, file_fallback=None):
     return data
 
 def save_data_universal(key_db, data, file_path=None):
-    """Salva no Supabase E no arquivo local (Backup)."""
+    """
+    Salva no Supabase E no arquivo local (Backup).
+    VERSÃO DEBUG: Mostra tamanho do payload e erros detalhados.
+    """
     sucesso_nuvem = False
     
-    # 1. Nuvem
+    # Prepara dados para análise de tamanho
+    try:
+        # Serialização de teste para ver tamanho
+        payload_str = json.dumps(data, default=str)
+        size_kb = len(payload_str) / 1024
+        print(f"📦 [PREPARING] '{key_db}': Tamanho estimado {size_kb:.2f} KB")
+    except Exception as e:
+        print(f"⚠️ Erro ao serializar '{key_db}' para debug: {e}")
+        size_kb = 0
+
+    # 1. Salva na Nuvem (Supabase)
     if db:
         try:
+            # Tenta salvar
+            start_time = time.time()
             db.save_data(key_db, data)
-            # print(f"☁️ [UPLOAD] '{key_db}' salvo.")
+            duration = time.time() - start_time
+            
+            msg = f"☁️ [UPLOAD] '{key_db}' salvo no Supabase! ({duration:.2f}s)"
+            print(msg)
+            
+            # Avisa visualmente se for algo demorado ou crítico
+            if size_kb > 10: 
+                st.toast(f"Salvo na Nuvem: {key_db} ({size_kb:.0f}KB)", icon="☁️")
+            
             sucesso_nuvem = True
         except Exception as e:
-            print(f"⚠️ Erro save nuvem '{key_db}': {e}")
-            
-    # 2. Local
+            err_msg = str(e)
+            print(f"❌ [ERRO UPLOAD] '{key_db}': {err_msg}")
+            if "413" in err_msg:
+                st.error(f"Erro ao salvar '{key_db}': Arquivo muito grande para o Supabase!")
+            else:
+                st.warning(f"Falha ao salvar '{key_db}' na nuvem.")
+
+    # 2. Salva Local (Backup obrigatório)
     if file_path:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
+                json.dump(data, f, indent=4, default=str) # default=str ajuda com datas
         except: pass
     
     return sucesso_nuvem
@@ -454,6 +482,49 @@ def initialize_system_components():
         st.session_state.rotation_analyzer = RotationAnalyzer()
         comps["Rotation"] = "✅"
     return comps
+
+# ============================================================================
+# DIAG
+# ============================================================================
+def show_cloud_diagnostics():
+    """
+    Mostra um painel de debug na Sidebar para conferir o Supabase.
+    """
+    st.sidebar.divider()
+    with st.sidebar.expander("☁️ Diagnóstico de Nuvem", expanded=False):
+        if st.button("🔍 Testar Conexão Supabase"):
+            
+            # Lista de chaves críticas
+            keys_to_check = [
+                "scoreboard", 
+                "l5_stats",    # O polêmico L5
+                "real_game_logs", 
+                "injuries", 
+                "pinnacle_odds",
+                "team_advanced",
+                "audit_trixies"
+            ]
+            
+            st.write("Verificando Supabase...")
+            
+            for key in keys_to_check:
+                try:
+                    # Tenta baixar APENAS o header ou tamanho se possível, 
+                    # mas como sua API é simples, baixamos e vemos se é None.
+                    data = get_data_universal(key)
+                    
+                    if data:
+                        # Calcula tamanho aproximado
+                        size = len(json.dumps(data, default=str)) / 1024
+                        st.success(f"✅ **{key}**: OK ({size:.1f} KB)")
+                    else:
+                        st.error(f"❌ **{key}**: VAZIO / NÃO ENCONTRADO")
+                        
+                except Exception as e:
+                    st.error(f"⚠️ **{key}**: Erro ({e})")
+            
+            st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
+            
 
 # ============================================================================
 # TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
@@ -6656,6 +6727,7 @@ def main():
         "🎯 Matchup Radar",
         "📋 Auditoria",
         "📈 Analytics Dashboard",
+        "🔍 Testar Conexão Supabase",
         "⚙️ Config"
     ]
 
@@ -6963,6 +7035,14 @@ def main():
     # ============================================================================
     elif choice == "⚙️ Config":
         show_config_page()
+
+    # ============================================================================
+    # CONFIG
+    # ============================================================================
+    elif choice == "🔍 Testar Conexão Supabase":
+        show_cloud_diagnostics()
+
+        
         
 # ============================================================================
 # EXECUÇÃO PRINCIPAL
@@ -6970,6 +7050,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
