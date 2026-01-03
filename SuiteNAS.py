@@ -5975,77 +5975,66 @@ def process_espn_json_to_games(json_data):
 
 def safe_load_initial_data():
     """
-    Carrega dados iniciais no session_state com fallback robusto e sanitização.
-    Executa silenciosamente na inicialização do app.
+    Carrega dados. Se faltar cache (Supabase e Local), busca na API e SALVA NO SUPABASE (Auto-Healing).
     """
     
-    # --- 1. BLINDAGEM CONTRA CRASH (DEFAULTS) ---
-    defaults = {
-        'injuries_data': {},
-        'injuries_manager': None,
-        'strategy_engine': None,
-        'scoreboard': [],
-        'df_l5': pd.DataFrame(),
-        'team_advanced': {},
-        'team_opponent': {},
-        'odds': {},
-        'name_overrides': {}
-    }
-    
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    # Defaults
+    if 'scoreboard' not in st.session_state: st.session_state.scoreboard = []
+    if 'df_l5' not in st.session_state: st.session_state.df_l5 = pd.DataFrame()
+    if 'team_advanced' not in st.session_state: st.session_state.team_advanced = {}
+    if 'odds' not in st.session_state: st.session_state.odds = {}
 
-    # --- 2. CARREGAMENTO DE DADOS BÁSICOS ---
-    
-    # A. Scoreboard (Com fallback para Cache Local)
+    # --- 1. SCOREBOARD (JOGOS DE HOJE) ---
     if not st.session_state.scoreboard:
-        try:
-            # 1. Tenta buscar da função que já lida com API/Cache
-            fetched = fetch_espn_scoreboard(progress_ui=False)
-            if fetched:
-                st.session_state.scoreboard = fetched
-            else:
-                # 2. Se falhar, tenta ler bruto do arquivo JSON local (Backup final)
-                if os.path.exists(SCOREBOARD_JSON_FILE):
-                    with open(SCOREBOARD_JSON_FILE, 'r', encoding='utf-8') as f:
-                        cached = json.load(f)
-                    # Processa o JSON bruto para o formato de lista de jogos
-                    if cached:
-                        st.session_state.scoreboard = process_espn_json_to_games(cached)
-        except Exception as e:
-            print(f"⚠️ Aviso: Falha ao carregar scoreboard inicial: {e}")
-            st.session_state.scoreboard = []
+        # Tenta Supabase
+        data = get_data_universal(KEY_SCOREBOARD)
+        if data:
+            st.session_state.scoreboard = data
+        else:
+            # Falhou Supabase e Local -> Busca da API
+            print("⚠️ Cache Scoreboard ausente. Buscando da API...")
+            try:
+                live_data = fetch_espn_scoreboard(progress_ui=False)
+                if live_data:
+                    st.session_state.scoreboard = live_data
+                    # AUTO-SAVE: Cria o cache no Supabase agora!
+                    save_data_universal(KEY_SCOREBOARD, live_data)
+            except: pass
 
-    # B. Stats Avançados de Times
+    # --- 2. STATS DE TIMES ---
     if not st.session_state.team_advanced:
-        st.session_state.team_advanced = fetch_team_advanced_stats() or {}
+        data = get_data_universal(KEY_TEAM_ADV)
+        if data:
+            st.session_state.team_advanced = data
+        else:
+            # Falhou -> Busca API
+            try:
+                live_data = fetch_team_advanced_stats()
+                if live_data:
+                    st.session_state.team_advanced = live_data
+                    # AUTO-SAVE
+                    save_data_universal(KEY_TEAM_ADV, live_data)
+            except: pass
 
-    if not st.session_state.team_opponent:
-        st.session_state.team_opponent = fetch_team_opponent_stats() or {}
-
-    # C. Odds
-    if not st.session_state.odds:
-        st.session_state.odds = fetch_odds_for_today() or {}
-
-    # D. Name Overrides (Mapeamento de nomes)
-    if not st.session_state.name_overrides:
-        try:
-            st.session_state.name_overrides = load_name_overrides() or {}
-        except: 
-            st.session_state.name_overrides = {}
-
-    # E. Dados L5 (Pickle ou Dataframe)
+    # --- 3. DADOS DE JOGADORES (L5 / LOGS) - O MAIS PESADO ---
     if st.session_state.df_l5.empty:
-        try:
-            # Tenta carregar do pickle local para ser mais rápido
-            if os.path.exists(L5_CACHE_FILE):
-                with open(L5_CACHE_FILE, 'rb') as f:
-                    saved = pickle.load(f)
-                if saved and isinstance(saved, dict) and "df" in saved:
-                    st.session_state.df_l5 = saved["df"]
-        except Exception:
-            st.session_state.df_l5 = pd.DataFrame()
+        # Nota: Logs são complexos. O ideal é tentar baixar o JSON de logs.
+        # Se você tiver uma chave KEY_LOGS no supabase, tente baixar ela primeiro.
+        # Aqui, se falhar, dependemos da função get_players_l5 fazer o scraping total.
+        pass
+
+    # --- 4. ODDS ---
+    if not st.session_state.odds:
+        data = get_data_universal(KEY_ODDS)
+        if data:
+            st.session_state.odds = data
+        else:
+            try:
+                live_data = fetch_odds_for_today()
+                if live_data:
+                    st.session_state.odds = live_data
+                    save_data_universal(KEY_ODDS, live_data)
+            except: pass
 
     # --- 3. INICIALIZAÇÃO DE MOTORES E MÓDULOS ---
 
@@ -6887,6 +6876,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
