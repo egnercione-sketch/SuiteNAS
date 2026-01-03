@@ -335,7 +335,84 @@ if 'advanced_features_config' not in st.session_state: st.session_state.advanced
 # authenticator = stauth.Authenticate(...)
 
 # ============================================================================
-# 7. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
+# 7. SISTEMA DE AUTENTICAÇÃO (RESTAURAÇÃO CRÍTICA)
+# ============================================================================
+# Define user_manager como None inicialmente para evitar NameError no main()
+user_manager = None
+username = None
+name = None
+
+try:
+    # Tenta importar os gerenciadores reais
+    from auth_manager import UserManager
+    import streamlit_authenticator as stauth
+    
+    # 1. Instancia o Gerenciador
+    user_manager = UserManager()
+    auth_config = user_manager.get_authenticator_config()
+
+    # 2. Configura o Authenticator
+    authenticator = stauth.Authenticate(
+        auth_config['credentials'],
+        auth_config['cookie']['name'],
+        auth_config['cookie']['key'],
+        auth_config['cookie']['expiry_days']
+    )
+
+    # 3. Renderiza Tela de Login
+    try:
+        # Tenta sintaxe da versão nova
+        authenticator.login(location='main')
+    except TypeError:
+        # Fallback para versão antiga
+        authenticator.login('Login', 'main')
+
+    # 4. Controle de Acesso
+    if st.session_state.get("authentication_status") is False:
+        st.error("❌ Usuário ou senha incorretos")
+        st.stop()
+    elif st.session_state.get("authentication_status") is None:
+        st.warning("🔐 Por favor, faça login para acessar o sistema.")
+        st.stop()
+    
+    # 5. Sucesso - Carrega dados do usuário
+    username = st.session_state.get('username')
+    name = st.session_state.get('name')
+    
+    # Logout na Sidebar
+    with st.sidebar:
+        st.write(f"👤 **{name}**")
+        try:
+            authenticator.logout(location='sidebar')
+        except:
+            authenticator.logout('Sair', 'sidebar')
+        st.divider()
+
+except ImportError:
+    # --- MODO DE EMERGÊNCIA (SEM AUTH) ---
+    # Se faltar o arquivo auth_manager.py ou a lib streamlit_authenticator,
+    # criamos um "Dummy" para o código não quebrar.
+    print("⚠️ Aviso: Sistema de Auth não encontrado. Usando modo Admin/Dev.")
+    
+    class DummyUserManager:
+        def get_user_permissions(self, user):
+            return ["admin", "premium"] # Dá permissão total
+            
+    user_manager = DummyUserManager()
+    username = "admin_dev"
+    name = "Desenvolvedor"
+    
+    st.sidebar.warning("⚠️ Modo DEV (Auth Desativada)")
+
+except Exception as e:
+    st.error(f"Erro crítico na autenticação: {e}")
+    # Cria fallback para não crashar o main
+    class DummyUserManager:
+        def get_user_permissions(self, user): return []
+    user_manager = DummyUserManager()
+
+# ============================================================================
+# 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
 # ============================================================================
 def fetch_real_time_team_stats():
     """Busca Pace e Stats Defensivos via NBA API"""
@@ -6819,6 +6896,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
