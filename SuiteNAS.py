@@ -565,22 +565,35 @@ def initialize_features():
 import os
 import json
 
+# ============================================================================
+# STRATEGY ENGINE: 5/7/10 (VERSÃO 3.0 - COM CORREÇÃO DE ACENTOS E ESTRELAS)
+# ============================================================================
+import os
+import json
+import unicodedata
+
 class FiveSevenTenEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
         self.games_raw = games
         self.games_map = self._map_games(games)
         
-        # Mapa de Fotos
         self.player_ids = {}
         if os.path.exists("nba_players_map.json"):
             try:
-                with open("nba_players_map.json", "r") as f:
-                    self.player_ids = json.load(f)
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    # Carrega e normaliza os nomes no dicionário também
+                    raw_data = json.load(f)
+                    self.player_ids = {self._normalize_name(k): v for k, v in raw_data.items()}
             except: pass
 
+    def _normalize_name(self, name):
+        """Remove acentos: 'Luka Dončić' vira 'Luka Doncic'"""
+        if not name: return ""
+        return ''.join(c for c in unicodedata.normalize('NFD', name)
+                  if unicodedata.category(c) != 'Mn')
+
     def _normalize_team(self, team_code):
-        """Padroniza siglas da NBA (NY->NYK, GS->GSW, etc)"""
         mapping = {
             "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
             "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
@@ -588,7 +601,6 @@ class FiveSevenTenEngine:
         return mapping.get(team_code, team_code)
 
     def _map_games(self, games):
-        """Cria um mapa dos times que jogam HOJE."""
         mapping = {}
         if not games: return {}
         for g in games:
@@ -600,7 +612,17 @@ class FiveSevenTenEngine:
         return mapping
 
     def get_photo_url(self, player_name):
-        pid = self.player_ids.get(player_name)
+        # Tenta buscar pelo nome normalizado (sem acento)
+        clean_name = self._normalize_name(player_name)
+        pid = self.player_ids.get(clean_name)
+        
+        # Se não achou, tenta busca parcial (primeiro + ultimo nome)
+        if not pid:
+            parts = clean_name.split()
+            if len(parts) >= 2:
+                short_name = f"{parts[0]} {parts[-1]}"
+                pid = self.player_ids.get(short_name)
+
         if pid:
             return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
@@ -620,29 +642,29 @@ class FiveSevenTenEngine:
             raw_team = data.get('team')
             if not raw_team: continue
             
-            # 1. Filtra: O time joga hoje?
+            # 1. Filtro de Time
             team = self._normalize_team(raw_team)
             if team not in self.games_map:
                 continue
             
             diagnostics["playing_today"] += 1
-            
             logs = data.get('logs', {})
             
-            # Analisa AST e REB
+            # Verifica se é uma Estrela (Média de pontos alta ajuda a relaxar filtros)
+            avg_pts = 0
+            if 'PTS' in logs and len(logs['PTS']) > 0:
+                avg_pts = sum(logs['PTS'][:10]) / len(logs['PTS'][:10])
+            is_star = avg_pts >= 20
+
             for stat_type in ['AST', 'REB']:
                 values = logs.get(stat_type, [])
-                
-                # 2. Filtra: Tem dados suficientes? (Mínimo 10 jogos)
                 if len(values) < 10: 
                     diagnostics["insufficient_data"] += 1
                     continue
 
-                # Pega últimos 25 jogos
                 l25 = values[:25]
                 total_games = len(l25)
 
-                # Contagem
                 count_5 = sum(1 for x in l25 if x >= 5)
                 count_7 = sum(1 for x in l25 if x >= 7)
                 count_10 = sum(1 for x in l25 if x >= 10)
@@ -651,14 +673,24 @@ class FiveSevenTenEngine:
                 pct_7 = (count_7 / total_games) * 100
                 pct_10 = (count_10 / total_games) * 100
 
-                # --- CRITÉRIOS DE CORTE (Ajustados) ---
-                # Safe (5+): > 50% (Era 60%, baixei para pegar mais Glue Guys)
-                # Teto (10+): > 8% (Aprox 2 jogos em 25)
-                if pct_5 >= 50 and pct_10 >= 8:
+                # --- CRITÉRIOS INTELIGENTES ---
+                
+                # Se for Estrela (>20pts), somos mais tolerantes no "Safe"
+                min_safe = 40 if is_star else 50
+                
+                # Para Assistências, a exigência de explosão é menor
+                min_explosion = 5 if stat_type == 'AST' else 8
+
+                if pct_5 >= min_safe and pct_10 >= min_explosion:
                     
                     archetype = "GLUE GUY"
-                    if pct_10 > 25: archetype = "DYNAMITE 🧨"
-                    elif pct_5 > 85 and pct_10 < 15: archetype = "RELOGINHO 🕰️"
+                    # Lógica de Arquétipos refinada
+                    if is_star: 
+                        archetype = "⭐ SUPERSTAR"
+                    elif pct_10 > 25: 
+                        archetype = "DYNAMITE 🧨"
+                    elif pct_5 > 85 and pct_10 < 15: 
+                        archetype = "RELOGINHO 🕰️"
                     
                     candidates.append({
                         "player": player_name,
@@ -677,8 +709,8 @@ class FiveSevenTenEngine:
                 else:
                     diagnostics["failed_criteria"] += 1
 
-        # Ordena: Dynamite primeiro
-        return sorted(candidates, key=lambda x: x['metrics']['Ceiling_10'], reverse=True), diagnostics
+        # Ordena: Superstars e Dynamite no topo
+        return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 def show_5_7_10_page():
     # --- 1. CONFIGURAÇÃO (CORRIGIDA) ---
@@ -6517,6 +6549,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
