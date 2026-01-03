@@ -650,35 +650,27 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (CORRIGIDA E INTEGRADA COM NOVA SINERGIA)
+# CLASSE NEXUS ENGINE (V4.0 - ESTRITAMENTE FIEL AO PLANO DE GUERRA)
 # ============================================================================
-import json
-import os
-
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
         self.games = games
         self.player_ids = self._load_photo_map()
         
-        # Instancia Consultores
+        # Consultores
         self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
         self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
         self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
-        self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
         self.classifier = PlayerClassifier() if PLAYER_CLASSIFIER_AVAILABLE else None
-        
-        # Novo Motor de Sinergia
         self.sinergy = SinergyEngine() if SINERGY_ENGINE_AVAILABLE else None
 
     def _load_photo_map(self):
-        # --- CORREÇÃO DO ERRO DE SINTAXE AQUI ---
         if os.path.exists("nba_players_map.json"):
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
-                pass
+            except: pass
         return {}
 
     def get_photo(self, name):
@@ -688,193 +680,147 @@ class NexusEngine:
 
     def run_nexus_scan(self):
         opportunities = []
-        opportunities.extend(self._scan_sgp_logic())
-        if self.injury_monitor:
-            opportunities.extend(self._scan_vacuum_logic())
-        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
+        
+        # 1. SCANNER SGP (ECOSSISTEMA SIMBIÓTICO)
+        opportunities.extend(self._scan_sgp_simbiotico())
 
-    def _scan_sgp_logic(self):
+        # 2. SCANNER VÁCUO (THE VACUUM - PREDADOR VS FERIDO)
+        if self.injury_monitor:
+            opportunities.extend(self._scan_vacuum_predator())
+        
+        # FILTRO FINAL: Apenas Score > 80 (A régua é alta!)
+        return sorted([op for op in opportunities if op['score'] >= 80], key=lambda x: x['score'], reverse=True)
+
+    def _scan_sgp_simbiotico(self):
         found = []
         for p_name, data in self.logs.items():
             team = data.get('team')
-            if not team: continue
-            
             logs = data.get('logs', {})
             ast_logs = logs.get('AST', [])
             
-            # 1. Identifica Garçom (Hero)
+            # Identifica "O Motor" (Média > 7 AST)
             if not ast_logs or len(ast_logs) < 5: continue
             avg_ast = sum(ast_logs[:10]) / len(ast_logs[:10])
-            if avg_ast < 6.5: continue
+            if avg_ast < 7.0: continue
 
-            # 2. Busca Parceiro (Usando o SinergyEngine ou Fallback Interno)
+            # Busca "O Finalizador" via Sinergia Real
             partner_name = None
-            partner_avg = 0
-            
             if self.sinergy:
-                # Usa o novo motor inteligente
-                try:
-                    partner_name, partner_avg = self.sinergy.analyze_synergy(
-                        p_name, team, self.logs, trigger_stat="AST", target_stat="PTS"
-                    )
-                except Exception as e:
-                    print(f"Erro Sinergia: {e}")
-                    pass
+                partner_name, _ = self.sinergy.analyze_synergy(p_name, team, self.logs)
             
-            # Se o módulo falhar ou não achar, usa lógica básica interna
-            if not partner_name:
-                partner_name, partner_avg = self._find_statistical_partner(team, p_name)
-
             if not partner_name: continue
 
-            # 3. Contexto (Pace/DvP)
-            score = 60
-            context = []
+            # --- CÁLCULO DO OPPORTUNITY SCORE (SGP) ---
+            score = 20 # Base
+            badges = []
 
-            if self.pace_adjuster:
-                opp = self._get_opponent(team)
-                if opp:
-                    try:
-                        pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                        context.append(f"Pace: {int(pace)}")
-                        if pace > 100: score += 10
-                    except: pass
-            
-            if self.dvp_analyzer:
-                opp = self._get_opponent(team)
-                if opp:
-                    try:
-                        rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                        if rank and rank >= 20:
-                            score += 15
-                            context.append(f"Defesa Fraca vs PG")
-                    except: pass
+            # Pace (+10)
+            opp = self._get_opponent(team)
+            if self.pace_adjuster and opp:
+                pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                if pace >= 102:
+                    score += 10
+                    badges.append(f"🏎️ Pace: {int(pace)} (Rápido)")
 
-            score += int(avg_ast * 2)
-            if partner_avg > 24: score += 10
+            # DvP (+20)
+            if self.dvp_analyzer and opp:
+                rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                if rank >= 20:
+                    score += 20
+                    badges.append(f"🛡️ DvP: {opp} cede muito")
 
-            if score >= 75:
+            # Sinergia / Qualidade (+30)
+            # Se a média de assistências é elite ou o parceiro é elite
+            score += 30 # Sinergia encontrada é o core do SGP
+
+            if score >= 80:
                 found.append({
                     "type": "SGP",
                     "title": "ECOSSISTEMA SIMBIÓTICO",
                     "score": score,
-                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "stat": "AST", "target": f"{int(avg_ast)}+"},
-                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "stat": "PTS", "target": "Target"},
-                    "context": context + [f"Média AST: {avg_ast:.1f}"],
-                    "color": "#eab308"
+                    "color": "#eab308",
+                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": "10+"},
+                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": "20+"},
+                    "badges": badges + ["🔥 Must Win: Jogo Parelo"]
                 })
         return found
 
-    def _scan_vacuum_logic(self):
+    def _scan_vacuum_predator(self):
         found = []
         teams_playing = self._get_teams_playing()
         
-        for team in teams_playing:
+        for team_rival in teams_playing:
+            # 1. INJURY MONITOR: Tem alguém importante fora? (+30)
             try:
-                injuries = self.injury_monitor.get_team_injuries(team)
+                injuries = self.injury_monitor.get_team_injuries(team_rival)
             except: continue
             
-            pivot_out = False
-            missing_player = ""
-            
-            # Lista de posições alvo para Vácuo de Rebote (Pivôs e Alas grandes)
-            target_positions = ['C', 'FC', 'CF', 'PF', 'F-C', 'C-F']
-
+            big_man_out = False
+            villain_name = ""
             for inj in injuries:
-                status = str(inj.get('status', '')).lower()
-                if 'out' in status:
-                    pos = str(inj.get('position', '')).upper()
-                    name = inj.get('name', '')
-                    
-                    # Verifica se é Big Man pela posição
-                    is_big_man = any(tp in pos for tp in target_positions)
-                    
-                    # Se não tiver posição, tenta inferir se o nome está no cache como C ou PF
-                    if not is_big_man and name in self.logs:
-                        log_pos = self.logs[name].get('position', '')
-                        if any(tp in log_pos for tp in target_positions):
-                            is_big_man = True
-
-                    if is_big_man:
-                        missing_player = name
-                        pivot_out = True 
-
-            if not pivot_out: continue
-
-            # Analisa Impacto
-            impact_score = 0
-            if self.vacuum_matrix:
-                try:
-                    roster = self._get_roster_simulated(team)
-                    report = self.vacuum_matrix.analyze_team_vacuum(roster, team)
-                    if report: impact_score = 10
-                except: impact_score = 5
-            else:
-                impact_score = 5
-
-            if impact_score == 0: continue
-
-            # Acha o Herói (Pivô do Oponente)
-            opp_team = self._get_opponent(team)
-            if not opp_team: continue
+                if 'out' in str(inj.get('status','')).lower():
+                    # Verifica se é pivô (C/PF)
+                    pos = str(inj.get('position','')).upper()
+                    if any(x in pos for x in ['C', 'PF', 'FC']):
+                        big_man_out = True
+                        villain_name = inj.get('name')
+                        break
             
-            hero_name = self._find_best_rebounder(opp_team)
+            if not big_man_out: continue
+
+            # 2. O PREDADOR (Pivô do time que enfrenta o ferido)
+            our_team = self._get_opponent(team_rival)
+            if not our_team: continue
+            
+            hero_name = self._find_best_rebounder(our_team)
             if not hero_name: continue
 
-            # Calcula Score
+            # --- CÁLCULO DO OPPORTUNITY SCORE (VACUUM) ---
+            score = 20 # Base
+            score += 30 # Lesão confirmada do rival
+
+            # 3. ARCHETYPE: Nosso jogador explora a fraqueza? (+20)
+            # Verifica se ele é um "PaintBeast" ou pegador de rebote elite
             hero_stats = self.logs.get(hero_name, {}).get('logs', {}).get('REB', [])
-            if not hero_stats: continue
-            avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
-
-            # Filtro de Qualidade
-            if avg_reb < 8.0: continue
-
-            score = 65
-            score += int(avg_reb * 1.5)
-            score += impact_score
+            avg_reb = sum(hero_stats[:10])/max(1, len(hero_stats[:10]))
+            if avg_reb >= 10.0:
+                score += 20
             
-            if score >= 75:
+            # 4. PACE (+10)
+            if self.pace_adjuster:
+                pace = self.pace_adjuster.calculate_game_pace(our_team, team_rival)
+                if pace >= 100: score += 10
+
+            # 5. DVP (+20)
+            if self.dvp_analyzer:
+                rank = self.dvp_analyzer.get_position_rank(team_rival, "C")
+                if rank >= 18: score += 20
+
+            if score >= 80:
                 found.append({
                     "type": "VACUUM",
                     "title": "VÁCUO DE REBOTE",
                     "score": score,
-                    "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "stat": "REB", "target": "Escada"},
-                    "villain": {"name": missing_player, "status": "OUT 🚑"},
-                    "context": [f"Oponente: {team}", "Garrafão Aberto"],
-                    "color": "#a855f7"
+                    "color": "#a855f7",
+                    "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "status": "🧨 DYNAMITE"},
+                    "villain": {"name": team_rival, "missing": f"{villain_name} (OUT)", "status": "🚑 DEFESA COMPROMETIDA"},
+                    "impact": f"Oponente perde rebote/proteção sem o titular",
+                    "ladder": [f"Base: {int(avg_reb)}+ (Safe)", f"Alvo: {int(avg_reb+2)}+ (Value)", f"Lua: {int(avg_reb+4)}+ (High)"]
                 })
-
         return found
 
-    # --- Métodos Auxiliares ---
-    
-    def _find_statistical_partner(self, team_code, exclude_player):
-        """Fallback caso o SinergyEngine falhe"""
-        best_scorer = None
-        max_pts = 0
-        for name, data in self.logs.items():
-            if data.get('team') == team_code and name != exclude_player:
-                pts = data.get('logs', {}).get('PTS', [])
-                if pts:
-                    avg = sum(pts[:10]) / len(pts[:10])
-                    if avg > max_pts:
-                        max_pts = avg
-                        best_scorer = name
-        return best_scorer, max_pts
-
+    # Auxiliares
     def _get_teams_playing(self):
         teams = set()
-        if self.games:
-            for g in self.games:
-                teams.add(g.get('home'))
-                teams.add(g.get('away'))
+        for g in self.games:
+            teams.add(g.get('home'))
+            teams.add(g.get('away'))
         return list(teams)
 
     def _get_opponent(self, team):
-        if self.games:
-            for g in self.games:
-                if g.get('home') == team: return g.get('away')
-                if g.get('away') == team: return g.get('home')
+        for g in self.games:
+            if g.get('home') == team: return g.get('away')
+            if g.get('away') == team: return g.get('home')
         return None
 
     def _find_best_rebounder(self, team):
@@ -891,145 +837,105 @@ class NexusEngine:
         return best
 
     def _get_roster_simulated(self, team):
-        roster = []
-        for name, data in self.logs.items():
-            if data.get('team') == team:
-                roster.append({
-                    "name": name, 
-                    "status": "Active", 
-                    "min_L5": 30, 
-                    "role": "Starter"
-                }) 
-        return roster
+        return [{"name": n, "status": "Active"} for n, d in self.logs.items() if d.get('team') == team]
         
 def show_nexus_page():
     import json
     import os
 
-    # --- Configuração Local ---
+    # Cache Loader
     def local_load(fp):
         if os.path.exists(fp):
             try:
-                with open(fp, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                with open(fp, "r", encoding="utf-8") as f: return json.load(f)
             except: return {}
         return {}
     
-    # Carrega cache
     cache_file = os.path.join("cache", "real_game_logs.json")
-    full_cache = local_load(cache_file) or local_load("real_game_logs.json") or {}
+    full_cache = local_load(cache_file) or {}
     
-    # Inicializa Engine
+    # Engine
     nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
-    
-    # --- UI DO NEXUS ---
+    opportunities = nexus.run_nexus_scan()
+
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="font-family: 'Oswald'; font-size: 40px; margin-bottom: 0;">🧠 PROJECT NEXUS</h1>
-        <div style="color: #64748b; font-size: 14px;">INTELIGÊNCIA CONTEXTUAL • SGP • VÁCUO</div>
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h1 style="font-family: 'Oswald'; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 NEXUS INTELLIGENCE</h1>
+        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 2px;">MODO PREDADOR • SINERGIA SIMBIÓTICA • SCORE > 80</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- CALIBRAGEM (SLIDER) ---
-    # Permite baixar a régua para ver se o sistema está calculando algo
-    min_score = st.sidebar.slider("🎚️ Sensibilidade do Nexus (Score Mínimo)", 0, 100, 50)
-    
-    # Executa o Scan
-    all_opportunities = nexus.run_nexus_scan()
-    
-    # Filtra baseado no Slider
-    filtered_ops = [op for op in all_opportunities if op['score'] >= min_score]
-
-    # --- DEBUGGER (Para você ver o que está rolando) ---
-    with st.expander("🕵️‍♂️ Debug do Nexus (Ver Dados Brutos)"):
-        st.write(f"Total Encontrado (Bruto): {len(all_opportunities)}")
-        st.write(f"Score de Corte: {min_score}")
-        if len(all_opportunities) > 0:
-            st.dataframe(all_opportunities)
-        else:
-            st.warning("O Nexus retornou lista vazia. Verifique se 'real_game_logs.json' tem dados recentes.")
-
-    if not filtered_ops:
-        st.info(f"Nenhuma oportunidade encontrada com Score > {min_score}. Tente baixar a sensibilidade na barra lateral.")
+    if not opportunities:
+        st.warning("O Nexus não detectou oportunidades de altíssima confluência (Score > 80) para esta rodada.")
         return
 
-    # --- CSS DOS CARDS ---
-    st.markdown("""
-    <style>
-        .nexus-card {
-            background: #0f172a;
-            border-radius: 12px;
-            padding: 0;
-            margin-bottom: 20px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-        }
-        .nexus-header {
-            padding: 8px 15px;
-            font-family: 'Oswald';
-            font-size: 14px;
-            font-weight: bold;
-            display: flex; justify-content: space-between; align-items: center;
-            color: #000;
-        }
-        .nexus-body {
-            padding: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: space-around;
-        }
-        .nexus-hero { text-align: center; width: 30%; }
-        .hero-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #fff; object-fit: cover; }
-        .hero-name { font-weight: bold; color: #fff; font-size: 14px; margin-top: 5px; }
-        .hero-target { background: #334155; color: #4ade80; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-        
-        .nexus-center { text-align: center; width: 20%; }
-        .nexus-score { font-size: 24px; font-weight: bold; color: #fff; }
-        
-        .nexus-footer {
-            background: rgba(255,255,255,0.03);
-            padding: 8px 15px;
-            display: flex; gap: 10px;
-            font-size: 11px; color: #cbd5e1;
-        }
-        .tag { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- RENDERIZAÇÃO ---
-    for op in filtered_ops:
-        header_color = op['color']
-        
+    for op in opportunities:
+        # ---------------------------------------------------------------------
+        # LAYOUT 1: SGP (ECOSSISTEMA SIMBIÓTICO)
+        # ---------------------------------------------------------------------
         if op['type'] == 'SGP':
-            left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
-            right_html = f"<img src='{op['partner']['photo']}' class='hero-img'><div class='hero-name'>{op['partner']['name']}</div><div class='hero-target'>{op['partner']['stat']} {op['partner']['target']}</div>"
-            center_icon = "🔗"
-        else: 
-            left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
-            right_html = f"<div style='font-size:30px'>🚑</div><div class='hero-name' style='color:#f87171'>{op['villain']['name']}</div><div class='hero-target' style='color:#f87171'>{op['villain']['status']}</div>"
-            center_icon = "VS"
-
-        tags_html = "".join([f"<span class='tag'>{tag}</span>" for tag in op['context']])
-
-        st.markdown(f"""
-        <div class="nexus-card">
-            <div class="nexus-header" style="background: {header_color};">
-                <span>{op['title']}</span>
-                <span style="background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">SCORE {op['score']}</span>
-            </div>
-            <div class="nexus-body">
-                <div class="nexus-hero">{left_html}</div>
-                <div class="nexus-center">
-                    <div class="nexus-score">{center_icon}</div>
+            badges_html = "".join([f"<span style='background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:15px; margin-right:8px;'>{b}</span>" for b in op['badges']])
+            
+            st.markdown(f"""
+            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
+                <div style="background:{op['color']}; color:#000; padding:8px 20px; font-family:'Oswald'; font-weight:bold; display:flex; justify-content:space-between;">
+                    <span>⚡ SGP DETECTADA</span>
+                    <span>SCORE {op['score']}</span>
                 </div>
-                <div class="nexus-hero">{right_html}</div>
+                <div style="display:flex; padding:25px; align-items:center; justify-content:center; text-align:center;">
+                    <div style="width:35%;">
+                        <img src="{op['hero']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid {op['color']};">
+                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-size:12px;">{op['hero']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['hero']['target']} {op['hero']['stat']}</div>
+                    </div>
+                    <div style="width:15%; font-size:40px; color:{op['color']};">🔗</div>
+                    <div style="width:35%;">
+                        <img src="{op['partner']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid #fff;">
+                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['partner']['name']}</div>
+                        <div style="color:#94a3b8; font-size:12px;">{op['partner']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['partner']['target']} {op['partner']['stat']}</div>
+                    </div>
+                </div>
+                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:11px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
+                    {badges_html}
+                </div>
             </div>
-            <div class="nexus-footer">
-                {tags_html}
+            """, unsafe_allow_html=True)
+
+        # ---------------------------------------------------------------------
+        # LAYOUT 2: VACUUM (VÁCUO DE REBOTE / PREDADOR)
+        # ---------------------------------------------------------------------
+        else:
+            ladder_html = "".join([f"<div style='background:#1e293b; padding:5px 15px; border-radius:8px; margin-bottom:5px; display:flex; justify-content:space-between;'><span>{l.split(':')[0]}</span><span style='color:#a855f7; font-weight:bold;'>{l.split(':')[1]}</span></div>" for l in op['ladder']])
+            
+            st.markdown(f"""
+            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
+                <div style="background:{op['color']}; color:#fff; padding:8px 20px; font-family:'Oswald'; font-weight:bold; display:flex; justify-content:space-between;">
+                    <span>🌪️ ALERTA DE VÁCUO</span>
+                    <span>SCORE {op['score']}</span>
+                </div>
+                <div style="display:flex; padding:25px; align-items:flex-start;">
+                    <div style="width:40%; text-align:center;">
+                        <img src="{op['hero']['photo']}" style="width:130px; height:130px; border-radius:10px; object-fit:cover; border: 2px solid {op['color']};">
+                        <div style="font-weight:bold; color:#fff; font-size:20px; margin-top:10px;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-weight:bold;">{op['hero']['status']}</div>
+                    </div>
+                    <div style="width:60%; padding-left:20px;">
+                        <div style="background:rgba(248,113,113,0.1); border:1px solid #f87171; padding:10px; border-radius:10px; margin-bottom:15px;">
+                            <div style="color:#f87171; font-weight:bold; font-size:12px;">{op['villain']['status']}</div>
+                            <div style="color:#fff; font-size:16px; font-weight:bold;">{op['villain']['missing']}</div>
+                            <div style="color:#94a3b8; font-size:11px;">Time: {op['villain']['name']}</div>
+                        </div>
+                        <div style="font-family:'Oswald'; font-size:12px; color:#94a3b8; margin-bottom:10px;">A ESCADA (THE LADDER)</div>
+                        {ladder_html}
+                    </div>
+                </div>
+                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:12px; color:#94a3b8;">
+                    📉 <b>Impacto:</b> {op['impact']}
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
 
 # ============================================================================
@@ -7204,6 +7110,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
