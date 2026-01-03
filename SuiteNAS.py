@@ -240,13 +240,14 @@ def ensure_dataframe(df) -> pd.DataFrame:
     return pd.DataFrame()
 
 # ============================================================================
-# 5. CARREGAMENTO DE MÓDULOS (BLINDAGEM TOTAL v3.0)
+# 5. CARREGAMENTO DE MÓDULOS (BLINDAGEM TOTAL v3.1 - COM ALIAS)
 # ============================================================================
 
 # 1. Definição Inicial (Evita NameError se o import falhar)
 PaceAdjuster = None
 VacuumMatrixAnalyzer = None
-DvPAnalyzer = None  # Grafia correta: DvP
+DvPAnalyzer = None
+DvpAnalyzer = None # <--- ADICIONADO PARA EVITAR O ERRO
 InjuryMonitor = None
 PlayerClassifier = None
 CorrelationValidator = None
@@ -260,10 +261,10 @@ RotationCeilingEngine = None
 SinergyEngine = None
 AuditSystem = None
 PinnacleClient = None
-MomentumEngine = None         # Adicionado
-DesdobradorInteligente = None # Adicionado
+MomentumEngine = None
+DesdobradorInteligente = None
 
-# 2. Definição de Flags (O CÓDIGO DEPENDE DESSAS VARIÁVEIS)
+# 2. Definição de Flags
 NOVOS_MODULOS_DISPONIVEIS = False
 PACE_ADJUSTER_AVAILABLE = False
 VACUUM_MATRIX_AVAILABLE = False
@@ -282,59 +283,52 @@ print("🔄 Inicializando Módulos do Sistema...")
 # --- FUNÇÃO AUXILIAR DE IMPORTAÇÃO ---
 def safe_import(module_name, class_name):
     """Tenta importar de múltiplos locais (Raiz, modules, new_modules)"""
-    # 1. Tenta Raiz (Prioridade para Streamlit Cloud)
+    # 1. Tenta Raiz
     try:
         mod = __import__(module_name, fromlist=[class_name])
         cls = getattr(mod, class_name)
         return cls
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError): pass
 
     # 2. Tenta modules.new_modules
     try:
         mod = __import__(f"modules.new_modules.{module_name}", fromlist=[class_name])
         cls = getattr(mod, class_name)
         return cls
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError): pass
 
     # 3. Tenta modules
     try:
         mod = __import__(f"modules.{module_name}", fromlist=[class_name])
         cls = getattr(mod, class_name)
         return cls
-    except (ImportError, AttributeError):
-        return None
+    except (ImportError, AttributeError): return None
 
 # --- CARREGAMENTO REAL ---
-
 try:
-    # 1. Core Estratégico
+    # Core Estratégico
     try:
         ThesisEngine = safe_import("thesis_engine", "ThesisEngine")
         StrategyEngine = safe_import("strategy_engine", "StrategyEngine")
         NarrativeFormatter = safe_import("narrative_formatter", "NarrativeFormatter")
         RotationAnalyzer = safe_import("rotation_analyzer", "RotationAnalyzer")
         StrategyIdentifier = safe_import("strategy_identifier", "StrategyIdentifier")
-        
-        if ThesisEngine and StrategyEngine:
-            NOVOS_MODULOS_DISPONIVEIS = True
-    except Exception as e:
-        print(f"⚠️ Erro Core Estratégico: {e}")
+        if ThesisEngine and StrategyEngine: NOVOS_MODULOS_DISPONIVEIS = True
+    except: pass
 
-    # 2. Componentes Nexus & Stats
+    # Componentes Nexus & Stats
     PaceAdjuster = safe_import("pace_adjuster", "PaceAdjuster")
     if PaceAdjuster: PACE_ADJUSTER_AVAILABLE = True
-    else: print("⚠️ PaceAdjuster não encontrado.")
 
     VacuumMatrixAnalyzer = safe_import("vacuum_matrix", "VacuumMatrixAnalyzer")
     if VacuumMatrixAnalyzer: VACUUM_MATRIX_AVAILABLE = True
 
-    # Tenta DvP (Grafia Flexível)
+    # Tenta DvP (Grafia Preferencial: DvPAnalyzer)
     DvPAnalyzer = safe_import("dvp_analyzer", "DvPAnalyzer")
-    if not DvPAnalyzer: DvPAnalyzer = safe_import("dvp_analyzer", "DvpAnalyzer") # Tenta minúsculo
+    if not DvPAnalyzer: 
+        DvPAnalyzer = safe_import("dvp_analyzer", "DvpAnalyzer") # Tenta grafia alternativa
+    
     if DvPAnalyzer: DVP_ANALYZER_AVAILABLE = True
-    else: print("⚠️ DvPAnalyzer não encontrado.")
 
     PlayerClassifier = safe_import("player_classifier", "PlayerClassifier")
     if PlayerClassifier: PLAYER_CLASSIFIER_AVAILABLE = True
@@ -352,30 +346,33 @@ try:
 
     DesdobradorInteligente = safe_import("desdobrador_inteligente", "DesdobradorInteligente")
 
-    # 3. Raiz / Legado
-    # Tenta importar injuries (geralmente está na raiz como injuries.py)
+    # Raiz / Legado
     try:
         from injuries import InjuryMonitor
         INJURY_MONITOR_AVAILABLE = True
     except ImportError:
-        InjuryMonitor = safe_import("injury_monitor", "InjuryMonitor") # Tenta nome alternativo
+        InjuryMonitor = safe_import("injury_monitor", "InjuryMonitor")
         if InjuryMonitor: INJURY_MONITOR_AVAILABLE = True
-        else: print("⚠️ InjuryMonitor ausente.")
 
-    # 4. Audit System
+    # Audit System
     AuditSystem = safe_import("audit_system", "AuditSystem")
     if AuditSystem: AUDIT_AVAILABLE = True
 
-    # 5. Pinnacle (Opcional)
+    # Pinnacle
     try:
         from pinnacle_client import PinnacleClient
         PINNACLE_AVAILABLE = True
     except ImportError:
-        # Stub class para não quebrar o código
         class PinnacleClient: 
             def __init__(self, *args, **kwargs): pass
             def get_nba_games(self): return []
             def get_player_props(self, game_id): return []
+
+    # ========================================================================
+    # 6. ALIASES DE COMPATIBILIDADE (A CORREÇÃO DO SEU ERRO ESTÁ AQUI)
+    # ========================================================================
+    # Garante que 'DvpAnalyzer' (minúsculo) aponte para a classe correta
+    DvpAnalyzer = DvPAnalyzer 
 
     print("✅ Carregamento de módulos concluído.")
 
@@ -6459,7 +6456,7 @@ def safe_load_initial_data():
         except Exception as e:
             print(f"Erro ao iniciar InjuryMonitor: {e}")
 
-    # DvP Analyzer
+    # Dvp Analyzer
     if st.session_state.dvp_analyzer is None and DVP_ANALYZER_AVAILABLE:
         st.session_state.dvp_analyzer = DvpAnalyzer()
 
@@ -7239,6 +7236,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
