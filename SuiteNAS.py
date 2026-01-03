@@ -109,7 +109,6 @@ SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
 
 # --- CHAVES DO BANCO DE DADOS (SUPABASE KEYS) ---
-# CRÍTICO: Estas variáveis evitam o NameError no safe_load_initial_data
 KEY_SCOREBOARD = "scoreboard"
 KEY_TEAM_ADV = "team_advanced"
 KEY_TEAM_OPP = "team_opponent"
@@ -119,6 +118,7 @@ KEY_INJURIES = "injuries"
 KEY_NAME_OVERRIDES = "name_overrides"
 KEY_PLAYERS_MAP = "nba_players_map"
 KEY_DVP = "dvp_stats"
+KEY_L5 = "l5_stats" # <--- ADICIONE ESTA LINHA NOVA
 
 TEAM_ABBR_TO_ODDS = {
     "ATL": "Atlanta Hawks","BOS": "Boston Celtics","BKN": "Brooklyn Nets","CHA": "Charlotte Hornets",
@@ -1423,55 +1423,75 @@ def get_player_logs(name):
     except: return None
 
 def update_batch_cache(games_list):
-    cache_file = "cache/real_game_logs.json"
+    """
+    Atualiza o cache de logs (L25) buscando dados da NBA e SALVA NA NUVEM.
+    """
+    # Tenta carregar o cache atual (Nuvem -> Local)
+    full_cache = get_data_universal(KEY_LOGS, LOGS_CACHE_FILE) or {}
+    
     status = st.status("🔄 Conectando aos satélites da NBA...", expanded=True)
-    try:
-        with open(cache_file, 'r') as f: full_cache = json.load(f)
-    except: full_cache = {}
     
     players_queue = []
+    # Identifica jogadores dos jogos de hoje
     for g in games_list:
-        h = fix_team_abbr(g.get('home', 'UNK')); a = fix_team_abbr(g.get('away', 'UNK'))
+        h = fix_team_abbr(g.get('home', 'UNK'))
+        a = fix_team_abbr(g.get('away', 'UNK'))
         if h == "UNK": continue
         try:
-            # Mock roster fetch para nao quebrar se faltar libs
+            # Mock roster fetch para não quebrar se faltar libs
             from nba_api.stats.endpoints import commonteamroster
             from nba_api.stats.static import teams
-            t_id = [t['id'] for t in teams.get_teams() if t['abbreviation'] == h][0]
-            roster = commonteamroster.CommonTeamRoster(team_id=t_id, season=get_current_season_str()).get_data_frames()[0]
-            for _, r in roster.iterrows(): players_queue.append(r['PLAYER'])
             
-            t_id_a = [t['id'] for t in teams.get_teams() if t['abbreviation'] == a][0]
-            roster_a = commonteamroster.CommonTeamRoster(team_id=t_id_a, season=get_current_season_str()).get_data_frames()[0]
-            for _, r in roster_a.iterrows(): players_queue.append(r['PLAYER'])
+            # Tenta pegar ID do time
+            t_list = teams.get_teams()
+            t_id = next((t['id'] for t in t_list if t['abbreviation'] == h), None)
+            
+            if t_id:
+                roster = commonteamroster.CommonTeamRoster(team_id=t_id, season=SEASON).get_data_frames()[0]
+                for _, r in roster.iterrows(): players_queue.append(r['PLAYER'])
+            
+            t_id_a = next((t['id'] for t in t_list if t['abbreviation'] == a), None)
+            if t_id_a:
+                roster_a = commonteamroster.CommonTeamRoster(team_id=t_id_a, season=SEASON).get_data_frames()[0]
+                for _, r in roster_a.iterrows(): players_queue.append(r['PLAYER'])
         except: pass
     
+    # Filtra quem precisa atualizar
     pending = [p for p in set(players_queue) if p not in full_cache]
     
     if not pending:
-        status.update(label="✅ Cache atualizado!", state="complete", expanded=False)
+        status.update(label="✅ Cache já estava atualizado!", state="complete", expanded=False)
         time.sleep(1); return
 
-    status.write(f"⚡ Baixando {len(pending)} jogadores...")
+    status.write(f"⚡ Baixando {len(pending)} jogadores novos...")
     bar = status.progress(0)
     
     def fetch_task(p_name):
         return (p_name, get_player_logs(p_name))
 
+    # Executa o download em paralelo
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(fetch_task, p): p for p in pending}
         completed = 0
         for f in concurrent.futures.as_completed(futures):
             res = f.result()
             if res[1]:
-                full_cache[res[0]] = {"name": res[0], "team": "UNK", "logs": res[1], "updated": str(datetime.now())}
+                # Estrutura do log
+                full_cache[res[0]] = {
+                    "name": res[0], 
+                    "team": "UNK", # Opcional: atualizar time real se possível
+                    "logs": res[1], 
+                    "updated": str(datetime.now())
+                }
             completed += 1
             bar.progress(completed / len(pending))
             
-    with open(cache_file, 'w') as f: json.dump(full_cache, f)
-    status.update(label="✅ Concluído!", state="complete", expanded=False)
+    # --- SALVAMENTO CRÍTICO NA NUVEM ---
+    # Aqui estava o problema: antes salvava só local. Agora salva universal.
+    save_data_universal(KEY_LOGS, full_cache, LOGS_CACHE_FILE)
+    
+    status.update(label="✅ Nuvem Sincronizada!", state="complete", expanded=False)
     time.sleep(1)
-
 # ==============================================================================
 # 4. ENGINES & ANALYTICS
 # ==============================================================================
@@ -2996,57 +3016,95 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
     return None
 
 def get_players_l5(progress_ui=True, batch_size=5):
+    """
+    Baixa estatísticas L5 e salva no Supabase (convertendo DF -> JSON).
+    """
     from nba_api.stats.static import players
     
-    saved = load_pickle(L5_CACHE_FILE)
-    df_cached = pd.DataFrame()  # Inicializar como DataFrame vazio
+    # 1. Tenta carregar estado atual
+    # Se tiver local (pickle), usa. Se não, tenta baixar do Supabase e converter.
+    df_cached = pd.DataFrame()
     
-    if saved and isinstance(saved, dict):
-        df_cached = saved.get("df", pd.DataFrame())
+    # Tenta nuvem primeiro
+    cloud_data = get_data_universal(KEY_L5)
+    if cloud_data and "records" in cloud_data:
+        df_cached = pd.DataFrame.from_records(cloud_data["records"])
+    # Se falhar, tenta pickle local
+    elif os.path.exists(L5_CACHE_FILE):
+        saved = load_pickle(L5_CACHE_FILE)
+        if saved and isinstance(saved, dict):
+            df_cached = saved.get("df", pd.DataFrame())
+
+    df_final = df_cached.copy() if not df_cached.empty else pd.DataFrame()
     
-    df_final = df_cached.copy() if isinstance(df_cached, pd.DataFrame) else pd.DataFrame()
-    df_final = df_cached.copy() if isinstance(df_cached, pd.DataFrame) else pd.DataFrame()
+    # Lista de IDs já existentes para não baixar de novo
     existing_ids = set(df_final["PLAYER_ID"].astype(int).tolist()) if not df_final.empty else set()
+    
     act_players = players.get_active_players()
     dfp = pd.DataFrame(act_players)[["id","full_name"]].rename(columns={"id":"PLAYER_ID","full_name":"PLAYER"})
+    
     bar = st.progress(0) if progress_ui else None
     status = st.empty() if progress_ui else None
+    
     total = len(dfp); attempted=success=fail=0
+    
+    # Loop de Scraping
     for _, row in dfp.iterrows():
         attempted += 1
         pid = int(row["PLAYER_ID"]); pname = row["PLAYER"]
+        
         if pid in existing_ids:
             if progress_ui and status:
                 status.text(f"[L5] {attempted}/{total} — pulando {pname} (cache)")
                 if bar: bar.progress(attempted/total)
             continue
+            
         stats = try_fetch_with_retry(pid, pname, tries=3, delay=0.5)
+        
         if stats:
             df_final = pd.concat([df_final, pd.DataFrame([stats])], ignore_index=True)
             existing_ids.add(pid); success += 1
         else:
             fail += 1
+            
         if progress_ui and status:
             status.text(f"[L5] {attempted}/{total} — sucesso: {success} | falhas: {fail}")
             if bar: bar.progress(attempted/total)
+            
+        # Save parcial a cada batch (opcional, aqui salvamos só local pra não spammar a API da nuvem)
         if attempted % batch_size == 0:
             try:
-                if not df_final.empty:
-                    df_final["PLAYER_ID"] = df_final["PLAYER_ID"].astype(int)
-                    df_final = df_final.drop_duplicates(subset="PLAYER_ID", keep="first").reset_index(drop=True)
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                save_pickle(os.path.join(CACHE_DIR, f"l5_players_backup_{ts}.pkl"), {"df": df_final, "timestamp": datetime.now()})
-            except Exception: pass
-            save_pickle(L5_CACHE_FILE, {"df": df_final, "timestamp": datetime.now()})
+                save_pickle(L5_CACHE_FILE, {"df": df_final, "timestamp": datetime.now()})
+            except: pass
+
+    # Limpeza Final
     if not df_final.empty:
         try: df_final["PLAYER_ID"] = df_final["PLAYER_ID"].astype(int)
-        except Exception: pass
+        except: pass
         df_final = df_final.drop_duplicates(subset="PLAYER_ID", keep="first").reset_index(drop=True)
+    
+    # --- SALVAMENTO NA NUVEM (CONVERSÃO) ---
+    # 1. Salva Picke Local (Backup Rápido)
     save_pickle(L5_CACHE_FILE, {"df": df_final, "timestamp": datetime.now()})
+    
+    # 2. Salva JSON na Nuvem (Compatibilidade Universal)
+    try:
+        # Convertemos o DataFrame para lista de dicionários (records)
+        json_payload = {
+            "records": df_final.to_dict(orient="records"),
+            "timestamp": datetime.now().isoformat(),
+            "count": len(df_final)
+        }
+        save_data_universal(KEY_L5, json_payload)
+        print("☁️ L5 Stats enviados para a nuvem com sucesso!")
+    except Exception as e:
+        print(f"⚠️ Erro ao enviar L5 para nuvem: {e}")
+
     if progress_ui and status:
-        status.text(f"[L5] Finalizado. Tentados: {attempted} | Sucesso: {success} | Falhas: {fail}")
-        time.sleep(0.6); status.empty(); 
+        status.text(f"✅ Finalizado! {len(df_final)} jogadores sincronizados na nuvem.")
+        time.sleep(1); status.empty(); 
         if bar: bar.empty()
+        
     return df_final
 
 # ============================================================================
@@ -5994,49 +6052,52 @@ def process_espn_json_to_games(json_data):
     return processed_games
 
 # ============================================================================
-# FUNÇÕES DE CARREGAMENTO E INICIALIZAÇÃO (CORRIGIDAS)
-# ============================================================================
-
-# ============================================================================
-# FUNÇÃO DE CARREGAMENTO SEGURO (CORRIGIDA E BLINDADA)
+# FUNÇÃO DE CARREGAMENTO SEGURO (VERSÃO FINAL BLINDADA)
 # ============================================================================
 def safe_load_initial_data():
     """
-    Carrega dados e inicializa variáveis de sessão para evitar AttributeErrors.
+    Carrega dados e inicializa variáveis de sessão com prioridade na Nuvem (Supabase).
+    Evita AttributeErrors inicializando chaves vazias antes do uso.
     """
     
-    # 1. INICIALIZAÇÃO PRÉVIA (CRIA AS GAVETAS ANTES DE USAR)
-    # Isso evita o erro "AttributeError: session_state has no attribute..."
-    vars_to_init = [
-        'scoreboard', 'df_l5', 'team_advanced', 'odds', 
-        'name_overrides', 'player_ids',
+    # ------------------------------------------------------------------------
+    # 1. INICIALIZAÇÃO DE VARIÁVEIS (PREVINE ATTRIBUTE ERRORS)
+    # ------------------------------------------------------------------------
+    # Lista de chaves que PRECISAM existir no st.session_state
+    keys_defaults = {
+        'scoreboard': [], 
+        'df_l5': pd.DataFrame(), 
+        'team_advanced': {}, 
+        'odds': {}, 
+        'name_overrides': {}, 
+        'player_ids': {},
         # Módulos (Iniciam como None)
-        'injuries_manager', 
-        'pace_adjuster', 
-        'vacuum_analyzer', 
-        'dvp_analyzer', 
-        'feature_store', 
-        'audit_system', 
-        'archetype_engine', 
-        'rotation_analyzer'
-    ]
+        'injuries_manager': None,
+        'pace_adjuster': None,
+        'vacuum_analyzer': None,
+        'dvp_analyzer': None,
+        'feature_store': None,
+        'audit_system': None,
+        'archetype_engine': None,
+        'rotation_analyzer': None,
+        'thesis_engine': None
+    }
 
-    for var in vars_to_init:
-        if var not in st.session_state:
-            # Para listas/dicts, inicializa vazio. Para objetos, None.
-            if var in ['scoreboard']: st.session_state[var] = []
-            elif var in ['df_l5']: st.session_state[var] = pd.DataFrame()
-            elif var in ['team_advanced', 'odds', 'name_overrides', 'player_ids']: st.session_state[var] = {}
-            else: st.session_state[var] = None
+    for key, default_val in keys_defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_val
 
-    # --- 2. DADOS DINÂMICOS (AUTO-HEALING VIA API) ---
+    # ------------------------------------------------------------------------
+    # 2. DADOS DINÂMICOS (AUTO-HEALING: NUVEM -> API -> SAVE)
+    # ------------------------------------------------------------------------
 
-    # A. Scoreboard
+    # A. Scoreboard (Jogos de Hoje)
     if not st.session_state.scoreboard:
         data = get_data_universal(KEY_SCOREBOARD)
         if data:
             st.session_state.scoreboard = data
         else:
+            # Falhou nuvem? Busca API e salva na nuvem
             try:
                 live_data = fetch_espn_scoreboard(progress_ui=False)
                 if live_data:
@@ -6044,7 +6105,7 @@ def safe_load_initial_data():
                     save_data_universal(KEY_SCOREBOARD, live_data)
             except: pass
 
-    # B. Stats Avançados
+    # B. Stats Avançados de Times
     if not st.session_state.team_advanced:
         data = get_data_universal(KEY_TEAM_ADV)
         if data:
@@ -6071,14 +6132,35 @@ def safe_load_initial_data():
                         save_data_universal(KEY_ODDS, live_data)
             except: pass
 
-    # --- 3. DADOS ESTÁTICOS (MIGRAÇÃO AUTOMÁTICA) ---
-    STATIC_FILES = {
+    # D. Dados L5 (Estatísticas de Jogadores) - CORREÇÃO DE LEITURA JSON
+    if st.session_state.df_l5.empty:
+        # 1. Tenta Nuvem (Formato JSON Records)
+        cloud_l5 = get_data_universal(KEY_L5)
+        if cloud_l5 and "records" in cloud_l5:
+            try:
+                st.session_state.df_l5 = pd.DataFrame.from_records(cloud_l5["records"])
+            except Exception as e:
+                print(f"⚠️ Erro convertendo L5 da nuvem: {e}")
+        
+        # 2. Fallback: Tenta Pickle Local (Se nuvem falhar)
+        if st.session_state.df_l5.empty and os.path.exists(L5_CACHE_FILE):
+            try:
+                saved = load_pickle(L5_CACHE_FILE)
+                if saved and isinstance(saved, dict) and "df" in saved:
+                    st.session_state.df_l5 = saved["df"]
+            except: pass
+
+    # ------------------------------------------------------------------------
+    # 3. DADOS ESTÁTICOS (MIGRAÇÃO AUTOMÁTICA LOCAL -> NUVEM)
+    # ------------------------------------------------------------------------
+    # Se não existe na nuvem mas existe local, sobe automaticamente.
+    static_files_map = {
         KEY_PLAYERS_MAP: "cache/nba_players_map.json",
         KEY_NAME_OVERRIDES: "cache/name_overrides.json",
         KEY_DVP: "cache/dvp_data_v4_static.json"
     }
 
-    for key_db, local_path in STATIC_FILES.items():
+    for key_db, local_path in static_files_map.items():
         if not get_data_universal(key_db): 
             if os.path.exists(local_path):
                 try:
@@ -6089,7 +6171,9 @@ def safe_load_initial_data():
                         save_data_universal(key_db, local_data)
                 except: pass
 
-    # --- 4. INICIALIZAÇÃO DE MÓDULOS (AQUI ESTÁ A LÓGICA CORRETA) ---
+    # ------------------------------------------------------------------------
+    # 4. INICIALIZAÇÃO DE MÓDULOS (INSTANCIAÇÃO SEGURA)
+    # ------------------------------------------------------------------------
     
     # Pace Adjuster
     if st.session_state.pace_adjuster is None and PACE_ADJUSTER_AVAILABLE:
@@ -6099,11 +6183,11 @@ def safe_load_initial_data():
     if st.session_state.vacuum_analyzer is None and VACUUM_MATRIX_AVAILABLE:
         st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer()
 
-    # Injury Monitor (AQUI: Classe InjuryMonitor -> Variável injuries_manager)
+    # Injury Monitor
     if st.session_state.injuries_manager is None and INJURY_MONITOR_AVAILABLE:
         try:
+            # Instancia a classe InjuryMonitor e guarda na variável injuries_manager
             st.session_state.injuries_manager = InjuryMonitor()
-            # print("✅ InjuryMonitor inicializado com sucesso.")
         except Exception as e:
             print(f"Erro ao iniciar InjuryMonitor: {e}")
 
@@ -6122,10 +6206,6 @@ def safe_load_initial_data():
         try: 
             if 'FeatureStore' in globals():
                 st.session_state.feature_store = FeatureStore()
-            # Fallback se a classe não estiver importada mas estiver em outro arquivo
-            elif os.path.exists(FEATURE_STORE_FILE):
-                # Carregamento simplificado ou import tardio se necessário
-                pass
         except: pass
 
 
@@ -6890,6 +6970,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
