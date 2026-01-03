@@ -681,70 +681,91 @@ def normalize_team(team_code):
     return TEAM_NORMALIZATION_MAP.get(code, code)
 
 # ============================================================================
-# 2. CLASSE TRINITY ENGINE (CORRIGIDA: KEYERROR 'OPP')
+# TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
 # ============================================================================
+
 class TrinityEngine:
-    """
-    Motor de Consistência (Club 5/Club 7).
-    """
-    def __init__(self, logs_cache, scoreboard):
+    def __init__(self, logs_cache, games):
         self.logs = logs_cache
-        self.scoreboard = scoreboard
+        self.games_map = self._map_games(games)
+        
+    def _normalize_team(self, team_code):
+        mapping = {
+            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
+            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"
+        }
+        return mapping.get(team_code, team_code)
 
-    def scan_market(self, window=5):
+    def _map_games(self, games):
+        mapping = {}
+        for g in games:
+            home = self._normalize_team(g.get('home'))
+            away = self._normalize_team(g.get('away'))
+            gid = g.get('game_id') or g.get('id') or "UNK"
+            if home and away:
+                mapping[home] = {"opp": away, "is_home": True, "game_str": f"{away} @ {home}", "game_id": gid}
+                mapping[away] = {"opp": home, "is_home": False, "game_str": f"{away} @ {home}", "game_id": gid}
+        return mapping
+
+    def scan_market(self, window=10):
+        """
+        Escaneia o mercado com uma janela temporal específica (L5, L10, L15).
+        """
         candidates = []
-        
-        for p_name, data in self.logs.items():
-            team = normalize_team(data.get('team'))
-            if not team: continue
+        if not self.logs: return []
 
-            # 1. Identifica o Oponente (CRUCIAL PARA O FRONT-END NÃO QUEBRAR)
-            opp = self._get_opponent(team)
+        for player_name, data in self.logs.items():
+            raw_team = data.get('team')
+            if not raw_team: continue
+            team = self._normalize_team(raw_team)
+            if team not in self.games_map: continue
             
-            # Se houver scoreboard, filtra quem não joga.
-            # Se scoreboard vazio (teste), permite passar (opp será None ou simulado)
-            if self.scoreboard and not opp:
-                continue
-
-            # Analisa Stats (AST, REB, PTS)
             logs = data.get('logs', {})
-            for stat in ['AST', 'REB', 'PTS']:
+            if not logs: continue
+            ctx = self.games_map[team]
+            
+            for stat in ['PTS', 'REB', 'AST']:
                 values = logs.get(stat, [])
-                if len(values) < window: continue
+                if len(values) < window: continue 
                 
-                recent = values[:window]
-                avg = sum(recent) / window
+                # --- LÓGICA DE JANELA TEMPORAL ---
+                current_window_values = values[:window]
                 
-                # Regra de Ouro Trinity: Consistência
-                floor = avg * 0.8
-                hit_rate = sum(1 for x in recent if x >= floor) / window
+                # O Piso da Janela (Forma)
+                floor_form = min(current_window_values)
                 
-                # Filtros de Qualidade (Evita bagres)
-                min_avg = 5.0 if stat != 'PTS' else 12.0
+                # Proxies para Venue e H2H baseados na Janela Atual
+                # (Idealmente seriam filtrados, mas mantemos a heurística conservadora que funcionou)
+                floor_venue = floor_form 
+                floor_h2h = int(floor_form * 0.9)
                 
-                if hit_rate >= 0.8 and avg >= min_avg:
+                # Piso de Segurança Final
+                safe_floor = min(floor_form, floor_venue, floor_h2h)
+                
+                # Filtros Mínimos de Relevância
+                min_req = 10 if stat == 'PTS' else 4
+                
+                if safe_floor >= min_req:
                     candidates.append({
-                        "player": p_name,
-                        "team": team,
-                        "opp": opp if opp else "N/A", # <--- CORREÇÃO DO KEYERROR
+                        "player": player_name,
+                        "team": raw_team,
+                        "opp": ctx['opp'],
                         "stat": stat,
-                        "metric": f"{int(hit_rate*100)}% L{window}",
-                        "value": avg,
-                        "last_5": recent
+                        "line": safe_floor - 1, # Alvo Sugerido
+                        "floors": {
+                            "Form": floor_form,
+                            "Venue": floor_venue,
+                            "H2H": floor_h2h
+                        },
+                        "score": safe_floor,
+                        "game_str": ctx['game_str'],
+                        "game_id": ctx['game_id'],
+                        "window": f"L{window}"
                     })
-        
-        return sorted(candidates, key=lambda x: x['value'], reverse=True)
+                        
+        return sorted(candidates, key=lambda x: x['score'], reverse=True)
 
-    def _get_opponent(self, team):
-        """Helper interno para achar o oponente no scoreboard"""
-        if not self.scoreboard: return None
-        target = normalize_team(team)
-        for g in self.scoreboard:
-            h = normalize_team(g.get('home'))
-            a = normalize_team(g.get('away'))
-            if h == target: return a
-            if a == target: return h
-        return None
+
 
 # ============================================================================
 # 3. CLASSE NEXUS ENGINE (V5.2 - FIXO E ROBUSTO)
@@ -7300,6 +7321,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
