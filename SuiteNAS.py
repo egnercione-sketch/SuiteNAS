@@ -206,7 +206,7 @@ VACUUM_MATRIX_AVAILABLE = False
 DVP_ANALYZER_AVAILABLE = False
 INJURY_MONITOR_AVAILABLE = False
 PLAYER_CLASSIFIER_AVAILABLE = False
-CORRELATION_FILTERS_AVAILABLE = False # <--- O erro estava aqui
+CORRELATION_FILTERS_AVAILABLE = False
 ROTATION_CEILING_AVAILABLE = False
 SINERGY_ENGINE_AVAILABLE = False
 
@@ -216,7 +216,7 @@ VacuumMatrixAnalyzer = None
 DvpAnalyzer = None
 InjuryMonitor = None
 PlayerClassifier = None
-TrixieCorrelationValidator = None # <--- E aqui
+CorrelationValidator = None
 CorrelationValidator = None
 RotationAnalyzer = None
 NarrativeFormatter = None
@@ -246,7 +246,7 @@ try:
 
     # --- Grupo 2: Filtros e Correlacao (Onde deu o erro) ---
     try:
-        from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
+        from modules.new_modules.correlation_filters import CorrelationValidator, CorrelationValidator
         CORRELATION_FILTERS_AVAILABLE = True
     except ImportError: 
         print("⚠️ Correlation Filters não carregado")
@@ -7183,6 +7183,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
