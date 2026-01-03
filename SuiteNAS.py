@@ -5983,36 +5983,36 @@ def process_espn_json_to_games(json_data):
 # ============================================================================
 
 # ============================================================================
-# FUNÇÃO DE CARREGAMENTO SEGURO (CORRIGIDA)
+# FUNÇÃO DE CARREGAMENTO SEGURO (CORRIGIDA E BLINDADA)
 # ============================================================================
 def safe_load_initial_data():
     """
     Carrega dados e inicializa variáveis de sessão para evitar AttributeErrors.
     """
     
-    # 1. INICIALIZAÇÃO ROBUSTA DE VARIÁVEIS (PREVINE O ERRO)
-    # Define TODAS as chaves que o sistema usa como None ou Vazio antes de tentar ler
-    defaults = {
-        'scoreboard': [], 
-        'df_l5': pd.DataFrame(), 
-        'team_advanced': {}, 
-        'odds': {}, 
-        'name_overrides': {}, 
-        'player_ids': {},
-        # Módulos (Inicializa como None para não quebrar a verificação posterior)
-        'injuries_manager': None,
-        'pace_adjuster': None,
-        'vacuum_analyzer': None,
-        'dvp_analyzer': None,
-        'feature_store': None,
-        'audit_system': None,
-        'archetype_engine': None,
-        'rotation_analyzer': None
-    }
+    # 1. INICIALIZAÇÃO PRÉVIA (CRIA AS GAVETAS ANTES DE USAR)
+    # Isso evita o erro "AttributeError: session_state has no attribute..."
+    vars_to_init = [
+        'scoreboard', 'df_l5', 'team_advanced', 'odds', 
+        'name_overrides', 'player_ids',
+        # Módulos (Iniciam como None)
+        'injuries_manager', 
+        'pace_adjuster', 
+        'vacuum_analyzer', 
+        'dvp_analyzer', 
+        'feature_store', 
+        'audit_system', 
+        'archetype_engine', 
+        'rotation_analyzer'
+    ]
 
-    for k, v in defaults.items():
-        if k not in st.session_state: 
-            st.session_state[k] = v
+    for var in vars_to_init:
+        if var not in st.session_state:
+            # Para listas/dicts, inicializa vazio. Para objetos, None.
+            if var in ['scoreboard']: st.session_state[var] = []
+            elif var in ['df_l5']: st.session_state[var] = pd.DataFrame()
+            elif var in ['team_advanced', 'odds', 'name_overrides', 'player_ids']: st.session_state[var] = {}
+            else: st.session_state[var] = None
 
     # --- 2. DADOS DINÂMICOS (AUTO-HEALING VIA API) ---
 
@@ -6036,7 +6036,7 @@ def safe_load_initial_data():
             st.session_state.team_advanced = data
         else:
             try:
-                live_data = fetch_real_time_team_stats() # Usa a função wrapper definida acima
+                live_data = fetch_real_time_team_stats()
                 if live_data:
                     st.session_state.team_advanced = live_data
                     save_data_universal(KEY_TEAM_ADV, live_data)
@@ -6049,8 +6049,6 @@ def safe_load_initial_data():
             st.session_state.odds = data
         else:
             try:
-                # Assume que fetch_odds_for_today existe em outro lugar ou usa Pinnacle
-                # Se não tiver a função, ignora
                 if 'fetch_odds_for_today' in globals():
                     live_data = fetch_odds_for_today()
                     if live_data:
@@ -6066,8 +6064,8 @@ def safe_load_initial_data():
     }
 
     for key_db, local_path in STATIC_FILES.items():
-        if not get_data_universal(key_db): # Se não tem na nuvem
-            if os.path.exists(local_path): # E tem local
+        if not get_data_universal(key_db): 
+            if os.path.exists(local_path):
                 try:
                     with open(local_path, "r", encoding="utf-8") as f:
                         local_data = json.load(f)
@@ -6076,7 +6074,7 @@ def safe_load_initial_data():
                         save_data_universal(key_db, local_data)
                 except: pass
 
-    # --- 4. INICIALIZAÇÃO DE MÓDULOS ---
+    # --- 4. INICIALIZAÇÃO DE MÓDULOS (AQUI ESTÁ A LÓGICA CORRETA) ---
     
     # Pace Adjuster
     if st.session_state.pace_adjuster is None and PACE_ADJUSTER_AVAILABLE:
@@ -6086,10 +6084,11 @@ def safe_load_initial_data():
     if st.session_state.vacuum_analyzer is None and VACUUM_MATRIX_AVAILABLE:
         st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer()
 
-    # Injury Monitor (Aqui estava o erro antes)
+    # Injury Monitor (AQUI: Classe InjuryMonitor -> Variável injuries_manager)
     if st.session_state.injuries_manager is None and INJURY_MONITOR_AVAILABLE:
         try:
             st.session_state.injuries_manager = InjuryMonitor()
+            # print("✅ InjuryMonitor inicializado com sucesso.")
         except Exception as e:
             print(f"Erro ao iniciar InjuryMonitor: {e}")
 
@@ -6106,9 +6105,12 @@ def safe_load_initial_data():
     # Feature Store
     if st.session_state.feature_store is None:
         try: 
-            # Assume FeatureStore class is available or imported
             if 'FeatureStore' in globals():
                 st.session_state.feature_store = FeatureStore()
+            # Fallback se a classe não estiver importada mas estiver em outro arquivo
+            elif os.path.exists(FEATURE_STORE_FILE):
+                # Carregamento simplificado ou import tardio se necessário
+                pass
         except: pass
 
 
@@ -6873,6 +6875,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
