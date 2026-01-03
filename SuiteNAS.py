@@ -171,10 +171,29 @@ def load_extended_scoreboard():
     return final_games
 
 # ============================================================================
-# MÓDULOS ESTRATÉGICOS & NEXUS INTELLIGENCE
+# 1. IMPORTS ESSENCIAIS (O SISTEMA NÃO RODA SEM ELES)
 # ============================================================================
 try:
-    # 1. Módulos Core da Nova Arquitetura
+    from auth_manager import UserManager
+    from config_manager import PATHS
+    # Tenta carregar AuditSystem, se falhar define como None mas não quebra o app
+    try:
+        from modules.audit_system import AuditSystem
+    except ImportError:
+        print("⚠️ AuditSystem não encontrado.")
+        AuditSystem = None
+        
+except ImportError as e:
+    # Se falhar Auth ou Config, o app para aqui mesmo
+    import streamlit as st
+    st.error(f"❌ ERRO CRÍTICO: Módulos base não encontrados. Verifique auth_manager.py e config_manager.py. Detalhe: {e}")
+    st.stop()
+
+# ============================================================================
+# 2. MÓDULOS ESTRATÉGICOS & NEXUS (OPCIONAIS)
+# ============================================================================
+try:
+    # Módulos Core da Nova Arquitetura
     from modules.new_modules.thesis_engine import ThesisEngine
     from modules.new_modules.strategy_engine import StrategyEngine
     from modules.new_modules.narrative_formatter import NarrativeFormatter
@@ -184,25 +203,25 @@ try:
     from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
     from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
     
-    # 2. Módulos de Inteligência Contextual (NEXUS Dependencies)
+    # Módulos de Inteligência Contextual (NEXUS)
     from modules.new_modules.archetype_engine import ArchetypeEngine
     from modules.new_modules.pace_adjuster import PaceAdjuster
     from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
     from modules.new_modules.sinergy_engine import SinergyEngine
     from modules.new_modules.dvp_analyzer import DvpAnalyzer
     
-    # 3. Módulos da Raiz
-    from injuries import InjuryMonitor  # Monitor de Lesões (Raiz)
-    from modules.audit_system import AuditSystem
-    from auth_manager import UserManager
-    from config_manager import PATHS
+    # Módulos da Raiz
+    try:
+        from injuries import InjuryMonitor
+    except ImportError:
+        InjuryMonitor = None
 
     NOVOS_MODULOS_DISPONIVEIS = True
     print("✅ Módulos NEXUS & Estratégicos carregados com sucesso")
 
 except ImportError as e:
-    print(f"⚠️ Atenção: Módulos estratégicos/NEXUS incompletos: {e}")
-    print("⚠️ O sistema funcionará em modo de compatibilidade")
+    print(f"⚠️ Atenção: Módulos estratégicos/NEXUS incompletos ou com erro: {e}")
+    print("⚠️ O sistema funcionará em modo de compatibilidade (Sem Nexus)")
     NOVOS_MODULOS_DISPONIVEIS = False
     
     # Define Nones para evitar crash se falhar
@@ -211,8 +230,11 @@ except ImportError as e:
     SinergyEngine = None
     DvpAnalyzer = None
     InjuryMonitor = None
+    ArchetypeEngine = None
 
-# ... (Mantenha o bloco do PinnacleClient como estava) ...
+# ============================================================================
+# 3. INTEGRAÇÕES EXTERNAS
+# ============================================================================
 try:
     from pinnacle_client import PinnacleClient
     PINNACLE_AVAILABLE = True
@@ -6852,6 +6874,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
