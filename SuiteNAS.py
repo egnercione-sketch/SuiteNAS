@@ -24,6 +24,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
+# 0. CONFIGURAÇÕES GLOBAIS E CONSTANTES
+# ============================================================================
+
+# Mapa de tradução NBA Oficial -> Códigos URL da ESPN
+# Essencial para baixar elencos e fotos corretamente.
+ESPN_TEAM_CODES = {
+    "ATL": "atl", "BOS": "bos", "BKN": "bkn", "CHA": "cha", "CHI": "chi",
+    "CLE": "cle", "DAL": "dal", "DEN": "den", "DET": "det", "GSW": "gs",
+    "HOU": "hou", "IND": "ind", "LAC": "lac", "LAL": "lal", "MEM": "mem",
+    "MIA": "mia", "MIL": "mil", "MIN": "min", "NOP": "no", "NYK": "ny",
+    "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "pho", "POR": "por",
+    "SAC": "sac", "SAS": "sa", "TOR": "tor", "UTA": "utah", "WAS": "wsh"
+}
+# ============================================================================
 # 1. CONFIGURAÇÃO DE CAMINHOS E BANCO DE DADOS
 # ============================================================================
 BASE_DIR = os.path.dirname(__file__)
@@ -224,38 +238,6 @@ def ensure_dataframe(df) -> pd.DataFrame:
         try: return pd.DataFrame.from_dict(df)
         except: return pd.DataFrame([df])
     return pd.DataFrame()
-
-def load_extended_scoreboard():
-    try:
-        from nba_api.stats.endpoints import scoreboardv2
-        import pytz
-        utc_now = datetime.now(pytz.utc)
-        date_today = utc_now.strftime('%Y-%m-%d')
-        date_tomorrow = (utc_now + timedelta(days=1)).strftime('%Y-%m-%d')
-        
-        games_1 = scoreboardv2.ScoreboardV2(game_date=date_today).get_data_frames()[0]
-        games_2 = scoreboardv2.ScoreboardV2(game_date=date_tomorrow).get_data_frames()[0]
-        all_games_raw = pd.concat([games_1, games_2], ignore_index=True)
-        
-        final_games = []
-        processed_ids = set()
-        
-        for _, game in all_games_raw.iterrows():
-            gid = game['GAME_ID']
-            if gid in processed_ids: continue
-            status = game['GAME_STATUS_ID'] 
-            final_games.append({
-                "game_id": gid,
-                "home": game['HOME_TEAM_ABBREVIATION'],
-                "away": game['VISITOR_TEAM_ABBREVIATION'],
-                "status": status,
-                "time": game['GAME_DATE_EST']
-            })
-            processed_ids.add(gid)
-        return final_games
-    except Exception as e:
-        # print(f"Erro no Extended Scoreboard: {e}")
-        return []
 
 # ============================================================================
 # 5. CARREGAMENTO DE MÓDULOS (PREVENÇÃO DE ERROS GLOBAIS)
@@ -2806,64 +2788,107 @@ def validate_pipeline_integrity(required_components=None):
 # ============================================================================
 # DATA FETCHERS
 # ============================================================================
-def fetch_espn_scoreboard(date_yyyymmdd=None, progress_ui=True):
+def get_scoreboard_data():
     """
-    Busca scoreboard da ESPN com headers anti-bloqueio e fallback de data.
+    Função Mestra do Scoreboard.
+    1. Ajusta Data (Madrugada NBA).
+    2. Tenta ler do Supabase.
+    3. Se velho, baixa da ESPN.
+    4. Salva no Supabase.
     """
-    # 1. Define a data (Se não informada, usa a de hoje do sistema)
-    if not date_yyyymmdd:
-        date_yyyymmdd = datetime.now().strftime("%Y%m%d")
-        
-    # URL Oficial da API V2 (Scoreboard)
-    url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+    from datetime import datetime, timedelta
+    import pandas as pd
+    import requests
+    import pytz
+
+    # --- 1. LÓGICA DE DATA (O PULO DO GATO 🐱) ---
+    # Se for antes das 04:00 da manhã, consideramos que ainda é o dia anterior.
+    # Isso resolve o problema dos jogos sumirem meia-noite.
+    now = datetime.now()
+    if now.hour < 4:
+        target_date = now - timedelta(days=1)
+    else:
+        target_date = now
     
-    # HEADERS SÃO OBRIGATÓRIOS PARA NÃO SER BLOQUEADO
+    date_str = target_date.strftime("%Y%m%d")
+    cache_key = f"scoreboard_{date_str}" # Chave única por dia
+    
+    # --- 2. TENTA LER DO SUPABASE PRIMEIRO ---
+    # Tenta pegar cache fresco (menos de 30s)
+    # Se quiser forçar atualização sempre, comente este bloco
+    try:
+        cached = get_data_universal("scoreboard") # Usa a chave genérica 'scoreboard' para o app
+        if cached and isinstance(cached, list) and len(cached) > 0:
+            # Verifica se o cache é deste dia mesmo (opcional, mas bom)
+            # Para simplificar, assumimos que o 'scoreboard' é sempre o "live"
+            return pd.DataFrame(cached)
+    except: pass
+
+    # --- 3. BAIXA DA ESPN (Se não tiver cache) ---
+    url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+    params = {"dates": date_str, "limit": 100}
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json"
     }
 
-    params = {
-        "dates": date_yyyymmdd,
-        "limit": 100
-    }
-
-    if progress_ui:
-        bar = st.progress(10, text="Conectando à ESPN...")
-
     try:
-        # Tenta a requisição
-        r = requests.get(url, params=params, headers=headers, timeout=10)
+        r = requests.get(url, params=params, headers=headers, timeout=5)
+        if r.status_code != 200:
+            return pd.DataFrame() # Retorna vazio se der erro
         
-        if progress_ui: bar.progress(50, text="Processando dados...")
+        data = r.json()
+        games_list = []
         
-        if r.status_code == 200:
-            data = r.json()
+        # Parseia o JSON complexo da ESPN para uma tabela limpa
+        events = data.get("events", [])
+        for evt in events:
+            comp = evt["competitions"][0]
             
-            # Salva o RAW no cache para debug futuro
-            save_json(SCOREBOARD_JSON_FILE, data)
+            # Times
+            competitors = comp["competitors"]
+            home = next((t for t in competitors if t["homeAway"] == "home"), {})
+            away = next((t for t in competitors if t["homeAway"] == "away"), {})
             
-            # Processa usando a função auxiliar (Garante formato limpo)
-            games = process_espn_json_to_games(data)
+            # Status
+            status_type = evt["status"]["type"]
+            status_text = status_type["shortDetail"] # Ex: "Final", "10:30 - 4th"
+            is_live = status_type["state"] == "in"
+            is_final = status_type["state"] == "post"
             
-            if progress_ui: bar.progress(100)
+            # Odds (Se disponível)
+            odds_txt = ""
+            if "odds" in comp and comp["odds"]:
+                odds_txt = comp["odds"][0].get("details", "")
+
+            game_dict = {
+                "gameId": evt["id"],
+                "date_str": date_str,
+                "home": home["team"]["abbreviation"],
+                "away": away["team"]["abbreviation"],
+                "home_score": home.get("score", "0"),
+                "away_score": away.get("score", "0"),
+                "status": status_text,
+                "period": evt["status"]["period"],
+                "clock": evt["status"]["displayClock"],
+                "is_active": is_live,
+                "is_final": is_final,
+                "odds": odds_txt,
+                "home_logo": home["team"].get("logo", ""),
+                "away_logo": away["team"].get("logo", "")
+            }
+            games_list.append(game_dict)
+
+        # --- 4. SALVA NO SUPABASE ---
+        if games_list:
+            # Salva como JSON puro
+            save_data_universal("scoreboard", games_list)
             
-            if not games:
-                logger.warning(f"ESPN retornou 200 OK mas sem jogos para {date_yyyymmdd}.")
-                # Opcional: Tentar dia anterior se estivermos de madrugada (0h-4h)
-                # Mas por enquanto retorna vazio para não confundir
-                
-            return games
-        else:
-            st.error(f"Erro ESPN: Status {r.status_code}")
-            logger.error(f"Erro fetch_espn_scoreboard: {r.status_code} - {r.text}")
-            
+        return pd.DataFrame(games_list)
+
     except Exception as e:
-        st.error(f"Falha de Conexão: {e}")
-        logger.error(f"Exception fetch_espn_scoreboard: {e}")
-        
-    if progress_ui: bar.empty()
-    return []
+        print(f"⚠️ Erro no Scoreboard ESPN: {e}")
+        return pd.DataFrame()
 
 def fetch_team_roster(team_abbr_or_id, progress_ui=True):
     cache_path = os.path.join(CACHE_DIR, f"roster_{team_abbr_or_id}.json")
@@ -6896,6 +6921,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
