@@ -3037,21 +3037,23 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
 
 def get_players_l5(progress_ui=True):
     """
-    Baixa estatísticas L5 com SALVAMENTO INCREMENTAL E SANITIZAÇÃO JSON.
-    Corrigido para evitar erro de serialização do Pandas/Numpy.
+    Baixa estatísticas L5 em PARALELO (Turbo Mode 🚀).
+    Usa 8 threads simultâneas para reduzir o tempo de horas para minutos.
     """
     from nba_api.stats.static import players
+    from nba_api.stats.endpoints import playergamelog
+    import concurrent.futures
     import time
-    import json # Importante para a sanitização
+    import json
+    import pandas as pd
     
-    # Configurações
-    BATCH_SAVE_SIZE = 10       # Mantivemos 5 para teste rápido
-    MAX_EXECUTION_TIME = 180  # 3 minutos de segurança
-    start_time = time.time()
-
-    # 1. Carrega Nuvem
+    # --- CONFIGURAÇÕES TURBO ---
+    MAX_WORKERS = 8       # Baixa 8 jogadores ao mesmo tempo (Seguro para NBA.com)
+    BATCH_SAVE_SIZE = 20  # Salva no Supabase a cada 20 jogadores prontos
+    
+    # 1. Carrega o que já temos na Nuvem
     df_cached = pd.DataFrame()
-    cloud_data = get_data_universal(KEY_L5)
+    cloud_data = get_data_universal(KEY_L5) # Usa sua chave definida no inicio
     
     if cloud_data and "records" in cloud_data:
         try:
@@ -3066,6 +3068,7 @@ def get_players_l5(progress_ui=True):
         existing_ids = set(df_cached["PLAYER_ID"].unique())
 
     act_players = players.get_active_players()
+    # Filtra quem falta
     pending_players = [p for p in act_players if p['id'] not in existing_ids]
     
     total_needed = len(pending_players)
@@ -3077,78 +3080,86 @@ def get_players_l5(progress_ui=True):
 
     # 3. UI
     if progress_ui:
-        status_box = st.status(f"🚀 Iniciando Lote L5 (Correção JSON)...", expanded=True)
+        status_box = st.status(f"🚀 Iniciando Lote L5 TURBO (8x Rápido)...", expanded=True)
         p_bar = status_box.progress(0)
-        status_box.write(f"📊 Já temos: {total_already} | Faltam: {total_needed}")
+        metric_ph = status_box.empty()
     
-    df_current_batch = df_cached.copy()
-    processed_count = 0
-    new_additions = 0
-    
-    # 4. Loop
-    for i, player_info in enumerate(pending_players):
-        # Timer de Segurança
-        if (time.time() - start_time) > MAX_EXECUTION_TIME:
-            if progress_ui: status_box.warning("⚠️ Tempo limite. Salvando...")
-            break
-
+    # Função auxiliar para ser rodada em paralelo
+    def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
-        
-        # Download (Fallback ou Função Retry)
-        stats = None
         try:
-            if 'try_fetch_with_retry' in globals():
-                stats = try_fetch_with_retry(pid, pname)
-            else:
-                # Mock simples caso a função não exista no contexto
-                pass 
-        except: pass
+            # Tenta baixar o log (Retry simples interno)
+            time.sleep(0.1) # Pequena pausa para não tomar block
+            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON, season_type_all_star="Regular Season", timeout=10)
+            df = log.get_data_frames()[0]
+            if not df.empty:
+                # Pega só os últimos 5 jogos
+                df_l5 = df.head(5).copy()
+                # Adiciona metadados
+                df_l5['PLAYER_NAME'] = pname
+                df_l5['PLAYER_ID'] = pid
+                return df_l5
+        except Exception:
+            return None
+        return None
 
-        if stats:
-            row_df = pd.DataFrame([stats])
-            df_current_batch = pd.concat([df_current_batch, row_df], ignore_index=True)
-            new_additions += 1
+    # 4. O MOTOR PARALELO
+    df_new_batch = pd.DataFrame()
+    results_count = 0
+    
+    # Gerenciador de Threads
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Mapeia cada jogador para uma tarefa futura
+        future_to_player = {executor.submit(fetch_one_player, p): p for p in pending_players}
         
-        processed_count += 1
-        
-        if progress_ui:
-            p_bar.progress((i + 1) / min(total_needed, 500))
-            status_box.write(f"📥 Baixando: **{pname}** ({i+1}/{total_needed})")
+        for i, future in enumerate(concurrent.futures.as_completed(future_to_player)):
+            player_data = future.result()
+            
+            if player_data is not None and not player_data.empty:
+                df_new_batch = pd.concat([df_new_batch, player_data], ignore_index=True)
+            
+            results_count += 1
+            
+            # Atualiza UI
+            if progress_ui:
+                pct = (i + 1) / total_needed
+                p_bar.progress(min(pct, 1.0))
+                metric_ph.write(f"⚡ Processando: {results_count}/{total_needed} jogadores... (Coletados: {len(df_new_batch)})")
 
-        # 5. SALVAMENTO (O PULO DO GATO 🐱)
-        if new_additions > 0 and new_additions % BATCH_SAVE_SIZE == 0:
-            # --- CORREÇÃO DE SERIALIZAÇÃO ---
-            # O Pandas gera tipos (int64, timestamp) que o requests.post não aceita.
-            # Convertemos para String JSON e voltamos para Dict puro Python.
-            records_sanitized = json.loads(df_current_batch.to_json(orient="records", date_format="iso"))
-            
-            json_payload = {
-                "records": records_sanitized,
-                "timestamp": datetime.now().isoformat(),
-                "count": len(df_current_batch)
-            }
-            
-            # Tenta salvar e avisa no log
-            if save_data_universal(KEY_L5, json_payload):
-                 if progress_ui: status_box.write(f"💾 Checkpoint Sucesso: {len(df_current_batch)} jogadores.")
-            else:
-                 if progress_ui: status_box.error("❌ Falha no salvamento do lote.")
+            # 5. CHECKPOINT DE SALVAMENTO (Incremental)
+            if results_count % BATCH_SAVE_SIZE == 0:
+                # Junta o antigo (df_cached) com o novo (df_new_batch)
+                df_total_now = pd.concat([df_cached, df_new_batch], ignore_index=True)
+                
+                # Sanitização JSON (Aquela correção que fizemos antes)
+                records_sanitized = json.loads(df_total_now.to_json(orient="records", date_format="iso"))
+                
+                json_payload = {
+                    "records": records_sanitized,
+                    "timestamp": datetime.now().isoformat(),
+                    "count": len(df_total_now)
+                }
+                
+                # Salva sem bloquear a UI
+                if save_data_universal(KEY_L5, json_payload):
+                     if progress_ui: status_box.write(f"💾 Checkpoint: {len(df_total_now)} salvos na nuvem.")
 
     # 6. Salvamento Final
-    if new_additions > 0:
-        records_sanitized = json.loads(df_current_batch.to_json(orient="records", date_format="iso"))
-        json_payload = {
-            "records": records_sanitized,
-            "timestamp": datetime.now().isoformat(),
-            "count": len(df_current_batch)
-        }
-        save_data_universal(KEY_L5, json_payload)
+    df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
+    records_sanitized = json.loads(df_final.to_json(orient="records", date_format="iso"))
+    
+    json_payload = {
+        "records": records_sanitized,
+        "timestamp": datetime.now().isoformat(),
+        "count": len(df_final)
+    }
+    save_data_universal(KEY_L5, json_payload)
     
     if progress_ui:
-        status_box.update(label="✅ Lote Finalizado!", state="complete", expanded=False)
+        status_box.update(label=f"✅ Turbo Finalizado! Total: {len(df_final)} jogadores.", state="complete", expanded=False)
             
-    return df_current_batch
+    return df_final
 
 # ============================================================================
 # FUNÇÃO PARA CALCULAR RISCO DE BLOWOUT (ADICIONE ESTA FUNÇÃO)
@@ -6885,6 +6896,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
