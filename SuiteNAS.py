@@ -5976,54 +5976,48 @@ def process_espn_json_to_games(json_data):
 def safe_load_initial_data():
     """
     Carrega dados. Se faltar cache (Supabase e Local), busca na API e SALVA NO SUPABASE (Auto-Healing).
+    Também migra arquivos estáticos locais para a nuvem se existirem.
     """
     
-    # Defaults
-    if 'scoreboard' not in st.session_state: st.session_state.scoreboard = []
-    if 'df_l5' not in st.session_state: st.session_state.df_l5 = pd.DataFrame()
-    if 'team_advanced' not in st.session_state: st.session_state.team_advanced = {}
-    if 'odds' not in st.session_state: st.session_state.odds = {}
+    # 1. Defaults de Sessão
+    defaults = {
+        'scoreboard': [], 'df_l5': pd.DataFrame(), 'team_advanced': {}, 
+        'odds': {}, 'name_overrides': {}, 'player_ids': {}
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state: st.session_state[k] = v
 
-    # --- 1. SCOREBOARD (JOGOS DE HOJE) ---
+    # --- 2. DADOS DINÂMICOS (AUTO-HEALING VIA API) ---
+
+    # A. Scoreboard
     if not st.session_state.scoreboard:
-        # Tenta Supabase
         data = get_data_universal(KEY_SCOREBOARD)
         if data:
             st.session_state.scoreboard = data
         else:
-            # Falhou Supabase e Local -> Busca da API
-            print("⚠️ Cache Scoreboard ausente. Buscando da API...")
+            # Não tem cache? Busca da API e cria o cache na nuvem!
+            # print("⚠️ Cache Scoreboard ausente. Buscando da API...")
             try:
                 live_data = fetch_espn_scoreboard(progress_ui=False)
                 if live_data:
                     st.session_state.scoreboard = live_data
-                    # AUTO-SAVE: Cria o cache no Supabase agora!
                     save_data_universal(KEY_SCOREBOARD, live_data)
             except: pass
 
-    # --- 2. STATS DE TIMES ---
+    # B. Stats Avançados
     if not st.session_state.team_advanced:
         data = get_data_universal(KEY_TEAM_ADV)
         if data:
             st.session_state.team_advanced = data
         else:
-            # Falhou -> Busca API
             try:
                 live_data = fetch_team_advanced_stats()
                 if live_data:
                     st.session_state.team_advanced = live_data
-                    # AUTO-SAVE
                     save_data_universal(KEY_TEAM_ADV, live_data)
             except: pass
 
-    # --- 3. DADOS DE JOGADORES (L5 / LOGS) - O MAIS PESADO ---
-    if st.session_state.df_l5.empty:
-        # Nota: Logs são complexos. O ideal é tentar baixar o JSON de logs.
-        # Se você tiver uma chave KEY_LOGS no supabase, tente baixar ela primeiro.
-        # Aqui, se falhar, dependemos da função get_players_l5 fazer o scraping total.
-        pass
-
-    # --- 4. ODDS ---
+    # C. Odds
     if not st.session_state.odds:
         data = get_data_universal(KEY_ODDS)
         if data:
@@ -6035,6 +6029,36 @@ def safe_load_initial_data():
                     st.session_state.odds = live_data
                     save_data_universal(KEY_ODDS, live_data)
             except: pass
+
+    # --- 3. DADOS ESTÁTICOS (MIGRAÇÃO AUTOMÁTICA) ---
+    # Aqui resolvemos o problema do 'nba_players_map' e outros estáticos.
+    # Se não estiver no Supabase, verificamos se existe um arquivo local para subir.
+    
+    # Mapeamento de Arquivos Estáticos Críticos
+    STATIC_FILES = {
+        "nba_players_map": "cache/nba_players_map.json",
+        "name_overrides": "cache/name_overrides.json",
+        "dvp_stats": "cache/dvp_data_v4_static.json"
+    }
+
+    for key_db, local_path in STATIC_FILES.items():
+        # 1. Verifica se já está na nuvem
+        cloud_data = get_data_universal(key_db)
+        
+        if cloud_data:
+            # Já está na nuvem, tudo certo.
+            pass
+        else:
+            # Não está na nuvem. Temos localmente?
+            if os.path.exists(local_path):
+                try:
+                    with open(local_path, "r", encoding="utf-8") as f:
+                        local_data = json.load(f)
+                    
+                    if local_data:
+                        print(f"🚀 Migrando '{key_db}' do Local para Supabase...")
+                        save_data_universal(key_db, local_data)
+                except: pass
 
     # --- 3. INICIALIZAÇÃO DE MOTORES E MÓDULOS ---
 
@@ -6876,6 +6900,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
