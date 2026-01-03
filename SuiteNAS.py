@@ -6407,7 +6407,7 @@ def safe_load_initial_data():
     if "vacuum_analyzer" not in st.session_state:
         st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
     if "correlation_validator" not in st.session_state:
-        st.session_state.correlation_validator = TrixieCorrelationValidator() if CORRELATION_FILTERS_AVAILABLE else None
+        st.session_state.correlation_validator = CorrelationValidator() if CORRELATION_FILTERS_AVAILABLE else None
 
     # Feature store e auditoria
     if "feature_store" not in st.session_state:
@@ -7183,6 +7183,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
