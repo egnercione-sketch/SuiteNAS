@@ -3452,11 +3452,12 @@ def show_config_page():
                     time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Erro L5: {e}")
         
-        # --- BOTÃO DE LESÕES CORRIGIDO ---
+# --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
         if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
             with st.spinner("Conectando ao Depto. Médico (ESPN API)..."):
                 try:
+                    # 1. Instancia o Monitor
                     from injuries import InjuryMonitor
                     monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
                     
@@ -3466,27 +3467,41 @@ def show_config_page():
                         "OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"
                     ]
                     
+                    # 2. Varredura (Scraping)
                     p = st.progress(0)
                     for i, team in enumerate(ALL_TEAMS):
+                        # O Scraper roda e guarda na memória interna dele
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
                     
-                    saved = monitor.save_cache()
                     p.empty()
                     
-                    if saved:
-                        st.success(f"✅ Banco de dados salvo: {len(monitor.get_all_injuries())} times ok.")
-                        st.session_state.injuries_manager = monitor
+                    # 3. EXTRAÇÃO E UPLOAD (AQUI É O PULO DO GATO 🐱)
+                    # Pegamos os dados da memória do monitor
+                    fresh_data = monitor.get_all_injuries()
+                    
+                    if fresh_data:
+                        # Salva no Supabase usando a função universal do SuiteNAS
+                        # (Certifique-se que KEY_INJURIES está definido no topo do SuiteNAS)
+                        save_data_universal("injuries", {"teams": fresh_data, "updated_at": datetime.now().isoformat()})
+                        
+                        # Também salva local para backup (o monitor já faz isso, mas garantimos)
+                        monitor.save_cache()
+                        
+                        st.success(f"✅ Sincronizado com Supabase! {len(fresh_data)} times atualizados.")
+                        
+                        # Atualiza a sessão para ver o resultado na hora
+                        st.session_state.injuries_data = fresh_data 
+                        if 'injuries' in st.session_state: del st.session_state['injuries'] # Força reload visual
+                        
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("❌ Erro ao gravar arquivo JSON no cache.")
+                        st.warning("⚠️ O scraper rodou mas não retornou dados. A ESPN pode ter bloqueado ou mudado o layout.")
                         
                 except Exception as e:
-                    st.error(f"Erro crítico: {e}")
-
-        st.caption(f"Cache: {os.path.basename(INJURIES_CACHE_FILE)}")
-        st.markdown('</div>', unsafe_allow_html=True)
+                    st.error(f"Erro crítico no processo: {e}")
+                    
 
     with col_act2:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -6875,6 +6890,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
