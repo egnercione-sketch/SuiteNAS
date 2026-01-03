@@ -701,173 +701,110 @@ class FiveSevenTenEngine:
         return sorted(final_list, key=lambda x: (x['archetype_rank'], x['stats'][0]['metrics']['Ceiling']), reverse=True), diagnostics
 
 def show_5_7_10_page():
-    # --- 1. CONFIGURAÇÃO E CARREGAMENTO ---
+    # --- 1. CONFIGURAÇÃO (CORRIGIDA) ---
     import json
     import os
-    
-    def local_load(fp):
-        if os.path.exists(fp):
+
+    def local_load_json(filepath):
+        if os.path.exists(filepath):
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(filepath, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
+            except Exception as e:
+                # Opcional: print(f"Erro ao ler JSON: {e}")
                 return {}
         return {}
 
-    # Carrega dados
+    # CAMINHO CORRETO AGORA: pasta 'cache' + arquivo 'real_game_logs.json'
     cache_file = os.path.join("cache", "real_game_logs.json")
-    full_cache = local_load(cache_file) or {}
-    if not full_cache: 
-        full_cache = local_load("real_game_logs.json") or {}
 
-    # Executa Engine
+    # Tenta carregar. Se não achar, avisa o usuário.
+    full_cache = local_load_json(cache_file) or {}
+    
+    # Se o cache estiver vazio, tenta o caminho da raiz por garantia
+    if not full_cache:
+        full_cache = local_load_json("real_game_logs.json") or {}
+
+    # Executa a Engine
+    # (Certifique-se que a classe FiveSevenTenEngine está no código!)
     engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
     opportunities, diag = engine.analyze_market()
 
     st.header("🎯 Strategy 5 / 7 / 10")
-    st.caption("Scanner de Glue Guys & Estrelas (Agrupado por Jogador). Base L25.")
+    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+). Base L25.")
 
-    if not opportunities and diag["playing_today"] == 0:
-         st.warning("⚠️ O Scoreboard parece vazio. Vá em Config > Atualizar.")
-         return
+    # --- ÁREA DE DIAGNÓSTICO ---
+    with st.expander("🛠️ Diagnóstico do Sistema"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Jogadores no DB", diag["total_players"])
+        c2.metric("Jogando Hoje", diag["playing_today"])
+        c3.metric("Dados Insuf. (<10)", diag["insufficient_data"])
+        c4.metric("Reprovados", diag["failed_criteria"])
+        
+        if diag["total_players"] == 0:
+            st.error(f"❌ Não foi possível encontrar o arquivo de dados em: {cache_file}")
+            st.info("Verifique se o arquivo 'real_game_logs.json' está dentro da pasta 'cache'.")
+        elif diag["playing_today"] == 0:
+            st.warning("⚠️ O banco de dados foi carregado, mas nenhum jogador do DB está no Scoreboard de hoje. Atualize os jogos na aba Config.")
+    
+    if not opportunities:
+        if diag["playing_today"] > 0:
+            st.info("Nenhum jogador atingiu os critérios (50% Safe / 8% Explosão) para os jogos de hoje.")
+        return
 
-    # --- 2. CSS SIMPLIFICADO E SEGURO ---
+    # --- 2. CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
         
-        .trin-card {
+        .card-5710 {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid rgba(255,255,255,0.05);
-            display: flex;
-            align-items: flex-start;
-            box-sizing: border-box;
+            border-left: 5px solid #3b82f6; border-radius: 8px; padding: 10px; margin-bottom: 12px;
+            display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
+        .player-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; }
+        .p-info { margin-left: 15px; width: 140px; }
+        .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1; }
+        .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .p-arch { font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; }
         
-        .trin-profile {
-            width: 25%;
-            min-width: 140px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding-right: 15px;
-            border-right: 1px solid rgba(255,255,255,0.1);
-        }
+        .ladder-container { flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center; }
+        .step-box { text-align: center; width: 32%; }
+        .step-label { font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
+        .bar-bg { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; }
+        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px; }
         
-        .trin-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; background: #000; margin-bottom: 6px; }
-        .trin-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.2; }
-        .trin-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
-        .trin-arch { font-size: 9px; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; background: rgba(255,255,255,0.1); }
-        
-        .trin-stats {
-            flex-grow: 1;
-            padding-left: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .trin-row { display: flex; align-items: center; width: 100%; }
-        
-        .trin-badge {
-            width: 40px; font-size: 10px; font-weight: bold; color: #1e293b; 
-            background: #94a3b8; text-align: center; border-radius: 4px; 
-            padding: 4px 0; margin-right: 10px; flex-shrink: 0;
-        }
-        .trin-badge.ast { background: #38bdf8; }
-        .trin-badge.reb { background: #f472b6; }
-        
-        .trin-ladder { flex-grow: 1; display: flex; gap: 5px; justify-content: space-between; }
-        .trin-step { width: 32%; }
-        .trin-bar-bg { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 3px; }
-        .trin-bar-fill { height: 100%; }
-        .trin-val { font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: bold; color: #fff; text-align: right; }
-        .trin-lbl { font-size: 8px; color: #64748B; font-weight: bold; display: block; }
-
-        .bg-safe { background: #4ade80; }
-        .bg-target { background: #facc15; }
-        .bg-ceiling { background: #f87171; }
+        .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
+        .target { color: #facc15; } .bg-target { background: #facc15; }
+        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. RENDERIZAÇÃO SEGURA ---
-    filter_opt = st.radio("Filtro:", ["TODOS", "SÓ DUPLOS (AST+REB)"], horizontal=True)
-    
-    for p in opportunities:
-        stats = p['stats']
-        
-        if filter_opt == "SÓ DUPLOS (AST+REB)" and len(stats) < 2:
-            continue
+    # --- 3. RENDER ---
+    filter_stat = st.radio("Filtrar:", ["TODOS", "AST", "REB"], horizontal=True)
+    f_opps = opportunities
+    if filter_stat == "AST": f_opps = [x for x in opportunities if x['stat'] == 'AST']
+    if filter_stat == "REB": f_opps = [x for x in opportunities if x['stat'] == 'REB']
 
-        # --- PREPARAÇÃO DE VARIÁVEIS (Evita erros no f-string) ---
-        p_name = p['player']
-        p_team = p['team']
-        p_opp = p['opp']
-        p_photo = p['photo']
-        p_arch = p['archetype_display']
-        
-        # Cores
-        border_col = "#3b82f6" # Azul padrão
-        if "DYNAMITE" in p_arch: border_col = "#f87171"
-        if "SUPERSTAR" in p_arch: border_col = "#D4AF37"
-
-        # Constrói HTML das Stats
-        stats_html_block = ""
-        for s in stats:
-            s_type = s['type']
-            m = s['metrics']
-            
-            # Variáveis simples para o f-string
-            badge_cls = s_type.lower()
-            val_safe = m['Safe']
-            val_target = m['Target']
-            val_ceiling = m['Ceiling']
-            
-            row = f"""
-            <div class="trin-row">
-                <div class="trin-badge {badge_cls}">{s_type}</div>
-                <div class="trin-ladder">
-                    <div class="trin-step">
-                        <span class="trin-lbl">SAFE 5+</span>
-                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-safe" style="width: {val_safe}%;"></div></div>
-                        <div class="trin-val">{val_safe}%</div>
-                    </div>
-                    <div class="trin-step">
-                        <span class="trin-lbl">TARGET 7+</span>
-                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-target" style="width: {val_target}%;"></div></div>
-                        <div class="trin-val">{val_target}%</div>
-                    </div>
-                    <div class="trin-step">
-                        <span class="trin-lbl">EXPL 10+</span>
-                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-ceiling" style="width: {val_ceiling}%;"></div></div>
-                        <div class="trin-val">{val_ceiling}%</div>
-                    </div>
-                </div>
+    for item in f_opps:
+        border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
+        html = f"""
+        <div class="card-5710" style="border-left-color: {border_color};">
+            <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+            <div class="p-info">
+                <div class="p-name">{item['player']}</div>
+                <div class="p-team">{item['team']} vs {item['opp']} • {item['stat']}</div>
+                <div class="p-arch">{item['archetype']}</div>
             </div>
-            """
-            stats_html_block += row
-
-        # Constrói Card Final
-        card_html = f"""
-        <div class="trin-card" style="border-left: 4px solid {border_col};">
-            <div class="trin-profile">
-                <img src="{p_photo}" class="trin-img" style="border: 2px solid {border_col};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                <div class="trin-name">{p_name}</div>
-                <div class="trin-team">{p_team} vs {p_opp}</div>
-                <div class="trin-arch" style="color:{border_col}">{p_arch}</div>
-            </div>
-            <div class="trin-stats">
-                {stats_html_block}
+            <div class="ladder-container">
+                <div class="step-box"><div class="step-label">SAFE (5+)</div><div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div><div class="step-val safe">{item['metrics']['Safe_5']}%</div></div>
+                <div class="step-box"><div class="step-label">TARGET (7+)</div><div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div><div class="step-val target">{item['metrics']['Target_7']}%</div></div>
+                <div class="step-box"><div class="step-label">EXPLOSÃO (10+)</div><div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div><div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div></div>
             </div>
         </div>
         """
-        
-        st.markdown(card_html, unsafe_allow_html=True)
+        st.markdown(html, unsafe_allow_html=True)
         
         
         
@@ -6602,6 +6539,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
