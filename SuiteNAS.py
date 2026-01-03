@@ -3096,7 +3096,7 @@ def get_players_l5(progress_ui=True):
     import json # Importante para a sanitização
     
     # Configurações
-    BATCH_SAVE_SIZE = 5       # Mantivemos 5 para teste rápido
+    BATCH_SAVE_SIZE = 10       # Mantivemos 5 para teste rápido
     MAX_EXECUTION_TIME = 180  # 3 minutos de segurança
     start_time = time.time()
 
@@ -6685,55 +6685,7 @@ def calculate_blowout_risk(spread_val, total_val=None):
 # EXECUÇÃO PRINCIPAL
 # ============================================================================
 def main():
-
-# --- ÁREA DE DEBUG DE EMERGÊNCIA ---
-    st.markdown("### 🛠️ DEBUG DE CONEXÃO SUPABASE")
-    
-    if st.button("TESTAR GRAVAÇÃO FORÇADA"):
-        try:
-            # 1. Verifica Segredos
-            url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
-            st.write(f"🔐 URL Configurada: ...{url[-10:]}")
-            st.write(f"🔐 Key Configurada: ...{key[-10:]}")
-            
-            # 2. Tenta Gravar Direto (Sem db_manager, raw requests)
-            import requests
-            import json
-            
-            headers = {
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-                "Prefer": "resolution=merge-duplicates"
-            }
-            
-            payload = {
-                "key": "TESTE_CONEXAO",
-                "value": {"status": "FUNCIONOU", "hora": str(datetime.now())}
-            }
-            
-            endpoint = f"{url}/rest/v1/app_cache"
-            
-            st.write(f"📡 Enviando para: {endpoint}")
-            
-            r = requests.post(endpoint, json=payload, headers=headers)
-            
-            st.write(f"⬅️ Resposta Código: {r.status_code}")
-            st.write(f"⬅️ Resposta Texto: {r.text}")
-            
-            if r.status_code in [200, 201]:
-                st.success("✅ O servidor aceitou! Verifique a tabela 'app_cache' agora.")
-            else:
-                st.error("❌ O servidor recusou.")
-                
-        except Exception as e:
-            st.error(f"Erro Python: {e}")
-    st.divider()
-    # -----------------------------------
-
-
-    
+   
     st.set_page_config(page_title="NBA Analytics Suite v2.0", layout="wide")
     st.markdown(FONT_LINKS, unsafe_allow_html=True)
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -7122,6 +7074,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
