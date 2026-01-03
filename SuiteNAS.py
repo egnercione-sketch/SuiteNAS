@@ -387,80 +387,7 @@ if 'advanced_features_config' not in st.session_state: st.session_state.advanced
 # ============================================================================
 # 7. SISTEMA DE AUTENTICAÇÃO (CORREÇÃO: PASSE MESTRE ANTI-BLOQUEIO)
 # ============================================================================
-user_manager = None
-username = None
-name = None
 
-try:
-    from auth_manager import UserManager
-    import streamlit_authenticator as stauth
-    
-    # Inicializa gerenciador
-    user_manager = UserManager()
-    auth_config = user_manager.get_authenticator_config()
-
-    # Configura o autenticador
-    authenticator = stauth.Authenticate(
-        auth_config['credentials'],
-        auth_config['cookie']['name'],
-        auth_config['cookie']['key'],
-        auth_config['cookie']['expiry_days']
-    )
-
-    # Tenta login (Lê cookies automaticamente)
-    try:
-        authenticator.login(location='main')
-    except TypeError:
-        authenticator.login('Login', 'main')
-
-    # STATUS: FALHA
-    if st.session_state.get("authentication_status") is False:
-        st.error("❌ Usuário ou senha incorretos")
-        st.stop()
-        
-    # STATUS: AGUARDANDO LOGIN
-    elif st.session_state.get("authentication_status") is None:
-        st.warning("🔐 Por favor, faça login para acessar o sistema.")
-        st.stop()
-    
-    # STATUS: SUCESSO (O Cookie funcionou!)
-    # AQUI ESTÁ A CORREÇÃO: Forçamos as permissões na marra
-    if st.session_state.get("authentication_status"):
-        # Sobrescreve a função de permissões para ignorar o banco vazio
-        def force_permissions(u): 
-            return ["admin", "premium", "betting", "analytics"]
-        user_manager.get_user_permissions = force_permissions
-
-    # Recupera dados da sessão
-    username = st.session_state.get('username')
-    name = st.session_state.get('name')
-    
-    # Menu Lateral com Logout
-    with st.sidebar:
-        st.write(f"👤 **{name}**")
-        # Botão de Logout (caso queira limpar o cookie)
-        if st.button("Sair / Logout", key="logout_btn"):
-            try: authenticator.logout(location='sidebar')
-            except: pass
-            st.session_state['authentication_status'] = None
-            st.rerun()
-        st.divider()
-
-except ImportError:
-    # Fallback Sem Libs
-    class DummyUserManager:
-        def get_user_permissions(self, user): return ["admin", "premium", "betting", "analytics"]
-    user_manager = DummyUserManager()
-    username = "admin_dev"
-    name = "Desenvolvedor"
-
-except Exception as e:
-    # Fallback Erro Geral (Modo Resgate)
-    class DummyUserManager:
-        def get_user_permissions(self, user): return ["admin", "premium", "betting", "analytics"]
-    user_manager = DummyUserManager()
-    username = "admin_rescue"
-    name = "Admin (Modo Resgate)"
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
 # ============================================================================
@@ -7096,6 +7023,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
