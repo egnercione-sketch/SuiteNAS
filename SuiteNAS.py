@@ -559,6 +559,9 @@ def initialize_features():
     st.session_state.features_status = features_status
     return features_status
 
+# ============================================================================
+# STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - AGRUPADA & SAFE RENDER)
+# ============================================================================
 import os
 import json
 import unicodedata
@@ -568,25 +571,31 @@ class FiveSevenTenEngine:
         self.logs = logs_cache
         self.games_map = self._map_games(games)
         
+        # Carrega mapa de fotos
         self.player_ids = {}
         if os.path.exists("nba_players_map.json"):
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
+                    # Normaliza nomes no dicionário para busca agnóstica a acentos
                     self.player_ids = {self._normalize_name(k): v for k, v in raw_data.items()}
             except: pass
 
     def _normalize_name(self, name):
+        """Remove acentos para padronizar buscas (Luka Dončić -> Luka Doncic)"""
         if not name: return ""
         return ''.join(c for c in unicodedata.normalize('NFD', name) if unicodedata.category(c) != 'Mn')
 
     def _normalize_team(self, team_code):
+        """Padroniza siglas da NBA"""
         mapping = {
-            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
+            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", 
+            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
         }
         return mapping.get(team_code, team_code)
 
     def _map_games(self, games):
+        """Mapeia jogos de HOJE"""
         mapping = {}
         if not games: return {}
         for g in games:
@@ -598,17 +607,28 @@ class FiveSevenTenEngine:
         return mapping
 
     def get_photo_url(self, player_name):
+        """Busca URL da foto usando nome normalizado"""
         clean_name = self._normalize_name(player_name)
         pid = self.player_ids.get(clean_name)
+        
+        # Tentativa de fallback (Primeiro + Último nome)
         if not pid:
             parts = clean_name.split()
-            if len(parts) >= 2: pid = self.player_ids.get(f"{parts[0]} {parts[-1]}")
-        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+            if len(parts) >= 2: 
+                pid = self.player_ids.get(f"{parts[0]} {parts[-1]}")
+        
+        if pid: 
+            return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     def analyze_market(self):
         grouped_candidates = {} 
-        diagnostics = {"total_players": len(self.logs), "playing_today": 0, "insufficient_data": 0, "failed_criteria": 0}
+        diagnostics = {
+            "total_players": len(self.logs), 
+            "playing_today": 0, 
+            "insufficient_data": 0, 
+            "failed_criteria": 0
+        }
 
         if not self.logs: return [], diagnostics
 
@@ -622,12 +642,13 @@ class FiveSevenTenEngine:
             diagnostics["playing_today"] += 1
             logs = data.get('logs', {})
             
-            # Check Superstar
+            # Identifica Estrelas (Média > 20 pts)
             avg_pts = 0
             if 'PTS' in logs and len(logs['PTS']) > 0:
                 avg_pts = sum(logs['PTS'][:10]) / len(logs['PTS'][:10])
             is_star = avg_pts >= 20
 
+            # Itera sobre AST e REB
             for stat_type in ['AST', 'REB']:
                 values = logs.get(stat_type, [])
                 if len(values) < 10: 
@@ -637,20 +658,24 @@ class FiveSevenTenEngine:
                 l25 = values[:25]
                 total = len(l25)
                 
+                # Cálculos de Percentual
                 pct_5 = (sum(1 for x in l25 if x >= 5) / total) * 100
                 pct_7 = (sum(1 for x in l25 if x >= 7) / total) * 100
                 pct_10 = (sum(1 for x in l25 if x >= 10) / total) * 100
 
-                # Critérios (Ajustados)
+                # Critérios de Corte (Relaxados para Estrelas e Assists)
                 min_safe = 40 if is_star else 50
                 min_explosion = 5 if stat_type == 'AST' else 8
 
                 if pct_5 >= min_safe and pct_10 >= min_explosion:
+                    
+                    # Define Arquétipo
                     arch = "GLUE GUY"
                     if is_star: arch = "⭐ SUPERSTAR"
                     elif pct_10 > 25: arch = "DYNAMITE 🧨"
                     elif pct_5 > 85 and pct_10 < 15: arch = "RELOGINHO 🕰️"
                     
+                    # Lógica de Agrupamento
                     if player_name not in grouped_candidates:
                         grouped_candidates[player_name] = {
                             "player": player_name,
@@ -662,11 +687,13 @@ class FiveSevenTenEngine:
                             "stats": []
                         }
                     
+                    # Atualiza Rank (Prioridade: Superstar > Dynamite > Glue)
                     current_rank = 3 if "SUPERSTAR" in arch else (2 if "DYNAMITE" in arch else 1)
                     if current_rank > grouped_candidates[player_name]["archetype_rank"]:
                         grouped_candidates[player_name]["archetype_rank"] = current_rank
                         grouped_candidates[player_name]["archetype_display"] = arch
 
+                    # Adiciona estatística ao grupo
                     grouped_candidates[player_name]["stats"].append({
                         "type": stat_type,
                         "metrics": {"Safe": int(pct_5), "Target": int(pct_7), "Ceiling": int(pct_10)}
@@ -674,39 +701,48 @@ class FiveSevenTenEngine:
                 else:
                     diagnostics["failed_criteria"] += 1
 
+        # Transforma em lista e ordena
         final_list = list(grouped_candidates.values())
         return sorted(final_list, key=lambda x: (x['archetype_rank'], x['stats'][0]['metrics']['Ceiling']), reverse=True), diagnostics
 
 def show_5_7_10_page():
-    # --- Load Seguro ---
+    # --- 1. CONFIGURAÇÃO E CARREGAMENTO ---
     import json
     import os
+    
+    # Função auxiliar local para carregar JSON sem erro
     def local_load(fp):
         if os.path.exists(fp):
             try: with open(fp,"r",encoding="utf-8") as f: return json.load(f)
             except: return {}
         return {}
 
+    # Caminho correto do cache
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or {}
-    if not full_cache: full_cache = local_load("real_game_logs.json") or {}
+    
+    # Fallback se não encontrar na pasta cache
+    if not full_cache: 
+        full_cache = local_load("real_game_logs.json") or {}
 
     # Executa Engine
     engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
     opportunities, diag = engine.analyze_market()
 
     st.header("🎯 Strategy 5 / 7 / 10")
-    st.caption("Scanner de Glue Guys & Estrelas (Agrupado por Jogador).")
+    st.caption("Scanner de Glue Guys & Estrelas (Agrupado por Jogador). Base L25.")
 
+    # Diagnóstico para Debug (Oculto se tudo estiver OK)
     if not opportunities and diag["playing_today"] == 0:
-         st.warning("⚠️ Scoreboard desatualizado ou vazio.")
+         st.warning("⚠️ O Scoreboard parece vazio ou desatualizado. Por favor, vá em Config > Atualizar.")
          return
 
-    # --- CSS CORRIGIDO E SIMPLIFICADO ---
+    # --- 2. CSS (LAYOUT FLEXBOX) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
         
+        /* Container Principal do Card */
         .card-container {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
             border-left: 5px solid #3b82f6;
@@ -715,10 +751,10 @@ def show_5_7_10_page():
             margin-bottom: 12px;
             border: 1px solid rgba(255,255,255,0.05);
             display: flex;
-            align-items: flex-start; /* Alinhamento ao topo para casos de múltiplas stats */
+            align-items: flex-start;
         }
         
-        /* Coluna da Esquerda (Identidade) */
+        /* Coluna da Esquerda (Foto + Nome) */
         .profile-box {
             width: 30%;
             min-width: 150px;
@@ -735,24 +771,24 @@ def show_5_7_10_page():
         .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
         .p-arch { font-size: 9px; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; background: rgba(255,255,255,0.1); }
         
-        /* Coluna da Direita (Stats) */
+        /* Coluna da Direita (Lista de Stats) */
         .stats-box {
             flex-grow: 1;
             padding-left: 15px;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            gap: 8px; /* Espaço entre linhas de stat */
         }
         
         /* Linha de Estatística Individual */
         .stat-row {
             display: flex;
             align-items: center;
-            margin-bottom: 8px;
             width: 100%;
         }
-        .stat-row:last-child { margin-bottom: 0; }
         
+        /* Badge (AST/REB) */
         .stat-badge {
             width: 35px; font-size: 10px; font-weight: bold; color: #1e293b; 
             background: #94a3b8; text-align: center; border-radius: 4px; 
@@ -769,29 +805,30 @@ def show_5_7_10_page():
         .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: bold; color: #fff; text-align: right; }
         .step-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
 
+        /* Cores */
         .bg-safe { background: #4ade80; }
         .bg-target { background: #facc15; }
         .bg-ceiling { background: #f87171; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Renderização ---
+    # --- 3. RENDERIZAÇÃO LOOP (CONSTRUÇÃO SEGURA DE HTML) ---
     filter_opt = st.radio("Filtro:", ["TODOS", "SÓ DUPLOS (AST+REB)"], horizontal=True)
     
     for p in opportunities:
         stats = p['stats']
         
-        # Lógica de Filtro Visual
+        # Filtro de visualização: Pula se quiser só duplos e o jogador só tiver 1
         if filter_opt == "SÓ DUPLOS (AST+REB)" and len(stats) < 2:
             continue
 
-        # Definição de Cores
+        # Definição de Cor da Borda
         border_color = "#3b82f6"
         if "DYNAMITE" in p['archetype_display']: border_color = "#f87171"
         if "SUPERSTAR" in p['archetype_display']: border_color = "#D4AF37"
 
-        # 1. CONSTRUIR HTML DAS ESTATÍSTICAS (NO PYTHON)
-        # Isso evita colocar loop complexo dentro da f-string gigante
+        # --- CONSTRUÇÃO DO HTML DAS STATS (Passo Crucial) ---
+        # Montamos a string HTML das estatísticas fora da string principal para evitar erros
         stats_html_block = ""
         
         for s in stats:
@@ -799,7 +836,7 @@ def show_5_7_10_page():
             m = s['metrics']
             badge_cls = s_type.lower()
             
-            # Cria a linha HTML para esta estatística
+            # HTML da Linha
             row_html = f"""
             <div class="stat-row">
                 <div class="stat-badge {badge_cls}">{s_type}</div>
@@ -824,7 +861,7 @@ def show_5_7_10_page():
             """
             stats_html_block += row_html
 
-        # 2. CONSTRUIR O CARD FINAL
+        # --- CONSTRUÇÃO DO CARD FINAL ---
         full_card_html = f"""
         <div class="card-container" style="border-left-color: {border_color};">
             <div class="profile-box">
@@ -6574,6 +6611,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
