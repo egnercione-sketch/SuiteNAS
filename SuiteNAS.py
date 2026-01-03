@@ -384,7 +384,9 @@ if 'scoreboard' not in st.session_state: st.session_state.scoreboard = []
 if 'use_advanced_features' not in st.session_state: st.session_state.use_advanced_features = False
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
+# ============================================================================
 # 7. SISTEMA DE AUTENTICAÇÃO (CRÍTICO PARA O MAIN)
+# ============================================================================
 user_manager = None
 username = None
 name = None
@@ -431,15 +433,15 @@ except ImportError:
     user_manager = DummyUserManager()
     username = "admin_dev"
     name = "Desenvolvedor"
-    # st.sidebar.warning("⚠️ Auth Offline (Modo Dev)")
 
 except Exception as e:
-    # MODO RESGATE (Se der erro no Supabase/Auth, libera tudo)
-    # st.error(f"Erro na autenticação: {e}") # Comentei para não sujar a tela
+    # --- MODO RESGATE (A CORREÇÃO ESTÁ AQUI) ---
+    # Se der erro no Supabase ou Auth, libera acesso TOTAL.
+    # st.error(f"Erro na autenticação: {e}") # (Opcional: descomente para ver o erro)
     
     class DummyUserManager:
         def get_user_permissions(self, user): 
-            # AQUI ESTÁ A CORREÇÃO: Libera todas as permissões
+            # Retorna TODAS as permissões para você não ficar trancado
             return ["admin", "premium", "betting", "analytics"]
             
     user_manager = DummyUserManager()
@@ -7081,6 +7083,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
