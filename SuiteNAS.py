@@ -6632,6 +6632,8 @@ def main():
     # ============================================================================
     if choice == "🏠 Dashboard":
         st.header("📊 Dashboard")
+
+        df_games = get_scoreboard_data()
         
         # --- 1. SEÇÃO DE INSIGHTS (NOVA - TOPO DA PÁGINA) ---
         # Este é o melhor lugar: logo abaixo do título, como um "News Ticker" visual
@@ -6921,6 +6923,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
