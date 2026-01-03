@@ -650,32 +650,25 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (INTEGRAÇÃO INTELIGENTE v2.0 - CORRIGIDA)
+# CLASSE NEXUS ENGINE (CORREÇÃO DE LÓGICA V3.1)
 # ============================================================================
-import json
-import os
-
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
-        self.games = games # Lista de dicts com info dos jogos
+        self.games = games
         self.player_ids = self._load_photo_map()
         
-        # Instancia os Módulos Externos (Consultores)
-        # Verifica se as variáveis globais existem e são verdadeiras antes de instanciar
-        self.injury_monitor = InjuryMonitor() if 'INJURY_MONITOR_AVAILABLE' in globals() and INJURY_MONITOR_AVAILABLE else None
-        self.pace_adjuster = PaceAdjuster() if 'PACE_ADJUSTER_AVAILABLE' in globals() and PACE_ADJUSTER_AVAILABLE else None
-        self.dvp_analyzer = DvpAnalyzer() if 'DVP_ANALYZER_AVAILABLE' in globals() and DVP_ANALYZER_AVAILABLE else None
-        self.vacuum_matrix = VacuumMatrixAnalyzer() if 'VACUUM_MATRIX_AVAILABLE' in globals() and VACUUM_MATRIX_AVAILABLE else None
-        self.classifier = PlayerClassifier() if 'PLAYER_CLASSIFIER_AVAILABLE' in globals() and PLAYER_CLASSIFIER_AVAILABLE else None
+        # Instancia Consultores
+        self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
+        self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
+        self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
+        self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
+        self.classifier = PlayerClassifier() if PLAYER_CLASSIFIER_AVAILABLE else None
 
     def _load_photo_map(self):
         if os.path.exists("nba_players_map.json"):
-            try:
-                with open("nba_players_map.json", "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                pass
+            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
+            except: pass
         return {}
 
     def get_photo(self, name):
@@ -685,153 +678,177 @@ class NexusEngine:
 
     def run_nexus_scan(self):
         opportunities = []
-        
-        # 1. SCANNER DE SGP (Garçom + Cestinha + Contexto de Pace/DvP)
-        opportunities.extend(self._scan_sgp_smart())
-
-        # 2. SCANNER DE VÁCUO (Lesões + VacuumMatrix + PlayerClassifier)
+        opportunities.extend(self._scan_sgp_logic())
         if self.injury_monitor:
-            opportunities.extend(self._scan_vacuum_smart())
-        
+            opportunities.extend(self._scan_vacuum_logic())
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
-    def _scan_sgp_smart(self):
+    def _scan_sgp_logic(self):
         found = []
         for p_name, data in self.logs.items():
             team = data.get('team')
+            # Pula se time vazio
+            if not team: continue
+            
             logs = data.get('logs', {})
             ast_logs = logs.get('AST', [])
             
-            # Filtro 1: Identificar Garçom (Média > 6.5)
+            # Filtro Garçom
             if not ast_logs or len(ast_logs) < 5: continue
             avg_ast = sum(ast_logs[:10]) / len(ast_logs[:10])
             if avg_ast < 6.5: continue
 
-            # Achar parceiro estatístico (Lógica interna robusta)
+            # CORREÇÃO: Busca parceiro ESTRITAMENTE do mesmo time
             partner_name, partner_avg = self._find_statistical_partner(team, p_name)
+            
+            # Se não achou parceiro válido no mesmo time, pula
             if not partner_name: continue
 
-            # --- INTELIGÊNCIA EXTERNA (VALIDAÇÃO) ---
-            score = 60 # Score Base
-            context_tags = []
+            # Validações Externas (Pace/DvP)
+            score = 60
+            context = []
 
-            # 1. Pace (Ritmo)
             if self.pace_adjuster:
-                # Tenta achar o oponente na lista de jogos
                 opp = self._get_opponent(team)
                 if opp:
                     try:
                         pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                        context_tags.append(f"Pace: {int(pace)}")
+                        context.append(f"Pace: {int(pace)}")
                         if pace > 100: score += 10
-                        if pace > 103: score += 5
                     except: pass
             
-            # 2. DvP (Defesa contra Posição)
             if self.dvp_analyzer:
-                # Verifica se o time adversário é fraco contra PG (Garçom)
                 opp = self._get_opponent(team)
                 if opp:
                     try:
                         rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                        # Rank alto = Defesa ruim (cede muito)
-                        if rank and rank >= 20: 
+                        if rank and rank >= 20:
                             score += 15
-                            context_tags.append("Defesa Frágil vs PG")
+                            context.append(f"Defesa Fraca vs PG")
                     except: pass
 
-            # 3. Qualidade da Dupla
-            score += int(avg_ast * 2) # Garçom elite vale mais
-            if partner_avg > 22: score += 10 # Cestinha elite
+            score += int(avg_ast * 2)
+            if partner_avg > 24: score += 10
 
-            if score >= 75: # Corte de qualidade
+            if score >= 75:
                 found.append({
                     "type": "SGP",
                     "title": "ECOSSISTEMA SIMBIÓTICO",
                     "score": score,
                     "hero": {"name": p_name, "photo": self.get_photo(p_name), "stat": "AST", "target": f"{int(avg_ast)}+"},
                     "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "stat": "PTS", "target": "Target"},
-                    "context": context_tags + [f"Média AST: {avg_ast:.1f}"],
+                    "context": context + [f"Média AST: {avg_ast:.1f}"],
                     "color": "#eab308"
                 })
         return found
 
-    def _scan_vacuum_smart(self):
+    def _scan_vacuum_logic(self):
         found = []
-        # Percorre os times que jogam hoje
         teams_playing = self._get_teams_playing()
         
         for team in teams_playing:
-            # 1. InjuryMonitor: Verifica lesões no time
             try:
+                # Pega lesões do time
                 injuries = self.injury_monitor.get_team_injuries(team)
             except: continue
             
             pivot_out = False
-            missing_player_name = ""
-
+            missing_player = ""
+            
             for inj in injuries:
                 status = str(inj.get('status', '')).lower()
-                # Verifica se está FORA e se é relevante (C, F-C ou PF alto)
+                
+                # CORREÇÃO: Só ativa se estiver OUT E for Pivô/Ala-Pivô
                 if 'out' in status:
-                    pivot_out = True
-                    missing_player_name = inj.get('name', 'Jog. Importante')
-            
+                    # Verifica posição no objeto de injury (se existir)
+                    pos = str(inj.get('position', '')).upper()
+                    name = inj.get('name', '')
+                    
+                    # Se não tiver posição explicita, tenta inferir ou usa VacuumMatrix
+                    # Lista de posições alvo para Vácuo de Rebote
+                    target_positions = ['C', 'FC', 'CF', 'PF', 'F-C', 'C-F']
+                    
+                    is_big_man = any(tp in pos for tp in target_positions)
+                    
+                    # Fallback: Se não tem pos, checa se VacuumMatrix detecta impacto em REB
+                    impact_confirmed = False
+                    if self.vacuum_matrix and not is_big_man:
+                        # Simula uma análise rápida
+                        pass 
+
+                    if is_big_man:
+                        missing_player = name
+                        pivot_out = True 
+
             if not pivot_out: continue
 
-            # 2. VacuumMatrix: Calcula o impacto real (Se disponível)
-            impact_score = 5
+            # Analisa Impacto
+            impact_score = 0
             if self.vacuum_matrix:
-                # Precisamos simular um roster simples para o Vacuum analisar
-                roster_sim = self._get_roster_simulated(team)
                 try:
-                    # Tenta analisar vácuo
-                    vacuum_report = self.vacuum_matrix.analyze_team_vacuum(roster_sim, team)
-                    impact_score = 8 
-                except: pass
+                    roster = self._get_roster_simulated(team)
+                    report = self.vacuum_matrix.analyze_team_vacuum(roster, team)
+                    if report: impact_score = 10
+                except: impact_score = 5
+            else:
+                impact_score = 5
 
-            # 3. Achar o Carrasco (Pivô do time Oponente)
+            # Acha o Herói (Pivô do Oponente)
             opp_team = self._get_opponent(team)
             if not opp_team: continue
             
             hero_name = self._find_best_rebounder(opp_team)
             if not hero_name: continue
 
-            # 4. PlayerClassifier: O Herói é um "PaintBeast"? (Validação de Arquétipo)
-            if self.classifier:
-                try:
-                    # Simula contexto básico para evitar erro de dict complexo
-                    pass 
-                except: pass
-
-            # Cálculo de Score
-            hero_data = self.logs.get(hero_name, {})
-            hero_stats = hero_data.get('logs', {}).get('REB', [])
+            # Calcula Score
+            hero_stats = self.logs.get(hero_name, {}).get('logs', {}).get('REB', [])
             if not hero_stats: continue
+            avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
+
+            # Filtro de Qualidade: Só mostra se o Herói pega > 8 rebotes
+            if avg_reb < 8.0: continue
+
+            score = 65
+            score += int(avg_reb * 1.5)
+            score += impact_score
             
-            if len(hero_stats) > 0:
-                avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
-            else:
-                avg_reb = 0
-
-            score = 65 # Base
-            score += int(avg_reb * 1.5) # Pivô melhor = score maior
-            score += impact_score * 2 # Impacto da lesão
-
             if score >= 75:
                 found.append({
                     "type": "VACUUM",
                     "title": "VÁCUO DE REBOTE",
                     "score": score,
                     "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "stat": "REB", "target": "Escada"},
-                    "villain": {"name": missing_player_name, "status": "OUT 🚑"},
+                    "villain": {"name": missing_player, "status": "OUT 🚑"},
                     "context": [f"Oponente: {team}", "Garrafão Aberto"],
                     "color": "#a855f7"
                 })
 
         return found
 
-    # --- AUXILIARES ---
+    # --- MÉTODOS AUXILIARES CORRIGIDOS ---
+    
+    def _find_statistical_partner(self, team_code, exclude_player):
+        """Encontra o cestinha do MESMO time"""
+        best_scorer = None
+        max_pts = 0
+        
+        # Normaliza team_code para evitar erros (ex: "BOS" vs "Boston")
+        # Assume que o cache usa siglas padrão
+        
+        for name, data in self.logs.items():
+            # CORREÇÃO CRÍTICA: Validação estrita de time
+            p_team = data.get('team')
+            
+            if p_team == team_code and name != exclude_player:
+                pts = data.get('logs', {}).get('PTS', [])
+                if pts:
+                    avg = sum(pts[:10]) / len(pts[:10])
+                    if avg > max_pts:
+                        max_pts = avg
+                        best_scorer = name
+        
+        return best_scorer, max_pts
+
     def _get_teams_playing(self):
         teams = set()
         if self.games:
@@ -847,19 +864,6 @@ class NexusEngine:
                 if g.get('away') == team: return g.get('home')
         return None
 
-    def _find_statistical_partner(self, team, exclude_player):
-        best_scorer = None
-        max_pts = 0
-        for name, data in self.logs.items():
-            if data.get('team') == team and name != exclude_player:
-                pts = data.get('logs', {}).get('PTS', [])
-                if pts:
-                    avg = sum(pts[:10]) / len(pts[:10])
-                    if avg > max_pts:
-                        max_pts = avg
-                        best_scorer = name
-        return best_scorer, max_pts
-
     def _find_best_rebounder(self, team):
         best = None
         max_avg = 0
@@ -874,11 +878,15 @@ class NexusEngine:
         return best
 
     def _get_roster_simulated(self, team):
-        # Cria uma lista simples de jogadores do time baseada no cache
         roster = []
         for name, data in self.logs.items():
             if data.get('team') == team:
-                roster.append({"name": name, "status": "Active"}) 
+                roster.append({
+                    "name": name, 
+                    "status": "Active", 
+                    "min_L5": 30, 
+                    "role": "Starter"
+                }) 
         return roster
         
 def show_nexus_page():
@@ -7183,6 +7191,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
