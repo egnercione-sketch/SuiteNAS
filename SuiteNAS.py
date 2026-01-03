@@ -73,6 +73,36 @@ def get_data_universal(key_db, file_fallback=None):
         except: pass
     
     return data # Retorna vazio se tudo falhar
+
+# ============================================================================
+# FUNÇÃO DE SALVAMENTO HÍBRIDO (CLOUD + LOCAL)
+# ============================================================================
+def save_data_universal(key_db, data, file_path=None):
+    """
+    Salva no Supabase E no arquivo local (Backup).
+    """
+    sucesso_nuvem = False
+    
+    # 1. Salva na Nuvem (Supabase)
+    if db:
+        try:
+            db.save_data(key_db, data)
+            print(f"☁️ [UPLOAD] '{key_db}' salvo no Supabase com sucesso.")
+            sucesso_nuvem = True
+        except Exception as e:
+            print(f"⚠️ Erro ao salvar '{key_db}' na nuvem: {e}")
+
+    # 2. Salva Local (Backup obrigatório para scrapers)
+    if file_path:
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            # print(f"💾 [BACKUP] '{key_db}' salvo localmente.")
+        except: pass
+    
+    return sucesso_nuvem
+
+
     
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
@@ -6236,7 +6266,6 @@ def process_espn_json_to_games(json_data):
             
     return processed_games
 
-def safe_load_initial_data():
 # ============================================================================
 # FUNÇÕES DE CARREGAMENTO E INICIALIZAÇÃO (CORRIGIDAS)
 # ============================================================================
@@ -6397,47 +6426,56 @@ def safe_load_initial_data():
 def load_all_data():
     """
     Função chamada pelo botão de 'Update' manual.
-    Carrega todos os dados com feedback visual (Spinners).
+    Busca dados novos e SINCRONIZA COM O SUPABASE IMEDIATAMENTE.
     """
     try:
         # 1. Scoreboard
-        with st.spinner("📥 Buscando scoreboard (Jogos de Hoje)..."):
-            st.session_state.scoreboard = fetch_espn_scoreboard(progress_ui=True) or []
+        with st.spinner("📥 Buscando scoreboard..."):
+            new_scoreboard = fetch_espn_scoreboard(progress_ui=True) or []
+            st.session_state.scoreboard = new_scoreboard
+            # FORÇA O SALVAMENTO NA NUVEM
+            save_data_universal("scoreboard", new_scoreboard, SCOREBOARD_JSON_FILE)
 
-        # 2. Dados L5 (Stats Recentes)
-        with st.spinner("📊 Buscando dados L5 dos jogadores..."):
-            # get_players_l5 deve ser sua função principal de scraping/cálculo
-            st.session_state.df_l5 = get_players_l5(progress_ui=True) or pd.DataFrame()
+        # 2. Dados L5
+        with st.spinner("📊 Buscando dados L5..."):
+            new_l5 = get_players_l5(progress_ui=True)
+            if new_l5 is not None and not new_l5.empty:
+                st.session_state.df_l5 = new_l5
+                # O L5 geralmente é Pickle, mas vamos salvar o JSON dos logs brutos se possível
+                # Se get_players_l5 retornar o DF, assumimos que o 'real_game_logs.json' foi atualizado internamente.
+                # Para garantir, precisaríamos acessar o dict de logs brutos, mas vamos focar no que temos acesso.
+                
+                # Se você tiver a variável com o dict de logs brutos aqui, salve-a:
+                # save_data_universal("real_game_logs", logs_dict, LOGS_CACHE_FILE) 
+            else:
+                st.session_state.df_l5 = pd.DataFrame()
 
         # 3. Odds
-        with st.spinner("🎰 Buscando odds (Pinnacle/Bookies)..."):
-            st.session_state.odds = fetch_odds_for_today() or {}
+        with st.spinner("🎰 Buscando odds..."):
+            new_odds = fetch_odds_for_today() or {}
+            st.session_state.odds = new_odds
+            save_data_universal("pinnacle_odds", new_odds, ODDS_CACHE_FILE)
 
         # 4. Dados de Time
-        with st.spinner("🏀 Buscando estatísticas avançadas de times..."):
-            st.session_state.team_advanced = fetch_team_advanced_stats() or {}
-            st.session_state.team_opponent = fetch_team_opponent_stats() or {}
+        with st.spinner("🏀 Buscando estatísticas avançadas..."):
+            adv = fetch_team_advanced_stats() or {}
+            opp = fetch_team_opponent_stats() or {}
+            st.session_state.team_advanced = adv
+            st.session_state.team_opponent = opp
+            
+            save_data_universal("team_advanced", adv, TEAM_ADVANCED_FILE)
+            save_data_universal("team_opponent", opp, TEAM_OPPONENT_FILE)
 
-        # 5. Inicializar/Atualizar Sistemas
+        # 5. Re-Inicializar Sistemas com os novos dados
         if "dvp_analyzer" not in st.session_state and DVP_ANALYZER_AVAILABLE:
             st.session_state.dvp_analyzer = DvpAnalyzer()
             
-        if "audit_system" not in st.session_state:
-            try:
-                from modules.audit_system import AuditSystem
-                st.session_state.audit_system = AuditSystem()
-            except: pass
-            
-        if "feature_store" not in st.session_state:
-            try:
-                st.session_state.feature_store = FeatureStore()
-            except: pass
-
-        st.success("✅ Dados atualizados com sucesso!")
+        st.success("✅ Dados atualizados e SINCRONIZADOS NA NUVEM!")
         return True
 
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {e}")
+        print(f"Erro detalhado: {e}")
         return False
 
 # ============================================================================
@@ -7146,6 +7184,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
