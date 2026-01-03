@@ -27,6 +27,8 @@ import os
 BASE_DIR = os.path.dirname(__file__)
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# Arquivos de Cache Existentes
 L5_CACHE_FILE = os.path.join(CACHE_DIR, "l5_players.pkl")
 SCOREBOARD_JSON_FILE = os.path.join(CACHE_DIR, "scoreboard_today.json")
 TEAM_ADVANCED_FILE = os.path.join(CACHE_DIR, "team_advanced.json")
@@ -37,7 +39,8 @@ INJURIES_CACHE_FILE = os.path.join(CACHE_DIR, "injuries_cache_v44.json")
 TESES_CACHE_FILE = os.path.join(CACHE_DIR, "teses_cache.json")
 DVP_CACHE_FILE = os.path.join(CACHE_DIR, "dvp_cache.json")
 AUDIT_CACHE_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
-FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")  # NOVO
+FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")
+LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
 TODAY_YYYYMMDD = datetime.now().strftime("%Y%m%d")
@@ -168,55 +171,54 @@ def load_extended_scoreboard():
     return final_games
 
 # ============================================================================
-# IMPORTS
+# MÓDULOS ESTRATÉGICOS & NEXUS INTELLIGENCE
 # ============================================================================
 try:
+    # 1. Módulos Core da Nova Arquitetura
     from modules.new_modules.thesis_engine import ThesisEngine
     from modules.new_modules.strategy_engine import StrategyEngine
     from modules.new_modules.narrative_formatter import NarrativeFormatter
     from modules.new_modules.rotation_analyzer import RotationAnalyzer
     from modules.new_modules.player_classifier import PlayerClassifier
     from modules.new_modules.strategy_identifier import StrategyIdentifier
-    from modules.new_modules.correlation_filters import CorrelationValidator
-    from modules.new_modules.archetype_engine import ArchetypeEngine
+    from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
     from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
+    
+    # 2. Módulos de Inteligência Contextual (NEXUS Dependencies)
+    from modules.new_modules.archetype_engine import ArchetypeEngine
+    from modules.new_modules.pace_adjuster import PaceAdjuster
+    from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
+    from modules.new_modules.sinergy_engine import SinergyEngine
+    from modules.new_modules.dvp_analyzer import DvpAnalyzer
+    
+    # 3. Módulos da Raiz
+    from injuries import InjuryMonitor  # Monitor de Lesões (Raiz)
     from modules.audit_system import AuditSystem
     from auth_manager import UserManager
     from config_manager import PATHS
 
     NOVOS_MODULOS_DISPONIVEIS = True
-    print("✅ Módulos estratégicos carregados com sucesso")
+    print("✅ Módulos NEXUS & Estratégicos carregados com sucesso")
+
 except ImportError as e:
-    print(f"⚠️ Atenção: Módulos estratégicos não encontrados: {e}")
+    print(f"⚠️ Atenção: Módulos estratégicos/NEXUS incompletos: {e}")
     print("⚠️ O sistema funcionará em modo de compatibilidade")
     NOVOS_MODULOS_DISPONIVEIS = False
-except Exception as e:
-    print(f"⚠️ Erro ao carregar módulos estratégicos: {e}")
-    NOVOS_MODULOS_DISPONIVEIS = False
-try:
-    from modules.new_modules.pace_adjuster import PaceAdjuster
-    PACE_ADJUSTER_AVAILABLE = True
-except ImportError:
-    PACE_ADJUSTER_AVAILABLE = False
+    
+    # Define Nones para evitar crash se falhar
     PaceAdjuster = None
-try:
-    from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-    VACUUM_MATRIX_AVAILABLE = True
-except ImportError:
-    VACUUM_MATRIX_AVAILABLE = False
     VacuumMatrixAnalyzer = None
-try:
-    from modules.new_modules.correlation_filters import TrixieCorrelationValidator
-    CORRELATION_FILTERS_AVAILABLE = True
-except ImportError:
-    CORRELATION_FILTERS_AVAILABLE = False
-    TrixieCorrelationValidator = None
+    SinergyEngine = None
+    DvpAnalyzer = None
+    InjuryMonitor = None
 
+# ... (Mantenha o bloco do PinnacleClient como estava) ...
 try:
     from pinnacle_client import PinnacleClient
     PINNACLE_AVAILABLE = True
 except ImportError:
     PINNACLE_AVAILABLE = False
+    
     # Cria uma classe dummy para não quebrar se o arquivo faltar
     class PinnacleClient:
         def __init__(self, *args, **kwargs): pass
@@ -562,23 +564,25 @@ def initialize_features():
 
 def show_nexus_page():
     # --- Carrega Nexus ---
-    # (Adapte o import conforme onde você salvou o arquivo NexusEngine.py)
-    # from modules.NexusEngine import NexusEngine 
-    
-    # Carregamento seguro do Cache (Mesma lógica do 5/7/10)
     import json
     import os
+
+    # Função auxiliar local CORRIGIDA (Indentação correta)
     def local_load(fp):
         if os.path.exists(fp):
-            try: with open(fp,"r",encoding="utf-8") as f: return json.load(f)
-            except: return {}
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                return {}
         return {}
     
+    # Carrega cache
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or local_load("real_game_logs.json") or {}
     
     # Inicializa Engine
-    # (Para teste, se não tiver os módulos externos, ele usa os Mocks internos)
+    # (Usa a classe NexusEngine que deve estar no seu código ou importada)
     nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
     opportunities = nexus.run_nexus_scan()
 
@@ -6848,6 +6852,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
