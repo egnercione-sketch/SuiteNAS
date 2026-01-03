@@ -6407,7 +6407,7 @@ def main():
         "🎯 Hit Prop Hunter",
         "🎯 Strategy 5/7/10",
         "🔄 Mapa de Rotações",
-        "🏆 Trinity Club":,
+        "🏆 Trinity Club",
         "🌪️ Blowout Hunter",
         "⚔️ Lab Narrativas",
         "🔥 Las Vegas Sync",
@@ -6722,6 +6722,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
