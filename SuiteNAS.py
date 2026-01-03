@@ -559,6 +559,124 @@ def initialize_features():
     st.session_state.features_status = features_status
     return features_status
 
+import os
+import json
+import unicodedata
+
+class FiveSevenTenEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games_map = self._map_games(games)
+        
+        self.player_ids = {}
+        if os.path.exists("nba_players_map.json"):
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                    self.player_ids = {self._normalize_name(k): v for k, v in raw_data.items()}
+            except: pass
+
+    def _normalize_name(self, name):
+        if not name: return ""
+        return ''.join(c for c in unicodedata.normalize('NFD', name) if unicodedata.category(c) != 'Mn')
+
+    def _normalize_team(self, team_code):
+        mapping = {
+            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
+        }
+        return mapping.get(team_code, team_code)
+
+    def _map_games(self, games):
+        mapping = {}
+        if not games: return {}
+        for g in games:
+            home = self._normalize_team(g.get('home'))
+            away = self._normalize_team(g.get('away'))
+            if home and away:
+                mapping[home] = {"opp": away, "venue": "CASA"}
+                mapping[away] = {"opp": home, "venue": "FORA"}
+        return mapping
+
+    def get_photo_url(self, player_name):
+        clean_name = self._normalize_name(player_name)
+        pid = self.player_ids.get(clean_name)
+        if not pid:
+            parts = clean_name.split()
+            if len(parts) >= 2: pid = self.player_ids.get(f"{parts[0]} {parts[-1]}")
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    def analyze_market(self):
+        grouped_candidates = {} 
+        diagnostics = {"total_players": len(self.logs), "playing_today": 0, "insufficient_data": 0, "failed_criteria": 0}
+
+        if not self.logs: return [], diagnostics
+
+        for player_name, data in self.logs.items():
+            raw_team = data.get('team')
+            if not raw_team: continue
+            
+            team = self._normalize_team(raw_team)
+            if team not in self.games_map: continue
+            
+            diagnostics["playing_today"] += 1
+            logs = data.get('logs', {})
+            
+            # Check Superstar
+            avg_pts = 0
+            if 'PTS' in logs and len(logs['PTS']) > 0:
+                avg_pts = sum(logs['PTS'][:10]) / len(logs['PTS'][:10])
+            is_star = avg_pts >= 20
+
+            for stat_type in ['AST', 'REB']:
+                values = logs.get(stat_type, [])
+                if len(values) < 10: 
+                    diagnostics["insufficient_data"] += 1
+                    continue
+
+                l25 = values[:25]
+                total = len(l25)
+                
+                pct_5 = (sum(1 for x in l25 if x >= 5) / total) * 100
+                pct_7 = (sum(1 for x in l25 if x >= 7) / total) * 100
+                pct_10 = (sum(1 for x in l25 if x >= 10) / total) * 100
+
+                # Critérios (Ajustados)
+                min_safe = 40 if is_star else 50
+                min_explosion = 5 if stat_type == 'AST' else 8
+
+                if pct_5 >= min_safe and pct_10 >= min_explosion:
+                    arch = "GLUE GUY"
+                    if is_star: arch = "⭐ SUPERSTAR"
+                    elif pct_10 > 25: arch = "DYNAMITE 🧨"
+                    elif pct_5 > 85 and pct_10 < 15: arch = "RELOGINHO 🕰️"
+                    
+                    if player_name not in grouped_candidates:
+                        grouped_candidates[player_name] = {
+                            "player": player_name,
+                            "team": raw_team,
+                            "opp": self.games_map[team]['opp'],
+                            "photo": self.get_photo_url(player_name),
+                            "archetype_rank": 0,
+                            "archetype_display": arch,
+                            "stats": []
+                        }
+                    
+                    current_rank = 3 if "SUPERSTAR" in arch else (2 if "DYNAMITE" in arch else 1)
+                    if current_rank > grouped_candidates[player_name]["archetype_rank"]:
+                        grouped_candidates[player_name]["archetype_rank"] = current_rank
+                        grouped_candidates[player_name]["archetype_display"] = arch
+
+                    grouped_candidates[player_name]["stats"].append({
+                        "type": stat_type,
+                        "metrics": {"Safe": int(pct_5), "Target": int(pct_7), "Ceiling": int(pct_10)}
+                    })
+                else:
+                    diagnostics["failed_criteria"] += 1
+
+        final_list = list(grouped_candidates.values())
+        return sorted(final_list, key=lambda x: (x['archetype_rank'], x['stats'][0]['metrics']['Ceiling']), reverse=True), diagnostics
+
 def show_5_7_10_page():
     # --- Load Seguro ---
     import json
@@ -722,6 +840,8 @@ def show_5_7_10_page():
         """
         
         st.markdown(full_card_html, unsafe_allow_html=True)
+        
+        
         
 # ==============================================================================
 # ☢️ HIT PROP HUNTER V47.3 - FINAL INTEGRAL FIX
@@ -6454,6 +6574,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
