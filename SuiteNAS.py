@@ -623,7 +623,163 @@ def initialize_features():
     st.session_state.features_status = features_status
     return features_status
 
+# ============================================================================
+# CLASSE NEXUS ENGINE (O CÉREBRO)
+# ============================================================================
+import json
+import os
 
+class NexusEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games = games
+        self.player_ids = self._load_photo_map()
+        
+        # Inicializa os Consultores (Usa as variáveis globais que definimos nos imports)
+        # Verifica se os módulos estão disponíveis (não são None)
+        self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
+        self.sinergy = SinergyEngine() if SINERGY_ENGINE_AVAILABLE else None
+        self.pace = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
+        self.dvp = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
+        self.archetype = ArchetypeEngine() if 'ArchetypeEngine' in globals() and ArchetypeEngine else None
+        self.vacuum = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
+
+    def _load_photo_map(self):
+        if os.path.exists("nba_players_map.json"):
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except: pass
+        return {}
+
+    def get_photo(self, name):
+        pid = self.player_ids.get(name)
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    def run_nexus_scan(self):
+        """O Loop Principal de Inteligência"""
+        # Se não tiver monitor de lesões ou dados básicos, aborta para não quebrar
+        if not self.injury_monitor: 
+            return []
+
+        opportunities = []
+        
+        # 1. SCANNER DE SGP (SIMBIOSE)
+        if self.sinergy and self.pace and self.dvp:
+            opportunities.extend(self._scan_sgp_opportunities())
+
+        # 2. SCANNER DE VÁCUO (REBOTE)
+        if self.vacuum and self.archetype:
+            opportunities.extend(self._scan_vacuum_opportunities())
+
+        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
+
+    def _scan_sgp_opportunities(self):
+        found = []
+        for p_name, data in self.logs.items():
+            team = data.get('team')
+            logs = data.get('logs', {})
+            ast_logs = logs.get('AST', [])
+            
+            # Filtro Básico: É Garçom?
+            if not ast_logs or len(ast_logs) < 10: continue
+            if (sum(ast_logs[:10])/10) < 7.0: continue
+
+            # Tenta encontrar parceiro (usando nomes de métodos genéricos, ajuste se necessário)
+            # Assumindo que o método se chama .find_partner ou similar. 
+            # Se der erro de atributo aqui, verifique o nome no arquivo sinergy_engine.py
+            try:
+                partner_name = self.sinergy.analyze_synergy(p_name, team) 
+            except AttributeError:
+                # Tenta nome alternativo comum se o primeiro falhar
+                try: partner_name = self.sinergy.get_best_partner(p_name)
+                except: partner_name = None
+
+            if not partner_name: continue 
+
+            try:
+                game_pace = self.pace.calculate_game_pace(team)
+            except: game_pace = 98
+
+            if game_pace < 99: continue 
+
+            try:
+                dvp_score = self.dvp.get_position_rating(team, "PG")
+            except: dvp_score = 50
+            
+            score = 60
+            if game_pace > 103: score += 15
+            if isinstance(dvp_score, int) and dvp_score > 70: score += 15
+
+            if score >= 80:
+                found.append({
+                    "type": "SGP",
+                    "title": "ECOSSISTEMA SIMBIÓTICO",
+                    "score": score,
+                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "stat": "AST", "target": "Target"},
+                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "stat": "PTS", "target": "Target"},
+                    "context": [f"Ritmo: {game_pace}", "Sinergia Alta"],
+                    "color": "#eab308"
+                })
+        return found
+
+    def _scan_vacuum_opportunities(self):
+        found = []
+        try:
+            injured_list = self.injury_monitor.get_active_injuries()
+        except: return []
+        
+        for injured in injured_list:
+            if "C" not in injured.get('position', '') or injured.get('status') != "OUT": 
+                continue
+            
+            opp_team = injured.get('opponent_today')
+            
+            try:
+                impact_score = self.vacuum.calculate_impact(injured['name'], "REB")
+            except: impact_score = 0
+            
+            if impact_score < 3: continue 
+
+            hero_name = self._find_best_rebounder(opp_team)
+            if not hero_name: continue
+            
+            try:
+                arch = self.archetype.classify_player(hero_name)
+            except: arch = ""
+            
+            # Aceita se for classificado como Reboteiro ou Pivô
+            if "Rebound" not in arch and "Center" not in arch and "Glass" not in arch: 
+                # Fallback: Se não tem arquétipo, confia na média
+                pass 
+
+            score = 70 + int(impact_score * 2)
+            
+            found.append({
+                "type": "VACUUM",
+                "title": "VÁCUO DE REBOTE",
+                "score": score,
+                "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "stat": "REB", "target": "Escada"},
+                "villain": {"name": injured['name'], "status": "OUT 🚑"},
+                "context": [f"Impacto: +{impact_score} Reb", "Garrafão Aberto"],
+                "color": "#a855f7"
+            })
+        return found
+
+    def _find_best_rebounder(self, team):
+        best = None
+        max_avg = 0
+        for name, data in self.logs.items():
+            if data.get('team') == team:
+                rebs = data.get('logs', {}).get('REB', [])
+                if rebs:
+                    avg = sum(rebs[:10])/len(rebs[:10])
+                    if avg > max_avg:
+                        max_avg = avg
+                        best = name
+        return best
+        
 def show_nexus_page():
     # --- Carrega Nexus ---
     import json
@@ -6914,6 +7070,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
