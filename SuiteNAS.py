@@ -705,7 +705,6 @@ def show_5_7_10_page():
     import json
     import os
     
-    # Função auxiliar local corrigida (Indentação OK)
     def local_load(fp):
         if os.path.exists(fp):
             try:
@@ -715,11 +714,9 @@ def show_5_7_10_page():
                 return {}
         return {}
 
-    # Caminho correto do cache
+    # Carrega dados
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or {}
-    
-    # Fallback
     if not full_cache: 
         full_cache = local_load("real_game_logs.json") or {}
 
@@ -731,51 +728,66 @@ def show_5_7_10_page():
     st.caption("Scanner de Glue Guys & Estrelas (Agrupado por Jogador). Base L25.")
 
     if not opportunities and diag["playing_today"] == 0:
-         st.warning("⚠️ O Scoreboard parece vazio ou desatualizado. Por favor, vá em Config > Atualizar.")
+         st.warning("⚠️ O Scoreboard parece vazio. Vá em Config > Atualizar.")
          return
 
-    # --- 2. CSS ---
+    # --- 2. CSS SIMPLIFICADO E SEGURO ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
         
-        .card-container {
+        .trin-card {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-left: 5px solid #3b82f6;
             border-radius: 8px;
-            padding: 10px;
+            padding: 12px;
             margin-bottom: 12px;
             border: 1px solid rgba(255,255,255,0.05);
             display: flex;
             align-items: flex-start;
+            box-sizing: border-box;
         }
-        .profile-box {
-            width: 30%; min-width: 150px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center;
-            padding-right: 10px; border-right: 1px solid rgba(255,255,255,0.05);
+        
+        .trin-profile {
+            width: 25%;
+            min-width: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding-right: 15px;
+            border-right: 1px solid rgba(255,255,255,0.1);
         }
-        .player-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; margin-bottom: 5px; }
-        .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.2; }
-        .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
-        .p-arch { font-size: 9px; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; background: rgba(255,255,255,0.1); }
         
-        .stats-box { flex-grow: 1; padding-left: 15px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-        .stat-row { display: flex; align-items: center; width: 100%; }
+        .trin-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; background: #000; margin-bottom: 6px; }
+        .trin-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.2; }
+        .trin-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .trin-arch { font-size: 9px; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; background: rgba(255,255,255,0.1); }
         
-        .stat-badge {
-            width: 35px; font-size: 10px; font-weight: bold; color: #1e293b; 
+        .trin-stats {
+            flex-grow: 1;
+            padding-left: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .trin-row { display: flex; align-items: center; width: 100%; }
+        
+        .trin-badge {
+            width: 40px; font-size: 10px; font-weight: bold; color: #1e293b; 
             background: #94a3b8; text-align: center; border-radius: 4px; 
-            padding: 3px 0; margin-right: 10px; flex-shrink: 0;
+            padding: 4px 0; margin-right: 10px; flex-shrink: 0;
         }
-        .stat-badge.ast { background: #38bdf8; }
-        .stat-badge.reb { background: #f472b6; }
+        .trin-badge.ast { background: #38bdf8; }
+        .trin-badge.reb { background: #f472b6; }
         
-        .ladder-wrapper { flex-grow: 1; display: flex; gap: 8px; justify-content: space-between; }
-        .step-item { width: 32%; }
-        .bar-container { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 2px; }
-        .bar-fill { height: 100%; }
-        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: bold; color: #fff; text-align: right; }
-        .step-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
+        .trin-ladder { flex-grow: 1; display: flex; gap: 5px; justify-content: space-between; }
+        .trin-step { width: 32%; }
+        .trin-bar-bg { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 3px; }
+        .trin-bar-fill { height: 100%; }
+        .trin-val { font-family: 'Roboto Condensed', sans-serif; font-size: 11px; font-weight: bold; color: #fff; text-align: right; }
+        .trin-lbl { font-size: 8px; color: #64748B; font-weight: bold; display: block; }
 
         .bg-safe { background: #4ade80; }
         .bg-target { background: #facc15; }
@@ -783,7 +795,7 @@ def show_5_7_10_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. RENDERIZAÇÃO ---
+    # --- 3. RENDERIZAÇÃO SEGURA ---
     filter_opt = st.radio("Filtro:", ["TODOS", "SÓ DUPLOS (AST+REB)"], horizontal=True)
     
     for p in opportunities:
@@ -792,57 +804,70 @@ def show_5_7_10_page():
         if filter_opt == "SÓ DUPLOS (AST+REB)" and len(stats) < 2:
             continue
 
-        border_color = "#3b82f6"
-        if "DYNAMITE" in p['archetype_display']: border_color = "#f87171"
-        if "SUPERSTAR" in p['archetype_display']: border_color = "#D4AF37"
+        # --- PREPARAÇÃO DE VARIÁVEIS (Evita erros no f-string) ---
+        p_name = p['player']
+        p_team = p['team']
+        p_opp = p['opp']
+        p_photo = p['photo']
+        p_arch = p['archetype_display']
+        
+        # Cores
+        border_col = "#3b82f6" # Azul padrão
+        if "DYNAMITE" in p_arch: border_col = "#f87171"
+        if "SUPERSTAR" in p_arch: border_col = "#D4AF37"
 
         # Constrói HTML das Stats
         stats_html_block = ""
         for s in stats:
             s_type = s['type']
             m = s['metrics']
-            badge_cls = s_type.lower()
             
-            row_html = f"""
-            <div class="stat-row">
-                <div class="stat-badge {badge_cls}">{s_type}</div>
-                <div class="ladder-wrapper">
-                    <div class="step-item">
-                        <div class="step-lbl">SAFE 5+</div>
-                        <div class="bar-container"><div class="bar-fill bg-safe" style="width: {m['Safe']}%;"></div></div>
-                        <div class="step-val">{m['Safe']}%</div>
+            # Variáveis simples para o f-string
+            badge_cls = s_type.lower()
+            val_safe = m['Safe']
+            val_target = m['Target']
+            val_ceiling = m['Ceiling']
+            
+            row = f"""
+            <div class="trin-row">
+                <div class="trin-badge {badge_cls}">{s_type}</div>
+                <div class="trin-ladder">
+                    <div class="trin-step">
+                        <span class="trin-lbl">SAFE 5+</span>
+                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-safe" style="width: {val_safe}%;"></div></div>
+                        <div class="trin-val">{val_safe}%</div>
                     </div>
-                    <div class="step-item">
-                        <div class="step-lbl">TARGET 7+</div>
-                        <div class="bar-container"><div class="bar-fill bg-target" style="width: {m['Target']}%;"></div></div>
-                        <div class="step-val">{m['Target']}%</div>
+                    <div class="trin-step">
+                        <span class="trin-lbl">TARGET 7+</span>
+                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-target" style="width: {val_target}%;"></div></div>
+                        <div class="trin-val">{val_target}%</div>
                     </div>
-                    <div class="step-item">
-                        <div class="step-lbl">EXPLOSÃO 10+</div>
-                        <div class="bar-container"><div class="bar-fill bg-ceiling" style="width: {m['Ceiling']}%;"></div></div>
-                        <div class="step-val">{m['Ceiling']}%</div>
+                    <div class="trin-step">
+                        <span class="trin-lbl">EXPL 10+</span>
+                        <div class="trin-bar-bg"><div class="trin-bar-fill bg-ceiling" style="width: {val_ceiling}%;"></div></div>
+                        <div class="trin-val">{val_ceiling}%</div>
                     </div>
                 </div>
             </div>
             """
-            stats_html_block += row_html
+            stats_html_block += row
 
         # Constrói Card Final
-        full_card_html = f"""
-        <div class="card-container" style="border-left-color: {border_color};">
-            <div class="profile-box">
-                <img src="{p['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                <div class="p-name">{p['player']}</div>
-                <div class="p-team">{p['team']} vs {p['opp']}</div>
-                <div class="p-arch" style="color:{border_color}">{p['archetype_display']}</div>
+        card_html = f"""
+        <div class="trin-card" style="border-left: 4px solid {border_col};">
+            <div class="trin-profile">
+                <img src="{p_photo}" class="trin-img" style="border: 2px solid {border_col};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                <div class="trin-name">{p_name}</div>
+                <div class="trin-team">{p_team} vs {p_opp}</div>
+                <div class="trin-arch" style="color:{border_col}">{p_arch}</div>
             </div>
-            <div class="stats-box">
+            <div class="trin-stats">
                 {stats_html_block}
             </div>
         </div>
         """
         
-        st.markdown(full_card_html, unsafe_allow_html=True)
+        st.markdown(card_html, unsafe_allow_html=True)
         
         
         
@@ -6577,6 +6602,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
