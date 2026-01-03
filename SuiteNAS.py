@@ -80,11 +80,45 @@ def get_data_universal(key_db, file_fallback=None):
     
     return data
 
+def save_data_universal(key_db, data, file_path=None):
+    """Salva no Supabase E no arquivo local (Backup)."""
+    sucesso_nuvem = False
+    
+    # 1. Nuvem
+    if db:
+        try:
+            db.save_data(key_db, data)
+            # print(f"☁️ [UPLOAD] '{key_db}' salvo.")
+            sucesso_nuvem = True
+        except Exception as e:
+            print(f"⚠️ Erro save nuvem '{key_db}': {e}")
+            
+    # 2. Local
+    if file_path:
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+        except: pass
+    
+    return sucesso_nuvem
+
 # ============================================================================
 # 3. CONSTANTES E MAPAS DA NBA
 # ============================================================================
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
+
+# --- CHAVES DO BANCO DE DADOS (SUPABASE KEYS) ---
+# CRÍTICO: Estas variáveis evitam o NameError no safe_load_initial_data
+KEY_SCOREBOARD = "scoreboard"
+KEY_TEAM_ADV = "team_advanced"
+KEY_TEAM_OPP = "team_opponent"
+KEY_ODDS = "pinnacle_odds"
+KEY_LOGS = "real_game_logs"
+KEY_INJURIES = "injuries"
+KEY_NAME_OVERRIDES = "name_overrides"
+KEY_PLAYERS_MAP = "nba_players_map"
+KEY_DVP = "dvp_stats"
 
 TEAM_ABBR_TO_ODDS = {
     "ATL": "Atlanta Hawks","BOS": "Boston Celtics","BKN": "Brooklyn Nets","CHA": "Charlotte Hornets",
@@ -196,7 +230,7 @@ def load_extended_scoreboard():
         return []
 
 # ============================================================================
-# 5. CARREGAMENTO DE MÓDULOS (DEFINIÇÃO GLOBAL PARA EVITAR NAME ERROR)
+# 5. CARREGAMENTO DE MÓDULOS (PREVENÇÃO DE ERROS GLOBAIS)
 # ============================================================================
 
 # Define Classes como None inicialmente (Evita NameError se import falhar)
@@ -217,7 +251,7 @@ SinergyEngine = None
 AuditSystem = None
 PinnacleClient = None
 
-# Define Flags Globais (O SEU CÓDIGO PROCURA EXATAMENTE ESTES NOMES)
+# Define Flags Globais (O CÓDIGO DEPENDE DESSAS VARIÁVEIS)
 NOVOS_MODULOS_DISPONIVEIS = False
 PACE_ADJUSTER_AVAILABLE = False
 VACUUM_MATRIX_AVAILABLE = False
@@ -242,7 +276,7 @@ try:
         NOVOS_MODULOS_DISPONIVEIS = True
     except ImportError: pass
 
-    # Componentes Nexus (Tenta carregar um a um e seta a flag específica)
+    # Componentes Nexus
     try:
         from modules.new_modules.pace_adjuster import PaceAdjuster
         PACE_ADJUSTER_AVAILABLE = True
@@ -318,31 +352,22 @@ FEATURE_CONFIG_DEFAULT = {
 
 # Configura Session State Padrão
 if 'df_l5' not in st.session_state: st.session_state.df_l5 = pd.DataFrame()
+if 'scoreboard' not in st.session_state: st.session_state.scoreboard = []
 if 'use_advanced_features' not in st.session_state: st.session_state.use_advanced_features = False
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
-# Placeholder para autenticação
-# user_manager = UserManager() ...
-# authenticator = stauth.Authenticate(...)
-
-# ============================================================================
-# 7. SISTEMA DE AUTENTICAÇÃO (RESTAURAÇÃO CRÍTICA)
-# ============================================================================
-# Define user_manager como None inicialmente para evitar NameError no main()
+# 7. SISTEMA DE AUTENTICAÇÃO (CRÍTICO PARA O MAIN)
 user_manager = None
 username = None
 name = None
 
 try:
-    # Tenta importar os gerenciadores reais
     from auth_manager import UserManager
     import streamlit_authenticator as stauth
     
-    # 1. Instancia o Gerenciador
     user_manager = UserManager()
     auth_config = user_manager.get_authenticator_config()
 
-    # 2. Configura o Authenticator
     authenticator = stauth.Authenticate(
         auth_config['credentials'],
         auth_config['cookie']['name'],
@@ -350,15 +375,11 @@ try:
         auth_config['cookie']['expiry_days']
     )
 
-    # 3. Renderiza Tela de Login
     try:
-        # Tenta sintaxe da versão nova
         authenticator.login(location='main')
     except TypeError:
-        # Fallback para versão antiga
         authenticator.login('Login', 'main')
 
-    # 4. Controle de Acesso
     if st.session_state.get("authentication_status") is False:
         st.error("❌ Usuário ou senha incorretos")
         st.stop()
@@ -366,38 +387,26 @@ try:
         st.warning("🔐 Por favor, faça login para acessar o sistema.")
         st.stop()
     
-    # 5. Sucesso - Carrega dados do usuário
     username = st.session_state.get('username')
     name = st.session_state.get('name')
     
-    # Logout na Sidebar
     with st.sidebar:
         st.write(f"👤 **{name}**")
-        try:
-            authenticator.logout(location='sidebar')
-        except:
-            authenticator.logout('Sair', 'sidebar')
+        try: authenticator.logout(location='sidebar')
+        except: authenticator.logout('Sair', 'sidebar')
         st.divider()
 
 except ImportError:
-    # --- MODO DE EMERGÊNCIA (SEM AUTH) ---
-    # Se faltar o arquivo auth_manager.py ou a lib streamlit_authenticator,
-    # criamos um "Dummy" para o código não quebrar.
-    print("⚠️ Aviso: Sistema de Auth não encontrado. Usando modo Admin/Dev.")
-    
+    # Modo de Emergência (Dev)
     class DummyUserManager:
-        def get_user_permissions(self, user):
-            return ["admin", "premium"] # Dá permissão total
-            
+        def get_user_permissions(self, user): return ["admin", "premium"]
     user_manager = DummyUserManager()
     username = "admin_dev"
     name = "Desenvolvedor"
-    
-    st.sidebar.warning("⚠️ Modo DEV (Auth Desativada)")
+    # st.sidebar.warning("⚠️ Auth Offline (Modo Dev)")
 
 except Exception as e:
     st.error(f"Erro crítico na autenticação: {e}")
-    # Cria fallback para não crashar o main
     class DummyUserManager:
         def get_user_permissions(self, user): return []
     user_manager = DummyUserManager()
@@ -6900,6 +6909,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
