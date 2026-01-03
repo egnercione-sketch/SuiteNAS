@@ -190,50 +190,90 @@ except ImportError as e:
     st.stop()
 
 # ============================================================================
-# 2. MÓDULOS ESTRATÉGICOS & NEXUS (OPCIONAIS)
+# 2. INICIALIZAÇÃO DE VARIÁVEIS GLOBAIS (EVITA NameError)
+# ============================================================================
+# Define padrão como False/None para evitar erro se a importação falhar
+NOVOS_MODULOS_DISPONIVEIS = False
+PACE_ADJUSTER_AVAILABLE = False
+VACUUM_MATRIX_AVAILABLE = False
+CORRELATION_FILTERS_AVAILABLE = False
+SINERGY_ENGINE_AVAILABLE = False
+DVP_ANALYZER_AVAILABLE = False
+INJURY_MONITOR_AVAILABLE = False
+PINNACLE_AVAILABLE = False
+
+PaceAdjuster = None
+VacuumMatrixAnalyzer = None
+SinergyEngine = None
+DvpAnalyzer = None
+InjuryMonitor = None
+ArchetypeEngine = None
+TrixieCorrelationValidator = None
+
+# ============================================================================
+# 3. CARREGAMENTO DOS MÓDULOS ESTRATÉGICOS & NEXUS
 # ============================================================================
 try:
-    # Módulos Core da Nova Arquitetura
+    # --- Módulos Core ---
     from modules.new_modules.thesis_engine import ThesisEngine
     from modules.new_modules.strategy_engine import StrategyEngine
     from modules.new_modules.narrative_formatter import NarrativeFormatter
     from modules.new_modules.rotation_analyzer import RotationAnalyzer
     from modules.new_modules.player_classifier import PlayerClassifier
     from modules.new_modules.strategy_identifier import StrategyIdentifier
-    from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
     from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
     
-    # Módulos de Inteligência Contextual (NEXUS)
-    from modules.new_modules.archetype_engine import ArchetypeEngine
-    from modules.new_modules.pace_adjuster import PaceAdjuster
-    from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-    from modules.new_modules.sinergy_engine import SinergyEngine
-    from modules.new_modules.dvp_analyzer import DvpAnalyzer
+    # --- Tenta carregar módulos específicos e seta as flags individuais ---
     
-    # Módulos da Raiz
+    # Pace Adjuster
+    try:
+        from modules.new_modules.pace_adjuster import PaceAdjuster
+        PACE_ADJUSTER_AVAILABLE = True
+    except ImportError: pass
+
+    # Vacuum Matrix
+    try:
+        from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
+        VACUUM_MATRIX_AVAILABLE = True
+    except ImportError: pass
+
+    # Correlation / Trixie
+    try:
+        from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
+        CORRELATION_FILTERS_AVAILABLE = True
+    except ImportError: pass
+
+    # Nexus Dependencies (Sinergia, Dvp, Archetype)
+    try:
+        from modules.new_modules.sinergy_engine import SinergyEngine
+        SINERGY_ENGINE_AVAILABLE = True
+    except ImportError: pass
+
+    try:
+        from modules.new_modules.dvp_analyzer import DvpAnalyzer
+        DVP_ANALYZER_AVAILABLE = True
+    except ImportError: pass
+    
+    try:
+        from modules.new_modules.archetype_engine import ArchetypeEngine
+    except ImportError: pass
+
+    # Injury Monitor (Raiz)
     try:
         from injuries import InjuryMonitor
-    except ImportError:
-        InjuryMonitor = None
+        INJURY_MONITOR_AVAILABLE = True
+    except ImportError: pass
 
+    # Se chegou até aqui com o Core carregado, marcamos a flag geral
     NOVOS_MODULOS_DISPONIVEIS = True
     print("✅ Módulos NEXUS & Estratégicos carregados com sucesso")
 
 except ImportError as e:
-    print(f"⚠️ Atenção: Módulos estratégicos/NEXUS incompletos ou com erro: {e}")
-    print("⚠️ O sistema funcionará em modo de compatibilidade (Sem Nexus)")
-    NOVOS_MODULOS_DISPONIVEIS = False
-    
-    # Define Nones para evitar crash se falhar
-    PaceAdjuster = None
-    VacuumMatrixAnalyzer = None
-    SinergyEngine = None
-    DvpAnalyzer = None
-    InjuryMonitor = None
-    ArchetypeEngine = None
+    print(f"⚠️ Atenção: Falha no carregamento do Core Estratégico: {e}")
+    # As flags já estão como False/None lá em cima, então o código não quebra
 
 # ============================================================================
-# 3. INTEGRAÇÕES EXTERNAS
+# 4. INTEGRAÇÕES EXTERNAS
 # ============================================================================
 try:
     from pinnacle_client import PinnacleClient
@@ -6874,6 +6914,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
