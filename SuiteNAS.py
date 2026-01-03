@@ -57,37 +57,28 @@ except ImportError:
 def get_data_universal(key_db, file_fallback=None):
     """Tenta pegar do Supabase. Se falhar, tenta do arquivo local."""
     data = {}
+    
+    # 1. Tenta Nuvem
     if db:
         try:
             data = db.get_data(key_db)
-            if data: return data
+            if data:
+                # --- DEDO DURO ---
+                print(f"✅ LENDO '{key_db}' DIRETO DA NUVEM (SUPABASE)!") 
+                return data
         except Exception as e:
             print(f"⚠️ Erro nuvem '{key_db}': {e}")
             
+    # 2. Tenta Local
     if not data and file_fallback and os.path.exists(file_fallback):
         try:
             with open(file_fallback, "r", encoding="utf-8") as f:
+                # --- DEDO DURO ---
+                print(f"📁 LENDO '{key_db}' DO ARQUIVO LOCAL (GITHUB)!")
                 return json.load(f)
         except: pass
+    
     return data
-
-def save_data_universal(key_db, data, file_path=None):
-    """Salva no Supabase E no arquivo local (Backup)."""
-    sucesso_nuvem = False
-    if db:
-        try:
-            db.save_data(key_db, data)
-            # print(f"☁️ [UPLOAD] '{key_db}' salvo.")
-            sucesso_nuvem = True
-        except Exception as e:
-            print(f"⚠️ Erro save nuvem '{key_db}': {e}")
-            
-    if file_path:
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
-        except: pass
-    return sucesso_nuvem
 
 # ============================================================================
 # 3. CONSTANTES E MAPAS DA NBA
@@ -6896,6 +6887,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
