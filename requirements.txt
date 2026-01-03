@@ -7,3 +7,4 @@ requests
 nba_api
 bcrypt
 supabase
+scipy
