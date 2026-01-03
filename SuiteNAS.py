@@ -559,6 +559,123 @@ def initialize_features():
     st.session_state.features_status = features_status
     return features_status
 
+
+def show_nexus_page():
+    # --- Carrega Nexus ---
+    # (Adapte o import conforme onde você salvou o arquivo NexusEngine.py)
+    # from modules.NexusEngine import NexusEngine 
+    
+    # Carregamento seguro do Cache (Mesma lógica do 5/7/10)
+    import json
+    import os
+    def local_load(fp):
+        if os.path.exists(fp):
+            try: with open(fp,"r",encoding="utf-8") as f: return json.load(f)
+            except: return {}
+        return {}
+    
+    cache_file = os.path.join("cache", "real_game_logs.json")
+    full_cache = local_load(cache_file) or local_load("real_game_logs.json") or {}
+    
+    # Inicializa Engine
+    # (Para teste, se não tiver os módulos externos, ele usa os Mocks internos)
+    nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
+    opportunities = nexus.run_nexus_scan()
+
+    # --- Header ---
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="font-family: 'Oswald'; font-size: 40px; margin-bottom: 0;">🧠 PROJECT NEXUS</h1>
+        <div style="color: #64748b; font-size: 14px;">INTELIGÊNCIA CONTEXTUAL • SGP • VÁCUO</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not opportunities:
+        st.info("O Nexus varreu o mercado e não encontrou oportunidades de alta confluência (>80 Score) para hoje.")
+        return
+
+    # --- CSS DOS CARDS ---
+    st.markdown("""
+    <style>
+        .nexus-card {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 0;
+            margin-bottom: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+        .nexus-header {
+            padding: 8px 15px;
+            font-family: 'Oswald';
+            font-size: 14px;
+            font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
+            color: #000;
+        }
+        .nexus-body {
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+        }
+        .nexus-hero { text-align: center; width: 30%; }
+        .hero-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #fff; object-fit: cover; }
+        .hero-name { font-weight: bold; color: #fff; font-size: 14px; margin-top: 5px; }
+        .hero-target { background: #334155; color: #4ade80; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        
+        .nexus-center { text-align: center; width: 20%; }
+        .nexus-score { font-size: 24px; font-weight: bold; color: #fff; }
+        .nexus-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
+        
+        .nexus-footer {
+            background: rgba(255,255,255,0.03);
+            padding: 8px 15px;
+            display: flex; gap: 10px;
+            font-size: 11px; color: #cbd5e1;
+        }
+        .tag { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- RENDERIZAÇÃO ---
+    for op in opportunities:
+        # Define Cores
+        header_color = op['color']
+        
+        # HTML Lógico (SGP vs VACUUM tem layouts levemente diferentes)
+        if op['type'] == 'SGP':
+            left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
+            right_html = f"<img src='{op['partner']['photo']}' class='hero-img'><div class='hero-name'>{op['partner']['name']}</div><div class='hero-target'>{op['partner']['stat']} {op['partner']['target']}</div>"
+            center_icon = "🔗"
+        else: # Vacuum
+            left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
+            right_html = f"<div style='font-size:30px'>🚑</div><div class='hero-name' style='color:#f87171'>{op['villain']['name']}</div><div class='hero-target' style='color:#f87171'>{op['villain']['status']}</div>"
+            center_icon = "VS"
+
+        tags_html = "".join([f"<span class='tag'>{tag}</span>" for tag in op['context']])
+
+        st.markdown(f"""
+        <div class="nexus-card">
+            <div class="nexus-header" style="background: {header_color};">
+                <span>{op['title']}</span>
+                <span style="background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">SCORE {op['score']}</span>
+            </div>
+            <div class="nexus-body">
+                <div class="nexus-hero">{left_html}</div>
+                <div class="nexus-center">
+                    <div class="nexus-score">{center_icon}</div>
+                </div>
+                <div class="nexus-hero">{right_html}</div>
+            </div>
+            <div class="nexus-footer">
+                {tags_html}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -6408,6 +6525,7 @@ def main():
         "🎯 Desdobramentos Inteligentes",
         "🎯 Hit Prop Hunter",
         "🎯 Strategy 5/7/10",
+        "🧠 NEXUS",
         "🔄 Mapa de Rotações",
         "🏆 Trinity Club",
         "🌪️ Blowout Hunter",
@@ -6701,6 +6819,12 @@ def main():
         show_audit_page()
 
     # ============================================================================
+    # NEXUS
+    # ============================================================================
+    elif choice == "🏆 Trinity Club":
+        show_nexus_page()
+        
+    # ============================================================================
     # TRINITY
     # ============================================================================
     elif choice == "🏆 Trinity Club":
@@ -6724,6 +6848,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
