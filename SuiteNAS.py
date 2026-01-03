@@ -781,18 +781,16 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # --- Carrega Nexus ---
     import json
     import os
 
-    # Função auxiliar local CORRIGIDA (Indentação correta)
+    # --- Configuração Local ---
     def local_load(fp):
         if os.path.exists(fp):
             try:
                 with open(fp, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
-                return {}
+            except: return {}
         return {}
     
     # Carrega cache
@@ -800,11 +798,9 @@ def show_nexus_page():
     full_cache = local_load(cache_file) or local_load("real_game_logs.json") or {}
     
     # Inicializa Engine
-    # (Usa a classe NexusEngine que deve estar no seu código ou importada)
     nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
-    opportunities = nexus.run_nexus_scan()
-
-    # --- Header ---
+    
+    # --- UI DO NEXUS ---
     st.markdown("""
     <div style="text-align: center; margin-bottom: 20px;">
         <h1 style="font-family: 'Oswald'; font-size: 40px; margin-bottom: 0;">🧠 PROJECT NEXUS</h1>
@@ -812,8 +808,27 @@ def show_nexus_page():
     </div>
     """, unsafe_allow_html=True)
 
-    if not opportunities:
-        st.info("O Nexus varreu o mercado e não encontrou oportunidades de alta confluência (>80 Score) para hoje.")
+    # --- CALIBRAGEM (SLIDER) ---
+    # Permite baixar a régua para ver se o sistema está calculando algo
+    min_score = st.sidebar.slider("🎚️ Sensibilidade do Nexus (Score Mínimo)", 0, 100, 50)
+    
+    # Executa o Scan
+    all_opportunities = nexus.run_nexus_scan()
+    
+    # Filtra baseado no Slider
+    filtered_ops = [op for op in all_opportunities if op['score'] >= min_score]
+
+    # --- DEBUGGER (Para você ver o que está rolando) ---
+    with st.expander("🕵️‍♂️ Debug do Nexus (Ver Dados Brutos)"):
+        st.write(f"Total Encontrado (Bruto): {len(all_opportunities)}")
+        st.write(f"Score de Corte: {min_score}")
+        if len(all_opportunities) > 0:
+            st.dataframe(all_opportunities)
+        else:
+            st.warning("O Nexus retornou lista vazia. Verifique se 'real_game_logs.json' tem dados recentes.")
+
+    if not filtered_ops:
+        st.info(f"Nenhuma oportunidade encontrada com Score > {min_score}. Tente baixar a sensibilidade na barra lateral.")
         return
 
     # --- CSS DOS CARDS ---
@@ -849,7 +864,6 @@ def show_nexus_page():
         
         .nexus-center { text-align: center; width: 20%; }
         .nexus-score { font-size: 24px; font-weight: bold; color: #fff; }
-        .nexus-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
         
         .nexus-footer {
             background: rgba(255,255,255,0.03);
@@ -862,16 +876,14 @@ def show_nexus_page():
     """, unsafe_allow_html=True)
 
     # --- RENDERIZAÇÃO ---
-    for op in opportunities:
-        # Define Cores
+    for op in filtered_ops:
         header_color = op['color']
         
-        # HTML Lógico (SGP vs VACUUM tem layouts levemente diferentes)
         if op['type'] == 'SGP':
             left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
             right_html = f"<img src='{op['partner']['photo']}' class='hero-img'><div class='hero-name'>{op['partner']['name']}</div><div class='hero-target'>{op['partner']['stat']} {op['partner']['target']}</div>"
             center_icon = "🔗"
-        else: # Vacuum
+        else: 
             left_html = f"<img src='{op['hero']['photo']}' class='hero-img'><div class='hero-name'>{op['hero']['name']}</div><div class='hero-target'>{op['hero']['stat']} {op['hero']['target']}</div>"
             right_html = f"<div style='font-size:30px'>🚑</div><div class='hero-name' style='color:#f87171'>{op['villain']['name']}</div><div class='hero-target' style='color:#f87171'>{op['villain']['status']}</div>"
             center_icon = "VS"
@@ -7070,6 +7082,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
