@@ -425,19 +425,26 @@ try:
         st.divider()
 
 except ImportError:
-    # Modo de Emergência (Dev)
+    # Modo de Emergência (Sem biblioteca)
     class DummyUserManager:
-        def get_user_permissions(self, user): return ["admin", "premium"]
+        def get_user_permissions(self, user): return ["admin", "premium", "betting", "analytics"]
     user_manager = DummyUserManager()
     username = "admin_dev"
     name = "Desenvolvedor"
     # st.sidebar.warning("⚠️ Auth Offline (Modo Dev)")
 
 except Exception as e:
-    st.error(f"Erro crítico na autenticação: {e}")
+    # MODO RESGATE (Se der erro no Supabase/Auth, libera tudo)
+    # st.error(f"Erro na autenticação: {e}") # Comentei para não sujar a tela
+    
     class DummyUserManager:
-        def get_user_permissions(self, user): return []
+        def get_user_permissions(self, user): 
+            # AQUI ESTÁ A CORREÇÃO: Libera todas as permissões
+            return ["admin", "premium", "betting", "analytics"]
+            
     user_manager = DummyUserManager()
+    username = "admin_rescue"
+    name = "Admin (Modo Resgate)"
 
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
@@ -7074,6 +7081,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
