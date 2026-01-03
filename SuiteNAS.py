@@ -171,75 +171,132 @@ def load_extended_scoreboard():
     return final_games
 
 # ============================================================================
-# 1. IMPORTS ESSENCIAIS (O SISTEMA NÃO RODA SEM ELES)
+# 1. IMPORTS ESSENCIAIS (Base do Sistema)
 # ============================================================================
+import streamlit as st
+import os
+import json
+import time
+import pandas as pd
+from datetime import datetime, timedelta
+
+# Auth & Config (Críticos)
 try:
     from auth_manager import UserManager
     from config_manager import PATHS
-    # Tenta carregar AuditSystem, se falhar define como None mas não quebra o app
+    # Audit System (Semi-Crítico)
     try:
         from modules.audit_system import AuditSystem
     except ImportError:
         print("⚠️ AuditSystem não encontrado.")
         AuditSystem = None
-        
 except ImportError as e:
-    # Se falhar Auth ou Config, o app para aqui mesmo
-    import streamlit as st
-    st.error(f"❌ ERRO CRÍTICO: Módulos base não encontrados. Verifique auth_manager.py e config_manager.py. Detalhe: {e}")
+    st.error(f"❌ ERRO CRÍTICO: Módulos base falharam. {e}")
     st.stop()
 
 # ============================================================================
-# 1. CARREGAMENTO DOS MÓDULOS ESTRATÉGICOS & NEXUS (INTEGRAÇÃO TOTAL)
+# 2. INICIALIZAÇÃO DE FLAGS E VARIÁVEIS (PREVENÇÃO DE NameError)
 # ============================================================================
-# Define flags iniciais como False para segurança
+# Define TUDO como False/None primeiro. Se a importação falhar, o código não quebra.
+
+# Flags de Disponibilidade
 NOVOS_MODULOS_DISPONIVEIS = False
 PACE_ADJUSTER_AVAILABLE = False
 VACUUM_MATRIX_AVAILABLE = False
 DVP_ANALYZER_AVAILABLE = False
 INJURY_MONITOR_AVAILABLE = False
 PLAYER_CLASSIFIER_AVAILABLE = False
+CORRELATION_FILTERS_AVAILABLE = False # <--- O erro estava aqui
+ROTATION_CEILING_AVAILABLE = False
+SINERGY_ENGINE_AVAILABLE = False
 
-# Inicializa variáveis como None
+# Classes (Inicializadas como None)
 PaceAdjuster = None
 VacuumMatrixAnalyzer = None
 DvpAnalyzer = None
 InjuryMonitor = None
 PlayerClassifier = None
+TrixieCorrelationValidator = None # <--- E aqui
+CorrelationValidator = None
+RotationAnalyzer = None
+NarrativeFormatter = None
+ThesisEngine = None
+StrategyEngine = None
+StrategyIdentifier = None
+ArchetypeEngine = None
+RotationCeilingEngine = None
+SinergyEngine = None
 
+# ============================================================================
+# 3. CARREGAMENTO DOS MÓDULOS ESTRATÉGICOS & NEXUS
+# ============================================================================
 try:
-    # --- Módulos da Pasta New Modules ---
+    print("🔄 Carregando Módulos Estratégicos...")
+
+    # --- Grupo 1: Core Trixie/Thesis ---
+    try:
+        from modules.new_modules.thesis_engine import ThesisEngine
+        from modules.new_modules.strategy_engine import StrategyEngine
+        from modules.new_modules.narrative_formatter import NarrativeFormatter
+        from modules.new_modules.rotation_analyzer import RotationAnalyzer
+        from modules.new_modules.strategy_identifier import StrategyIdentifier
+        NOVOS_MODULOS_DISPONIVEIS = True # Core carregado
+    except ImportError as e:
+        print(f"⚠️ Core Estratégico parcial/falho: {e}")
+
+    # --- Grupo 2: Filtros e Correlacao (Onde deu o erro) ---
+    try:
+        from modules.new_modules.correlation_filters import CorrelationValidator, TrixieCorrelationValidator
+        CORRELATION_FILTERS_AVAILABLE = True
+    except ImportError: 
+        print("⚠️ Correlation Filters não carregado")
+
+    # --- Grupo 3: Nexus Components ---
     try:
         from modules.new_modules.pace_adjuster import PaceAdjuster
         PACE_ADJUSTER_AVAILABLE = True
-    except ImportError: print("⚠️ PaceAdjuster não carregado")
+    except ImportError: pass
 
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
         VACUUM_MATRIX_AVAILABLE = True
-    except ImportError: print("⚠️ VacuumMatrix não carregado")
+    except ImportError: pass
 
     try:
         from modules.new_modules.dvp_analyzer import DvpAnalyzer
         DVP_ANALYZER_AVAILABLE = True
-    except ImportError: print("⚠️ DvpAnalyzer não carregado")
+    except ImportError: pass
     
     try:
         from modules.new_modules.player_classifier import PlayerClassifier
         PLAYER_CLASSIFIER_AVAILABLE = True
-    except ImportError: print("⚠️ PlayerClassifier não carregado")
+    except ImportError: pass
 
-    # --- Módulo da Raiz ---
+    try:
+        from modules.new_modules.sinergy_engine import SinergyEngine
+        SINERGY_ENGINE_AVAILABLE = True
+    except ImportError: pass
+
+    try:
+        from modules.new_modules.archetype_engine import ArchetypeEngine
+    except ImportError: pass
+
+    try:
+        from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
+        ROTATION_CEILING_AVAILABLE = True
+    except ImportError: pass
+
+    # --- Grupo 4: Raiz ---
     try:
         from injuries import InjuryMonitor
         INJURY_MONITOR_AVAILABLE = True
-    except ImportError: print("⚠️ InjuryMonitor não carregado")
+    except ImportError: 
+        print("⚠️ InjuryMonitor não carregado")
 
-    NOVOS_MODULOS_DISPONIVEIS = True
-    print("✅ Módulos NEXUS carregados e prontos para combate.")
+    print("✅ Processo de importação concluído.")
 
 except Exception as e:
-    print(f"⚠️ Erro geral no carregamento de módulos: {e}")
+    print(f"⚠️ Erro geral no loader de módulos: {e}")
 
 # ============================================================================
 # 4. INTEGRAÇÕES EXTERNAS
@@ -7126,6 +7183,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
