@@ -1,5 +1,5 @@
 # ============================================================================
-# NBA ANALYTICS SUITE v2.0 (Cloud Enhanced)
+# NBA ANALYTICS SUITE v2.0 (Cloud Enhanced - Fixed Globals)
 # ============================================================================
 import os
 import sys
@@ -17,7 +17,7 @@ import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
-# import streamlit_authenticator as stauth # (Descomente se for usar autenticação)
+# import streamlit_authenticator as stauth # (Descomente se for usar)
 
 # --- Configuração de Logger ---
 logging.basicConfig(level=logging.INFO)
@@ -48,8 +48,8 @@ LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
 try:
     from db_manager import db
 except ImportError:
-    # st.error("Aviso: db_manager.py não encontrado. Usando apenas modo local.")
     db = None
+    # st.warning("Aviso: db_manager.py não encontrado. Usando apenas modo local.")
 
 # ============================================================================
 # 2. FUNÇÕES DE DADOS HÍBRIDOS (CLOUD FIRST)
@@ -57,7 +57,6 @@ except ImportError:
 def get_data_universal(key_db, file_fallback=None):
     """Tenta pegar do Supabase. Se falhar, tenta do arquivo local."""
     data = {}
-    # 1. Tenta Nuvem
     if db:
         try:
             data = db.get_data(key_db)
@@ -65,7 +64,6 @@ def get_data_universal(key_db, file_fallback=None):
         except Exception as e:
             print(f"⚠️ Erro nuvem '{key_db}': {e}")
             
-    # 2. Tenta Local
     if not data and file_fallback and os.path.exists(file_fallback):
         try:
             with open(file_fallback, "r", encoding="utf-8") as f:
@@ -76,16 +74,14 @@ def get_data_universal(key_db, file_fallback=None):
 def save_data_universal(key_db, data, file_path=None):
     """Salva no Supabase E no arquivo local (Backup)."""
     sucesso_nuvem = False
-    # 1. Nuvem
     if db:
         try:
             db.save_data(key_db, data)
-            print(f"☁️ [UPLOAD] '{key_db}' salvo.")
+            # print(f"☁️ [UPLOAD] '{key_db}' salvo.")
             sucesso_nuvem = True
         except Exception as e:
             print(f"⚠️ Erro save nuvem '{key_db}': {e}")
             
-    # 2. Local
     if file_path:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
@@ -98,14 +94,7 @@ def save_data_universal(key_db, data, file_path=None):
 # ============================================================================
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
-TODAY_YYYYMMDD = datetime.now().strftime("%Y%m%d")
 
-# URLs
-ESPN_SCOREBOARD_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-ESPN_TEAM_ROSTER_TEMPLATE = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{team}/roster"
-ESPN_BOXSCORE_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary"
-
-# Mapeamento de Times e Odds
 TEAM_ABBR_TO_ODDS = {
     "ATL": "Atlanta Hawks","BOS": "Boston Celtics","BKN": "Brooklyn Nets","CHA": "Charlotte Hornets",
     "CHI": "Chicago Bulls","CLE": "Cleveland Cavaliers","DAL": "Dallas Mavericks","DEN": "Denver Nuggets",
@@ -151,7 +140,6 @@ TEAM_NAME_VARIATIONS = {
     "Washington Wizards": ["WAS", "WSH", "Washington", "Wizards"]
 }
 
-# Normalização de Siglas (Tradutor Universal)
 TEAM_NORMALIZATION_MAP = {
     "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
     "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
@@ -161,15 +149,12 @@ TEAM_NORMALIZATION_MAP = {
 # ============================================================================
 # 4. FUNÇÕES UTILITÁRIAS ESSENCIAIS
 # ============================================================================
-
 def normalize_team(team_code):
-    """Padroniza siglas de times para evitar erros de comparação"""
     if not team_code: return ""
     code = str(team_code).upper().strip()
     return TEAM_NORMALIZATION_MAP.get(code, code)
 
 def get_full_team_name(team_abbr):
-    """Converte sigla para nome completo"""
     team_abbr = team_abbr.upper() if team_abbr else ""
     full_name = TEAM_ABBR_TO_ODDS.get(team_abbr)
     if full_name: return full_name
@@ -179,7 +164,6 @@ def get_full_team_name(team_abbr):
     return team_abbr
 
 def ensure_dataframe(df) -> pd.DataFrame:
-    """Garante que o objeto seja um DataFrame do Pandas"""
     if isinstance(df, pd.DataFrame): return df
     if df is None: return pd.DataFrame()
     if isinstance(df, list) and all(isinstance(x, dict) for x in df): return pd.DataFrame(df)
@@ -189,7 +173,6 @@ def ensure_dataframe(df) -> pd.DataFrame:
     return pd.DataFrame()
 
 def load_extended_scoreboard():
-    """Carrega jogos incluindo os da madrugada seguinte (Extended Grid)"""
     try:
         from nba_api.stats.endpoints import scoreboardv2
         import pytz
@@ -207,7 +190,7 @@ def load_extended_scoreboard():
         for _, game in all_games_raw.iterrows():
             gid = game['GAME_ID']
             if gid in processed_ids: continue
-            status = game['GAME_STATUS_ID'] # 1=Sched, 2=Live, 3=Final
+            status = game['GAME_STATUS_ID'] 
             final_games.append({
                 "game_id": gid,
                 "home": game['HOME_TEAM_ABBREVIATION'],
@@ -218,118 +201,136 @@ def load_extended_scoreboard():
             processed_ids.add(gid)
         return final_games
     except Exception as e:
-        print(f"Erro no Extended Scoreboard: {e}")
+        # print(f"Erro no Extended Scoreboard: {e}")
         return []
 
 # ============================================================================
-# 5. CARREGAMENTO DE MÓDULOS E FLAGS
+# 5. CARREGAMENTO DE MÓDULOS (DEFINIÇÃO GLOBAL PARA EVITAR NAME ERROR)
 # ============================================================================
 
-# Define Classes como None para evitar NameError
-PaceAdjuster = VacuumMatrixAnalyzer = DvpAnalyzer = InjuryMonitor = None
-PlayerClassifier = CorrelationValidator = RotationAnalyzer = None
-NarrativeFormatter = ThesisEngine = StrategyEngine = StrategyIdentifier = None
-ArchetypeEngine = RotationCeilingEngine = SinergyEngine = None
+# Define Classes como None inicialmente (Evita NameError se import falhar)
+PaceAdjuster = None
+VacuumMatrixAnalyzer = None
+DvpAnalyzer = None
+InjuryMonitor = None
+PlayerClassifier = None
+CorrelationValidator = None
+RotationAnalyzer = None
+NarrativeFormatter = None
+ThesisEngine = None
+StrategyEngine = None
+StrategyIdentifier = None
+ArchetypeEngine = None
+RotationCeilingEngine = None
+SinergyEngine = None
 AuditSystem = None
+PinnacleClient = None
 
-# Flags de Disponibilidade
-FLAGS = {
-    "CORE": False,
-    "PACE": False,
-    "VACUUM": False,
-    "DVP": False,
-    "INJURY": False,
-    "CORRELATION": False,
-    "SINERGY": False,
-    "PINNACLE": False
-}
+# Define Flags Globais (O SEU CÓDIGO PROCURA EXATAMENTE ESTES NOMES)
+NOVOS_MODULOS_DISPONIVEIS = False
+PACE_ADJUSTER_AVAILABLE = False
+VACUUM_MATRIX_AVAILABLE = False
+DVP_ANALYZER_AVAILABLE = False
+INJURY_MONITOR_AVAILABLE = False
+PLAYER_CLASSIFIER_AVAILABLE = False
+CORRELATION_FILTERS_AVAILABLE = False
+ROTATION_CEILING_AVAILABLE = False
+SINERGY_ENGINE_AVAILABLE = False
+PINNACLE_AVAILABLE = False
 
 print("🔄 Inicializando Módulos do Sistema...")
 
-# --- 5.1 CARREGAMENTO SEGURO DE MÓDULOS ---
 try:
     # Core Estratégico
-    from modules.new_modules.thesis_engine import ThesisEngine
-    from modules.new_modules.strategy_engine import StrategyEngine
-    from modules.new_modules.narrative_formatter import NarrativeFormatter
-    from modules.new_modules.rotation_analyzer import RotationAnalyzer
-    from modules.new_modules.strategy_identifier import StrategyIdentifier
-    FLAGS["CORE"] = True
+    try:
+        from modules.new_modules.thesis_engine import ThesisEngine
+        from modules.new_modules.strategy_engine import StrategyEngine
+        from modules.new_modules.narrative_formatter import NarrativeFormatter
+        from modules.new_modules.rotation_analyzer import RotationAnalyzer
+        from modules.new_modules.strategy_identifier import StrategyIdentifier
+        NOVOS_MODULOS_DISPONIVEIS = True
+    except ImportError: pass
 
-    # Componentes Nexus
+    # Componentes Nexus (Tenta carregar um a um e seta a flag específica)
     try:
         from modules.new_modules.pace_adjuster import PaceAdjuster
-        FLAGS["PACE"] = True
+        PACE_ADJUSTER_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-        FLAGS["VACUUM"] = True
+        VACUUM_MATRIX_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.dvp_analyzer import DvpAnalyzer
-        FLAGS["DVP"] = True
+        DVP_ANALYZER_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.player_classifier import PlayerClassifier
+        PLAYER_CLASSIFIER_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.sinergy_engine import SinergyEngine
-        FLAGS["SINERGY"] = True
+        SINERGY_ENGINE_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.correlation_filters import CorrelationValidator
-        FLAGS["CORRELATION"] = True
+        CORRELATION_FILTERS_AVAILABLE = True
+    except ImportError: pass
+    
+    try:
+        from modules.new_modules.archetype_engine import ArchetypeEngine
     except ImportError: pass
 
     # Raiz
     try:
         from injuries import InjuryMonitor
-        FLAGS["INJURY"] = True
-    except ImportError: print("⚠️ InjuryMonitor ausente.")
+        INJURY_MONITOR_AVAILABLE = True
+    except ImportError: 
+        print("⚠️ InjuryMonitor ausente.")
 
     # Audit
     try:
         from modules.audit_system import AuditSystem
     except ImportError: pass
 
+    # Pinnacle
+    try:
+        from pinnacle_client import PinnacleClient
+        PINNACLE_AVAILABLE = True
+    except ImportError:
+        class PinnacleClient: 
+            def __init__(self, *args, **kwargs): pass
+            def get_nba_games(self): return []
+            def get_player_props(self, game_id): return []
+
     print("✅ Módulos carregados.")
 
 except Exception as e:
     print(f"⚠️ Erro parcial no carregamento de módulos: {e}")
 
-# --- 5.2 INTEGRAÇÕES EXTERNAS ---
-try:
-    from pinnacle_client import PinnacleClient
-    FLAGS["PINNACLE"] = True
-except ImportError:
-    class PinnacleClient: # Dummy fallback
-        def __init__(self, *args, **kwargs): pass
-        def get_nba_games(self): return []
-        def get_player_props(self, game_id): return []
-
 # ============================================================================
 # 6. AUTENTICAÇÃO E SESSION STATE
 # ============================================================================
 
-# Variáveis Globais de Controle de Features
-FEATURE_CONFIG = {
-    "PACE_ADJUSTER": {"active": FLAGS["PACE"], "min_pace_threshold": 98, "adjustment_factor": 0.02},
+# Variáveis Globais de Controle de Features (Configuração Padrão)
+FEATURE_CONFIG_DEFAULT = {
+    "PACE_ADJUSTER": {"active": PACE_ADJUSTER_AVAILABLE, "min_pace_threshold": 98, "adjustment_factor": 0.02},
     "DYNAMIC_THRESHOLDS": {"active": True, "position_multipliers": {"PG": {"AST": 1.5}, "C": {"REB": 2.0}}},
-    "STRATEGIC_ENGINE": {"active": FLAGS["CORE"], "min_confidence": 0.6},
-    "CORRELATION_FILTERS": {"active": FLAGS["CORRELATION"], "max_similarity_score": 0.7}
+    "STRATEGIC_ENGINE": {"active": NOVOS_MODULOS_DISPONIVEIS, "min_confidence": 0.6},
+    "CORRELATION_FILTERS": {"active": CORRELATION_FILTERS_AVAILABLE, "max_similarity_score": 0.7}
 }
 
 # Configura Session State Padrão
 if 'df_l5' not in st.session_state: st.session_state.df_l5 = pd.DataFrame()
 if 'use_advanced_features' not in st.session_state: st.session_state.use_advanced_features = False
-if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG
+if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
-# Placeholder para autenticação (Se for usar)
+# Placeholder para autenticação
 # user_manager = UserManager() ...
 # authenticator = stauth.Authenticate(...)
 
@@ -6818,6 +6819,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
