@@ -741,6 +741,13 @@ import os
 import json
 import unicodedata
 
+# ============================================================================
+# STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
+# ============================================================================
+import os
+import json
+import unicodedata
+
 class FiveSevenTenEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
@@ -752,18 +759,17 @@ class FiveSevenTenEngine:
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
-                    # Normaliza nomes no dicionário
+                    # Normaliza nomes
                     self.player_ids = {self._normalize_name(k): v for k, v in raw_data.items()}
-            except:
-                pass
+            except: pass
 
     def _normalize_name(self, name):
-        """Remove acentos para padronizar buscas"""
+        """Remove acentos: 'Luka Dončić' vira 'Luka Doncic'"""
         if not name: return ""
         return ''.join(c for c in unicodedata.normalize('NFD', name) if unicodedata.category(c) != 'Mn')
 
     def _normalize_team(self, team_code):
-        """Padroniza siglas da NBA"""
+        """Padroniza siglas"""
         mapping = {
             "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", 
             "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BKN": "BRK"
@@ -783,11 +789,10 @@ class FiveSevenTenEngine:
         return mapping
 
     def get_photo_url(self, player_name):
-        """Busca URL da foto usando nome normalizado"""
         clean_name = self._normalize_name(player_name)
         pid = self.player_ids.get(clean_name)
         
-        # Tentativa de fallback
+        # Fallback
         if not pid:
             parts = clean_name.split()
             if len(parts) >= 2: 
@@ -798,11 +803,11 @@ class FiveSevenTenEngine:
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     def analyze_market(self):
-        grouped_candidates = {} 
+        candidates = [] # Volta a ser uma lista simples (sem agrupamento)
         diagnostics = {
-            "total_players": len(self.logs), 
-            "playing_today": 0, 
-            "insufficient_data": 0, 
+            "total_players": len(self.logs),
+            "playing_today": 0,
+            "insufficient_data": 0,
             "failed_criteria": 0
         }
 
@@ -818,13 +823,13 @@ class FiveSevenTenEngine:
             diagnostics["playing_today"] += 1
             logs = data.get('logs', {})
             
-            # Identifica Estrelas
+            # Detecta Estrela
             avg_pts = 0
             if 'PTS' in logs and len(logs['PTS']) > 0:
                 avg_pts = sum(logs['PTS'][:10]) / len(logs['PTS'][:10])
             is_star = avg_pts >= 20
 
-            # Itera sobre AST e REB
+            # Loop por Stats
             for stat_type in ['AST', 'REB']:
                 values = logs.get(stat_type, [])
                 if len(values) < 10: 
@@ -834,46 +839,43 @@ class FiveSevenTenEngine:
                 l25 = values[:25]
                 total = len(l25)
                 
+                # Cálculos
                 pct_5 = (sum(1 for x in l25 if x >= 5) / total) * 100
                 pct_7 = (sum(1 for x in l25 if x >= 7) / total) * 100
                 pct_10 = (sum(1 for x in l25 if x >= 10) / total) * 100
 
-                # Critérios
+                # Critérios (Mantendo a inteligência V4)
                 min_safe = 40 if is_star else 50
                 min_explosion = 5 if stat_type == 'AST' else 8
 
                 if pct_5 >= min_safe and pct_10 >= min_explosion:
                     
+                    # Define Arquétipo
                     arch = "GLUE GUY"
                     if is_star: arch = "⭐ SUPERSTAR"
                     elif pct_10 > 25: arch = "DYNAMITE 🧨"
                     elif pct_5 > 85 and pct_10 < 15: arch = "RELOGINHO 🕰️"
                     
-                    if player_name not in grouped_candidates:
-                        grouped_candidates[player_name] = {
-                            "player": player_name,
-                            "team": raw_team,
-                            "opp": self.games_map[team]['opp'],
-                            "photo": self.get_photo_url(player_name),
-                            "archetype_rank": 0,
-                            "archetype_display": arch,
-                            "stats": []
-                        }
-                    
-                    current_rank = 3 if "SUPERSTAR" in arch else (2 if "DYNAMITE" in arch else 1)
-                    if current_rank > grouped_candidates[player_name]["archetype_rank"]:
-                        grouped_candidates[player_name]["archetype_rank"] = current_rank
-                        grouped_candidates[player_name]["archetype_display"] = arch
-
-                    grouped_candidates[player_name]["stats"].append({
-                        "type": stat_type,
-                        "metrics": {"Safe": int(pct_5), "Target": int(pct_7), "Ceiling": int(pct_10)}
+                    # FORMATO ANTIGO (FLAT) PARA COMPATIBILIDADE
+                    candidates.append({
+                        "player": player_name,
+                        "team": raw_team,
+                        "opp": self.games_map[team]['opp'],
+                        "venue": self.games_map[team]['venue'],
+                        "stat": stat_type,
+                        "photo": self.get_photo_url(player_name),
+                        "metrics": {
+                            "Safe_5": int(pct_5),
+                            "Target_7": int(pct_7),
+                            "Ceiling_10": int(pct_10)
+                        },
+                        "archetype": arch # A chave que estava faltando!
                     })
                 else:
                     diagnostics["failed_criteria"] += 1
 
-        final_list = list(grouped_candidates.values())
-        return sorted(final_list, key=lambda x: (x['archetype_rank'], x['stats'][0]['metrics']['Ceiling']), reverse=True), diagnostics
+        # Ordena: Superstars primeiro, depois Teto de Explosão
+        return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 def show_5_7_10_page():
     # --- 1. CONFIGURAÇÃO (CORRIGIDA) ---
@@ -6722,6 +6724,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
