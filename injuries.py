@@ -1,7 +1,7 @@
-# injuries.py — OFF RADAR v48.0 (JSON PARSER FIX)
+# injuries.py — OFF RADAR v50.0 (WEB API + ITEMS FIX)
 # Módulo definitivo de lesões.
-# FIXED: Correção na leitura do JSON da ESPN (data['team']['athletes']).
-# FIXED: Prints de debug para visualizar o progresso no console.
+# FIXED: Troca para 'site.web.api.espn.com' (Mais estável).
+# FIXED: Busca recursiva agora aceita 'items' além de 'athletes'.
 
 import os
 import json
@@ -17,13 +17,16 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # Default path
 DEFAULT_CACHE_FILE = os.path.join(CACHE_DIR, "injuries_cache_v44.json")
 CACHE_TTL_HOURS = 3
+
+# Headers simulando um navegador real para evitar bloqueio
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept": "application/json"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://www.espn.com/",
+    "Origin": "https://www.espn.com"
 }
 
 # --- MAPA DE TRADUÇÃO (NBA STANDARD -> ESPN URL CODE) ---
-# A ESPN usa códigos antigos/diferentes para alguns times na URL da API
 NBA_TO_ESPN_MAP = {
     "UTA": "utah", "UTAH": "utah",
     "NOP": "no", "NO": "no",
@@ -79,90 +82,88 @@ class InjuryMonitor:
 
     def fetch_injuries_for_team(self, team_abbr):
         """
-        Busca lesões de UM time específico.
+        Busca lesões de UM time específico usando a API WEB da ESPN.
         """
-        # 1. Traduz sigla NBA (ex: GSW) para sigla ESPN (ex: gs)
         espn_code = NBA_TO_ESPN_MAP.get(team_abbr.upper(), team_abbr.lower())
         
-        url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{espn_code}/roster"
+        # URL da API WEB (Mais robusta que a API Mobile)
+        url = f"https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{espn_code}/roster"
         
         try:
-            r = requests.get(url, headers=HEADERS, timeout=8)
+            r = requests.get(url, headers=HEADERS, timeout=10)
             
             if r.status_code == 200:
                 data = r.json()
                 team_injuries = []
                 
-                # --- CORREÇÃO CRÍTICA DO PARSING ---
-                athletes = []
-                
-                # Tentativa 1: Estrutura Padrão (data -> team -> athletes)
-                if 'team' in data and 'athletes' in data['team']:
-                    athletes = data['team']['athletes']
-                
-                # Tentativa 2: Estrutura Alternativa (data -> athletes)
-                elif 'athletes' in data:
-                    athletes = data['athletes']
-                
-                # Tentativa 3: Roster antigo
-                elif 'roster' in data and 'athletes' in data['roster']:
-                    athletes = data['roster']['athletes']
-                
-                # Tentativa 4: Varredura profunda
-                if not athletes:
-                    athletes = self._extract_list_recursive(data)
+                # --- BUSCA INTELIGENTE DA LISTA DE JOGADORES ---
+                # Procura por chaves 'athletes' OU 'items' recursivamente
+                athletes = self._extract_list_recursive(data)
 
-                # DEBUG NO CONSOLE
-                # print(f"🔍 {team_abbr}: Encontrados {len(athletes)} atletas.")
+                if not athletes:
+                    print(f"⚠️ {team_abbr}: Nenhum atleta encontrado na estrutura JSON.")
+                    return False
 
                 for ath in athletes:
-                    # Verifica lesões
-                    inj = ath.get("injuries", [])
-                    status_generic = ath.get("status", {}).get("type", {}).get("name", "")
+                    # Pega dados básicos
+                    full_name = ath.get("fullName") or ath.get("displayName")
+                    if not full_name: continue # Pula lixo
                     
-                    # Se tiver lista de injuries OU status não for Active
-                    has_injury_data = (len(inj) > 0)
-                    is_not_active = (status_generic and status_generic.lower() != 'active')
+                    injuries_list = ath.get("injuries", [])
+                    status_obj = ath.get("status", {})
                     
-                    if has_injury_data or is_not_active:
-                        
-                        # Pega o status mais descritivo
-                        status_txt = status_generic
-                        details = ""
-                        date_str = datetime.now().strftime("%Y-%m-%d")
-                        
-                        if inj:
-                            latest = inj[0]
-                            status_txt = latest.get("status", status_txt)
-                            details = latest.get("details") or latest.get("shortComment") or ""
-                            date_str = latest.get("date") or date_str
+                    # Status genérico (ex: "Active", "Day-to-Day", "Out")
+                    status_txt = status_obj.get("type", {}).get("name", "")
+                    if not status_txt: 
+                        status_txt = status_obj.get("name", "")
+                    
+                    # Detalhes específicos da lesão
+                    details = ""
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    
+                    if injuries_list:
+                        latest = injuries_list[0]
+                        if not status_txt: status_txt = latest.get("status", "")
+                        details = latest.get("details") or latest.get("shortComment") or latest.get("longComment") or ""
+                        date_str = latest.get("date") or date_str
 
-                        # Filtro final: Só adiciona se realmente não for Active (ignora Day-to-Day irrelevante)
-                        st_lower = str(status_txt).lower()
-                        if 'active' in st_lower and 'day' not in st_lower and 'questionable' not in st_lower:
-                            continue
-
+                    # LÓGICA DE FILTRO: Quem está machucado?
+                    # 1. Se tem algo na lista 'injuries', provavelmente é relevante.
+                    # 2. Se o status NÃO for 'Active' (ex: Out, Day-to-Day, Questionable).
+                    # 3. CUIDADO: Às vezes 'Active' tem 'injuries' (ex: Day-to-Day jogando).
+                    
+                    is_hurt = False
+                    st_lower = str(status_txt).lower()
+                    
+                    if len(injuries_list) > 0:
+                        is_hurt = True
+                    elif status_txt and "active" not in st_lower:
+                        is_hurt = True
+                    elif "day" in st_lower or "quest" in st_lower or "doubt" in st_lower:
+                        is_hurt = True
+                        
+                    if is_hurt:
                         team_injuries.append({
-                            "name": ath.get("fullName") or ath.get("displayName"),
-                            "name_norm": normalize_name(ath.get("fullName") or ath.get("displayName")),
+                            "name": full_name,
+                            "name_norm": normalize_name(full_name),
                             "status": status_txt,
                             "details": details,
                             "date": date_str
                         })
                 
-                # Salva no cache em memória
+                # Salva no cache
                 nba_std = ESPN_TO_NBA_STANDARD.get(espn_code.upper(), team_abbr.upper())
                 
                 if "teams" not in self.cache: self.cache["teams"] = {}
                 self.cache["teams"][nba_std] = team_injuries
                 
-                # print(f"✅ {nba_std}: {len(team_injuries)} machucados registrados.")
+                # print(f"✅ {nba_std}: {len(team_injuries)} reports.")
                 return True
             else:
                 print(f"❌ Erro HTTP {r.status_code} para {team_abbr}")
                 
         except Exception as e:
-            print(f"⚠️ Exception ao baixar {team_abbr}: {e}")
+            print(f"⚠️ Exception {team_abbr}: {e}")
             return False
         
         return False
@@ -198,13 +199,24 @@ class InjuryMonitor:
         return False
 
     def _extract_list_recursive(self, data):
-        """Helper para achar lista de atletas em JSONs aninhados"""
+        """
+        Busca PROATIVA por listas de jogadores. 
+        Aceita 'athletes' ou 'items' como chave.
+        """
         if isinstance(data, dict):
+            # Prioridade 1: Chaves conhecidas de lista
             if "athletes" in data and isinstance(data["athletes"], list):
                 return data["athletes"]
+            if "items" in data and isinstance(data["items"], list):
+                # Validação rápida: parece jogador?
+                if len(data["items"]) > 0 and ("fullName" in data["items"][0] or "displayName" in data["items"][0]):
+                    return data["items"]
+            
+            # Prioridade 2: Busca profunda
             for v in data.values():
                 res = self._extract_list_recursive(v)
                 if res: return res
+                
         elif isinstance(data, list):
             for item in data:
                 res = self._extract_list_recursive(item)
