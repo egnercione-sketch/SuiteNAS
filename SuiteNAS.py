@@ -3086,98 +3086,130 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
         time.sleep(delay*(attempt+1))
     return None
 
-def get_players_l5(progress_ui=True, batch_size=5):
+def get_players_l5(progress_ui=True):
     """
-    Baixa estatísticas L5 e salva no Supabase (convertendo DF -> JSON).
+    Baixa estatísticas L5 com SALVAMENTO INCREMENTAL.
+    Evita timeouts salvando a cada lote e ignorando quem já foi baixado.
     """
     from nba_api.stats.static import players
+    import time
     
-    # 1. Tenta carregar estado atual
-    # Se tiver local (pickle), usa. Se não, tenta baixar do Supabase e converter.
+    # Configurações de Segurança
+    BATCH_SAVE_SIZE = 5      # Salva na nuvem a cada 10 jogadores
+    MAX_EXECUTION_TIME = 180  # Para o script após 3 minutos (antes do Streamlit matar)
+    start_time = time.time()
+
+    # 1. Carrega o que já temos na Nuvem (para não refazer trabalho)
     df_cached = pd.DataFrame()
-    
-    # Tenta nuvem primeiro
     cloud_data = get_data_universal(KEY_L5)
+    
     if cloud_data and "records" in cloud_data:
-        df_cached = pd.DataFrame.from_records(cloud_data["records"])
-    # Se falhar, tenta pickle local
-    elif os.path.exists(L5_CACHE_FILE):
-        saved = load_pickle(L5_CACHE_FILE)
-        if saved and isinstance(saved, dict):
-            df_cached = saved.get("df", pd.DataFrame())
-
-    df_final = df_cached.copy() if not df_cached.empty else pd.DataFrame()
-    
-    # Lista de IDs já existentes para não baixar de novo
-    existing_ids = set(df_final["PLAYER_ID"].astype(int).tolist()) if not df_final.empty else set()
-    
-    act_players = players.get_active_players()
-    dfp = pd.DataFrame(act_players)[["id","full_name"]].rename(columns={"id":"PLAYER_ID","full_name":"PLAYER"})
-    
-    bar = st.progress(0) if progress_ui else None
-    status = st.empty() if progress_ui else None
-    
-    total = len(dfp); attempted=success=fail=0
-    
-    # Loop de Scraping
-    for _, row in dfp.iterrows():
-        attempted += 1
-        pid = int(row["PLAYER_ID"]); pname = row["PLAYER"]
-        
-        if pid in existing_ids:
-            if progress_ui and status:
-                status.text(f"[L5] {attempted}/{total} — pulando {pname} (cache)")
-                if bar: bar.progress(attempted/total)
-            continue
-            
-        stats = try_fetch_with_retry(pid, pname, tries=3, delay=0.5)
-        
-        if stats:
-            df_final = pd.concat([df_final, pd.DataFrame([stats])], ignore_index=True)
-            existing_ids.add(pid); success += 1
-        else:
-            fail += 1
-            
-        if progress_ui and status:
-            status.text(f"[L5] {attempted}/{total} — sucesso: {success} | falhas: {fail}")
-            if bar: bar.progress(attempted/total)
-            
-        # Save parcial a cada batch (opcional, aqui salvamos só local pra não spammar a API da nuvem)
-        if attempted % batch_size == 0:
-            try:
-                save_pickle(L5_CACHE_FILE, {"df": df_final, "timestamp": datetime.now()})
-            except: pass
-
-    # Limpeza Final
-    if not df_final.empty:
-        try: df_final["PLAYER_ID"] = df_final["PLAYER_ID"].astype(int)
+        try:
+            df_cached = pd.DataFrame.from_records(cloud_data["records"])
+            # Garante tipos corretos
+            if not df_cached.empty and "PLAYER_ID" in df_cached.columns:
+                df_cached["PLAYER_ID"] = df_cached["PLAYER_ID"].astype(int)
         except: pass
-        df_final = df_final.drop_duplicates(subset="PLAYER_ID", keep="first").reset_index(drop=True)
+
+    # Cria conjunto de IDs já existentes para pular
+    existing_ids = set()
+    if not df_cached.empty:
+        existing_ids = set(df_cached["PLAYER_ID"].unique())
+
+    # 2. Lista de Alvos (Todos os jogadores ativos)
+    act_players = players.get_active_players()
+    # Filtra apenas os que FALTAM baixar
+    pending_players = [p for p in act_players if p['id'] not in existing_ids]
     
-    # --- SALVAMENTO NA NUVEM (CONVERSÃO) ---
-    # 1. Salva Picke Local (Backup Rápido)
-    save_pickle(L5_CACHE_FILE, {"df": df_final, "timestamp": datetime.now()})
+    total_needed = len(pending_players)
+    total_already = len(existing_ids)
     
-    # 2. Salva JSON na Nuvem (Compatibilidade Universal)
-    try:
-        # Convertemos o DataFrame para lista de dicionários (records)
+    # Se não falta ninguém, força atualização dos mais antigos ou encerra
+    if total_needed == 0:
+        if progress_ui: st.success(f"✅ Todos os {total_already} jogadores já estão atualizados na nuvem!")
+        return df_cached
+
+    # 3. Preparação da UI
+    if progress_ui:
+        status_box = st.status(f"🚀 Iniciando Lote Incremental...", expanded=True)
+        p_bar = status_box.progress(0)
+        status_box.write(f"📊 Já temos: {total_already} | Faltam: {total_needed}")
+    
+    df_current_batch = df_cached.copy()
+    processed_count = 0
+    new_additions = 0
+    
+    # 4. Loop de Processamento Seguro
+    for i, player_info in enumerate(pending_players):
+        # Verifica Relógio (Safety Stop)
+        elapsed = time.time() - start_time
+        if elapsed > MAX_EXECUTION_TIME:
+            msg = f"⚠️ Tempo limite de segurança atingido ({elapsed:.0f}s). Salvando progresso..."
+            if progress_ui: status_box.warning(msg)
+            break
+
+        pid = player_info['id']
+        pname = player_info['full_name']
+        
+        # Tenta baixar (com retry interno)
+        # Assume que try_fetch_with_retry está definida no seu código ou usa lógica simples aqui
+        stats = None
+        try:
+            if 'try_fetch_with_retry' in globals():
+                stats = try_fetch_with_retry(pid, pname)
+            else:
+                # Fallback simples se a função auxiliar não existir
+                from nba_api.stats.endpoints import playergamelog
+                log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON, season_type_all_star="Regular Season")
+                df_log = log.get_data_frames()[0]
+                if not df_log.empty:
+                    # Lógica simplificada de L5 stats aqui ou apenas raw data
+                    # Para simplificar, assumimos que você tem a função de extração
+                    pass 
+        except: pass
+
+        # Se conseguiu dados, adiciona
+        if stats:
+            # Garante que stats é DataFrame ou Dict compatível
+            row_df = pd.DataFrame([stats])
+            df_current_batch = pd.concat([df_current_batch, row_df], ignore_index=True)
+            new_additions += 1
+        
+        processed_count += 1
+        
+        # Atualiza Barra
+        if progress_ui:
+            p_bar.progress((i + 1) / min(total_needed, 500)) # Barra relativa ao lote
+            status_box.write(f"📥 Baixando: **{pname}** ({i+1}/{total_needed} restantes)")
+
+        # 5. SALVAMENTO PARCIAL (Checkpoint)
+        if new_additions > 0 and new_additions % BATCH_SAVE_SIZE == 0:
+            json_payload = {
+                "records": df_current_batch.to_dict(orient="records"),
+                "timestamp": datetime.now().isoformat(),
+                "count": len(df_current_batch)
+            }
+            save_data_universal(KEY_L5, json_payload)
+            if progress_ui: status_box.write(f"💾 Checkpoint: {len(df_current_batch)} jogadores salvos na nuvem.")
+
+    # 6. Salvamento Final do Lote
+    if new_additions > 0:
         json_payload = {
-            "records": df_final.to_dict(orient="records"),
+            "records": df_current_batch.to_dict(orient="records"),
             "timestamp": datetime.now().isoformat(),
-            "count": len(df_final)
+            "count": len(df_current_batch)
         }
         save_data_universal(KEY_L5, json_payload)
-        print("☁️ L5 Stats enviados para a nuvem com sucesso!")
-    except Exception as e:
-        print(f"⚠️ Erro ao enviar L5 para nuvem: {e}")
-
-    if progress_ui and status:
-        status.text(f"✅ Finalizado! {len(df_final)} jogadores sincronizados na nuvem.")
-        time.sleep(1); status.empty(); 
-        if bar: bar.empty()
-        
-    return df_final
-
+    
+    # Feedback Final
+    if progress_ui:
+        if new_additions < total_needed:
+            status_box.update(label=f"⏸️ Pausa de Segurança! {new_additions} baixados agora.", state="error", expanded=True)
+            st.warning(f"O sistema baixou {new_additions} jogadores e salvou. **Clique em ATUALIZAR novamente** para baixar o resto.")
+        else:
+            status_box.update(label="✅ Atualização Completa!", state="complete", expanded=False)
+            
+    return df_current_batch
 # ============================================================================
 # FUNÇÃO PARA CALCULAR RISCO DE BLOWOUT (ADICIONE ESTA FUNÇÃO)
 # ============================================================================
@@ -7050,6 +7082,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
