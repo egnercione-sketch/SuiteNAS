@@ -666,27 +666,45 @@ def normalize_team(team_code):
     return TEAM_NORMALIZATION_MAP.get(code, code)
 
 # ============================================================================
-# CLASSE TRINITY ENGINE (CORRIGIDA - NOME DO MÉTODO)
+# 1. TRADUTOR UNIVERSAL (CONSTANTES E MAPAS)
+# ============================================================================
+TEAM_NORMALIZATION_MAP = {
+    "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
+    "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
+    "LA": "LAL", "CHO": "CHA"
+}
+
+def normalize_team(team_code):
+    """Padroniza siglas de times para evitar erros de comparação"""
+    if not team_code: return ""
+    code = str(team_code).upper().strip()
+    return TEAM_NORMALIZATION_MAP.get(code, code)
+
+# ============================================================================
+# 2. CLASSE TRINITY ENGINE (CORRIGIDA: KEYERROR 'OPP')
 # ============================================================================
 class TrinityEngine:
+    """
+    Motor de Consistência (Club 5/Club 7).
+    """
     def __init__(self, logs_cache, scoreboard):
         self.logs = logs_cache
         self.scoreboard = scoreboard
 
-    # CORREÇÃO: Renomeado de analyze_market para scan_market e aceita 'window'
     def scan_market(self, window=5):
         candidates = []
         
         for p_name, data in self.logs.items():
             team = normalize_team(data.get('team'))
+            if not team: continue
+
+            # 1. Identifica o Oponente (CRUCIAL PARA O FRONT-END NÃO QUEBRAR)
+            opp = self._get_opponent(team)
             
-            # Filtro de jogo (se houver scoreboard)
-            if self.scoreboard:
-                teams_playing = set()
-                for g in self.scoreboard:
-                    teams_playing.add(normalize_team(g.get('home')))
-                    teams_playing.add(normalize_team(g.get('away')))
-                if team not in teams_playing: continue
+            # Se houver scoreboard, filtra quem não joga.
+            # Se scoreboard vazio (teste), permite passar (opp será None ou simulado)
+            if self.scoreboard and not opp:
+                continue
 
             # Analisa Stats (AST, REB, PTS)
             logs = data.get('logs', {})
@@ -694,39 +712,54 @@ class TrinityEngine:
                 values = logs.get(stat, [])
                 if len(values) < window: continue
                 
-                # Pega a janela solicitada (ex: últimos 5 jogos)
                 recent = values[:window]
                 avg = sum(recent) / window
                 
-                # Critério Básico para Trinity: Consistência
-                # Ex: Bateu a meta em 80% dos últimos 5 jogos
-                # (Aqui usamos uma lógica simplificada para não quebrar)
+                # Regra de Ouro Trinity: Consistência
                 floor = avg * 0.8
                 hit_rate = sum(1 for x in recent if x >= floor) / window
                 
-                if hit_rate >= 0.8 and avg > 5: # Filtra bagres
+                # Filtros de Qualidade (Evita bagres)
+                min_avg = 5.0 if stat != 'PTS' else 12.0
+                
+                if hit_rate >= 0.8 and avg >= min_avg:
                     candidates.append({
                         "player": p_name,
                         "team": team,
+                        "opp": opp if opp else "N/A", # <--- CORREÇÃO DO KEYERROR
                         "stat": stat,
                         "metric": f"{int(hit_rate*100)}% L{window}",
                         "value": avg,
                         "last_5": recent
                     })
         
-        # Retorna lista ordenada e um dict vazio (para compatibilidade)
         return sorted(candidates, key=lambda x: x['value'], reverse=True)
-        
+
+    def _get_opponent(self, team):
+        """Helper interno para achar o oponente no scoreboard"""
+        if not self.scoreboard: return None
+        target = normalize_team(team)
+        for g in self.scoreboard:
+            h = normalize_team(g.get('home'))
+            a = normalize_team(g.get('away'))
+            if h == target: return a
+            if a == target: return h
+        return None
+
 # ============================================================================
-# CLASSE NEXUS ENGINE (V5.1 - FAIL-OPEN & DEBUG)
+# 3. CLASSE NEXUS ENGINE (V5.2 - FIXO E ROBUSTO)
 # ============================================================================
 class NexusEngine:
+    """
+    Motor de Inteligência Contextual (SGP + Vácuo).
+    Focado na convergência de fatores: Lesão + Arquétipo + Pace + DvP.
+    """
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
         self.games = games
         self.player_ids = self._load_photo_map()
         
-        # Consultores
+        # Carregamento Seguro dos Consultores
         self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
         self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
         self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
@@ -750,18 +783,14 @@ class NexusEngine:
     def run_nexus_scan(self):
         opportunities = []
         
-        # Debug rápido: Se não tiver jogos, avisa
-        if not self.games:
-            # print("⚠️ Nexus: Scoreboard vazio. Ativando modo 'Todos Jogam'.")
-            pass
-
-        # 1. SCANNER SGP
+        # 1. SCANNER SGP (ECOSSISTEMA SIMBIÓTICO)
         opportunities.extend(self._scan_sgp_protocol())
 
-        # 2. SCANNER VÁCUO
+        # 2. SCANNER VÁCUO (PREDADOR VS FERIDO)
         if self.injury_monitor:
             opportunities.extend(self._scan_vacuum_protocol())
         
+        # Retorna ordenado pelo Score
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
     def _scan_sgp_protocol(self):
@@ -769,55 +798,56 @@ class NexusEngine:
         for p_name, data in self.logs.items():
             team = normalize_team(data.get('team'))
             
-            # FILTRO DE JOGO: Se não estiver jogando, pula.
-            if not self._is_team_playing(team): continue
+            # Se temos jogos carregados, verifica se o time joga
+            if self.games and not self._is_team_playing(team): continue
 
-            # 1. Identificar Motor
+            # 1. Motor (Garçom)
             avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue # Baixei para 6.0 para teste
+            if avg_ast < 6.0: continue
 
-            # 2. Identificar Parceiro
+            # 2. Parceiro (Sinergia)
             partner_name = None
             if self.sinergy:
-                partner_name, _ = self.sinergy.analyze_synergy(p_name, team, self.logs)
+                # Tenta achar via engine
+                try: partner_name, _ = self.sinergy.analyze_synergy(p_name, team, self.logs)
+                except: pass
             
+            # Fallback estatístico
             if not partner_name:
                 partner_name, _ = self._find_statistical_partner(team, p_name)
 
             if not partner_name: continue
 
             # --- SCORE SGP ---
-            score = 0
+            score = 30 # Base
             badges = []
 
-            # Base (+30)
-            score += 30 
+            # Qualidade da Dupla (+20)
+            p_pts = self._get_avg_stat(partner_name, 'PTS')
+            if avg_ast > 8.0 or p_pts > 20: score += 20
             
-            # Qualidade (+20)
-            partner_avg_pts = self._get_avg_stat(partner_name, 'PTS')
-            if avg_ast > 8.5 or partner_avg_pts > 22: score += 20
-            
-            # Pace (+10)
+            # Contexto Externo
             opp = self._get_opponent(team)
-            if self.pace_adjuster and opp:
-                try:
-                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                    if pace >= 100:
-                        score += 10
-                        badges.append(f"🏎️ Pace: {int(pace)}")
-                except: pass
+            if opp:
+                # Pace (+10)
+                if self.pace_adjuster:
+                    try:
+                        pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                        if pace >= 100: 
+                            score += 10
+                            badges.append(f"🏎️ Pace: {int(pace)}")
+                    except: pass
+                
+                # DvP (+20)
+                if self.dvp_analyzer:
+                    try:
+                        rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                        if rank >= 18:
+                            score += 20
+                            badges.append("🛡️ DvP Favorável")
+                    except: pass
 
-            # DvP (+20)
-            if self.dvp_analyzer and opp:
-                try:
-                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                    if rank >= 18:
-                        score += 20
-                        badges.append("🛡️ DvP Favorável")
-                except: pass
-
-            # SGP sempre entra se tiver sinergy, mas filtramos na view
-            if score >= 60: 
+            if score >= 60:
                 found.append({
                     "type": "SGP",
                     "title": "ECOSSISTEMA SIMBIÓTICO",
@@ -831,20 +861,24 @@ class NexusEngine:
 
     def _scan_vacuum_protocol(self):
         found = []
-        teams_playing = self._get_teams_playing()
         
-        # Se não tiver times no scoreboard, varre todos os times do cache (Modo Teste)
-        if not teams_playing:
-            teams_playing = list(set([normalize_team(d.get('team')) for d in self.logs.values() if d.get('team')]))
+        # Lista de times para analisar
+        teams_to_scan = self._get_teams_playing()
+        # Se lista vazia (erro ou teste), varre todos do cache
+        if not teams_to_scan:
+            teams_to_scan = list(set([normalize_team(d['team']) for d in self.logs.values() if d.get('team')]))
 
         target_positions = ['C', 'FC', 'CF', 'PF', 'F-C']
 
-        for rival_team in teams_playing:
-            # 1. Injury Check
+        for rival_team in teams_to_scan:
+            # 1. Checa Lesões no Rival
             try:
+                # Tenta pegar original e normalizado
                 injuries = self.injury_monitor.get_team_injuries(rival_team)
             except: continue
             
+            if not injuries: continue
+
             big_man_out = False
             villain_name = ""
             
@@ -854,6 +888,7 @@ class NexusEngine:
                     pos = str(inj.get('position', '')).upper()
                     name = inj.get('name', '')
                     
+                    # Verifica se é Big
                     is_big = any(x in pos for x in target_positions)
                     if not is_big and name in self.logs:
                         if any(x in self.logs[name].get('position','') for x in target_positions):
@@ -866,43 +901,45 @@ class NexusEngine:
             
             if not big_man_out: continue
 
-            # 2. Find Predator
+            # 2. Acha o Predador (Nosso Pivô)
             our_team = self._get_opponent(rival_team)
-            
-            # Se não tem oponente (ex: dados históricos), pula ou simula
+            # Se não achou oponente (modo teste), pula esta iteração específica
             if not our_team: continue 
             
             hero_name = self._find_best_rebounder(our_team)
             if not hero_name: continue
 
             # --- SCORE VACUUM ---
-            score = 0
-            score += 30 # Lesão confirmada
+            score = 30 # Base (Lesão confirmada)
             
             avg_reb = self._get_avg_stat(hero_name, 'REB')
             
-            # Archetype
+            # Archetype / Stat (+20)
             if avg_reb >= 9.0: score += 20
-            elif avg_reb < 7.0: continue
+            elif avg_reb < 7.0: continue # Não é predador
 
-            # Pace
+            # Pace (+10)
             if self.pace_adjuster:
                 try:
                     pace = self.pace_adjuster.calculate_game_pace(our_team, rival_team)
                     if pace >= 100: score += 10
                 except: pass
 
-            # DvP
+            # DvP (+20)
             if self.dvp_analyzer:
                 try:
                     rank = self.dvp_analyzer.get_position_rank(rival_team, "C")
                     if rank >= 18: score += 20
                 except: pass
             
+            # Impacto
             impact_msg = f"{rival_team} perde proteção de aro sem {villain_name}"
             if self.vacuum_matrix:
                 try:
-                    impact_msg = f"VacuumMatrix: Ausência de {villain_name} gera +15% REB opp"
+                    # Simula roster simples
+                    roster = [{"name": n, "status": "Active"} for n,d in self.logs.items() if normalize_team(d.get('team')) == rival_team]
+                    report = self.vacuum_matrix.analyze_team_vacuum(roster, rival_team)
+                    if report: impact_msg = f"VacuumMatrix: Ausência de {villain_name} abre +15% rebotes"
                 except: pass
 
             if score >= 60:
@@ -923,7 +960,7 @@ class NexusEngine:
 
         return found
 
-    # --- AUXILIARES ---
+    # --- AUXILIARES ESTRUTURAIS ---
     def _get_avg_stat(self, player, stat):
         data = self.logs.get(player, {})
         vals = data.get('logs', {}).get(stat, [])
@@ -931,9 +968,7 @@ class NexusEngine:
         return sum(vals[:10]) / len(vals[:10])
 
     def _is_team_playing(self, team):
-        # MODO FAIL-OPEN: Se scoreboard estiver vazio, retorna True (todos jogam)
-        # Isso corrige o problema de "Nenhum resultado encontrado" em testes
-        if not self.games: return True
+        if not self.games: return True # Modo Teste
         return team in self._get_teams_playing()
 
     def _get_teams_playing(self):
@@ -945,7 +980,7 @@ class NexusEngine:
         return list(teams)
 
     def _get_opponent(self, team):
-        if not self.games: return None # Sem scoreboard, sem oponente
+        if not self.games: return None
         target = normalize_team(team)
         for g in self.games:
             h = normalize_team(g.get('home'))
@@ -7265,6 +7300,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
