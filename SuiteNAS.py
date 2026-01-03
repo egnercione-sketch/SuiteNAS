@@ -560,7 +560,7 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - AGRUPADA & SAFE RENDER)
+# STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - CORRIGIDA)
 # ============================================================================
 import os
 import json
@@ -577,12 +577,13 @@ class FiveSevenTenEngine:
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
-                    # Normaliza nomes no dicionário para busca agnóstica a acentos
+                    # Normaliza nomes no dicionário
                     self.player_ids = {self._normalize_name(k): v for k, v in raw_data.items()}
-            except: pass
+            except:
+                pass
 
     def _normalize_name(self, name):
-        """Remove acentos para padronizar buscas (Luka Dončić -> Luka Doncic)"""
+        """Remove acentos para padronizar buscas"""
         if not name: return ""
         return ''.join(c for c in unicodedata.normalize('NFD', name) if unicodedata.category(c) != 'Mn')
 
@@ -611,7 +612,7 @@ class FiveSevenTenEngine:
         clean_name = self._normalize_name(player_name)
         pid = self.player_ids.get(clean_name)
         
-        # Tentativa de fallback (Primeiro + Último nome)
+        # Tentativa de fallback
         if not pid:
             parts = clean_name.split()
             if len(parts) >= 2: 
@@ -642,7 +643,7 @@ class FiveSevenTenEngine:
             diagnostics["playing_today"] += 1
             logs = data.get('logs', {})
             
-            # Identifica Estrelas (Média > 20 pts)
+            # Identifica Estrelas
             avg_pts = 0
             if 'PTS' in logs and len(logs['PTS']) > 0:
                 avg_pts = sum(logs['PTS'][:10]) / len(logs['PTS'][:10])
@@ -658,24 +659,21 @@ class FiveSevenTenEngine:
                 l25 = values[:25]
                 total = len(l25)
                 
-                # Cálculos de Percentual
                 pct_5 = (sum(1 for x in l25 if x >= 5) / total) * 100
                 pct_7 = (sum(1 for x in l25 if x >= 7) / total) * 100
                 pct_10 = (sum(1 for x in l25 if x >= 10) / total) * 100
 
-                # Critérios de Corte (Relaxados para Estrelas e Assists)
+                # Critérios
                 min_safe = 40 if is_star else 50
                 min_explosion = 5 if stat_type == 'AST' else 8
 
                 if pct_5 >= min_safe and pct_10 >= min_explosion:
                     
-                    # Define Arquétipo
                     arch = "GLUE GUY"
                     if is_star: arch = "⭐ SUPERSTAR"
                     elif pct_10 > 25: arch = "DYNAMITE 🧨"
                     elif pct_5 > 85 and pct_10 < 15: arch = "RELOGINHO 🕰️"
                     
-                    # Lógica de Agrupamento
                     if player_name not in grouped_candidates:
                         grouped_candidates[player_name] = {
                             "player": player_name,
@@ -687,13 +685,11 @@ class FiveSevenTenEngine:
                             "stats": []
                         }
                     
-                    # Atualiza Rank (Prioridade: Superstar > Dynamite > Glue)
                     current_rank = 3 if "SUPERSTAR" in arch else (2 if "DYNAMITE" in arch else 1)
                     if current_rank > grouped_candidates[player_name]["archetype_rank"]:
                         grouped_candidates[player_name]["archetype_rank"] = current_rank
                         grouped_candidates[player_name]["archetype_display"] = arch
 
-                    # Adiciona estatística ao grupo
                     grouped_candidates[player_name]["stats"].append({
                         "type": stat_type,
                         "metrics": {"Safe": int(pct_5), "Target": int(pct_7), "Ceiling": int(pct_10)}
@@ -701,7 +697,6 @@ class FiveSevenTenEngine:
                 else:
                     diagnostics["failed_criteria"] += 1
 
-        # Transforma em lista e ordena
         final_list = list(grouped_candidates.values())
         return sorted(final_list, key=lambda x: (x['archetype_rank'], x['stats'][0]['metrics']['Ceiling']), reverse=True), diagnostics
 
@@ -710,18 +705,21 @@ def show_5_7_10_page():
     import json
     import os
     
-    # Função auxiliar local para carregar JSON sem erro
+    # Função auxiliar local corrigida (Indentação OK)
     def local_load(fp):
         if os.path.exists(fp):
-            try: with open(fp,"r",encoding="utf-8") as f: return json.load(f)
-            except: return {}
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                return {}
         return {}
 
     # Caminho correto do cache
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or {}
     
-    # Fallback se não encontrar na pasta cache
+    # Fallback
     if not full_cache: 
         full_cache = local_load("real_game_logs.json") or {}
 
@@ -732,17 +730,15 @@ def show_5_7_10_page():
     st.header("🎯 Strategy 5 / 7 / 10")
     st.caption("Scanner de Glue Guys & Estrelas (Agrupado por Jogador). Base L25.")
 
-    # Diagnóstico para Debug (Oculto se tudo estiver OK)
     if not opportunities and diag["playing_today"] == 0:
          st.warning("⚠️ O Scoreboard parece vazio ou desatualizado. Por favor, vá em Config > Atualizar.")
          return
 
-    # --- 2. CSS (LAYOUT FLEXBOX) ---
+    # --- 2. CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
         
-        /* Container Principal do Card */
         .card-container {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
             border-left: 5px solid #3b82f6;
@@ -753,42 +749,19 @@ def show_5_7_10_page():
             display: flex;
             align-items: flex-start;
         }
-        
-        /* Coluna da Esquerda (Foto + Nome) */
         .profile-box {
-            width: 30%;
-            min-width: 150px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding-right: 10px;
-            border-right: 1px solid rgba(255,255,255,0.05);
+            width: 30%; min-width: 150px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+            padding-right: 10px; border-right: 1px solid rgba(255,255,255,0.05);
         }
         .player-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; margin-bottom: 5px; }
         .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.2; }
         .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
         .p-arch { font-size: 9px; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; background: rgba(255,255,255,0.1); }
         
-        /* Coluna da Direita (Lista de Stats) */
-        .stats-box {
-            flex-grow: 1;
-            padding-left: 15px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 8px; /* Espaço entre linhas de stat */
-        }
+        .stats-box { flex-grow: 1; padding-left: 15px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+        .stat-row { display: flex; align-items: center; width: 100%; }
         
-        /* Linha de Estatística Individual */
-        .stat-row {
-            display: flex;
-            align-items: center;
-            width: 100%;
-        }
-        
-        /* Badge (AST/REB) */
         .stat-badge {
             width: 35px; font-size: 10px; font-weight: bold; color: #1e293b; 
             background: #94a3b8; text-align: center; border-radius: 4px; 
@@ -797,7 +770,6 @@ def show_5_7_10_page():
         .stat-badge.ast { background: #38bdf8; }
         .stat-badge.reb { background: #f472b6; }
         
-        /* Escada de Barras */
         .ladder-wrapper { flex-grow: 1; display: flex; gap: 8px; justify-content: space-between; }
         .step-item { width: 32%; }
         .bar-container { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 2px; }
@@ -805,38 +777,32 @@ def show_5_7_10_page():
         .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 12px; font-weight: bold; color: #fff; text-align: right; }
         .step-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
 
-        /* Cores */
         .bg-safe { background: #4ade80; }
         .bg-target { background: #facc15; }
         .bg-ceiling { background: #f87171; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. RENDERIZAÇÃO LOOP (CONSTRUÇÃO SEGURA DE HTML) ---
+    # --- 3. RENDERIZAÇÃO ---
     filter_opt = st.radio("Filtro:", ["TODOS", "SÓ DUPLOS (AST+REB)"], horizontal=True)
     
     for p in opportunities:
         stats = p['stats']
         
-        # Filtro de visualização: Pula se quiser só duplos e o jogador só tiver 1
         if filter_opt == "SÓ DUPLOS (AST+REB)" and len(stats) < 2:
             continue
 
-        # Definição de Cor da Borda
         border_color = "#3b82f6"
         if "DYNAMITE" in p['archetype_display']: border_color = "#f87171"
         if "SUPERSTAR" in p['archetype_display']: border_color = "#D4AF37"
 
-        # --- CONSTRUÇÃO DO HTML DAS STATS (Passo Crucial) ---
-        # Montamos a string HTML das estatísticas fora da string principal para evitar erros
+        # Constrói HTML das Stats
         stats_html_block = ""
-        
         for s in stats:
             s_type = s['type']
             m = s['metrics']
             badge_cls = s_type.lower()
             
-            # HTML da Linha
             row_html = f"""
             <div class="stat-row">
                 <div class="stat-badge {badge_cls}">{s_type}</div>
@@ -861,7 +827,7 @@ def show_5_7_10_page():
             """
             stats_html_block += row_html
 
-        # --- CONSTRUÇÃO DO CARD FINAL ---
+        # Constrói Card Final
         full_card_html = f"""
         <div class="card-container" style="border-left-color: {border_color};">
             <div class="profile-box">
@@ -6611,6 +6577,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
