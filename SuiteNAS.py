@@ -560,6 +560,181 @@ def initialize_features():
     return features_status
 
 # ============================================================================
+# FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
+# ============================================================================
+def render_trinity_table(members, label_suffix="L10"):
+    """Renderiza a tabela visual v7 com CSS forçado para estabilidade."""
+    if not members:
+        st.info(f"Nenhum jogador encontrado para o critério {label_suffix}.")
+        return
+
+    # Agrupamento por Jogador
+    grouped_members = {}
+    for m in members:
+        p_name = m['player']
+        if p_name not in grouped_members:
+            grouped_members[p_name] = { 'meta': m, 'stats': [] }
+        grouped_members[p_name]['stats'].append(m)
+
+    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+    
+    # Loop de Jogadores
+    for p_name, data in grouped_members.items():
+        meta = data['meta']
+        stats_list = data['stats']
+        
+        team_code = meta['team'].lower()
+        # Correções de Logo
+        if team_code == "uta": team_code = "utah"
+        if team_code == "nop": team_code = "no"
+        if team_code == "phx": team_code = "pho"
+        if team_code == "was": team_code = "wsh"
+        logo_url = f"{logo_base}/{team_code}.png"
+
+        # Colunas Mestre (Identidade vs Dados)
+        col_id, col_content = st.columns([2.2, 7.8])
+        
+        # ESQUERDA: Identidade
+        with col_id:
+            st.markdown(f"""
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; padding-top:8px;">
+                <img src="{logo_url}" style="width:32px; height:32px; object-fit:contain; opacity: 0.9; margin-bottom:5px;">
+                <div class="trin-name">{p_name}</div>
+                <div class="trin-matchup">{meta['team']} vs {meta['opp']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # DIREITA: Dados
+        with col_content:
+            for idx, stat_item in enumerate(stats_list):
+                venue_txt = "CASA" if "vs" in stat_item['game_str'] else "FORA"
+                venue_icon = "🏠" if "vs" in stat_item['game_str'] else "✈️"
+                
+                # Colunas Internas (Layout Fixo)
+                # [Forma 2.2] [Local 2.2] [H2H 2.2] [ALVO 3.4]
+                c1, c2, c3, c4 = st.columns([2.2, 2.2, 2.2, 3.4])
+                
+                with c1:
+                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>FORMA {label_suffix}</span><span class='stat-val'>{int(stat_item['floors']['Form'])}</span></div>", unsafe_allow_html=True)
+                with c2:
+                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>{venue_icon} {venue_txt}</span><span class='stat-val'>{int(stat_item['floors']['Venue'])}</span></div>", unsafe_allow_html=True)
+                with c3:
+                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>H2H</span><span class='stat-val'>{int(stat_item['floors']['H2H'])}</span></div>", unsafe_allow_html=True)
+                
+                with c4:
+                    st.markdown(f"""
+                    <div style="text-align:center;">
+                        <div class="target-pill">
+                            <div class="target-val">{stat_item['line']}+</div>
+                            <div class="target-sub">{stat_item['stat']}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Separador sutil entre linhas do mesmo jogador
+                if idx < len(stats_list) - 1:
+                    st.markdown("<div class='thin-sep' style='opacity:0.3; margin: 5px 0;'></div>", unsafe_allow_html=True)
+
+        # Separador entre jogadores (Dourado sutil)
+        st.markdown("<div class='thin-sep' style='background: linear-gradient(90deg, transparent, #D4AF37, transparent); opacity:0.4;'></div>", unsafe_allow_html=True)
+
+
+# ============================================================================
+# PÁGINA PRINCIPAL (CSS CORRIGIDO COM !IMPORTANT)
+# ============================================================================
+def show_trinity_club_page():
+    full_cache = load_json(LOGS_CACHE_FILE) or {}
+    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
+        st.warning("⚠️ Scoreboard vazio. Vá em Config > Atualizar.")
+        return
+
+    engine = TrinityEngine(full_cache, st.session_state.scoreboard)
+
+    st.header("🏆 Trinity Club")
+    st.caption("Analise a consistência dos jogadores em 3 horizontes temporais diferentes.")
+
+    # --- CSS GLOBAL (Blindado com !important) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
+        
+        /* Glossário & Layout */
+        .glossary-box {
+            background: rgba(255, 255, 255, 0.03); border-radius: 6px; padding: 8px 15px; margin-bottom: 20px;
+            font-family: 'Inter', sans-serif; font-size: 10px; color: #64748B; display: flex; justify-content: space-between; border-left: 3px solid #D4AF37;
+        }
+        .glossary-item { display: flex; align-items: center; gap: 5px; }
+        .gloss-icon { color: #D4AF37; font-weight: 600; }
+        .thin-sep { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 10px 0; }
+        
+        /* Identidade */
+        .trin-name { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 14px !important; /* Forçado */
+            color: #F8FAFC; font-weight: 500; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px; 
+        }
+        .trin-matchup { font-size: 10px !important; color: #64748B; margin-top: 2px; }
+        
+        /* ESTATÍSTICAS (Fonte Fixada) */
+        .stat-group { display: flex; flex-direction: column; }
+        .stat-lbl { 
+            font-family: 'Inter', sans-serif; 
+            font-size: 9px !important; 
+            color: #64748B; text-transform: uppercase; margin-bottom: 2px; 
+        }
+        .stat-val { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 16px !important; /* AQUI ESTAVA O PROBLEMA - Agora travado em 16px */
+            color: #10B981; 
+            font-weight: 500; 
+        }
+        
+        /* ALVO */
+        .target-pill { 
+            background: rgba(212, 175, 55, 0.1); border-radius: 6px; padding: 4px 12px; 
+            display: inline-block; text-align: center; border: 1px solid rgba(212, 175, 55, 0.15); 
+        }
+        .target-val { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 18px !important; /* Forçado */
+            color: #D4AF37; font-weight: 600; line-height: 1.1; 
+        }
+        .target-sub { 
+            font-size: 9px !important; 
+            color: #D4AF37; opacity: 0.8; font-weight: 600; 
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="glossary-box">
+        <div class="glossary-item"><span class="gloss-icon">📊 FORMA</span> Piso da Janela</div>
+        <div class="glossary-item"><span class="gloss-icon">🏠 LOCAL</span> Piso Casa/Fora</div>
+        <div class="glossary-item"><span class="gloss-icon">⚔️ H2H</span> Piso Vs Opp</div>
+        <div class="glossary-item"><span class="gloss-icon">🛡️ ALVO</span> Meta Segura</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- ABAS DE NAVEGAÇÃO ---
+    tab_l5, tab_l10, tab_l15 = st.tabs(["🔥 L5 (Momentum)", "⚖️ L10 (Padrão)", "🏛️ L15 (Sólido)"])
+    
+    with tab_l5:
+        # window=5 -> Engine calcula piso dos últimos 5
+        members_l5 = engine.scan_market(window=5)
+        render_trinity_table(members_l5, "L5")
+        
+    with tab_l10:
+        # window=10 -> Engine calcula piso dos últimos 10
+        members_l10 = engine.scan_market(window=10)
+        render_trinity_table(members_l10, "L10")
+        
+    with tab_l15:
+        # window=15 -> Engine calcula piso dos últimos 15
+        members_l15 = engine.scan_market(window=15)
+        render_trinity_table(members_l15, "L15")
+
+        
+# ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - CORRIGIDA)
 # ============================================================================
 import os
@@ -6232,6 +6407,7 @@ def main():
         "🎯 Hit Prop Hunter",
         "🎯 Strategy 5/7/10",
         "🔄 Mapa de Rotações",
+        "🏆 Trinity Club":,
         "🌪️ Blowout Hunter",
         "⚔️ Lab Narrativas",
         "🔥 Las Vegas Sync",
@@ -6521,17 +6697,24 @@ def main():
     # ============================================================================
     elif choice == "📋 Auditoria":
         show_audit_page()
+
     # ============================================================================
-    # CONFIG
+    # TRINITY
+    # ============================================================================
+    elif choice == "🏆 Trinity Club":
+        show_5_7_10_page() 
+    
+    # ============================================================================
+    # 5/7/10
     # ============================================================================
     elif choice == "🎯 Strategy 5/7/10":
-        show_5_7_10_page() # LIMPO E UNIFICADO!
+        show_5_7_10_page() 
         
     # ============================================================================
     # CONFIG
     # ============================================================================
     elif choice == "⚙️ Config":
-        show_config_page() # LIMPO E UNIFICADO!
+        show_config_page()
         
 # ============================================================================
 # EXECUÇÃO PRINCIPAL
@@ -6539,6 +6722,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
