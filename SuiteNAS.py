@@ -767,278 +767,10 @@ class TrinityEngine:
 
 
 
-# ============================================================================
-# 3. CLASSE NEXUS ENGINE (V5.2 - FIXO E ROBUSTO)
-# ============================================================================
-class NexusEngine:
-    """
-    Motor de Inteligência Contextual (SGP + Vácuo).
-    Focado na convergência de fatores: Lesão + Arquétipo + Pace + DvP.
-    """
-    def __init__(self, logs_cache, games):
-        self.logs = logs_cache
-        self.games = games
-        self.player_ids = self._load_photo_map()
-        
-        # Carregamento Seguro dos Consultores
-        self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
-        self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
-        self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
-        self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
-        self.sinergy = SinergyEngine() if SINERGY_ENGINE_AVAILABLE else None
-        self.archetype = ArchetypeEngine() if 'ArchetypeEngine' in globals() and ArchetypeEngine else None
-
-    def _load_photo_map(self):
-        if os.path.exists("nba_players_map.json"):
-            try:
-                with open("nba_players_map.json", "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except: pass
-        return {}
-
-    def get_photo(self, name):
-        pid = self.player_ids.get(name)
-        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-
-    def run_nexus_scan(self):
-        opportunities = []
-        
-        # 1. SCANNER SGP (ECOSSISTEMA SIMBIÓTICO)
-        opportunities.extend(self._scan_sgp_protocol())
-
-        # 2. SCANNER VÁCUO (PREDADOR VS FERIDO)
-        if self.injury_monitor:
-            opportunities.extend(self._scan_vacuum_protocol())
-        
-        # Retorna ordenado pelo Score
-        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
-
-    def _scan_sgp_protocol(self):
-        found = []
-        for p_name, data in self.logs.items():
-            team = normalize_team(data.get('team'))
-            
-            # Se temos jogos carregados, verifica se o time joga
-            if self.games and not self._is_team_playing(team): continue
-
-            # 1. Motor (Garçom)
-            avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue
-
-            # 2. Parceiro (Sinergia)
-            partner_name = None
-            if self.sinergy:
-                # Tenta achar via engine
-                try: partner_name, _ = self.sinergy.analyze_synergy(p_name, team, self.logs)
-                except: pass
-            
-            # Fallback estatístico
-            if not partner_name:
-                partner_name, _ = self._find_statistical_partner(team, p_name)
-
-            if not partner_name: continue
-
-            # --- SCORE SGP ---
-            score = 30 # Base
-            badges = []
-
-            # Qualidade da Dupla (+20)
-            p_pts = self._get_avg_stat(partner_name, 'PTS')
-            if avg_ast > 8.0 or p_pts > 20: score += 20
-            
-            # Contexto Externo
-            opp = self._get_opponent(team)
-            if opp:
-                # Pace (+10)
-                if self.pace_adjuster:
-                    try:
-                        pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                        if pace >= 100: 
-                            score += 10
-                            badges.append(f"🏎️ Pace: {int(pace)}")
-                    except: pass
-                
-                # DvP (+20)
-                if self.dvp_analyzer:
-                    try:
-                        rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                        if rank >= 18:
-                            score += 20
-                            badges.append("🛡️ DvP Favorável")
-                    except: pass
-
-            if score >= 60:
-                found.append({
-                    "type": "SGP",
-                    "title": "ECOSSISTEMA SIMBIÓTICO",
-                    "score": score,
-                    "color": "#eab308",
-                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": f"{int(avg_ast)}+"},
-                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": "Target"},
-                    "badges": badges + ["🔥 Sinergia Alta"]
-                })
-        return found
-
-    def _scan_vacuum_protocol(self):
-        found = []
-        
-        # Lista de times para analisar
-        teams_to_scan = self._get_teams_playing()
-        # Se lista vazia (erro ou teste), varre todos do cache
-        if not teams_to_scan:
-            teams_to_scan = list(set([normalize_team(d['team']) for d in self.logs.values() if d.get('team')]))
-
-        target_positions = ['C', 'FC', 'CF', 'PF', 'F-C']
-
-        for rival_team in teams_to_scan:
-            # 1. Checa Lesões no Rival
-            try:
-                # Tenta pegar original e normalizado
-                injuries = self.injury_monitor.get_team_injuries(rival_team)
-            except: continue
-            
-            if not injuries: continue
-
-            big_man_out = False
-            villain_name = ""
-            
-            for inj in injuries:
-                status = str(inj.get('status', '')).lower()
-                if 'out' in status:
-                    pos = str(inj.get('position', '')).upper()
-                    name = inj.get('name', '')
-                    
-                    # Verifica se é Big
-                    is_big = any(x in pos for x in target_positions)
-                    if not is_big and name in self.logs:
-                        if any(x in self.logs[name].get('position','') for x in target_positions):
-                            is_big = True
-                    
-                    if is_big:
-                        big_man_out = True
-                        villain_name = name
-                        break
-            
-            if not big_man_out: continue
-
-            # 2. Acha o Predador (Nosso Pivô)
-            our_team = self._get_opponent(rival_team)
-            # Se não achou oponente (modo teste), pula esta iteração específica
-            if not our_team: continue 
-            
-            hero_name = self._find_best_rebounder(our_team)
-            if not hero_name: continue
-
-            # --- SCORE VACUUM ---
-            score = 30 # Base (Lesão confirmada)
-            
-            avg_reb = self._get_avg_stat(hero_name, 'REB')
-            
-            # Archetype / Stat (+20)
-            if avg_reb >= 9.0: score += 20
-            elif avg_reb < 7.0: continue # Não é predador
-
-            # Pace (+10)
-            if self.pace_adjuster:
-                try:
-                    pace = self.pace_adjuster.calculate_game_pace(our_team, rival_team)
-                    if pace >= 100: score += 10
-                except: pass
-
-            # DvP (+20)
-            if self.dvp_analyzer:
-                try:
-                    rank = self.dvp_analyzer.get_position_rank(rival_team, "C")
-                    if rank >= 18: score += 20
-                except: pass
-            
-            # Impacto
-            impact_msg = f"{rival_team} perde proteção de aro sem {villain_name}"
-            if self.vacuum_matrix:
-                try:
-                    # Simula roster simples
-                    roster = [{"name": n, "status": "Active"} for n,d in self.logs.items() if normalize_team(d.get('team')) == rival_team]
-                    report = self.vacuum_matrix.analyze_team_vacuum(roster, rival_team)
-                    if report: impact_msg = f"VacuumMatrix: Ausência de {villain_name} abre +15% rebotes"
-                except: pass
-
-            if score >= 60:
-                found.append({
-                    "type": "VACUUM",
-                    "title": "VÁCUO DE REBOTE",
-                    "score": score,
-                    "color": "#a855f7",
-                    "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "status": "🧨 DYNAMITE"},
-                    "villain": {"name": rival_team, "missing": f"{villain_name} (OUT)", "status": "🚑 DEFESA COMPROMETIDA"},
-                    "ladder": [
-                        f"✅ Base: {int(avg_reb)}+",
-                        f"💰 Alvo: {int(avg_reb+2)}+",
-                        f"🚀 Lua: {int(avg_reb+4)}+"
-                    ],
-                    "impact": impact_msg
-                })
-
-        return found
-
-    # --- AUXILIARES ESTRUTURAIS ---
-    def _get_avg_stat(self, player, stat):
-        data = self.logs.get(player, {})
-        vals = data.get('logs', {}).get(stat, [])
-        if not vals: return 0
-        return sum(vals[:10]) / len(vals[:10])
-
-    def _is_team_playing(self, team):
-        if not self.games: return True # Modo Teste
-        return team in self._get_teams_playing()
-
-    def _get_teams_playing(self):
-        teams = set()
-        if self.games:
-            for g in self.games:
-                teams.add(normalize_team(g.get('home')))
-                teams.add(normalize_team(g.get('away')))
-        return list(teams)
-
-    def _get_opponent(self, team):
-        if not self.games: return None
-        target = normalize_team(team)
-        for g in self.games:
-            h = normalize_team(g.get('home'))
-            a = normalize_team(g.get('away'))
-            if h == target: return a
-            if a == target: return h
-        return None
-
-    def _find_statistical_partner(self, team, exclude):
-        best = None
-        max_pts = 0
-        target_team = normalize_team(team)
-        for name, data in self.logs.items():
-            if normalize_team(data.get('team')) == target_team and name != exclude:
-                val = self._get_avg_stat(name, 'PTS')
-                if val > max_pts:
-                    max_pts = val
-                    best = name
-        return best, max_pts
-
-    def _find_best_rebounder(self, team):
-        best = None
-        max_reb = 0
-        target_team = normalize_team(team)
-        for name, data in self.logs.items():
-            if normalize_team(data.get('team')) == target_team:
-                val = self._get_avg_stat(name, 'REB')
-                if val > max_reb:
-                    max_reb = val
-                    best = name
-        return best
-        
 def show_nexus_page():
     import json
     import os
 
-    # --- CORREÇÃO DA SINTAXE (TRY/WITH SEPARADOS) ---
     def local_load(fp):
         if os.path.exists(fp):
             try:
@@ -1051,10 +783,10 @@ def show_nexus_page():
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or {}
     
-    # 1. Carrega Engine
+    # Engine
     nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
     
-    # 2. UI Header
+    # UI Header
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
         <h1 style="font-family: 'Oswald'; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 PROJECT NEXUS</h1>
@@ -1062,21 +794,26 @@ def show_nexus_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Slider de Controle
-    min_score = st.sidebar.slider("🎚️ Score Mínimo (Régua)", 50, 100, 75)
+    # Slider
+    # IMPORTANTE: Comece baixo para testar
+    min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
 
-    # 4. Executa Scan
+    # Scan
     all_ops = nexus.run_nexus_scan()
     opportunities = [op for op in all_ops if op['score'] >= min_score]
 
+    # DEBUG VISUAL (Remove depois se quiser)
+    if len(all_ops) > 0 and len(opportunities) == 0:
+        st.warning(f"O Nexus encontrou {len(all_ops)} oportunidades, mas todas têm Score abaixo de {min_score}. Baixe a régua!")
+
     if not opportunities:
-        st.info(f"O Nexus não encontrou oportunidades com Score > {min_score} hoje. O mercado está difícil ou a régua está muito alta.")
+        st.info("Nenhuma oportunidade encontrada. Verifique se os logs estão atualizados.")
         return
 
-    # 5. Renderiza Cards
+    # Render Cards
     for op in opportunities:
         
-        # --- CARD SGP (AMARELO - ECOSSISTEMA) ---
+        # --- SGP (AMARELO) ---
         if op['type'] == 'SGP':
             badges_html = "".join([f"<span style='background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px; margin-right:5px; font-size:11px;'>{b}</span>" for b in op['badges']])
             
@@ -1107,7 +844,7 @@ def show_nexus_page():
             </div>
             """, unsafe_allow_html=True)
 
-        # --- CARD VACUUM (ROXO - PREDADOR VS FERIDO) ---
+        # --- VACUUM (ROXO) ---
         else:
             ladder_html = "".join([f"""
                 <div style="display:flex; justify-content:space-between; background:rgba(168, 85, 247, 0.1); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:13px;">
@@ -1122,26 +859,22 @@ def show_nexus_page():
                     <span>🌪️ ALERTA DE VÁCUO</span>
                     <span style="background:#fff; color:#a855f7; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
                 </div>
-                
                 <div style="display:flex; padding:20px; gap:20px;">
                     <div style="width:40%; text-align:center;">
                         <img src="{op['hero']['photo']}" style="width:100px; height:100px; border-radius:10px; border:2px solid #a855f7; object-fit:cover;">
                         <div style="color:#fff; font-weight:bold; font-size:16px; margin-top:8px;">{op['hero']['name']}</div>
                         <div style="color:#a855f7; font-weight:bold; font-size:12px;">{op['hero']['status']}</div>
                     </div>
-                    
                     <div style="width:60%;">
                         <div style="background:rgba(248, 113, 113, 0.15); border:1px solid #f87171; border-radius:8px; padding:10px; margin-bottom:12px;">
                             <div style="color:#f87171; font-weight:bold; font-size:11px; text-transform:uppercase;">🚑 DEFESA COMPROMETIDA</div>
                             <div style="color:#fff; font-weight:bold; font-size:14px;">{op['villain']['missing']}</div>
                             <div style="color:#cbd5e1; font-size:11px;">Time: {op['villain']['name']}</div>
                         </div>
-                        
                         <div style="font-size:11px; color:#94a3b8; font-weight:bold; margin-bottom:5px;">A ESCADA (LADDER):</div>
                         {ladder_html}
                     </div>
                 </div>
-                
                 <div style="background:rgba(255,255,255,0.05); padding:10px 15px; color:#cbd5e1; font-size:12px; display:flex; align-items:center;">
                     📉 <span style="margin-left:5px;">{op['impact']}</span>
                 </div>
@@ -7321,6 +7054,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
