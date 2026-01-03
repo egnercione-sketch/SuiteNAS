@@ -994,10 +994,14 @@ def show_nexus_page():
     import json
     import os
 
+    # --- CORREÇÃO DA SINTAXE (TRY/WITH SEPARADOS) ---
     def local_load(fp):
         if os.path.exists(fp):
-            try: with open(fp,"r",encoding="utf-8") as f: return json.load(f)
-            except: return {}
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                return {}
         return {}
     
     cache_file = os.path.join("cache", "real_game_logs.json")
@@ -1014,8 +1018,8 @@ def show_nexus_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Slider de Controle (Default 80 conforme pedido)
-    min_score = st.sidebar.slider("🎚️ Score Mínimo (Régua)", 50, 100, 75) # Começa em 75 pra ver se aparece, depois suba pra 80
+    # 3. Slider de Controle
+    min_score = st.sidebar.slider("🎚️ Score Mínimo (Régua)", 50, 100, 75)
 
     # 4. Executa Scan
     all_ops = nexus.run_nexus_scan()
@@ -1028,7 +1032,7 @@ def show_nexus_page():
     # 5. Renderiza Cards
     for op in opportunities:
         
-        # --- CARD SGP (AMARELO) ---
+        # --- CARD SGP (AMARELO - ECOSSISTEMA) ---
         if op['type'] == 'SGP':
             badges_html = "".join([f"<span style='background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px; margin-right:5px; font-size:11px;'>{b}</span>" for b in op['badges']])
             
@@ -1059,7 +1063,7 @@ def show_nexus_page():
             </div>
             """, unsafe_allow_html=True)
 
-        # --- CARD VACUUM (ROXO) ---
+        # --- CARD VACUUM (ROXO - PREDADOR VS FERIDO) ---
         else:
             ladder_html = "".join([f"""
                 <div style="display:flex; justify-content:space-between; background:rgba(168, 85, 247, 0.1); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:13px;">
@@ -7273,6 +7277,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
