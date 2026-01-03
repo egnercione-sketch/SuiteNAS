@@ -6675,12 +6675,11 @@ def main():
     # Carregar dados iniciais
     safe_load_initial_data()
  
-# ... (Logo após o bloco de login que corrigimos) ...
-
-    # 1. Recupera as permissões do usuário logado
-    user_perms = user_manager.get_user_permissions(username)
+# ============================================================================
+    # 8. MENU LATERAL (SEM FILTROS - ACESSO TOTAL)
+    # ============================================================================
     
-    # 2. Define a lista completa de opções (Deve ser IGUAL à lista ALL_MODULES da config)
+    # Lista completa de funcionalidades
     FULL_MENU_OPTIONS = [
         "🏠 Dashboard",
         "🏥 Depto Médico",
@@ -6704,29 +6703,19 @@ def main():
         "⚙️ Config"
     ]
 
-    # 3. Lógica de Filtragem
-    if "ALL" in user_perms:
-        # Se for Admin ("ALL"), vê tudo
-        final_menu = FULL_MENU_OPTIONS
-    else:
-        # Se for usuário normal, vê apenas o que está na lista dele
-        final_menu = [opt for opt in FULL_MENU_OPTIONS if opt in user_perms]
+    # Como removemos a auth, o menu final é simplesmente o menu completo
+    final_menu = FULL_MENU_OPTIONS
 
-    # Fallback se o usuário não tiver nada permitido
-    if not final_menu:
-        st.error("Seu usuário não tem permissão para acessar nenhuma aba. Contate o suporte.")
-        st.stop()
-
-    # 4. Renderiza o Menu (Usando a lista filtrada)
+    # Renderiza a Sidebar Limpa (Sem botão de Logout quebrado)
     with st.sidebar:
-        st.write(f"Usuário: **{name}**")
-        if st.button("Sair"):
-            authenticator.logout(location='unrendered') # Força logout
-            st.rerun()
+        # Se a variável 'name' não estiver definida por algum motivo, usa fallback
+        display_name = name if 'name' in locals() and name else "Admin Master"
         
+        st.write(f"👤 **{display_name}**")
+        st.caption("🟢 Sistema Online")
         st.divider()
         
-        # AQUI ESTÁ O TRUQUE: O usuário só vê o 'final_menu'
+        # O Menu de Navegação Principal
         choice = st.radio("Navegação", final_menu)
   
     # ============================================================================
@@ -7023,6 +7012,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
