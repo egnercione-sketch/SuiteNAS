@@ -1,7 +1,7 @@
-# injuries.py — OFF RADAR v47.0 (FULL METHOD FIX)
+# injuries.py — OFF RADAR v48.0 (JSON PARSER FIX)
 # Módulo definitivo de lesões.
-# FIXED: Adicionado método 'fetch_injuries_for_team' que faltava.
-# FIXED: Mapeamento bidirecional de siglas (NBA <-> ESPN) para evitar erros de URL.
+# FIXED: Correção na leitura do JSON da ESPN (data['team']['athletes']).
+# FIXED: Prints de debug para visualizar o progresso no console.
 
 import os
 import json
@@ -17,7 +17,10 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # Default path
 DEFAULT_CACHE_FILE = os.path.join(CACHE_DIR, "injuries_cache_v44.json")
 CACHE_TTL_HOURS = 3
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "application/json"
+}
 
 # --- MAPA DE TRADUÇÃO (NBA STANDARD -> ESPN URL CODE) ---
 # A ESPN usa códigos antigos/diferentes para alguns times na URL da API
@@ -74,18 +77,9 @@ class InjuryMonitor:
         data = load_json(self.cache_path)
         return data if data else {"updated_at": None, "teams": {}}
 
-    def _is_cache_fresh(self) -> bool:
-        last = self.cache.get("updated_at")
-        if not last: return False
-        try:
-            dt = datetime.fromisoformat(last)
-            return (datetime.now() - dt) < timedelta(hours=CACHE_TTL_HOURS)
-        except: return False
-
     def fetch_injuries_for_team(self, team_abbr):
         """
         Busca lesões de UM time específico.
-        Essencial para a barra de progresso na UI.
         """
         # 1. Traduz sigla NBA (ex: GSW) para sigla ESPN (ex: gs)
         espn_code = NBA_TO_ESPN_MAP.get(team_abbr.upper(), team_abbr.lower())
@@ -93,19 +87,33 @@ class InjuryMonitor:
         url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{espn_code}/roster"
         
         try:
-            r = requests.get(url, headers=HEADERS, timeout=5)
+            r = requests.get(url, headers=HEADERS, timeout=8)
+            
             if r.status_code == 200:
                 data = r.json()
                 team_injuries = []
                 
-                # Acha a lista de atletas (pode variar a estrutura)
-                athletes = data.get("athletes", [])
-                if not athletes and "roster" in data:
-                    athletes = data["roster"].get("athletes", [])
+                # --- CORREÇÃO CRÍTICA DO PARSING ---
+                athletes = []
                 
-                # Fallback: varredura profunda se a estrutura mudou
+                # Tentativa 1: Estrutura Padrão (data -> team -> athletes)
+                if 'team' in data and 'athletes' in data['team']:
+                    athletes = data['team']['athletes']
+                
+                # Tentativa 2: Estrutura Alternativa (data -> athletes)
+                elif 'athletes' in data:
+                    athletes = data['athletes']
+                
+                # Tentativa 3: Roster antigo
+                elif 'roster' in data and 'athletes' in data['roster']:
+                    athletes = data['roster']['athletes']
+                
+                # Tentativa 4: Varredura profunda
                 if not athletes:
                     athletes = self._extract_list_recursive(data)
+
+                # DEBUG NO CONSOLE
+                # print(f"🔍 {team_abbr}: Encontrados {len(athletes)} atletas.")
 
                 for ath in athletes:
                     # Verifica lesões
@@ -113,7 +121,10 @@ class InjuryMonitor:
                     status_generic = ath.get("status", {}).get("type", {}).get("name", "")
                     
                     # Se tiver lista de injuries OU status não for Active
-                    if inj or (status_generic and status_generic.lower() != 'active'):
+                    has_injury_data = (len(inj) > 0)
+                    is_not_active = (status_generic and status_generic.lower() != 'active')
+                    
+                    if has_injury_data or is_not_active:
                         
                         # Pega o status mais descritivo
                         status_txt = status_generic
@@ -126,8 +137,9 @@ class InjuryMonitor:
                             details = latest.get("details") or latest.get("shortComment") or ""
                             date_str = latest.get("date") or date_str
 
-                        # Só adiciona se não for 100% saudável
-                        if 'active' in str(status_txt).lower() and 'day' not in str(status_txt).lower():
+                        # Filtro final: Só adiciona se realmente não for Active (ignora Day-to-Day irrelevante)
+                        st_lower = str(status_txt).lower()
+                        if 'active' in st_lower and 'day' not in st_lower and 'questionable' not in st_lower:
                             continue
 
                         team_injuries.append({
@@ -139,37 +151,21 @@ class InjuryMonitor:
                         })
                 
                 # Salva no cache em memória
-                # Usa a sigla PADRÃO NBA para salvar (ex: GSW em vez de gs)
                 nba_std = ESPN_TO_NBA_STANDARD.get(espn_code.upper(), team_abbr.upper())
                 
                 if "teams" not in self.cache: self.cache["teams"] = {}
                 self.cache["teams"][nba_std] = team_injuries
+                
+                # print(f"✅ {nba_std}: {len(team_injuries)} machucados registrados.")
                 return True
+            else:
+                print(f"❌ Erro HTTP {r.status_code} para {team_abbr}")
                 
         except Exception as e:
-            print(f"⚠️ Falha ao baixar {team_abbr}: {e}")
+            print(f"⚠️ Exception ao baixar {team_abbr}: {e}")
             return False
         
         return False
-
-    def fetch_injuries_universal(self):
-        """
-        Método legado: Baixa tudo de uma vez.
-        """
-        # Lista padrão de siglas da ESPN para iterar
-        targets = [
-            "atl","bos","bkn","cha","chi","cle","dal","den","det","gs","hou","ind",
-            "lac","lal","mem","mia","mil","min","no","ny","okc","orl","phi","pho",
-            "por","sac","sa","tor","utah","wsh"
-        ]
-        
-        print(f"🔄 [Injuries] Baixando dados universais...")
-        for t in targets:
-            self.fetch_injuries_for_team(t)
-            time.sleep(0.1)
-        
-        self.save_cache()
-        return self.cache.get("teams", {})
 
     def save_cache(self):
         self.cache["updated_at"] = datetime.now().isoformat()
@@ -177,11 +173,6 @@ class InjuryMonitor:
         return True
 
     def get_team_injuries(self, team_abbr: str) -> list:
-        # Se cache vazio ou velho, tenta atualizar tudo (fallback)
-        if not self.cache.get("teams"):
-            # Tenta carregar do disco de novo
-            self.cache = self._load_cache()
-            
         return self.cache.get("teams", {}).get(team_abbr.upper(), [])
 
     def get_all_injuries(self) -> dict:
@@ -200,7 +191,6 @@ class InjuryMonitor:
         name_norm = normalize_name(player_name)
         team_list = self.get_team_injuries(team_abbr)
         for item in team_list:
-            # Verifica se o nome está contido (ex: "Luka" em "Luka Doncic")
             if name_norm in item.get("name_norm", "") or item.get("name_norm", "") in name_norm:
                 st = str(item.get("status", "")).lower()
                 if any(x in st for x in ['out', 'doubt', 'quest', 'day']):
