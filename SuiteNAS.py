@@ -1,5 +1,5 @@
 # ============================================
-# NBA ANALYTICS SUITE v2.0 (Enhanced Modular Version with Strategic Engine)
+# NBA ANALYTICS SUITE v2.0 (Cloud Enhanced)
 # ============================================
 import os
 import sys
@@ -15,20 +15,25 @@ from itertools import combinations
 import random
 import requests
 import pandas as pd
-import streamlit as st
 import numpy as np
 import streamlit as st
-import streamlit_authenticator as stauth # Certifique-se que instalou esta lib
-import os
+# import streamlit_authenticator as stauth # (Descomente se usar)
+
+# --- IMPORTAÇÃO DO GERENCIADOR DE BANCO DE DADOS ---
+try:
+    from db_manager import db
+except ImportError:
+    st.error("ERRO CRÍTICO: db_manager.py não encontrado. O sistema de nuvem não funcionará.")
+    db = None
 
 # ============================================================================
-# CONFIGURAÇÃO (de config.py)
+# CONFIGURAÇÃO (Mantida para Compatibilidade e Fallback)
 # ============================================================================
 BASE_DIR = os.path.dirname(__file__)
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Arquivos de Cache Existentes
+# Arquivos de Cache (Fallback Local)
 L5_CACHE_FILE = os.path.join(CACHE_DIR, "l5_players.pkl")
 SCOREBOARD_JSON_FILE = os.path.join(CACHE_DIR, "scoreboard_today.json")
 TEAM_ADVANCED_FILE = os.path.join(CACHE_DIR, "team_advanced.json")
@@ -41,6 +46,34 @@ DVP_CACHE_FILE = os.path.join(CACHE_DIR, "dvp_cache.json")
 AUDIT_CACHE_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
 FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")
 LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
+
+# ============================================================================
+# FUNÇÃO DE CARREGAMENTO HÍBRIDO (CLOUD FIRST)
+# ============================================================================
+def get_data_universal(key_db, file_fallback=None):
+    """
+    Tenta pegar do Supabase. Se falhar, tenta do arquivo local.
+    """
+    data = {}
+    
+    # 1. Tenta Nuvem (Prioridade)
+    if db:
+        try:
+            data = db.get_data(key_db)
+            if data:
+                return data
+        except Exception as e:
+            print(f"⚠️ Erro ao baixar '{key_db}' da nuvem: {e}")
+
+    # 2. Tenta Local (Fallback)
+    if not data and file_fallback and os.path.exists(file_fallback):
+        try:
+            with open(file_fallback, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: pass
+    
+    return data # Retorna vazio se tudo falhar
+    
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
 TODAY_YYYYMMDD = datetime.now().strftime("%Y%m%d")
@@ -93,7 +126,7 @@ TEAM_NAME_VARIATIONS = {
     "Utah Jazz": ["UTA", "UTAH", "Utah", "Utah Jazz", "Jazz"],
     "Washington Wizards": ["WAS", "WSH", "Washington", "Washington Wizards", "Wizards"]
 }
-
+  
 def get_full_team_name(team_abbr):
     team_abbr = team_abbr.upper() if team_abbr else ""
     full_name = TEAM_ABBR_TO_ODDS.get(team_abbr)
@@ -768,17 +801,15 @@ class TrinityEngine:
 
 
 def show_nexus_page():
-    import json
-    import os
-
-    def local_load(fp):
-        if os.path.exists(fp):
-            try:
-                with open(fp, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                return {}
-        return {}
+    # --- CARREGAMENTO VIA SUPABASE ---
+    # Chaves que usamos no upload: 'real_game_logs', 'scoreboard'
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    scoreboard = get_data_universal("scoreboard", os.path.join("cache", "scoreboard_today.json"))
+    
+    # Se o cache estiver vazio, avisa e para
+    if not full_cache:
+        st.error("❌ Erro Crítico: Não foi possível carregar os Logs (Nem nuvem, nem local).")
+        return
     
     cache_file = os.path.join("cache", "real_game_logs.json")
     full_cache = local_load(cache_file) or {}
@@ -966,9 +997,14 @@ def render_trinity_table(members, label_suffix="L10"):
 # PÁGINA PRINCIPAL (CSS CORRIGIDO COM !IMPORTANT)
 # ============================================================================
 def show_trinity_club_page():
-    full_cache = load_json(LOGS_CACHE_FILE) or {}
-    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.warning("⚠️ Scoreboard vazio. Vá em Config > Atualizar.")
+    st.markdown("## 🏆 Trinity Club (Consistência Extrema)")
+    
+    # --- CARREGAMENTO VIA SUPABASE ---
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    scoreboard = get_data_universal("scoreboard", os.path.join("cache", "scoreboard_today.json"))
+
+    if not full_cache:
+        st.warning("Aguardando dados...")
         return
 
     engine = TrinityEngine(full_cache, st.session_state.scoreboard)
@@ -6201,110 +6237,152 @@ def process_espn_json_to_games(json_data):
     return processed_games
 
 def safe_load_initial_data():
-    """Carrega dados iniciais no session_state com fallback robusto e sanitização"""
+# ============================================================================
+# FUNÇÕES DE CARREGAMENTO E INICIALIZAÇÃO (CORRIGIDAS)
+# ============================================================================
+
+def safe_load_initial_data():
+    """
+    Carrega dados iniciais no session_state com fallback robusto e sanitização.
+    Executa silenciosamente na inicialização do app.
+    """
     
-    # --- 1. BLINDAGEM CONTRA CRASH ---
+    # --- 1. BLINDAGEM CONTRA CRASH (DEFAULTS) ---
     defaults = {
         'injuries_data': {},
         'injuries_manager': None,
         'strategy_engine': None,
         'scoreboard': [],
-        'df_l5': pd.DataFrame()
+        'df_l5': pd.DataFrame(),
+        'team_advanced': {},
+        'team_opponent': {},
+        'odds': {},
+        'name_overrides': {}
     }
+    
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
     # --- 2. CARREGAMENTO DE DADOS BÁSICOS ---
     
-    # Scoreboard (Correção do erro KeyError: 'away')
+    # A. Scoreboard (Com fallback para Cache Local)
     if not st.session_state.scoreboard:
         try:
-            # Tenta buscar online
+            # 1. Tenta buscar da função que já lida com API/Cache
             fetched = fetch_espn_scoreboard(progress_ui=False)
             if fetched:
                 st.session_state.scoreboard = fetched
             else:
-                # Se falhar online, tenta cache local
-                cached = load_json(SCOREBOARD_JSON_FILE)
-                if cached:
-                    # O segredo: processar o cache bruto antes de usar
-                    st.session_state.scoreboard = process_espn_json_to_games(cached)
-        except Exception:
+                # 2. Se falhar, tenta ler bruto do arquivo JSON local (Backup final)
+                if os.path.exists(SCOREBOARD_JSON_FILE):
+                    with open(SCOREBOARD_JSON_FILE, 'r', encoding='utf-8') as f:
+                        cached = json.load(f)
+                    # Processa o JSON bruto para o formato de lista de jogos
+                    if cached:
+                        st.session_state.scoreboard = process_espn_json_to_games(cached)
+        except Exception as e:
+            print(f"⚠️ Aviso: Falha ao carregar scoreboard inicial: {e}")
             st.session_state.scoreboard = []
 
-    # Team advanced
-    if "team_advanced" not in st.session_state:
+    # B. Stats Avançados de Times
+    if not st.session_state.team_advanced:
         st.session_state.team_advanced = fetch_team_advanced_stats() or {}
 
-    # Team opponent
-    if "team_opponent" not in st.session_state:
+    if not st.session_state.team_opponent:
         st.session_state.team_opponent = fetch_team_opponent_stats() or {}
 
-    # Odds
-    if "odds" not in st.session_state:
+    # C. Odds
+    if not st.session_state.odds:
         st.session_state.odds = fetch_odds_for_today() or {}
 
-    # Name overrides
-    if "name_overrides" not in st.session_state:
-        st.session_state.name_overrides = load_name_overrides() or {}
+    # D. Name Overrides (Mapeamento de nomes)
+    if not st.session_state.name_overrides:
+        try:
+            st.session_state.name_overrides = load_name_overrides() or {}
+        except: 
+            st.session_state.name_overrides = {}
 
-    # L5 (Dados dos Jogadores)
+    # E. Dados L5 (Pickle ou Dataframe)
     if st.session_state.df_l5.empty:
         try:
-            saved = load_pickle(L5_CACHE_FILE)
-            if saved and isinstance(saved, dict) and "df" in saved:
-                st.session_state.df_l5 = saved["df"]
+            # Tenta carregar do pickle local para ser mais rápido
+            if os.path.exists(L5_CACHE_FILE):
+                with open(L5_CACHE_FILE, 'rb') as f:
+                    saved = pickle.load(f)
+                if saved and isinstance(saved, dict) and "df" in saved:
+                    st.session_state.df_l5 = saved["df"]
         except Exception:
             st.session_state.df_l5 = pd.DataFrame()
 
     # --- 3. INICIALIZAÇÃO DE MOTORES E MÓDULOS ---
-    # ... (o restante da função permanece igual)
+
+    # Injuries Manager
     if st.session_state.injuries_manager is None:
-        st.session_state.injuries_manager = init_injury_manager()
-        
-    # Inicializa o restante conforme o original...
-    # (Mantenha o resto do código original desta função aqui para baixo)
+        try:
+            # Assume que init_injury_manager está definido em injuries.py ou similar
+            st.session_state.injuries_manager = init_injury_manager() 
+        except:
+            st.session_state.injuries_manager = None
+
+    # Strategy Engine
     if st.session_state.strategy_engine is None and not st.session_state.df_l5.empty:
         try:
-            from modules.new_modules.strategy_engine import StrategyEngine
-            st.session_state.strategy_engine = StrategyEngine()
+            if 'StrategyEngine' in globals():
+                st.session_state.strategy_engine = StrategyEngine()
         except: pass
-        
 
-    # Módulos avançados
+    # Módulos Avançados (Nexus Components)
     if "pace_adjuster" not in st.session_state:
         st.session_state.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
+    
     if "vacuum_analyzer" not in st.session_state:
         st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
+    
     if "correlation_validator" not in st.session_state:
         st.session_state.correlation_validator = CorrelationValidator() if CORRELATION_FILTERS_AVAILABLE else None
+    
+    if "dvp_analyzer" not in st.session_state:
+        st.session_state.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
 
-    # Feature store e auditoria
+    # Feature Store
     if "feature_store" not in st.session_state:
-        st.session_state.feature_store = FeatureStore()
+        try:
+            st.session_state.feature_store = FeatureStore()
+        except: pass
 
-# === AUTO-CORREÇÃO DE MÓDULOS (Insira isso no início do carregamento) ===
-    if 'audit_system' in st.session_state:
-        # Se a versão na memória não tiver o método novo, FORÇA o reload
-        if not hasattr(st.session_state.audit_system, 'smart_validate_ticket'):
+    # --- 4. AUTO-CORREÇÃO DE MÓDULOS (AUDIT SYSTEM) ---
+    # Força o reload do AuditSystem se ele estiver desatualizado na memória
+    try:
+        import sys
+        import importlib
+        
+        # Verifica se precisa recarregar (ex: se o objeto existe mas falta método novo)
+        need_reload = False
+        if 'audit_system' in st.session_state:
+             if not hasattr(st.session_state.audit_system, 'smart_validate_ticket'):
+                 need_reload = True
+        else:
+            need_reload = True
+
+        if need_reload:
+            # Remove do cache do Python para forçar leitura do disco
+            if 'modules.audit_system' in sys.modules:
+                del sys.modules['modules.audit_system']
+            
+            # Tenta importar dinamicamente se estiver disponível
             try:
-                import sys
-                import importlib
-                # Remove do cache do sistema para garantir leitura do disco
-                if 'modules.audit_system' in sys.modules:
-                    del sys.modules['modules.audit_system']
-                
                 import modules.audit_system
                 importlib.reload(modules.audit_system)
                 from modules.audit_system import AuditSystem
-                
                 st.session_state.audit_system = AuditSystem()
-                st.toast("✅ Sistema de Auditoria atualizado para v3.6!", icon="🔄")
-            except Exception as e:
-                st.error(f"Erro ao recarregar AuditSystem: {e}")
+                # st.toast("✅ Sistema de Auditoria inicializado/atualizado!", icon="🔄")
+            except ImportError:
+                st.session_state.audit_system = None
+    except Exception as e:
+        print(f"Erro no reload do AuditSystem: {e}")
 
-    # Flags de Configuração
+    # --- 5. CONFIGURAÇÕES GLOBAIS ---
     st.session_state.setdefault("use_advanced_features", False)
     st.session_state.setdefault("advanced_features_config", {
         "pace_adjuster": True,
@@ -6315,35 +6393,49 @@ def safe_load_initial_data():
         "boost_mode": True
     })
 
+
 def load_all_data():
-    """Carrega todos os dados necessários com feedback visual"""
+    """
+    Função chamada pelo botão de 'Update' manual.
+    Carrega todos os dados com feedback visual (Spinners).
+    """
     try:
-        with st.spinner("📥 Buscando scoreboard..."):
+        # 1. Scoreboard
+        with st.spinner("📥 Buscando scoreboard (Jogos de Hoje)..."):
             st.session_state.scoreboard = fetch_espn_scoreboard(progress_ui=True) or []
 
-        with st.spinner("📊 Buscando dados L5..."):
+        # 2. Dados L5 (Stats Recentes)
+        with st.spinner("📊 Buscando dados L5 dos jogadores..."):
+            # get_players_l5 deve ser sua função principal de scraping/cálculo
             st.session_state.df_l5 = get_players_l5(progress_ui=True) or pd.DataFrame()
 
-        with st.spinner("🎰 Buscando odds..."):
+        # 3. Odds
+        with st.spinner("🎰 Buscando odds (Pinnacle/Bookies)..."):
             st.session_state.odds = fetch_odds_for_today() or {}
 
-        with st.spinner("🏀 Buscando dados de times..."):
+        # 4. Dados de Time
+        with st.spinner("🏀 Buscando estatísticas avançadas de times..."):
             st.session_state.team_advanced = fetch_team_advanced_stats() or {}
             st.session_state.team_opponent = fetch_team_opponent_stats() or {}
 
-        # Inicializar sistemas
-        if "dvp_analyzer" not in st.session_state and DVP_MODULE_AVAILABLE:
-            try:
-                st.session_state.dvp_analyzer = DvPAnalyzer()
-            except Exception:
-                st.session_state.dvp_analyzer = None
+        # 5. Inicializar/Atualizar Sistemas
+        if "dvp_analyzer" not in st.session_state and DVP_ANALYZER_AVAILABLE:
+            st.session_state.dvp_analyzer = DvpAnalyzer()
+            
         if "audit_system" not in st.session_state:
-            st.session_state.audit_system = AuditSystem()
+            try:
+                from modules.audit_system import AuditSystem
+                st.session_state.audit_system = AuditSystem()
+            except: pass
+            
         if "feature_store" not in st.session_state:
-            st.session_state.feature_store = FeatureStore()
+            try:
+                st.session_state.feature_store = FeatureStore()
+            except: pass
 
-        st.success("✅ Dados carregados com sucesso!")
+        st.success("✅ Dados atualizados com sucesso!")
         return True
+
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {e}")
         return False
@@ -7054,6 +7146,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
