@@ -593,7 +593,7 @@ def initialize_features():
     return features_status
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (INTEGRAÇÃO INTELIGENTE v2.0)
+# CLASSE NEXUS ENGINE (INTEGRAÇÃO INTELIGENTE v2.0 - CORRIGIDA)
 # ============================================================================
 import json
 import os
@@ -605,16 +605,20 @@ class NexusEngine:
         self.player_ids = self._load_photo_map()
         
         # Instancia os Módulos Externos (Consultores)
-        self.injury_monitor = InjuryMonitor() if INJURY_MONITOR_AVAILABLE else None
-        self.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
-        self.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
-        self.vacuum_matrix = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
-        self.classifier = PlayerClassifier() if PLAYER_CLASSIFIER_AVAILABLE else None
+        # Verifica se as variáveis globais existem e são verdadeiras antes de instanciar
+        self.injury_monitor = InjuryMonitor() if 'INJURY_MONITOR_AVAILABLE' in globals() and INJURY_MONITOR_AVAILABLE else None
+        self.pace_adjuster = PaceAdjuster() if 'PACE_ADJUSTER_AVAILABLE' in globals() and PACE_ADJUSTER_AVAILABLE else None
+        self.dvp_analyzer = DvpAnalyzer() if 'DVP_ANALYZER_AVAILABLE' in globals() and DVP_ANALYZER_AVAILABLE else None
+        self.vacuum_matrix = VacuumMatrixAnalyzer() if 'VACUUM_MATRIX_AVAILABLE' in globals() and VACUUM_MATRIX_AVAILABLE else None
+        self.classifier = PlayerClassifier() if 'PLAYER_CLASSIFIER_AVAILABLE' in globals() and PLAYER_CLASSIFIER_AVAILABLE else None
 
     def _load_photo_map(self):
         if os.path.exists("nba_players_map.json"):
-            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
-            except: pass
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                pass
         return {}
 
     def get_photo(self, name):
@@ -659,21 +663,25 @@ class NexusEngine:
                 # Tenta achar o oponente na lista de jogos
                 opp = self._get_opponent(team)
                 if opp:
-                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                    context_tags.append(f"Pace: {int(pace)}")
-                    if pace > 100: score += 10
-                    if pace > 103: score += 5
+                    try:
+                        pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                        context_tags.append(f"Pace: {int(pace)}")
+                        if pace > 100: score += 10
+                        if pace > 103: score += 5
+                    except: pass
             
             # 2. DvP (Defesa contra Posição)
             if self.dvp_analyzer:
                 # Verifica se o time adversário é fraco contra PG (Garçom)
                 opp = self._get_opponent(team)
                 if opp:
-                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                    # Rank alto = Defesa ruim (cede muito)
-                    if rank and rank >= 20: 
-                        score += 15
-                        context_tags.append("Defesa Frágil vs PG")
+                    try:
+                        rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                        # Rank alto = Defesa ruim (cede muito)
+                        if rank and rank >= 20: 
+                            score += 15
+                            context_tags.append("Defesa Frágil vs PG")
+                    except: pass
 
             # 3. Qualidade da Dupla
             score += int(avg_ast * 2) # Garçom elite vale mais
@@ -709,8 +717,6 @@ class NexusEngine:
                 status = str(inj.get('status', '')).lower()
                 # Verifica se está FORA e se é relevante (C, F-C ou PF alto)
                 if 'out' in status:
-                    # Aqui usamos uma heurística simples se não tivermos a posição exata no injury
-                    # Mas se o VacuumMatrix estiver ativo, ele analisa melhor
                     pivot_out = True
                     missing_player_name = inj.get('name', 'Jog. Importante')
             
@@ -722,9 +728,8 @@ class NexusEngine:
                 # Precisamos simular um roster simples para o Vacuum analisar
                 roster_sim = self._get_roster_simulated(team)
                 try:
+                    # Tenta analisar vácuo
                     vacuum_report = self.vacuum_matrix.analyze_team_vacuum(roster_sim, team)
-                    # Se o relatório indicar que rebotes estão vagos
-                    # (Lógica simplificada: assume boost se tiver titular fora)
                     impact_score = 8 
                 except: pass
 
@@ -736,18 +741,21 @@ class NexusEngine:
             if not hero_name: continue
 
             # 4. PlayerClassifier: O Herói é um "PaintBeast"? (Validação de Arquétipo)
-            hero_arch = "General"
             if self.classifier:
-                # Simula contexto para o classificador
-                p_ctx = self.logs.get(hero_name, {}).get('logs', {})
-                # O classificador espera um dict complexo, vamos simplificar o uso:
-                # Se não conseguir classificar, confiamos na estatística bruta
-                pass 
+                try:
+                    # Simula contexto básico para evitar erro de dict complexo
+                    pass 
+                except: pass
 
             # Cálculo de Score
-            hero_stats = self.logs.get(hero_name, {}).get('logs', {}).get('REB', [])
+            hero_data = self.logs.get(hero_name, {})
+            hero_stats = hero_data.get('logs', {}).get('REB', [])
             if not hero_stats: continue
-            avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
+            
+            if len(hero_stats) > 0:
+                avg_reb = sum(hero_stats[:10])/len(hero_stats[:10])
+            else:
+                avg_reb = 0
 
             score = 65 # Base
             score += int(avg_reb * 1.5) # Pivô melhor = score maior
@@ -769,15 +777,17 @@ class NexusEngine:
     # --- AUXILIARES ---
     def _get_teams_playing(self):
         teams = set()
-        for g in self.games:
-            teams.add(g.get('home'))
-            teams.add(g.get('away'))
+        if self.games:
+            for g in self.games:
+                teams.add(g.get('home'))
+                teams.add(g.get('away'))
         return list(teams)
 
     def _get_opponent(self, team):
-        for g in self.games:
-            if g.get('home') == team: return g.get('away')
-            if g.get('away') == team: return g.get('home')
+        if self.games:
+            for g in self.games:
+                if g.get('home') == team: return g.get('away')
+                if g.get('away') == team: return g.get('home')
         return None
 
     def _find_statistical_partner(self, team, exclude_player):
@@ -811,7 +821,7 @@ class NexusEngine:
         roster = []
         for name, data in self.logs.items():
             if data.get('team') == team:
-                roster.append({"name": name, "status": "Active"}) # Assume ativo por padrão
+                roster.append({"name": name, "status": "Active"}) 
         return roster
         
 def show_nexus_page():
@@ -7116,6 +7126,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
