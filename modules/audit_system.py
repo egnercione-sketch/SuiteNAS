@@ -1,95 +1,73 @@
 # modules/audit_system.py
-# VERSÃO V4.0 - CLOUD NATIVE (SUPABASE INTEGRATION)
-# Histórico persistente na nuvem. Adeus perda de dados.
+# VERSÃO V4.5 - CLOUD NATIVE + ANTI-BLOCK HEADERS
+# Auditoria de apostas (Trixies/Simples) com persistência no Supabase.
 
 import os
 import json
 import logging
 import requests
-import time
+import hashlib
 from datetime import datetime
 
-# Tenta importar o gerenciador de banco de dados
+# Importa DbManager
 try:
-    # Ajuste de caminho para importar da raiz se necessário
-    import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from db_manager import db
 except ImportError:
     db = None
-    print("⚠️ AuditSystem: db_manager não encontrado. Usando apenas local.")
+    print("⚠️ AuditSystem: db_manager não encontrado. Usando memória local.")
 
-# Configuração de Caminhos Locais (Backup)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE_DIR = os.path.join(BASE_DIR, "cache")
-AUDIT_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
-KEY_AUDIT = "audit_trixies" # Chave no Supabase
-
+# Chave do Supabase
+KEY_AUDIT = "audit_trixies"
 logger = logging.getLogger("AuditSystem")
+
+# HEADERS DE NAVEGADOR (Para passar pelo bloqueio da ESPN)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://www.espn.com/",
+    "Origin": "https://www.espn.com"
+}
 
 class AuditSystem:
     def __init__(self):
-        self._ensure_file_exists()
         self.audit_data = self._load_data()
 
-    def _ensure_file_exists(self):
-        if not os.path.exists(CACHE_DIR):
-            try: os.makedirs(CACHE_DIR)
-            except: pass
-        # Não precisamos criar o arquivo vazio se vamos ler da nuvem
-
     def _load_data(self):
-        """Carrega dados: Prioridade Nuvem -> Backup Local -> Vazio"""
-        # 1. Tenta Nuvem
+        """Carrega dados: Prioridade Nuvem -> Vazio"""
         if db:
             try:
                 data = db.get_data(KEY_AUDIT)
-                if data:
-                    # print(f"☁️ Audit carregado da nuvem ({len(data)} registros)")
+                if data and isinstance(data, list):
                     return data
             except Exception as e:
                 logger.error(f"Erro ao baixar audit da nuvem: {e}")
-
-        # 2. Tenta Local
-        try:
-            if os.path.exists(AUDIT_FILE):
-                with open(AUDIT_FILE, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except: pass
-        
         return []
 
     def _persist(self):
-        """Salva dados: Nuvem + Local"""
-        # 1. Nuvem
+        """Salva dados na Nuvem"""
         if db:
             try:
+                # Mantém apenas os últimos 500 registros para não estourar o banco
+                if len(self.audit_data) > 500:
+                    self.audit_data = self.audit_data[-500:]
                 db.save_data(KEY_AUDIT, self.audit_data)
-                # print("☁️ Audit salvo na nuvem.")
             except Exception as e:
                 logger.error(f"Erro ao salvar audit na nuvem: {e}")
-
-        # 2. Local (Backup)
-        try:
-            with open(AUDIT_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.audit_data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            logger.error(f"Erro ao salvar audit local: {e}")
 
     # =========================================================================
     # CORE: LOGGING (PADRONIZADO)
     # =========================================================================
     def log_trixie(self, trixie_data, game_info=None, category=None, source="StrategyEngine"):
-        # Recarrega antes de salvar para evitar conflitos de concorrência
+        # 1. Recarrega dados frescos da nuvem para evitar conflitos
         self.audit_data = self._load_data()
         
-        t_id = trixie_data.get('id')
-        if not t_id:
-            t_id = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{hash(str(trixie_data))}"[:20]
+        # 2. Gera ID Determinístico (MD5 do conteúdo) para evitar duplicatas reais
+        content_str = str(trixie_data.get('legs', [])) + str(trixie_data.get('total_odd', 0))
+        t_id = hashlib.md5(content_str.encode()).hexdigest()[:16]
         
-        # Evita duplicatas
+        # 3. Verifica duplicidade
         if any(t.get('id') == t_id for t in self.audit_data):
-            return False
+            return False # Já existe
 
         raw_legs = trixie_data.get('players', []) or trixie_data.get('legs', [])
         clean_legs = []
@@ -97,7 +75,9 @@ class AuditSystem:
         for l in raw_legs:
             # Tenta recuperar ID do jogo da perna ou do ticket
             leg_game_id = l.get('game_id')
-            if not leg_game_id and game_info:
+            
+            # Fallback se não tiver ID na leg
+            if (not leg_game_id or leg_game_id == "UNK") and game_info:
                 ticket_gid = game_info.get('game_id')
                 if ticket_gid and ticket_gid not in ['MULTI', 'MIX']:
                     leg_game_id = ticket_gid
@@ -129,15 +109,12 @@ class AuditSystem:
             "legs": clean_legs
         }
 
-        self.audit_data.append(final_ticket)
-        # Mantém histórico limpo (últimos 500)
-        if len(self.audit_data) > 500: self.audit_data = self.audit_data[-500:]
-        
+        self.audit_data.insert(0, final_ticket) # Adiciona no topo
         self._persist()
         return True
 
     def delete_ticket(self, ticket_id):
-        self.audit_data = self._load_data() # Recarrega para garantir
+        self.audit_data = self._load_data()
         initial_len = len(self.audit_data)
         self.audit_data = [t for t in self.audit_data if t.get('id') != ticket_id]
         
@@ -147,21 +124,24 @@ class AuditSystem:
         return False
 
     # =========================================================================
-    # INTEGRAÇÃO ESPN (COM MAPEAMENTO DINÂMICO DE COLUNAS)
+    # INTEGRAÇÃO ESPN (COM HEADERS ANTI-BLOQUEIO)
     # =========================================================================
     def fetch_espn_boxscore(self, game_id):
-        if not game_id or game_id in ['MULTI', 'MIX', 'UNK']: return None
+        if not game_id or str(game_id) in ['MULTI', 'MIX', 'UNK', 'None']: 
+            return None
+        
         try:
-            url = f"https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
-            r = requests.get(url, timeout=6, headers={"User-Agent": "Mozilla/5.0"})
-            if r.status_code == 200: return r.json()
-        except: pass
+            url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={game_id}"
+            # USA OS HEADERS GLOBAIS
+            r = requests.get(url, timeout=6, headers=HEADERS)
+            if r.status_code == 200: 
+                return r.json()
+        except Exception as e: 
+            logger.warning(f"Erro boxscore ESPN {game_id}: {e}")
         return None
 
     def _extract_player_stats(self, boxscore, player_name):
-        """
-        Extração inteligente: lê os cabeçalhos (labels) para saber o índice correto.
-        """
+        """Extração inteligente baseada em labels da ESPN."""
         try:
             bs = boxscore.get('boxscore', {})
             teams = bs.get('players', []) 
@@ -173,7 +153,7 @@ class AuditSystem:
                 stats_block = team.get('statistics', [])
                 if not stats_block: continue
                 
-                # --- MAPA DINÂMICO DE ÍNDICES ---
+                # Mapa dinâmico de colunas (Labels)
                 labels = stats_block[0].get('labels', [])
                 idx_map = {label: i for i, label in enumerate(labels)}
                 
@@ -191,6 +171,7 @@ class AuditSystem:
                 for ath in athletes:
                     ath_name = ath.get('athlete', {}).get('displayName', '').lower().replace('.', '').replace("'", "").strip()
                     
+                    # Fuzzy match simples
                     if p_clean in ath_name or ath_name in p_clean:
                         stats = ath.get('stats', [])
                         
@@ -220,15 +201,15 @@ class AuditSystem:
                             "3PM": t3,
                             "TOV": get_val(idx_to)
                         }
-        except Exception as e:
-            logger.error(f"Erro parsing stats: {e}")
+        except Exception:
+            pass
         return None
 
     # =========================================================================
-    # SMART VALIDATION COM DIAGNÓSTICO
+    # SMART VALIDATION
     # =========================================================================
     def smart_validate_ticket(self, ticket_id):
-        # Recarrega dados frescos da nuvem antes de validar
+        # 1. Carrega dados frescos
         self.audit_data = self._load_data()
         
         ticket = next((t for t in self.audit_data if t.get('id') == ticket_id), None)
@@ -239,21 +220,25 @@ class AuditSystem:
         updates = False
         
         report = {"total": len(legs), "updated": 0, "no_id": 0, "game_pending": 0}
-        
         any_lost = False
 
         for leg in legs:
-            if leg.get('status') == 'WIN': continue
+            # Se já ganhou ou perdeu, não valida de novo (a menos que queira forçar)
+            if leg.get('status') in ['WIN', 'LOSS'] and leg.get('actual_value', 0) > 0:
+                continue
 
             g_id = leg.get('game_id')
             
-            if not g_id or g_id in ['MULTI', 'MIX', 'UNK']:
-                if ticket.get('game_info', {}).get('game_id') not in ['MULTI', 'MIX']:
-                    g_id = ticket.get('game_info', {}).get('game_id')
+            # Tenta achar ID no ticket se não tiver na perna
+            if not g_id or str(g_id) in ['MULTI', 'MIX', 'UNK']:
+                ticket_gid = ticket.get('game_info', {}).get('game_id')
+                if ticket_gid and str(ticket_gid) not in ['MULTI', 'MIX']:
+                    g_id = ticket_gid
                 else:
                     report["no_id"] += 1
                     continue
 
+            # Cache de Boxscore para não spammar API
             if g_id not in bs_cache:
                 bs = self.fetch_espn_boxscore(g_id)
                 if bs: bs_cache[g_id] = bs
@@ -262,15 +247,19 @@ class AuditSystem:
             boxscore = bs_cache[g_id]
             stats = self._extract_player_stats(boxscore, leg.get('player_name', ''))
             
-            game_status = boxscore.get('header', {}).get('competitions', [{}])[0].get('status', {}).get('type', {})
-            is_final = game_status.get('completed', False)
-            if not is_final: report["game_pending"] += 1
+            # Verifica se jogo acabou
+            try:
+                game_status = boxscore.get('header', {}).get('competitions', [{}])[0].get('status', {}).get('type', {})
+                is_final = game_status.get('completed', False)
+                if not is_final: report["game_pending"] += 1
+            except: is_final = False
 
             if stats:
                 mkt = leg.get('market_type', 'UNK')
                 line = float(leg.get('line', 0))
                 actual = 0.0
                 
+                # Mapeamento de mercados
                 if mkt == "PTS": actual = stats['PTS']
                 elif mkt == "REB": actual = stats['REB']
                 elif mkt == "AST": actual = stats['AST']
@@ -279,6 +268,7 @@ class AuditSystem:
                 elif mkt == "3PM": actual = stats['3PM']
                 elif mkt == "PRA": actual = stats['PTS'] + stats['REB'] + stats['AST']
                 
+                # Combo markets (Ex: PTS+AST)
                 if "+" in mkt:
                     parts = mkt.split('+')
                     val_sum = 0
@@ -287,6 +277,7 @@ class AuditSystem:
 
                 leg['actual_value'] = actual
                 
+                # Lógica de Win/Loss
                 if actual >= line:
                     leg['status'] = 'WIN'
                 elif is_final:
@@ -297,14 +288,14 @@ class AuditSystem:
                 report["updated"] += 1
             
             elif is_final:
-                # Jogo acabou e jogador não apareceu (DNP)
+                # Jogo acabou e jogador não encontrado -> DNP (Did Not Play) -> Loss
                 leg['status'] = 'LOSS'
                 leg['actual_value'] = 0
                 any_lost = True
                 updates = True
                 report["updated"] += 1
 
-        # Atualiza Status Global
+        # Atualiza Status Global do Ticket
         current_legs = ticket.get('legs', [])
         has_loss = any(l.get('status') == 'LOSS' for l in current_legs)
         all_wins = all(l.get('status') == 'WIN' for l in current_legs)
@@ -312,11 +303,12 @@ class AuditSystem:
         if has_loss: ticket['status'] = 'LOSS'
         elif all_wins: ticket['status'] = 'WIN'
         
-        if updates: self._persist() # Salva na nuvem
+        if updates: 
+            self._persist() # Salva na nuvem
 
         if report["updated"] > 0:
             return True, f"✅ Atualizado! {report['updated']} estatísticas corrigidas."
         if report["game_pending"] > 0:
-            return True, "Jogos ainda em andamento."
+            return True, "Jogos ainda em andamento. Volte mais tarde."
             
-        return True, "Validação concluída (Sem alterações)."
+        return True, "Validação concluída."
