@@ -5982,19 +5982,37 @@ def process_espn_json_to_games(json_data):
 # FUNÇÕES DE CARREGAMENTO E INICIALIZAÇÃO (CORRIGIDAS)
 # ============================================================================
 
+# ============================================================================
+# FUNÇÃO DE CARREGAMENTO SEGURO (CORRIGIDA)
+# ============================================================================
 def safe_load_initial_data():
     """
-    Carrega dados. Se faltar cache (Supabase e Local), busca na API e SALVA NO SUPABASE (Auto-Healing).
-    Também migra arquivos estáticos locais para a nuvem se existirem.
+    Carrega dados e inicializa variáveis de sessão para evitar AttributeErrors.
     """
     
-    # 1. Defaults de Sessão
+    # 1. INICIALIZAÇÃO ROBUSTA DE VARIÁVEIS (PREVINE O ERRO)
+    # Define TODAS as chaves que o sistema usa como None ou Vazio antes de tentar ler
     defaults = {
-        'scoreboard': [], 'df_l5': pd.DataFrame(), 'team_advanced': {}, 
-        'odds': {}, 'name_overrides': {}, 'player_ids': {}
+        'scoreboard': [], 
+        'df_l5': pd.DataFrame(), 
+        'team_advanced': {}, 
+        'odds': {}, 
+        'name_overrides': {}, 
+        'player_ids': {},
+        # Módulos (Inicializa como None para não quebrar a verificação posterior)
+        'injuries_manager': None,
+        'pace_adjuster': None,
+        'vacuum_analyzer': None,
+        'dvp_analyzer': None,
+        'feature_store': None,
+        'audit_system': None,
+        'archetype_engine': None,
+        'rotation_analyzer': None
     }
+
     for k, v in defaults.items():
-        if k not in st.session_state: st.session_state[k] = v
+        if k not in st.session_state: 
+            st.session_state[k] = v
 
     # --- 2. DADOS DINÂMICOS (AUTO-HEALING VIA API) ---
 
@@ -6004,8 +6022,6 @@ def safe_load_initial_data():
         if data:
             st.session_state.scoreboard = data
         else:
-            # Não tem cache? Busca da API e cria o cache na nuvem!
-            # print("⚠️ Cache Scoreboard ausente. Buscando da API...")
             try:
                 live_data = fetch_espn_scoreboard(progress_ui=False)
                 if live_data:
@@ -6020,7 +6036,7 @@ def safe_load_initial_data():
             st.session_state.team_advanced = data
         else:
             try:
-                live_data = fetch_team_advanced_stats()
+                live_data = fetch_real_time_team_stats() # Usa a função wrapper definida acima
                 if live_data:
                     st.session_state.team_advanced = live_data
                     save_data_universal(KEY_TEAM_ADV, live_data)
@@ -6033,119 +6049,67 @@ def safe_load_initial_data():
             st.session_state.odds = data
         else:
             try:
-                live_data = fetch_odds_for_today()
-                if live_data:
-                    st.session_state.odds = live_data
-                    save_data_universal(KEY_ODDS, live_data)
+                # Assume que fetch_odds_for_today existe em outro lugar ou usa Pinnacle
+                # Se não tiver a função, ignora
+                if 'fetch_odds_for_today' in globals():
+                    live_data = fetch_odds_for_today()
+                    if live_data:
+                        st.session_state.odds = live_data
+                        save_data_universal(KEY_ODDS, live_data)
             except: pass
 
     # --- 3. DADOS ESTÁTICOS (MIGRAÇÃO AUTOMÁTICA) ---
-    # Aqui resolvemos o problema do 'nba_players_map' e outros estáticos.
-    # Se não estiver no Supabase, verificamos se existe um arquivo local para subir.
-    
-    # Mapeamento de Arquivos Estáticos Críticos
     STATIC_FILES = {
-        "nba_players_map": "cache/nba_players_map.json",
-        "name_overrides": "cache/name_overrides.json",
-        "dvp_stats": "cache/dvp_data_v4_static.json"
+        KEY_PLAYERS_MAP: "cache/nba_players_map.json",
+        KEY_NAME_OVERRIDES: "cache/name_overrides.json",
+        KEY_DVP: "cache/dvp_data_v4_static.json"
     }
 
     for key_db, local_path in STATIC_FILES.items():
-        # 1. Verifica se já está na nuvem
-        cloud_data = get_data_universal(key_db)
-        
-        if cloud_data:
-            # Já está na nuvem, tudo certo.
-            pass
-        else:
-            # Não está na nuvem. Temos localmente?
-            if os.path.exists(local_path):
+        if not get_data_universal(key_db): # Se não tem na nuvem
+            if os.path.exists(local_path): # E tem local
                 try:
                     with open(local_path, "r", encoding="utf-8") as f:
                         local_data = json.load(f)
-                    
                     if local_data:
                         print(f"🚀 Migrando '{key_db}' do Local para Supabase...")
                         save_data_universal(key_db, local_data)
                 except: pass
 
-    # --- 3. INICIALIZAÇÃO DE MOTORES E MÓDULOS ---
+    # --- 4. INICIALIZAÇÃO DE MÓDULOS ---
+    
+    # Pace Adjuster
+    if st.session_state.pace_adjuster is None and PACE_ADJUSTER_AVAILABLE:
+        st.session_state.pace_adjuster = PaceAdjuster()
+    
+    # Vacuum Matrix
+    if st.session_state.vacuum_analyzer is None and VACUUM_MATRIX_AVAILABLE:
+        st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer()
 
-    # Injuries Manager
-    if st.session_state.injuries_manager is None:
+    # Injury Monitor (Aqui estava o erro antes)
+    if st.session_state.injuries_manager is None and INJURY_MONITOR_AVAILABLE:
         try:
-            # Assume que init_injury_manager está definido em injuries.py ou similar
-            st.session_state.injuries_manager = init_injury_manager() 
-        except:
-            st.session_state.injuries_manager = None
+            st.session_state.injuries_manager = InjuryMonitor()
+        except Exception as e:
+            print(f"Erro ao iniciar InjuryMonitor: {e}")
 
-    # Strategy Engine
-    if st.session_state.strategy_engine is None and not st.session_state.df_l5.empty:
+    # DvP Analyzer
+    if st.session_state.dvp_analyzer is None and DVP_ANALYZER_AVAILABLE:
+        st.session_state.dvp_analyzer = DvpAnalyzer()
+
+    # Audit System
+    if st.session_state.audit_system is None:
         try:
-            if 'StrategyEngine' in globals():
-                st.session_state.strategy_engine = StrategyEngine()
+            if AuditSystem: st.session_state.audit_system = AuditSystem()
         except: pass
-
-    # Módulos Avançados (Nexus Components)
-    if "pace_adjuster" not in st.session_state:
-        st.session_state.pace_adjuster = PaceAdjuster() if PACE_ADJUSTER_AVAILABLE else None
-    
-    if "vacuum_analyzer" not in st.session_state:
-        st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer() if VACUUM_MATRIX_AVAILABLE else None
-    
-    if "correlation_validator" not in st.session_state:
-        st.session_state.correlation_validator = CorrelationValidator() if CORRELATION_FILTERS_AVAILABLE else None
-    
-    if "dvp_analyzer" not in st.session_state:
-        st.session_state.dvp_analyzer = DvpAnalyzer() if DVP_ANALYZER_AVAILABLE else None
 
     # Feature Store
-    if "feature_store" not in st.session_state:
-        try:
-            st.session_state.feature_store = FeatureStore()
+    if st.session_state.feature_store is None:
+        try: 
+            # Assume FeatureStore class is available or imported
+            if 'FeatureStore' in globals():
+                st.session_state.feature_store = FeatureStore()
         except: pass
-
-    # --- 4. AUTO-CORREÇÃO DE MÓDULOS (AUDIT SYSTEM) ---
-    # Força o reload do AuditSystem se ele estiver desatualizado na memória
-    try:
-        import sys
-        import importlib
-        
-        # Verifica se precisa recarregar (ex: se o objeto existe mas falta método novo)
-        need_reload = False
-        if 'audit_system' in st.session_state:
-             if not hasattr(st.session_state.audit_system, 'smart_validate_ticket'):
-                 need_reload = True
-        else:
-            need_reload = True
-
-        if need_reload:
-            # Remove do cache do Python para forçar leitura do disco
-            if 'modules.audit_system' in sys.modules:
-                del sys.modules['modules.audit_system']
-            
-            # Tenta importar dinamicamente se estiver disponível
-            try:
-                import modules.audit_system
-                importlib.reload(modules.audit_system)
-                from modules.audit_system import AuditSystem
-                st.session_state.audit_system = AuditSystem()
-                # st.toast("✅ Sistema de Auditoria inicializado/atualizado!", icon="🔄")
-            except ImportError:
-                st.session_state.audit_system = None
-    except Exception as e:
-        print(f"Erro no reload do AuditSystem: {e}")
-
-    # --- 5. CONFIGURAÇÕES GLOBAIS ---
-    st.session_state.setdefault("use_advanced_features", False)
-    st.session_state.setdefault("advanced_features_config", {
-        "pace_adjuster": True,
-        "vacuum_matrix": True,
-        "correlation_filters": True,
-        "dynamic_thresholds": True,
-        "contextual_scoring": True,
-        "boost_mode": True
-    })
 
 
 def load_all_data():
@@ -6909,6 +6873,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
