@@ -641,8 +641,30 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: x['metrics']['Ceiling_10'], reverse=True)
 
 def show_5_7_10_page():
-    # --- 1. CONFIGURAÇÃO ---
-    full_cache = load_json(LOGS_CACHE_FILE) or {}
+    # --- 1. CONFIGURAÇÃO (Versão Blindada) ---
+    import json
+    import os
+
+    # Função auxiliar local para garantir que o load funcione
+    def local_load_json(filepath):
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+
+    # Define o nome do arquivo se a variável global não existir
+    try:
+        cache_file = LOGS_CACHE_FILE
+    except NameError:
+        cache_file = "logs_cache.json" # Nome padrão do seu arquivo
+
+    full_cache = local_load_json(cache_file) or {}
+    
+    # Executa a Engine
+    # (Certifique-se que a classe FiveSevenTenEngine foi colada no código também!)
     engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
     opportunities = engine.analyze_market()
 
@@ -660,7 +682,7 @@ def show_5_7_10_page():
         
         .card-5710 {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-left: 5px solid #3b82f6; /* Azul padrão */
+            border-left: 5px solid #3b82f6;
             border-radius: 8px;
             padding: 10px;
             margin-bottom: 12px;
@@ -696,14 +718,12 @@ def show_5_7_10_page():
         /* Cores dos Degraus */
         .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
         .target { color: #facc15; } .bg-target { background: #facc15; }
-        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; } /* Vermelho Explosão */
+        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; }
 
     </style>
     """, unsafe_allow_html=True)
 
     # --- 3. RENDERIZAÇÃO ---
-    
-    # Filtro Rápido (Opcional)
     filter_stat = st.radio("Filtrar por:", ["TODOS", "ASSISTÊNCIAS (AST)", "REBOTES (REB)"], horizontal=True)
     
     filtered_opps = opportunities
@@ -711,10 +731,10 @@ def show_5_7_10_page():
     if filter_stat == "REBOTES (REB)": filtered_opps = [x for x in opportunities if x['stat'] == 'REB']
 
     for item in filtered_opps:
-        # Define Cores baseadas no Arquétipo
+        # Cores baseadas no Arquétipo
         border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
         
-        # HTML do Card
+        # HTML Card
         html = f"""
         <div class="card-5710" style="border-left-color: {border_color};">
             <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
@@ -6479,6 +6499,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
