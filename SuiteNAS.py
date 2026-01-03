@@ -545,21 +545,26 @@ class TrinityEngine:
 
 
 def show_nexus_page():
-    # --- CARREGAMENTO VIA SUPABASE ---
-    # Chaves que usamos no upload: 'real_game_logs', 'scoreboard'
-    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
-    scoreboard = get_data_universal("scoreboard", os.path.join("cache", "scoreboard_today.json"))
+    # --- CARREGAMENTO VIA SUPABASE (CLOUD FIRST) ---
+    # Busca direto do banco de dados
+    full_cache = get_data_universal("real_game_logs")
+    scoreboard = get_data_universal("scoreboard")
     
     # Se o cache estiver vazio, avisa e para
     if not full_cache:
-        st.error("❌ Erro Crítico: Não foi possível carregar os Logs (Nem nuvem, nem local).")
+        st.error("❌ Erro Crítico: Não foi possível carregar os Logs do Supabase.")
+        st.info("Dica: Vá em 'Config' > 'Atualizar L5/Logs' para popular o banco.")
         return
     
-    cache_file = os.path.join("cache", "real_game_logs.json")
-    full_cache = local_load(cache_file) or {}
-    
+    # Garante que scoreboard seja lista
+    if not scoreboard: 
+        scoreboard = []
+
+    # --- AQUI ESTAVA O ERRO: REMOVI A TENTATIVA DE LEITURA LOCAL ---
+    # O 'full_cache' agora contém o JSON vindo direto do Supabase.
+
     # Engine
-    nexus = NexusEngine(full_cache, st.session_state.get('scoreboard', []))
+    nexus = NexusEngine(full_cache, scoreboard)
     
     # UI Header
     st.markdown("""
@@ -570,14 +575,17 @@ def show_nexus_page():
     """, unsafe_allow_html=True)
 
     # Slider
-    # IMPORTANTE: Comece baixo para testar
     min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
 
     # Scan
-    all_ops = nexus.run_nexus_scan()
-    opportunities = [op for op in all_ops if op['score'] >= min_score]
+    try:
+        all_ops = nexus.run_nexus_scan()
+        opportunities = [op for op in all_ops if op['score'] >= min_score]
+    except Exception as e:
+        st.error(f"Erro ao rodar Nexus Scan: {e}")
+        return
 
-    # DEBUG VISUAL (Remove depois se quiser)
+    # DEBUG VISUAL
     if len(all_ops) > 0 and len(opportunities) == 0:
         st.warning(f"O Nexus encontrou {len(all_ops)} oportunidades, mas todas têm Score abaixo de {min_score}. Baixe a régua!")
 
@@ -6923,6 +6931,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
