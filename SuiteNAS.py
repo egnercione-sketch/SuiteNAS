@@ -1,33 +1,30 @@
-# ============================================
+# ============================================================================
 # NBA ANALYTICS SUITE v2.0 (Cloud Enhanced)
-# ============================================
+# ============================================================================
 import os
 import sys
 import pickle
 import time
 import json
 import re
-import tempfile
-import unicodedata
-import difflib
+import random
+import logging
 from datetime import datetime, timedelta
 from itertools import combinations
-import random
+
+# --- Imports de Terceiros ---
 import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
-# import streamlit_authenticator as stauth # (Descomente se usar)
+# import streamlit_authenticator as stauth # (Descomente se for usar autenticação)
 
-# --- IMPORTAÇÃO DO GERENCIADOR DE BANCO DE DADOS ---
-try:
-    from db_manager import db
-except ImportError:
-    st.error("ERRO CRÍTICO: db_manager.py não encontrado. O sistema de nuvem não funcionará.")
-    db = None
+# --- Configuração de Logger ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ============================================================================
-# CONFIGURAÇÃO (Mantida para Compatibilidade e Fallback)
+# 1. CONFIGURAÇÃO DE CAMINHOS E BANCO DE DADOS
 # ============================================================================
 BASE_DIR = os.path.dirname(__file__)
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
@@ -47,69 +44,68 @@ AUDIT_CACHE_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
 FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")
 LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
 
+# --- Importação do Gerenciador de Nuvem ---
+try:
+    from db_manager import db
+except ImportError:
+    # st.error("Aviso: db_manager.py não encontrado. Usando apenas modo local.")
+    db = None
+
 # ============================================================================
-# FUNÇÃO DE CARREGAMENTO HÍBRIDO (CLOUD FIRST)
+# 2. FUNÇÕES DE DADOS HÍBRIDOS (CLOUD FIRST)
 # ============================================================================
 def get_data_universal(key_db, file_fallback=None):
-    """
-    Tenta pegar do Supabase. Se falhar, tenta do arquivo local.
-    """
+    """Tenta pegar do Supabase. Se falhar, tenta do arquivo local."""
     data = {}
-    
-    # 1. Tenta Nuvem (Prioridade)
+    # 1. Tenta Nuvem
     if db:
         try:
             data = db.get_data(key_db)
-            if data:
-                return data
+            if data: return data
         except Exception as e:
-            print(f"⚠️ Erro ao baixar '{key_db}' da nuvem: {e}")
-
-    # 2. Tenta Local (Fallback)
+            print(f"⚠️ Erro nuvem '{key_db}': {e}")
+            
+    # 2. Tenta Local
     if not data and file_fallback and os.path.exists(file_fallback):
         try:
             with open(file_fallback, "r", encoding="utf-8") as f:
                 return json.load(f)
         except: pass
-    
-    return data # Retorna vazio se tudo falhar
+    return data
 
-# ============================================================================
-# FUNÇÃO DE SALVAMENTO HÍBRIDO (CLOUD + LOCAL)
-# ============================================================================
 def save_data_universal(key_db, data, file_path=None):
-    """
-    Salva no Supabase E no arquivo local (Backup).
-    """
+    """Salva no Supabase E no arquivo local (Backup)."""
     sucesso_nuvem = False
-    
-    # 1. Salva na Nuvem (Supabase)
+    # 1. Nuvem
     if db:
         try:
             db.save_data(key_db, data)
-            print(f"☁️ [UPLOAD] '{key_db}' salvo no Supabase com sucesso.")
+            print(f"☁️ [UPLOAD] '{key_db}' salvo.")
             sucesso_nuvem = True
         except Exception as e:
-            print(f"⚠️ Erro ao salvar '{key_db}' na nuvem: {e}")
-
-    # 2. Salva Local (Backup obrigatório para scrapers)
+            print(f"⚠️ Erro save nuvem '{key_db}': {e}")
+            
+    # 2. Local
     if file_path:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
-            # print(f"💾 [BACKUP] '{key_db}' salvo localmente.")
         except: pass
-    
     return sucesso_nuvem
 
-
-    
+# ============================================================================
+# 3. CONSTANTES E MAPAS DA NBA
+# ============================================================================
 SEASON = "2025-26"
 TODAY = datetime.now().strftime("%Y-%m-%d")
 TODAY_YYYYMMDD = datetime.now().strftime("%Y%m%d")
+
+# URLs
 ESPN_SCOREBOARD_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
 ESPN_TEAM_ROSTER_TEMPLATE = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{team}/roster"
 ESPN_BOXSCORE_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary"
+
+# Mapeamento de Times e Odds
 TEAM_ABBR_TO_ODDS = {
     "ATL": "Atlanta Hawks","BOS": "Boston Celtics","BKN": "Brooklyn Nets","CHA": "Charlotte Hornets",
     "CHI": "Chicago Bulls","CLE": "Cleveland Cavaliers","DAL": "Dallas Mavericks","DEN": "Denver Nuggets",
@@ -119,366 +115,242 @@ TEAM_ABBR_TO_ODDS = {
     "OKC": "Oklahoma City Thunder","ORL": "Orlando Magic","PHI": "Philadelphia 76ers","PHX": "Phoenix Suns",
     "POR": "Portland Trail Blazers","SAC": "Sacramento Kings","SAS": "San Antonio Spurs","TOR": "Toronto Raptors",
     "UTA": "Utah Jazz","WAS": "Washington Wizards",
-    # Variações ESPN
     "UTAH": "Utah Jazz","NY": "New York Knicks","SA": "San Antonio Spurs","NO": "New Orleans Pelicans"
 }
-# MAPEAMENTO COMPLETO PARA ODDS (adicionar variações)
+
 TEAM_NAME_VARIATIONS = {
-    # Time: [todas as variações possíveis de nome]
-    "Atlanta Hawks": ["ATL", "Atlanta", "Atlanta Hawks", "Hawks"],
-    "Boston Celtics": ["BOS", "Boston", "Boston Celtics", "Celtics"],
-    "Brooklyn Nets": ["BKN", "BRO", "Brooklyn", "Brooklyn Nets", "Nets"],
-    "Charlotte Hornets": ["CHA", "Charlotte", "Charlotte Hornets", "Hornets"],
-    "Chicago Bulls": ["CHI", "Chicago", "Chicago Bulls", "Bulls"],
-    "Cleveland Cavaliers": ["CLE", "Cleveland", "Cleveland Cavaliers", "Cavaliers"],
-    "Dallas Mavericks": ["DAL", "Dallas", "Dallas Mavericks", "Mavericks"],
-    "Denver Nuggets": ["DEN", "Denver", "Denver Nuggets", "Nuggets"],
-    "Detroit Pistons": ["DET", "Detroit", "Detroit Pistons", "Pistons"],
-    "Golden State Warriors": ["GSW", "GS", "Golden State", "Golden State Warriors", "Warriors"],
-    "Houston Rockets": ["HOU", "Houston", "Houston Rockets", "Rockets"],
-    "Indiana Pacers": ["IND", "Indiana", "Indiana Pacers", "Pacers"],
-    "Los Angeles Clippers": ["LAC", "LA Clippers", "Los Angeles Clippers", "Clippers"],
-    "Los Angeles Lakers": ["LAL", "LA Lakers", "Los Angeles Lakers", "Lakers"],
-    "Memphis Grizzlies": ["MEM", "Memphis", "Memphis Grizzlies", "Grizzlies"],
-    "Miami Heat": ["MIA", "Miami", "Miami Heat", "Heat"],
-    "Milwaukee Bucks": ["MIL", "Milwaukee", "Milwaukee Bucks", "Bucks"],
-    "Minnesota Timberwolves": ["MIN", "Minnesota", "Minnesota Timberwolves", "Timberwolves"],
-    "New Orleans Pelicans": ["NOP", "NO", "New Orleans", "New Orleans Pelicans", "Pelicans"],
-    "New York Knicks": ["NYK", "NY", "New York", "New York Knicks", "Knicks"],
-    "Oklahoma City Thunder": ["OKC", "Oklahoma City", "Oklahoma City Thunder", "Thunder"],
-    "Orlando Magic": ["ORL", "Orlando", "Orlando Magic", "Magic"],
-    "Philadelphia 76ers": ["PHI", "Philadelphia", "Philadelphia 76ers", "76ers"],
-    "Phoenix Suns": ["PHX", "PHO", "Phoenix", "Phoenix Suns", "Suns"],
-    "Portland Trail Blazers": ["POR", "Portland", "Portland Trail Blazers", "Trail Blazers", "Blazers"],
-    "Sacramento Kings": ["SAC", "Sacramento", "Sacramento Kings", "Kings"],
-    "San Antonio Spurs": ["SAS", "SA", "San Antonio", "San Antonio Spurs", "Spurs"],
-    "Toronto Raptors": ["TOR", "Toronto", "Toronto Raptors", "Raptors"],
-    "Utah Jazz": ["UTA", "UTAH", "Utah", "Utah Jazz", "Jazz"],
-    "Washington Wizards": ["WAS", "WSH", "Washington", "Washington Wizards", "Wizards"]
+    "Atlanta Hawks": ["ATL", "Atlanta", "Hawks"],
+    "Boston Celtics": ["BOS", "Boston", "Celtics"],
+    "Brooklyn Nets": ["BKN", "BRO", "Brooklyn", "Nets"],
+    "Charlotte Hornets": ["CHA", "Charlotte", "Hornets"],
+    "Chicago Bulls": ["CHI", "Chicago", "Bulls"],
+    "Cleveland Cavaliers": ["CLE", "Cleveland", "Cavaliers"],
+    "Dallas Mavericks": ["DAL", "Dallas", "Mavericks"],
+    "Denver Nuggets": ["DEN", "Denver", "Nuggets"],
+    "Detroit Pistons": ["DET", "Detroit", "Pistons"],
+    "Golden State Warriors": ["GSW", "GS", "Golden State", "Warriors"],
+    "Houston Rockets": ["HOU", "Houston", "Rockets"],
+    "Indiana Pacers": ["IND", "Indiana", "Pacers"],
+    "Los Angeles Clippers": ["LAC", "LA Clippers", "Clippers"],
+    "Los Angeles Lakers": ["LAL", "LA Lakers", "Lakers"],
+    "Memphis Grizzlies": ["MEM", "Memphis", "Grizzlies"],
+    "Miami Heat": ["MIA", "Miami", "Heat"],
+    "Milwaukee Bucks": ["MIL", "Milwaukee", "Bucks"],
+    "Minnesota Timberwolves": ["MIN", "Minnesota", "Timberwolves"],
+    "New Orleans Pelicans": ["NOP", "NO", "New Orleans", "Pelicans"],
+    "New York Knicks": ["NYK", "NY", "New York", "Knicks"],
+    "Oklahoma City Thunder": ["OKC", "Oklahoma City", "Thunder"],
+    "Orlando Magic": ["ORL", "Orlando", "Magic"],
+    "Philadelphia 76ers": ["PHI", "Philadelphia", "76ers"],
+    "Phoenix Suns": ["PHX", "PHO", "Phoenix", "Suns"],
+    "Portland Trail Blazers": ["POR", "Portland", "Trail Blazers", "Blazers"],
+    "Sacramento Kings": ["SAC", "Sacramento", "Kings"],
+    "San Antonio Spurs": ["SAS", "SA", "San Antonio", "Spurs"],
+    "Toronto Raptors": ["TOR", "Toronto", "Raptors"],
+    "Utah Jazz": ["UTA", "UTAH", "Utah", "Jazz"],
+    "Washington Wizards": ["WAS", "WSH", "Washington", "Wizards"]
 }
-  
+
+# Normalização de Siglas (Tradutor Universal)
+TEAM_NORMALIZATION_MAP = {
+    "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
+    "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
+    "LA": "LAL", "CHO": "CHA"
+}
+
+# ============================================================================
+# 4. FUNÇÕES UTILITÁRIAS ESSENCIAIS
+# ============================================================================
+
+def normalize_team(team_code):
+    """Padroniza siglas de times para evitar erros de comparação"""
+    if not team_code: return ""
+    code = str(team_code).upper().strip()
+    return TEAM_NORMALIZATION_MAP.get(code, code)
+
 def get_full_team_name(team_abbr):
+    """Converte sigla para nome completo"""
     team_abbr = team_abbr.upper() if team_abbr else ""
     full_name = TEAM_ABBR_TO_ODDS.get(team_abbr)
-    if full_name:
-        return full_name
+    if full_name: return full_name
     for full_name, variations in TEAM_NAME_VARIATIONS.items():
         if team_abbr in variations or team_abbr == full_name:
             return full_name
     return team_abbr
 
-ESPN_TEAM_CODES = {
-    "ATL": "atl", "BOS": "bos", "BKN": "bkn", "CHA": "cha", "CHI": "chi",
-    "CLE": "cle", "DAL": "dal", "DEN": "den", "DET": "det", "GSW": "gsw",
-    "HOU": "hou", "IND": "ind", "LAC": "lac", "LAL": "lal", "MEM": "mem",
-    "MIA": "mia", "MIL": "mil", "MIN": "min",
-    "NOP": "nor", "NO": "nor",  # Corrigido: New Orleans Pelicans usa "nor"
-    "NYK": "ny", "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "pho",  # Corrigido: Phoenix Suns usa "pho"
-    "POR": "por", "SAC": "sac", "SAS": "sa", "TOR": "tor", "UTA": "uta",
-    "WAS": "wsh",
-    "UTAH": "uta", "NY": "ny", "SA": "sa"
-}
-
-# ============================================================================
-# Sanitize to DataFrame (use everywhere before consuming df)
-# ============================================================================
-
 def ensure_dataframe(df) -> pd.DataFrame:
-    if isinstance(df, pd.DataFrame):
-        return df
-    if df is None:
-        return pd.DataFrame()
-    if isinstance(df, list) and all(isinstance(x, dict) for x in df):
-        return pd.DataFrame(df)
+    """Garante que o objeto seja um DataFrame do Pandas"""
+    if isinstance(df, pd.DataFrame): return df
+    if df is None: return pd.DataFrame()
+    if isinstance(df, list) and all(isinstance(x, dict) for x in df): return pd.DataFrame(df)
     if isinstance(df, dict):
-        if any(isinstance(v, (list, tuple)) for v in df.values()):
-            try:
-                return pd.DataFrame.from_dict(df)
-            except Exception:
-                return pd.DataFrame()
-        return pd.DataFrame([df])
+        try: return pd.DataFrame.from_dict(df)
+        except: return pd.DataFrame([df])
     return pd.DataFrame()
 
-# ==============================================================================
-# FUNÇÃO: CARREGAR GRADE ESTENDIDA (PEGA JOGOS DA MADRUGADA)
-# ==============================================================================
 def load_extended_scoreboard():
-    from nba_api.live.nba.endpoints import scoreboard
-    from datetime import datetime, timedelta
-    import pytz
-    utc_now = datetime.now(pytz.utc)
-    board_today = scoreboard.Scoreboard().get_dict()['scoreboard']['games']
-    from nba_api.stats.endpoints import scoreboardv2
-    date_today = utc_now.strftime('%Y-%m-%d')
-    date_tomorrow = (utc_now + timedelta(days=1)).strftime('%Y-%m-%d')
-    games_1 = scoreboardv2.ScoreboardV2(game_date=date_today).get_data_frames()[0]
-    games_2 = scoreboardv2.ScoreboardV2(game_date=date_tomorrow).get_data_frames()[0]
-    all_games_raw = pd.concat([games_1, games_2], ignore_index=True)
-   
-    final_games = []
-    processed_ids = set()
-    
-    for _, game in all_games_raw.iterrows():
-        gid = game['GAME_ID']
-        if gid in processed_ids: continue
-        status = game['GAME_STATUS_ID'] # 1=Scheduled, 2=In Progress, 3=Final
-        final_games.append({
-            "game_id": gid,
-            "home": game['HOME_TEAM_ABBREVIATION'],
-            "away": game['VISITOR_TEAM_ABBREVIATION'],
-            "status": status,
-            "time": game['GAME_DATE_EST'] # Apenas referência
-        })
-        processed_ids.add(gid)
-        
-    return final_games
-
-# ============================================================================
-# 1. IMPORTS ESSENCIAIS (Base do Sistema)
-# ============================================================================
-import streamlit as st
-import os
-import json
-import time
-import pandas as pd
-from datetime import datetime, timedelta
-
-# Auth & Config (Críticos)
-try:
-    from auth_manager import UserManager
-    from config_manager import PATHS
-    # Audit System (Semi-Crítico)
+    """Carrega jogos incluindo os da madrugada seguinte (Extended Grid)"""
     try:
-        from modules.audit_system import AuditSystem
-    except ImportError:
-        print("⚠️ AuditSystem não encontrado.")
-        AuditSystem = None
-except ImportError as e:
-    st.error(f"❌ ERRO CRÍTICO: Módulos base falharam. {e}")
-    st.stop()
+        from nba_api.stats.endpoints import scoreboardv2
+        import pytz
+        utc_now = datetime.now(pytz.utc)
+        date_today = utc_now.strftime('%Y-%m-%d')
+        date_tomorrow = (utc_now + timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        games_1 = scoreboardv2.ScoreboardV2(game_date=date_today).get_data_frames()[0]
+        games_2 = scoreboardv2.ScoreboardV2(game_date=date_tomorrow).get_data_frames()[0]
+        all_games_raw = pd.concat([games_1, games_2], ignore_index=True)
+        
+        final_games = []
+        processed_ids = set()
+        
+        for _, game in all_games_raw.iterrows():
+            gid = game['GAME_ID']
+            if gid in processed_ids: continue
+            status = game['GAME_STATUS_ID'] # 1=Sched, 2=Live, 3=Final
+            final_games.append({
+                "game_id": gid,
+                "home": game['HOME_TEAM_ABBREVIATION'],
+                "away": game['VISITOR_TEAM_ABBREVIATION'],
+                "status": status,
+                "time": game['GAME_DATE_EST']
+            })
+            processed_ids.add(gid)
+        return final_games
+    except Exception as e:
+        print(f"Erro no Extended Scoreboard: {e}")
+        return []
 
 # ============================================================================
-# 2. INICIALIZAÇÃO DE FLAGS E VARIÁVEIS (PREVENÇÃO DE NameError)
+# 5. CARREGAMENTO DE MÓDULOS E FLAGS
 # ============================================================================
-# Define TUDO como False/None primeiro. Se a importação falhar, o código não quebra.
+
+# Define Classes como None para evitar NameError
+PaceAdjuster = VacuumMatrixAnalyzer = DvpAnalyzer = InjuryMonitor = None
+PlayerClassifier = CorrelationValidator = RotationAnalyzer = None
+NarrativeFormatter = ThesisEngine = StrategyEngine = StrategyIdentifier = None
+ArchetypeEngine = RotationCeilingEngine = SinergyEngine = None
+AuditSystem = None
 
 # Flags de Disponibilidade
-NOVOS_MODULOS_DISPONIVEIS = False
-PACE_ADJUSTER_AVAILABLE = False
-VACUUM_MATRIX_AVAILABLE = False
-DVP_ANALYZER_AVAILABLE = False
-INJURY_MONITOR_AVAILABLE = False
-PLAYER_CLASSIFIER_AVAILABLE = False
-CORRELATION_FILTERS_AVAILABLE = False
-ROTATION_CEILING_AVAILABLE = False
-SINERGY_ENGINE_AVAILABLE = False
+FLAGS = {
+    "CORE": False,
+    "PACE": False,
+    "VACUUM": False,
+    "DVP": False,
+    "INJURY": False,
+    "CORRELATION": False,
+    "SINERGY": False,
+    "PINNACLE": False
+}
 
-# Classes (Inicializadas como None)
-PaceAdjuster = None
-VacuumMatrixAnalyzer = None
-DvpAnalyzer = None
-InjuryMonitor = None
-PlayerClassifier = None
-CorrelationValidator = None
-CorrelationValidator = None
-RotationAnalyzer = None
-NarrativeFormatter = None
-ThesisEngine = None
-StrategyEngine = None
-StrategyIdentifier = None
-ArchetypeEngine = None
-RotationCeilingEngine = None
-SinergyEngine = None
+print("🔄 Inicializando Módulos do Sistema...")
 
-# ============================================================================
-# 3. CARREGAMENTO DOS MÓDULOS ESTRATÉGICOS & NEXUS
-# ============================================================================
+# --- 5.1 CARREGAMENTO SEGURO DE MÓDULOS ---
 try:
-    print("🔄 Carregando Módulos Estratégicos...")
+    # Core Estratégico
+    from modules.new_modules.thesis_engine import ThesisEngine
+    from modules.new_modules.strategy_engine import StrategyEngine
+    from modules.new_modules.narrative_formatter import NarrativeFormatter
+    from modules.new_modules.rotation_analyzer import RotationAnalyzer
+    from modules.new_modules.strategy_identifier import StrategyIdentifier
+    FLAGS["CORE"] = True
 
-    # --- Grupo 1: Core Trixie/Thesis ---
-    try:
-        from modules.new_modules.thesis_engine import ThesisEngine
-        from modules.new_modules.strategy_engine import StrategyEngine
-        from modules.new_modules.narrative_formatter import NarrativeFormatter
-        from modules.new_modules.rotation_analyzer import RotationAnalyzer
-        from modules.new_modules.strategy_identifier import StrategyIdentifier
-        NOVOS_MODULOS_DISPONIVEIS = True # Core carregado
-    except ImportError as e:
-        print(f"⚠️ Core Estratégico parcial/falho: {e}")
-
-    # --- Grupo 2: Filtros e Correlacao (Onde deu o erro) ---
-    try:
-        from modules.new_modules.correlation_filters import CorrelationValidator, CorrelationValidator
-        CORRELATION_FILTERS_AVAILABLE = True
-    except ImportError: 
-        print("⚠️ Correlation Filters não carregado")
-
-    # --- Grupo 3: Nexus Components ---
+    # Componentes Nexus
     try:
         from modules.new_modules.pace_adjuster import PaceAdjuster
-        PACE_ADJUSTER_AVAILABLE = True
+        FLAGS["PACE"] = True
     except ImportError: pass
 
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-        VACUUM_MATRIX_AVAILABLE = True
+        FLAGS["VACUUM"] = True
     except ImportError: pass
 
     try:
         from modules.new_modules.dvp_analyzer import DvpAnalyzer
-        DVP_ANALYZER_AVAILABLE = True
+        FLAGS["DVP"] = True
     except ImportError: pass
-    
+
     try:
         from modules.new_modules.player_classifier import PlayerClassifier
-        PLAYER_CLASSIFIER_AVAILABLE = True
     except ImportError: pass
 
     try:
         from modules.new_modules.sinergy_engine import SinergyEngine
-        SINERGY_ENGINE_AVAILABLE = True
+        FLAGS["SINERGY"] = True
     except ImportError: pass
 
     try:
-        from modules.new_modules.archetype_engine import ArchetypeEngine
+        from modules.new_modules.correlation_filters import CorrelationValidator
+        FLAGS["CORRELATION"] = True
     except ImportError: pass
 
-    try:
-        from modules.new_modules.rotation_ceiling_engine import RotationCeilingEngine
-        ROTATION_CEILING_AVAILABLE = True
-    except ImportError: pass
-
-    # --- Grupo 4: Raiz ---
+    # Raiz
     try:
         from injuries import InjuryMonitor
-        INJURY_MONITOR_AVAILABLE = True
-    except ImportError: 
-        print("⚠️ InjuryMonitor não carregado")
+        FLAGS["INJURY"] = True
+    except ImportError: print("⚠️ InjuryMonitor ausente.")
 
-    print("✅ Processo de importação concluído.")
+    # Audit
+    try:
+        from modules.audit_system import AuditSystem
+    except ImportError: pass
+
+    print("✅ Módulos carregados.")
 
 except Exception as e:
-    print(f"⚠️ Erro geral no loader de módulos: {e}")
+    print(f"⚠️ Erro parcial no carregamento de módulos: {e}")
 
-# ============================================================================
-# 4. INTEGRAÇÕES EXTERNAS
-# ============================================================================
+# --- 5.2 INTEGRAÇÕES EXTERNAS ---
 try:
     from pinnacle_client import PinnacleClient
-    PINNACLE_AVAILABLE = True
+    FLAGS["PINNACLE"] = True
 except ImportError:
-    PINNACLE_AVAILABLE = False
-    
-    # Cria uma classe dummy para não quebrar se o arquivo faltar
-    class PinnacleClient:
+    class PinnacleClient: # Dummy fallback
         def __init__(self, *args, **kwargs): pass
         def get_nba_games(self): return []
         def get_player_props(self, game_id): return []
 
-import logging
-logger = logging.getLogger(__name__)
+# ============================================================================
+# 6. AUTENTICAÇÃO E SESSION STATE
+# ============================================================================
 
-TEAM_PACE_DATA = {}
+# Variáveis Globais de Controle de Features
+FEATURE_CONFIG = {
+    "PACE_ADJUSTER": {"active": FLAGS["PACE"], "min_pace_threshold": 98, "adjustment_factor": 0.02},
+    "DYNAMIC_THRESHOLDS": {"active": True, "position_multipliers": {"PG": {"AST": 1.5}, "C": {"REB": 2.0}}},
+    "STRATEGIC_ENGINE": {"active": FLAGS["CORE"], "min_confidence": 0.6},
+    "CORRELATION_FILTERS": {"active": FLAGS["CORRELATION"], "max_similarity_score": 0.7}
+}
+
+# Configura Session State Padrão
+if 'df_l5' not in st.session_state: st.session_state.df_l5 = pd.DataFrame()
+if 'use_advanced_features' not in st.session_state: st.session_state.use_advanced_features = False
+if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG
+
+# Placeholder para autenticação (Se for usar)
+# user_manager = UserManager() ...
+# authenticator = stauth.Authenticate(...)
 
 # ============================================================================
-# AUTENTICADOR (SISTEMA DE LOGIN BLINDADO)
-# ============================================================================
-user_manager = UserManager()
-auth_config = user_manager.get_authenticator_config()
-
-# Inicializa o objeto autenticador
-authenticator = stauth.Authenticate(
-    auth_config['credentials'],
-    auth_config['cookie']['name'],
-    auth_config['cookie']['key'],
-    auth_config['cookie']['expiry_days']
-)
-
-# 1. RENDERIZA TELA DE LOGIN
-# O try/except garante compatibilidade se o servidor mudar a versão da lib
-try:
-    # Tentativa para versão nova (v0.4.x) - Sem título, só local
-    authenticator.login(location='main')
-except TypeError:
-    # Fallback para versão antiga (v0.3.x) - Com título
-    authenticator.login('Login', 'main')
-
-# 2. CONTROLE DE FLUXO (VERIFICA O STATUS NA MEMÓRIA)
-if st.session_state.get('authentication_status') is False:
-    st.error('Username ou senha incorretos')
-    st.stop() # Para o código aqui
-elif st.session_state.get('authentication_status') is None:
-    st.warning('Por favor, faça login para acessar o sistema.')
-    st.stop() # Para o código aqui
-
-# 3. SUCESSO - RECUPERA DADOS DO USUÁRIO
-# Se o código passou pelo st.stop() acima, significa que está logado.
-name = st.session_state.get('name')
-username = st.session_state.get('username')
-
-# 4. BARRA LATERAL (INFO USUÁRIO + LOGOUT)
-with st.sidebar:
-    st.write(f"Usuário: **{name}**")
-    # Botão de sair
-    try:
-        authenticator.logout(location='sidebar') # Versão nova
-    except:
-        authenticator.logout('Sair', 'sidebar') # Versão antiga
-    st.divider()
-
-# DAQUI PARA BAIXO SEGUE SEU CÓDIGO NORMAL (MENU, ABAS, ETC)...
-
-# ============================================================================
-# FUNÇÕES AUXILIARES
-# ============================================================================
-if 'df_l5' not in st.session_state:
-    st.session_state.df_l5 = pd.DataFrame()
-
-if 'use_advanced_features' not in st.session_state:
-    st.session_state.use_advanced_features = False
-
-if 'advanced_features_config' not in st.session_state:
-    st.session_state.advanced_features_config = {
-        "dynamic_thresholds": True,
-        "contextual_scoring": True,
-        "boost_mode": True,
-        "pace_adjuster": True,
-        "vacuum_matrix": True,
-        "correlation_filters": True
-    }
-
-# ============================================================================
-# FETCH ADVANCED STATS (PACE REAL)
+# 7. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
 # ============================================================================
 def fetch_real_time_team_stats():
+    """Busca Pace e Stats Defensivos via NBA API"""
     try:
         from nba_api.stats.endpoints import leaguedashteamstats
-        
-        st.info(f"⏳ Buscando Pace e Advanced Stats da temporada {SEASON}...")
-        
         stats = leaguedashteamstats.LeagueDashTeamStats(
             measure_type_detailed_defense='Advanced',
-            season=SEASON, # Certifique-se que SEASON = "2025-26" lá em cima
+            season=SEASON,
             per_mode_detailed='PerGame'
         )
-        
         df = stats.get_data_frames()[0]
-        
-        if df.empty:
-            st.error("API da NBA retornou dados vazios.")
-            return None
+        if df.empty: return None
 
         advanced_data = {}
-        
         for _, row in df.iterrows():
-            team_name = row['TEAM_NAME']
-            team_abbr = row.get('TEAM_ABBREVIATION', '')
-            
-            if not team_abbr:
-                # Fallback simples se a sigla falhar (raro)
-                team_abbr = team_name[:3].upper()
-
+            team_abbr = row.get('TEAM_ABBREVIATION', row['TEAM_NAME'][:3].upper())
             advanced_data[team_abbr] = {
                 "PACE": float(row['PACE']),
                 "OFF_RATING": float(row['OFF_RATING']),
@@ -486,262 +358,24 @@ def fetch_real_time_team_stats():
                 "NET_RATING": float(row['NET_RATING']),
                 "TS_PCT": float(row['TS_PCT'])
             }
-            
-        save_json(TEAM_ADVANCED_FILE, advanced_data)
+        
+        save_data_universal("team_advanced", advanced_data, TEAM_ADVANCED_FILE)
         st.session_state.team_advanced = advanced_data
-        
-        st.success(f"✅ Pace atualizado! Média da liga: {df['PACE'].mean():.1f}")
         return advanced_data
-        
     except Exception as e:
-        st.error(f"Erro ao buscar Team Advanced Stats: {e}")
+        print(f"Erro Team Stats: {e}")
         return None
 
-# ============================================================================
-# INICIALIZAÇÃO E LIMPEZA
-# ============================================================================
-def initialize_recommendations_cache():
-    if "recommendations_generated" not in st.session_state:
-        st.session_state.recommendations_generated = False
-    for category in ["conservadora", "ousada", "banco", "explosao"]:
-        key = f"{category}_recommendations"
-        st.session_state.setdefault(key, [])
-
-def clear_all_recommendations():
-    for category in ["conservadora", "ousada", "banco", "explosao"]:
-        st.session_state[f"{category}_recommendations"] = []
-    st.session_state.recommendations_generated = False
-
+# Helpers de Inicialização
 def initialize_system_components():
-    components = {}
-    
-    try:
-        # Inicializar ArchetypeEngine
-        if "archetype_engine" not in st.session_state:
-            from modules.new_modules.archetype_engine import ArchetypeEngine
-            st.session_state.archetype_engine = ArchetypeEngine()
-        components["ArchetypeEngine"] = "✅"
-    except Exception as e:
-        components["ArchetypeEngine"] = f"❌ {str(e)[:50]}"
-    
-    try:
-        # Inicializar PlayerClassifier
-        if "player_classifier" not in st.session_state:
-            from modules.new_modules.player_classifier import PlayerClassifier
-            st.session_state.player_classifier = PlayerClassifier()
-        components["PlayerClassifier"] = "✅"
-    except Exception as e:
-        components["PlayerClassifier"] = f"❌ {str(e)[:50]}"
-    
-    try:
-        # Inicializar RotationAnalyzer
-        if "rotation_analyzer" not in st.session_state:
-            from modules.new_modules.rotation_analyzer import RotationAnalyzer
-            st.session_state.rotation_analyzer = RotationAnalyzer()
-        components["RotationAnalyzer"] = "✅"
-    except Exception as e:
-        components["RotationAnalyzer"] = f"❌ {str(e)[:50]}"
-    
-    return components
-
-# ============================================================================
-# CONFIGURAÇÃO DAS FEATURES 
-# ============================================================================
-FEATURE_FLAGS = {
-    # CORE
-    "STRATEGIC_ENGINE": True,
-    "PACE_ADJUSTER": True,
-    "DYNAMIC_THRESHOLDS": True,
-    "CONTEXTUAL_SCORING": True,
-    
-    # OTIMIZAÇÃO
-    "CORRELATION_FILTERS": True,
-    "VACUUM_MATRIX": True,
-    "USAGE_SPIKE_DETECTOR": True,
-    
-    # ANÁLISE
-    "ADVANCED_PROJECTIONS": True,
-    "MATCHUP_CLASSIFIER": True,
-    "INJURY_RIPPLE_EFFECT": True,
-    
-    # SUPORTE
-    "AUDIT_SYSTEM": True,
-}
-
-# Configurações por feature
-FEATURE_CONFIG = {
-    "PACE_ADJUSTER": {
-        "active": True,
-        "min_pace_threshold": 98,
-        "max_pace_threshold": 102,
-        "adjustment_factor": 0.02  # 2% por ponto de pace acima/média
-    },
-    "DYNAMIC_THRESHOLDS": {
-        "active": True,
-        "position_multipliers": {
-            "PG": {"PTS": 1.3, "AST": 1.5, "REB": 0.8},
-            "SG": {"PTS": 1.3, "AST": 1.1, "REB": 0.8},
-            "SF": {"PTS": 1.1, "AST": 0.9, "REB": 1.2},
-            "PF": {"PTS": 1.0, "AST": 0.8, "REB": 1.5},
-            "C": {"PTS": 1.0, "AST": 0.6, "REB": 2.0}
-        }
-    },
-    "STRATEGIC_ENGINE": {
-        "active": True,
-        "min_confidence": 0.6,
-        "max_recommendations_per_category": 6,
-        "diversity_penalty": 0.9  # Penalidade por falta de diversificação
-    },
-    "CORRELATION_FILTERS": {
-        "active": True,
-        "max_players_per_team": 3,
-        "position_conflicts": ["PG+PG", "C+C"],
-        "max_similarity_score": 0.7
-    }
-}
-
-# Verificar disponibilidade das features
-def check_features_availability():
-    """Verifica quais features estão disponíveis e funcionais"""
-    available_features = {}
-    
-    # Verificar Strategic Engine
-    try:
-        from modules.new_modules.strategy_engine import StrategyEngine
-        available_features["STRATEGIC_ENGINE"] = True
-    except ImportError:
-        available_features["STRATEGIC_ENGINE"] = False
-    
-    # Verificar Pace Adjuster
-    try:
-        from modules.new_modules.pace_adjuster import PaceAdjuster
-        available_features["PACE_ADJUSTER"] = True
-    except ImportError:
-        available_features["PACE_ADJUSTER"] = False
-
-# ... (código anterior da função initialize_strategic_engine)
-
-        # 9. Inicializar Insights Engine (NOVO)
-        try:
-            from modules.new_modules.insights_engine import DailyInsightsEngine
-            if "insights_engine" not in st.session_state:
-                st.session_state.insights_engine = DailyInsightsEngine(
-                    st.session_state.get("rotation_analyzer"),
-                    st.session_state.get("dvp_analyzer")
-                )
-            modules_initialized.append("InsightsEngine")
-        except Exception as e:
-            print(f"⚠️ Erro ao inicializar InsightsEngine: {e}")
-
-        # ... (continuação do return True)
-    
-    # Verificar Vacuum Matrix
-    try:
-        from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-        available_features["VACUUM_MATRIX"] = True
-    except ImportError:
-        available_features["VACUUM_MATRIX"] = False
-    
-    # Verificar Correlation Filters
-    try:
-        from modules.new_modules.correlation_filters import CorrelationValidator
-        available_features["CORRELATION_FILTERS"] = True
-    except ImportError:
-        available_features["CORRELATION_FILTERS"] = False
-    
-    # Features sempre disponíveis (implementadas no código principal)
-    always_available = [
-        "DYNAMIC_THRESHOLDS",
-        "CONTEXTUAL_SCORING", 
-        "ADVANCED_PROJECTIONS",
-        "MATCHUP_CLASSIFIER",
-        "INJURY_RIPPLE_EFFECT",
-        "USAGE_SPIKE_DETECTOR",
-        "AUDIT_SYSTEM"
-    ]
-    
-    for feature in always_available:
-        available_features[feature] = True
-    
-    return available_features
-
-def initialize_features():
-    """Inicializa todas as features configuradas"""
-    features_status = {}
-    
-    # Inicializar cada feature se estiver ativa e disponível
-    available = check_features_availability()
-    
-    for feature, is_active in FEATURE_FLAGS.items():
-        if not is_active:
-            features_status[feature] = "DISABLED"
-            continue
-            
-        if not available.get(feature, False):
-            features_status[feature] = "UNAVAILABLE"
-            continue
-            
-        try:
-            if feature == "STRATEGIC_ENGINE":
-                initialize_strategic_engine()
-                features_status[feature] = "ACTIVE"
-                
-            elif feature == "PACE_ADJUSTER" and available[feature]:
-                st.session_state.pace_adjuster = PaceAdjuster()
-                features_status[feature] = "ACTIVE"
-                
-            elif feature == "VACUUM_MATRIX" and available[feature]:
-                st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer()
-                features_status[feature] = "ACTIVE"
-                
-            elif feature == "CORRELATION_FILTERS" and available[feature]:
-                st.session_state.correlation_validator = CorrelationValidator()
-                features_status[feature] = "ACTIVE"
-                               
-            elif feature == "AUDIT_SYSTEM":
-                if "audit_system" not in st.session_state:
-                    st.session_state.audit_system = AuditSystem()
-                features_status[feature] = "ACTIVE"
-                
-            else:
-                features_status[feature] = "READY"
-                
-        except Exception as e:
-            features_status[feature] = f"ERROR: {str(e)[:50]}"
-    
-    st.session_state.features_status = features_status
-    return features_status
-
-# ============================================================================
-# CONSTANTES E MAPAS DE CORREÇÃO (O TRADUTOR UNIVERSAL)
-# ============================================================================
-TEAM_NORMALIZATION_MAP = {
-    "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
-    "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
-    "LA": "LAL", # Cuidado com LAC/LAL, mas geralmente LA sozinho é Lakers no histórico antigo
-    "CHO": "CHA"
-}
-
-def normalize_team(team_code):
-    """Padroniza siglas de times para evitar erros de comparação"""
-    if not team_code: return ""
-    code = team_code.upper().strip()
-    return TEAM_NORMALIZATION_MAP.get(code, code)
-
-# ============================================================================
-# 1. TRADUTOR UNIVERSAL (CONSTANTES E MAPAS)
-# ============================================================================
-TEAM_NORMALIZATION_MAP = {
-    "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
-    "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
-    "LA": "LAL", "CHO": "CHA"
-}
-
-def normalize_team(team_code):
-    """Padroniza siglas de times para evitar erros de comparação"""
-    if not team_code: return ""
-    code = str(team_code).upper().strip()
-    return TEAM_NORMALIZATION_MAP.get(code, code)
+    comps = {}
+    if "archetype_engine" not in st.session_state and ArchetypeEngine:
+        st.session_state.archetype_engine = ArchetypeEngine()
+        comps["Archetype"] = "✅"
+    if "rotation_analyzer" not in st.session_state and RotationAnalyzer:
+        st.session_state.rotation_analyzer = RotationAnalyzer()
+        comps["Rotation"] = "✅"
+    return comps
 
 # ============================================================================
 # TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
@@ -7184,6 +6818,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
