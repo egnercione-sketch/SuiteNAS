@@ -559,6 +559,195 @@ def initialize_features():
     st.session_state.features_status = features_status
     return features_status
 
+# ============================================================================
+# STRATEGY ENGINE: 5/7/10 (THE GLUE GUY SCANNER)
+# ============================================================================
+import os
+
+class FiveSevenTenEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games = games
+        # Tenta carregar o mapa de fotos (se existir)
+        self.player_ids = {}
+        if os.path.exists("nba_players_map.json"):
+            with open("nba_players_map.json", "r") as f:
+                self.player_ids = json.load(f)
+
+    def get_photo_url(self, player_name):
+        """Retorna a URL da foto oficial ou um placeholder."""
+        pid = self.player_ids.get(player_name)
+        if pid:
+            return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        else:
+            # Fallback: Logo genérico ou transparente
+            return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    def analyze_market(self):
+        candidates = []
+        if not self.logs: return []
+
+        for player_name, data in self.logs.items():
+            # Filtro básico: Jogador tem time?
+            team = data.get('team')
+            if not team: continue
+            
+            # Pega logs de AST e REB
+            logs_ast = data.get('logs', {}).get('AST', [])
+            logs_reb = data.get('logs', {}).get('REB', [])
+
+            # Analisa AST e REB separadamente
+            for stat_type, values in [('AST', logs_ast), ('REB', logs_reb)]:
+                # Critério L25 (Últimos 25 jogos para identidade sólida)
+                if len(values) < 10: continue # Precisa de mínimo de histórico
+                l25 = values[:25]
+                total_games = len(l25)
+
+                # Contagem da Escada
+                count_5 = sum(1 for x in l25 if x >= 5)
+                count_7 = sum(1 for x in l25 if x >= 7)
+                count_10 = sum(1 for x in l25 if x >= 10)
+
+                # Percentuais
+                pct_5 = (count_5 / total_games) * 100
+                pct_7 = (count_7 / total_games) * 100
+                pct_10 = (count_10 / total_games) * 100
+
+                # --- FILTROS DE ELEGIBILIDADE (A Peneira) ---
+                # 1. Tem que ser "Safe" no 5+ (>60% de chance)
+                # 2. Tem que ter algum potencial de explosão no 10+ (>10% de chance)
+                if pct_5 >= 60 and pct_10 >= 8: # 8% é aprox 2 jogos em 25
+                    
+                    # Define o Arquétipo
+                    archetype = "GLUE GUY"
+                    if pct_10 > 30: archetype = "DYNAMITE 🧨" # Explode muito
+                    elif pct_5 > 90 and pct_10 < 15: archetype = "RELOGINHO 🕰️" # Constante mas não explode
+                    
+                    candidates.append({
+                        "player": player_name,
+                        "team": team,
+                        "stat": stat_type,
+                        "photo": self.get_photo_url(player_name),
+                        "metrics": {
+                            "Safe_5": int(pct_5),
+                            "Target_7": int(pct_7),
+                            "Ceiling_10": int(pct_10)
+                        },
+                        "archetype": archetype,
+                        "l25_avg": sum(l25)/total_games
+                    })
+
+        # Ordena por Potencial de Explosão (Teto 10+)
+        return sorted(candidates, key=lambda x: x['metrics']['Ceiling_10'], reverse=True)
+
+def show_5_7_10_page():
+    # --- 1. CONFIGURAÇÃO ---
+    full_cache = load_json(LOGS_CACHE_FILE) or {}
+    engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
+    opportunities = engine.analyze_market()
+
+    st.header("🎯 Strategy 5 / 7 / 10")
+    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+). Base L25.")
+
+    if not opportunities:
+        st.info("Nenhum jogador encaixou no perfil 5/7/10 hoje.")
+        return
+
+    # --- 2. CSS (VISUAL DE CARTÃO DE JOGADOR) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
+        
+        .card-5710 {
+            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+            border-left: 5px solid #3b82f6; /* Azul padrão */
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        /* Foto Circular */
+        .player-img {
+            width: 60px; height: 60px; 
+            border-radius: 50%; 
+            object-fit: cover;
+            border: 2px solid #3b82f6;
+            background: #000;
+        }
+        
+        /* Infos */
+        .p-info { margin-left: 15px; width: 140px; }
+        .p-name { font-family: 'Oswald', sans-serif; font-size: 16px; color: #fff; line-height: 1.1; }
+        .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .p-arch { font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; }
+
+        /* A Escada (Barras) */
+        .ladder-container { flex-grow: 1; display: flex; gap: 10px; justify-content: space-around; align-items: center; }
+        .step-box { text-align: center; width: 30%; }
+        .step-label { font-size: 9px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
+        .bar-bg { width: 100%; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; }
+        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 14px; font-weight: bold; margin-top: 2px; }
+        
+        /* Cores dos Degraus */
+        .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
+        .target { color: #facc15; } .bg-target { background: #facc15; }
+        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; } /* Vermelho Explosão */
+
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- 3. RENDERIZAÇÃO ---
+    
+    # Filtro Rápido (Opcional)
+    filter_stat = st.radio("Filtrar por:", ["TODOS", "ASSISTÊNCIAS (AST)", "REBOTES (REB)"], horizontal=True)
+    
+    filtered_opps = opportunities
+    if filter_stat == "ASSISTÊNCIAS (AST)": filtered_opps = [x for x in opportunities if x['stat'] == 'AST']
+    if filter_stat == "REBOTES (REB)": filtered_opps = [x for x in opportunities if x['stat'] == 'REB']
+
+    for item in filtered_opps:
+        # Define Cores baseadas no Arquétipo
+        border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
+        
+        # HTML do Card
+        html = f"""
+        <div class="card-5710" style="border-left-color: {border_color};">
+            <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+            
+            <div class="p-info">
+                <div class="p-name">{item['player']}</div>
+                <div class="p-team">{item['team']} • {item['stat']}</div>
+                <div class="p-arch">{item['archetype']}</div>
+            </div>
+            
+            <div class="ladder-container">
+                <div class="step-box">
+                    <div class="step-label">SAFE (5+)</div>
+                    <div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div>
+                    <div class="step-val safe">{item['metrics']['Safe_5']}%</div>
+                </div>
+                
+                <div class="step-box">
+                    <div class="step-label">TARGET (7+)</div>
+                    <div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div>
+                    <div class="step-val target">{item['metrics']['Target_7']}%</div>
+                </div>
+                
+                <div class="step-box">
+                    <div class="step-label">EXPLOSÃO (10+)</div>
+                    <div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div>
+                    <div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div>
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(html, unsafe_allow_html=True)
+        
 # ==============================================================================
 # ☢️ HIT PROP HUNTER V47.3 - FINAL INTEGRAL FIX
 # ==============================================================================
@@ -5981,6 +6170,7 @@ def main():
         "🛡️ DvP Analysis",
         "🎯 Desdobramentos Inteligentes",
         "🎯 Hit Prop Hunter",
+        "🎯 Strategy 5/7/10",
         "🔄 Mapa de Rotações",
         "🌪️ Blowout Hunter",
         "⚔️ Lab Narrativas",
@@ -6271,7 +6461,12 @@ def main():
     # ============================================================================
     elif choice == "📋 Auditoria":
         show_audit_page()
-    
+    # ============================================================================
+    # CONFIG
+    # ============================================================================
+    elif choice == "🎯 Strategy 5/7/10":
+        show_5_7_10_page() # LIMPO E UNIFICADO!
+        
     # ============================================================================
     # CONFIG
     # ============================================================================
@@ -6284,6 +6479,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
