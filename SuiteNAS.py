@@ -7234,7 +7234,7 @@ def main():
 
 # --- CENTRO DE COMANDO ---
     elif choice == "📊 Ranking Teses": 
-        show_analytics_page(): # Antigo Analytics
+        show_analytics_page() # Antigo Analytics
     elif choice == "📋 Auditoria":
         show_audit_page()
 
@@ -7286,4 +7286,5 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
