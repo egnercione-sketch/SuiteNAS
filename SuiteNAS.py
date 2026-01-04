@@ -5058,128 +5058,138 @@ def show_audit_page():
 </div>
 """, unsafe_allow_html=True)
 # ============================================================================
-# FUNÇÃO PARA RENDERIZAR CARD DE JOGO (CORRIGIDA - PACE DINÂMICO)
+# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (ATUALIZADA v2.0 - TIME & REAL DATA)
 # ============================================================================
 def render_game_card(away_team, home_team, game_data, odds_map=None):
-    # URLs de logos (Mantido)
-    TEAM_LOGO_URLS = {
-        "ATL": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png", "BOS": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
-        "BKN": "https://a.espncdn.com/i/teamlogos/nba/500/bkn.png", "CHA": "https://a.espncdn.com/i/teamlogos/nba/500/cha.png",
-        "CHI": "https://a.espncdn.com/i/teamlogos/nba/500/chi.png", "CLE": "https://a.espncdn.com/i/teamlogos/nba/500/cle.png",
-        "DAL": "https://a.espncdn.com/i/teamlogos/nba/500/dal.png", "DEN": "https://a.espncdn.com/i/teamlogos/nba/500/den.png",
-        "DET": "https://a.espncdn.com/i/teamlogos/nba/500/det.png", "GSW": "https://a.espncdn.com/i/teamlogos/nba/500/gs.png",
-        "HOU": "https://a.espncdn.com/i/teamlogos/nba/500/hou.png", "IND": "https://a.espncdn.com/i/teamlogos/nba/500/ind.png",
-        "LAC": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png", "LAL": "https://a.espncdn.com/i/teamlogos/nba/500/lal.png",
-        "MEM": "https://a.espncdn.com/i/teamlogos/nba/500/mem.png", "MIA": "https://a.espncdn.com/i/teamlogos/nba/500/mia.png",
-        "MIL": "https://a.espncdn.com/i/teamlogos/nba/500/mil.png", "MIN": "https://a.espncdn.com/i/teamlogos/nba/500/min.png",
-        "NOP": "https://a.espncdn.com/i/teamlogos/nba/500/no.png", "NYK": "https://a.espncdn.com/i/teamlogos/nba/500/ny.png",
-        "OKC": "https://a.espncdn.com/i/teamlogos/nba/500/okc.png", "ORL": "https://a.espncdn.com/i/teamlogos/nba/500/orl.png",
-        "PHI": "https://a.espncdn.com/i/teamlogos/nba/500/phi.png", "PHX": "https://a.espncdn.com/i/teamlogos/nba/500/phx.png",
-        "POR": "https://a.espncdn.com/i/teamlogos/nba/500/por.png", "SAC": "https://a.espncdn.com/i/teamlogos/nba/500/sac.png",
-        "SAS": "https://a.espncdn.com/i/teamlogos/nba/500/sas.png", "TOR": "https://a.espncdn.com/i/teamlogos/nba/500/tor.png",
-        "UTA": "https://a.espncdn.com/i/teamlogos/nba/500/utah.png", "WAS": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png"
-    }
+    # Mapeamento de Logos
+    def get_logo(abbr):
+        return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr.lower()}.png"
 
-    # Extrair Odds
-    espn_spread = game_data.get("odds_spread", "N/A") 
-    espn_total = game_data.get("odds_total")          
+    # --- 1. DADOS REAIS (DATA FETCHING) ---
     
-    total_display = str(espn_total) if espn_total else "N/A"
+    # Horário (Parseamento ISO)
+    import dateutil.parser
+    game_time = "TBD"
+    try:
+        raw_time = game_data.get("startTimeUTC") or game_data.get("date")
+        if raw_time:
+            dt = dateutil.parser.parse(raw_time)
+            # Ajuste simples de fuso (-3h Brasil) se necessário, ou apenas formata
+            # Aqui formata apenas Hora:Minuto
+            game_time = dt.strftime("%H:%M")
+    except:
+        game_time = "HOJE"
+
+    # Odds (Spread & Total) - Vindo direto da ESPN (game_data)
+    spread_display = game_data.get("odds_spread", "N/A")
+    total_display = game_data.get("odds_total", "N/A")
     
-    # Calcular Spread Numérico
+    # Limpeza do Spread para cálculo de risco
     spread_val = 0.0
     try:
-        if espn_spread and espn_spread != "N/A":
-            parts = espn_spread.split()
-            if parts: spread_val = float(parts[-1])
-    except:
-        pass
-        
-    spread_home = espn_spread 
-    status = game_data.get('status', 'Agendado')
-
-    # ======================================================
-    # ANÁLISE TÁTICA (CORRIGIDO: USA SESSION STATE)
-    # ======================================================
-    
-    # 1. Pace Real (Busca do Session State em vez de variável global)
-    adv_stats = st.session_state.get('team_advanced', {})
-    
-    def get_pace(abbr):
-        data = adv_stats.get(abbr, {})
-        # Tenta chaves maiúsculas (API) ou minúsculas (Cache antigo)
-        return float(data.get('PACE') or data.get('pace') or 100.0)
-
-    home_pace = get_pace(home_team)
-    away_pace = get_pace(away_team)
-    avg_pace = (home_pace + away_pace) / 2
-    
-    if avg_pace >= 101.5:
-        pace_cfg = {"color": "#00FF9C", "text": "Acelerado", "icon": "⚡"}
-    elif avg_pace <= 98.5:
-        pace_cfg = {"color": "#FFA500", "text": "Lento", "icon": "🐌"}
-    else:
-        pace_cfg = {"color": "#9CA3AF", "text": "Moderado", "icon": "⚖️"}
-
-    # 2. Blowout Risk
-    blowout_analysis = calculate_blowout_risk(spread_val)
-
-    # 3. Total Context
-    total_text = "Normal"
-    try:
-        t_val = float(total_display)
-        if t_val >= 232: total_text = "Tiroteio 🔥"
-        elif t_val <= 218: total_text = "Defensivo 🛡️"
+        if spread_display and spread_display != "N/A" and spread_display != "EVEN":
+            spread_val = float(spread_display.split()[-1])
     except: pass
 
-    # HTML
-    tactical_panel = f"""
-    <div style="margin-top: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
-        <div style="text-align: center;">
-            <div style="font-size: 10px; color: #94A3B8;">RITMO ({avg_pace:.1f})</div>
-            <div style="color: {pace_cfg['color']}; font-weight: bold; font-size: 11px;">{pace_cfg['icon']} {pace_cfg['text']}</div>
-        </div>
-        <div style="width: 1px; height: 20px; background: #334155;"></div>
-        <div style="text-align: center;">
-            <div style="font-size: 10px; color: #94A3B8;">RISCO</div>
-            <div style="color: {blowout_analysis['color']}; font-weight: bold; font-size: 11px;">{blowout_analysis['nivel']}</div>
-        </div>
-        <div style="width: 1px; height: 20px; background: #334155;"></div>
-        <div style="text-align: center;">
-            <div style="font-size: 10px; color: #94A3B8;">CENÁRIO</div>
-            <div style="color: #E2E8F0; font-weight: bold; font-size: 11px;">{total_text}</div>
-        </div>
-    </div>
-    """
+    # Status
+    status = game_data.get('status', 'Agendado')
+    if "Final" in status: status = "FINAL"
+    
+    # --- 2. PACE REAL (DO SESSION STATE) ---
+    adv_stats = st.session_state.get('team_advanced', {})
+    
+    def get_team_pace(abbr):
+        # Tenta pegar do dicionário avançado
+        t_data = adv_stats.get(abbr, {})
+        if not t_data: return 100.0 # Fallback média da liga
+        return float(t_data.get('PACE') or t_data.get('pace') or 100.0)
 
+    pace_home = get_team_pace(home_team)
+    pace_away = get_team_pace(away_team)
+    avg_pace = (pace_home + pace_away) / 2
+    
+    # Classificação Visual do Pace
+    if avg_pace >= 101.5:
+        pace_color = "#00FF9C" # Verde Neon
+        pace_icon = "⚡"
+    elif avg_pace <= 98.5:
+        pace_color = "#FFA500" # Laranja
+        pace_icon = "🐌"
+    else:
+        pace_color = "#9CA3AF" # Cinza
+        pace_icon = "⚖️"
+
+    # Análise de Blowout
+    blowout = calculate_blowout_risk(spread_val)
+
+    # --- 3. HTML DO CARD (DESIGNER MODE) ---
     card_html = f"""
-    <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); border-radius: 12px; padding: 16px; margin: 12px 0; border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2); font-family: sans-serif;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="background: rgba(30, 144, 255, 0.15); color: #60A5FA; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 600;">{status}</div>
-        <div style="font-size: 11px; color: #94A3B8;">O/U: <span style="color: #F8FAFC; font-weight: bold;">{total_display}</span></div>
+    <div style="
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid #334155;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        font-family: 'Inter', sans-serif;
+        position: relative;
+        overflow: hidden;
+    ">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+        <div style="background: rgba(30, 144, 255, 0.1); color: #60A5FA; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+            {status}
+        </div>
+        <div style="font-family: 'Oswald', sans-serif; font-size: 14px; color: #F8FAFC; font-weight: 600;">
+            ⏰ {game_time}
+        </div>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-          <div style="text-align: center; width: 40%;">
-            <img src="{TEAM_LOGO_URLS.get(away_team, '')}" style="width: 40px; height: 40px; margin-bottom:6px;">
-            <div style="font-weight: 700; font-size: 15px; color: #F1F5F9;">{away_team}</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+          <div style="text-align: center; width: 35%;">
+            <img src="{get_logo(away_team)}" style="width: 45px; height: 45px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 16px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
+            <div style="font-size: 10px; color: #94A3B8;">PACE: {int(pace_away)}</div>
           </div>
-          <div style="text-align: center; width: 20%;">
-            <div style="font-size: 10px; color: #64748B;">SPREAD</div>
-            <div style="font-size: 12px; color: #00FF9C; font-weight: bold; white-space: nowrap;">{spread_home}</div>
+          
+          <div style="text-align: center; width: 30%;">
+            <div style="font-size: 10px; color: #64748B; font-weight: 600;">SPREAD</div>
+            <div style="font-size: 14px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald'; margin-bottom: 4px;">{spread_display}</div>
+            <div style="font-size: 10px; color: #64748B; font-weight: 600;">TOTAL</div>
+            <div style="font-size: 14px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
           </div>
-          <div style="text-align: center; width: 40%;">
-            <img src="{TEAM_LOGO_URLS.get(home_team, '')}" style="width: 40px; height: 40px; margin-bottom:6px;">
-            <div style="font-weight: 700; font-size: 15px; color: #F1F5F9;">{home_team}</div>
+          
+          <div style="text-align: center; width: 35%;">
+            <img src="{get_logo(home_team)}" style="width: 45px; height: 45px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 16px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
+            <div style="font-size: 10px; color: #94A3B8;">PACE: {int(pace_home)}</div>
           </div>
       </div>
 
-      {tactical_panel}
+      <div style="
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        padding: 8px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        border: 1px solid rgba(255,255,255,0.05);
+      ">
+        <div style="text-align: center;">
+            <div style="font-size: 9px; color: #94A3B8; font-weight: 600;">RITMO ({int(avg_pace)})</div>
+            <div style="color: {pace_color}; font-weight: bold; font-size: 11px;">{pace_icon}</div>
+        </div>
+        
+        <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.1);"></div>
+        
+        <div style="text-align: center;">
+            <div style="font-size: 9px; color: #94A3B8; font-weight: 600;">RISCO</div>
+            <div style="color: {blowout['color']}; font-weight: bold; font-size: 11px;" title="{blowout['desc']}">{blowout['icon']} {blowout['nivel']}</div>
+        </div>
+      </div>
     </div>
     """
-
     import streamlit.components.v1 as components
-    components.html(card_html, height=260, scrolling=False)
+    components.html(card_html, height=240, scrolling=False)
 
 # ============================================================================
 # RENDERIZADORES VISUAIS 
@@ -7014,261 +7024,234 @@ def main():
             unsafe_allow_html=True
         )
   
-    # ============================================================================
-    # DASHBOARD (VISUAL CYBER-COURT + INSIGHTS)
-    # ============================================================================
-    if choice == "🏠 Dashboard":
-        st.header("📊 Dashboard")
+# ============================================================================
+# DASHBOARD (VISUAL ARENA DE ELITE)
+# ============================================================================
+def show_dashboard_page():
+    # Sem Header - Direto ao ponto
+    
+    # 1. Carrega Dados
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    games = get_scoreboard_data() # Função de fetch do scoreboard
+    
+    if df_l5.empty:
+        st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
+        return
 
-        df_games = get_scoreboard_data()
+    # --- 2. SEÇÃO DE INSIGHTS (FLAMEJANTES) ---
+    if "insights_engine" in st.session_state:
+        try:
+            insights = st.session_state.insights_engine.generate_daily_insights(
+                st.session_state.get("scoreboard", []),
+                df_l5,
+                st.session_state.get("injuries_data", {})
+            )
+            if insights:
+                # Mostra apenas os 2 insights mais críticos para não poluir
+                cols = st.columns(2)
+                for i, item in enumerate(insights[:2]):
+                    with cols[i]:
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(90deg, {item['color']}20 0%, transparent 100%); border-left: 4px solid {item['color']}; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="font-weight:bold; color:#E2E8F0; font-size:14px;">{item['icon']} {item['title']}</div>
+                            <div style="font-size:11px; color:#94A3B8;">{item['desc']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+        except: pass
+
+    # --- 3. GOLDEN PODIUM (KPIS DE ELITE) ---
+    # Top 3 em Pontos, Assistências e Rebotes
+    
+    st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">🏆 LÍDERES RECENTES (L5 FORM)</div>', unsafe_allow_html=True)
+    
+    # Helper para pegar top 3
+    def get_top_n(df, col, n=3):
+        return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
+
+    top_pts = get_top_n(df_l5, 'PTS_AVG')
+    top_ast = get_top_n(df_l5, 'AST_AVG')
+    top_reb = get_top_n(df_l5, 'REB_AVG')
+
+    # Helper de Renderização do Card Dourado
+    def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
+        # Pega o #1
+        king = df_top.iloc[0]
+        p_id = king['PLAYER_ID']
+        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
+        val = king[df_top.columns[2]] # Valor da stat
         
-        # --- 1. SEÇÃO DE INSIGHTS (NOVA - TOPO DA PÁGINA) ---
-        # Este é o melhor lugar: logo abaixo do título, como um "News Ticker" visual
-        if "insights_engine" in st.session_state:
-            try:
-                # Gerar insights frescos usando os dados atuais
-                insights = st.session_state.insights_engine.generate_daily_insights(
-                    st.session_state.get("scoreboard", []),
-                    st.session_state.get("df_l5", pd.DataFrame()),
-                    st.session_state.get("injuries_data", {})
+        # HTML do Card
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(180deg, rgba(20, 20, 20, 1) 0%, rgba(30, 30, 30, 1) 100%);
+            border: 1px solid {color};
+            border-radius: 12px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 0 15px {color}20;
+            position: relative;
+            height: 100%;
+        ">
+            <div style="background: {color}20; padding: 8px; text-align: center; border-bottom: 1px solid {color}40;">
+                <span style="font-family: 'Oswald'; color: {color}; font-size: 14px; letter-spacing: 2px; font-weight: bold;">{icon} {title}</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; padding: 15px;">
+                <img src="{photo}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
+                <div style="margin-left: 15px;">
+                    <div style="font-family: 'Oswald'; color: #FFF; font-size: 18px; line-height: 1.1;">{king['PLAYER']}</div>
+                    <div style="font-size: 11px; color: #94A3B8; margin-bottom: 4px;">{king['TEAM']}</div>
+                    <div style="font-family: 'Oswald'; color: {color}; font-size: 24px; font-weight: bold;">{val:.1f}</div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #CBD5E1; margin-bottom: 4px;">
+                    <span>2. {df_top.iloc[1]['PLAYER']}</span>
+                    <span style="font-weight: bold; color: {color};">{df_top.iloc[1][df_top.columns[2]]:.1f}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #CBD5E1;">
+                    <span>3. {df_top.iloc[2]['PLAYER']}</span>
+                    <span style="font-weight: bold; color: {color};">{df_top.iloc[2][df_top.columns[2]]:.1f}</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Colunas
+    c1, c2, c3 = st.columns(3)
+    with c1: render_golden_card("CESTINHAS", top_pts, color="#FFD700", icon="🔥")
+    with c2: render_golden_card("GARÇONS", top_ast, color="#00E5FF", icon="🧠") # Cyan para Assist
+    with c3: render_golden_card("REBOTEIROS", top_reb, color="#FF4F4F", icon="💪") # Red para Rebote
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- 4. GAME GRID (SEM FILTROS, COM PACE REAL) ---
+    st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
+
+    if games.empty:
+        st.info("Nenhum jogo encontrado para hoje.")
+    else:
+        # Pega as odds do session state para passar para o render
+        odds_cache = st.session_state.get("odds", {})
+        
+        # Grid 2 colunas
+        rows = st.columns(2)
+        for i, (index, game) in enumerate(games.iterrows()):
+            with rows[i % 2]:
+                render_game_card(
+                    away_team=game['away'],
+                    home_team=game['home'],
+                    game_data=game,
+                    odds_map=odds_cache
                 )
-                
-                if insights:
-                    st.markdown('<div style="margin-bottom: 15px; margin-top: 5px; font-family: Oswald; color: #94A3B8; letter-spacing: 2px; font-size: 14px;">⚡ DESTAQUES DO ANALISTA</div>', unsafe_allow_html=True)
-                    
-                    # Criar colunas dinâmicas para os cards (Limitado a 4 para não quebrar o layout)
-                    cols = st.columns(len(insights))
-                    
-                    for i, item in enumerate(insights):
-                        with cols[i]:
-                            # HTML do Mini-Card de Insight
-                            st.markdown(f"""
-                            <div style="
-                                background: linear-gradient(180deg, {item['color']}15 0%, #0F172A 100%);
-                                border-top: 3px solid {item['color']};
-                                border-radius: 8px;
-                                padding: 15px;
-                                height: 160px; /* Altura fixa para alinhamento */
-                                border-left: 1px solid rgba(255,255,255,0.05);
-                                border-right: 1px solid rgba(255,255,255,0.05);
-                                border-bottom: 1px solid rgba(255,255,255,0.05);
-                                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                                display: flex;
-                                flex-direction: column;
-                            ">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
-                                    <span style="font-size:24px;">{item['icon']}</span>
-                                    <span style="background:{item['color']}20; color:{item['color']}; font-size:9px; padding:3px 8px; border-radius:10px; font-weight:bold; letter-spacing: 1px; border: 1px solid {item['color']}40;">{item['tag']}</span>
-                                </div>
-                                <div style="font-family:'Oswald', sans-serif; font-size:16px; color:#E2E8F0; line-height:1.2; margin-bottom:8px; text-transform: uppercase;">
-                                    {item['title']}
-                                </div>
-                                <div style="font-family:'Inter', sans-serif; font-size:11px; color:#94A3B8; line-height:1.4; flex-grow: 1;">
-                                    {item['desc']}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    st.markdown("---")
-            except Exception as e:
-                # Falha silenciosa para não quebrar o dashboard se o engine falhar
-                if st.session_state.get("debug_mode"): st.error(f"Erro nos insights: {e}")
 
-        df_l5_current = st.session_state.get('df_l5', pd.DataFrame())
+# ============================================================================
+# EXECUÇÃO PRINCIPAL (CORRIGIDA)
+# ============================================================================
+def main():
+    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
+    
+    # Fontes e CSS Global
+    st.markdown(FONT_LINKS, unsafe_allow_html=True)
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    
+    safe_load_initial_data()
 
-        if not df_l5_current.empty:
-            col_s1, col_s2, col_s3 = st.columns(3)
-           
-# --- 3. MÉTRICAS GERAIS (KPIs - ESTRATÉGIA HÍBRIDA NATIVA) ---
-        
-        # 1. Preparação dos Dados
-        val_players = len(df_l5_current) if not df_l5_current.empty else 0
-        
-        games = st.session_state.get('scoreboard', []) or []
-        val_games = len(games)
-        
-        odds = st.session_state.get('odds', {}) or {}
-        val_odds = sum(1 for k, v in odds.items() if v.get('spread') != 0)
-        
-        val_injuries = 0
-        inj_data = st.session_state.get('injuries_data', {})
-        if inj_data:
-            for team_injuries in inj_data.values():
-                val_injuries += len(team_injuries)
-        
-        dvp = st.session_state.get("dvp_analyzer")
-        val_dvp = len(dvp.defense_data) if dvp and hasattr(dvp, 'defense_data') else 0
-
-        # 2. CSS Global para os Cards (Injetado uma vez)
+    # --- MENU LATERAL (INDENTAÇÃO CORRIGIDA) ---
+    with st.sidebar:
+        # CSS Específico da Sidebar
         st.markdown("""
         <style>
-            .cyber-kpi-card {
-                background: linear-gradient(145deg, #0f172a, #1e293b);
-                border: 1px solid #334155;
-                border-radius: 8px;
-                padding: 15px 5px;
+            /* Fundo Preto Absoluto */
+            section[data-testid="stSidebar"] {
+                background-color: #000000 !important;
+                border-right: 1px solid #1e293b;
+            }
+            /* Menus */
+            div[role="radiogroup"] label {
+                background: transparent !important;
+                border: none !important;
+                color: #e2e8f0 !important; /* Branco Gelo */
+                font-family: 'Inter', sans-serif;
+                font-size: 0.9rem;
+                padding: 6px 10px !important;
+            }
+            div[role="radiogroup"] label:hover {
+                color: #ffffff !important;
+                padding-left: 14px !important;
+                transition: all 0.2s ease;
+            }
+            div[role="radiogroup"] label[data-checked="true"] {
+                color: #22d3ee !important; /* Teal */
+                border-left: 3px solid #22d3ee !important;
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%) !important;
+            }
+            .slogan-style {
+                color: #64748b;
+                font-size: 0.65rem;
+                font-style: italic;
                 text-align: center;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-                height: 100%; /* Ocupa altura total da coluna */
-                transition: transform 0.2s;
+                margin-top: 5px;
+                opacity: 0.8;
             }
-            .cyber-kpi-card:hover {
-                border-color: #64748b;
-                transform: translateY(-2px);
-            }
-            .kpi-val {
-                font-size: 24px;
-                font-weight: 800;
-                color: #f8fafc;
-                margin: 5px 0;
-            }
-            .kpi-lbl {
-                font-size: 10px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                color: #94a3b8;
-                font-weight: 600;
-            }
-            /* Cores de Borda Topo */
-            .top-blue { border-top: 3px solid #3b82f6; }
-            .top-orange { border-top: 3px solid #f97316; }
-            .top-green { border-top: 3px solid #10b981; }
-            .top-red { border-top: 3px solid #ef4444; }
-            .top-purple { border-top: 3px solid #a855f7; }
         </style>
         """, unsafe_allow_html=True)
 
-        # 3. Layout usando Colunas NATIVAS do Streamlit (Seguro)
-        k1, k2, k3, k4, k5 = st.columns(5)
-
-        with k1:
-            st.markdown(f"""
-            <div class="cyber-kpi-card top-blue">
-                <div style="font-size:20px;">⛹️‍♂️</div>
-                <div class="kpi-val">{val_players}</div>
-                <div class="kpi-lbl">Jogadores</div>
+        # Logo
+        st.markdown("""
+            <div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="140">
+                <div class="slogan-style">O Poder da IA nas suas Apostas Esportivas</div>
             </div>
-            """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        with k2:
-            st.markdown(f"""
-            <div class="cyber-kpi-card top-orange">
-                <div style="font-size:20px;">🏀</div>
-                <div class="kpi-val">{val_games}</div>
-                <div class="kpi-lbl">Jogos Hoje</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with k3:
-            st.markdown(f"""
-            <div class="cyber-kpi-card top-green">
-                <div style="font-size:20px;">💵</div>
-                <div class="kpi-val">{val_odds}</div>
-                <div class="kpi-lbl">Odds Ativas</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with k4:
-            st.markdown(f"""
-            <div class="cyber-kpi-card top-red">
-                <div style="font-size:20px;">🚑</div>
-                <div class="kpi-val">{val_injuries}</div>
-                <div class="kpi-lbl">Lesionados</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with k5:
-            st.markdown(f"""
-            <div class="cyber-kpi-card top-purple">
-                <div style="font-size:20px;">🛡️</div>
-                <div class="kpi-val">{val_dvp}</div>
-                <div class="kpi-lbl">Times DvP</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        st.markdown("---")
+        # Lista Única de Navegação
+        MENU_OPTIONS = [
+            # CMD
+            "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
+            # IA
+            "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
+            # HUNT
+            "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
+            # TAC
+            "🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
+            # SYS
+            "⚙️ Config", "🔍 Testar Conexão Supabase"
+        ]
         
-        # --- 4. CONFRONTOS DO DIA (CARDS) ---
-        st.subheader("🏀 Confrontos do Dia")
-
-        if not games:
-            st.info("Nenhum jogo encontrado para hoje.")
-        else:
-            st.caption(f"📅 {TODAY} • {len(games)} jogos programados")
-            
-            # Criar grade de cards (2 por linha)
-            cols_per_row = 2
-            for i in range(0, len(games), cols_per_row):
-                cols = st.columns(cols_per_row)
-                for j in range(cols_per_row):
-                    game_idx = i + j
-                    if game_idx < len(games):
-                        with cols[j]:
-                            game = games[game_idx]
-                            # Renderiza Card (Agora usando dados da ESPN internamente se odds_map falhar)
-                            render_game_card(
-                                away_team=game.get("away"),
-                                home_team=game.get("home"),
-                                game_data=game,
-                                odds_map=odds
-                            )
-
-        st.markdown("---")     
-
-# --- CENTRO DE COMANDO ---
-    elif choice == "📊 Ranking Teses": 
-        show_analytics_page() # Antigo Analytics
-    elif choice == "📋 Auditoria":
-        show_audit_page()
-
-    # --- INTELIGÊNCIA ARTIFICIAL ---
-    elif choice == "🧬 Sinergia & Vácuo":
-        show_nexus_page() # Antigo NEXUS
-    elif choice == "⚔️ Lab Narrativas":
-        show_narrative_lab()
-    elif choice == "⚡ Momentum":
-        show_momentum_page()
-    elif choice == "🔥 Las Vegas Sync":
-        show_vegas_odds_page()
-    elif choice == "🌪️ Blowout Hunter":
-        show_blowout_hunter()
-    elif choice == "🏆 Trinity Club":
-        show_trinity_club_page()
-
-    # --- CAÇADORES & ESTRATÉGIA ---
-    elif choice == "🔥 Hot Streaks":
-        show_hit_prop_hunter() # Antigo Hit Prop Hunter
-    elif choice == "📊 Matriz 5-7-10":
-        show_5_7_10_page() # Antigo Strategy 5/7/10
-    elif choice == "🧩 Desdobra Múltipla":
-        show_smart_builder_page() # Antigo Desdobramentos
-
-    # --- ANÁLISE TÁTICA ---
-    elif choice == "🛡️ DvP Confrontos":
-        show_dvp_page() # Antigo DvP Analysis
-    elif choice == "📡 Matchup Radar":
-        show_matchup_radar() # Antigo Matchup Radar
-    elif choice == "🏥 Depto Médico":
-        show_injury_monitor()
-    elif choice == "🔄 Mapa de Rotações":
-        show_rotation_map()
-    elif choice == "👥 Escalações":
-        show_lineups_page()
-
-    # --- SISTEMA ---
-    elif choice == "⚙️ Config":
-        show_config_page()
-    elif choice == "🔍 Testar Conexão Supabase":
-        show_cloud_diagnostics()
-
+        choice = st.radio("Navegação", MENU_OPTIONS, label_visibility="collapsed")
         
-        
-# ============================================================================
-# EXECUÇÃO PRINCIPAL
-# ============================================================================
+        st.markdown("<br><div style='text-align:center; color:#334155; font-size:0.6rem;'>v2.2 SYSTEM ONLINE</div>", unsafe_allow_html=True)
+
+    # --- ROTEAMENTO ---
+    if choice == "🏠 Dashboard": show_dashboard_page()
+    elif choice == "📊 Ranking Teses": show_analytics_dashboard() # ou show_analytics_page
+    elif choice == "📋 Auditoria": show_audit_page()
+    
+    elif choice == "🧬 Sinergia & Vácuo": show_nexus_page()
+    elif choice == "⚔️ Lab Narrativas": show_narrative_lab()
+    elif choice == "⚡ Momentum": show_momentum_page()
+    elif choice == "🔥 Las Vegas Sync": show_vegas_odds_page()
+    elif choice == "🌪️ Blowout Hunter": show_blowout_hunter()
+    elif choice == "🏆 Trinity Club": show_trinity_club_page()
+    
+    elif choice == "🔥 Hot Streaks": show_hit_prop_hunter()
+    elif choice == "📊 Matriz 5-7-10": show_5_7_10_page()
+    elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
+    
+    elif choice == "🛡️ DvP Confrontos": show_dvp_page()
+    elif choice == "📡 Matchup Radar": show_matchup_radar()
+    elif choice == "🏥 Depto Médico": show_depto_medico()
+    elif choice == "🔄 Mapa de Rotações": show_mapa_rotacoes()
+    elif choice == "👥 Escalações": show_escalacoes()
+    
+    elif choice == "⚙️ Config": show_config_page()
+    elif choice == "🔍 Testar Conexão Supabase": show_cloud_diagnostics()
+
 if __name__ == "__main__":
-
     main()
+
 
 
 
