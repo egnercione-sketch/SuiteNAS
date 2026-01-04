@@ -7009,12 +7009,12 @@ def main():
         )
   
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V3.1 - LAYOUT FIX)
+# DASHBOARD (VISUAL ARENA V3.2 - NEXUS CARD FIX)
 # ============================================================================
 def show_dashboard_page():
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data() # Função corrigida acima
+    games = get_scoreboard_data() # Função validada
     
     if df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
@@ -7026,7 +7026,7 @@ def show_dashboard_page():
         teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
     if not teams_playing_today:
-        st.info("Nenhum time identificado jogando hoje (Verifique se há jogos na ESPN para esta data).")
+        st.info("Nenhum jogo identificado para a data de hoje.")
         df_today = pd.DataFrame()
     else:
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
@@ -7034,10 +7034,18 @@ def show_dashboard_page():
     # --- 2. DESTAQUES DO DIA (TOP PLAYERS ATIVOS) ---
     st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
     
+    # Helper para encurtar nomes longos
+    def truncate_name(name, limit=16):
+        if not name: return ""
+        if len(name) <= limit: return name
+        parts = name.split()
+        if len(parts) > 1:
+            return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
+        return name[:limit]
+
     if df_today.empty:
-        st.warning("Nenhum jogador da base L5 joga hoje (ou nomes dos times não bateram).")
+        st.warning("Nenhum jogador da base L5 joga hoje.")
     else:
-        # Helper para pegar top 3
         def get_top_n(df, col, n=3):
             return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
 
@@ -7045,15 +7053,7 @@ def show_dashboard_page():
         top_ast = get_top_n(df_today, 'AST_AVG')
         top_reb = get_top_n(df_today, 'REB_AVG')
 
-        # Helper para encurtar nomes longos (Ex: Shai Gilgeous-Alexander -> S. Gilgeous-Alexander)
-        def truncate_name(name, limit=18):
-            if len(name) <= limit: return name
-            parts = name.split()
-            if len(parts) > 1:
-                return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
-            return name[:limit]
-
-        # Helper de Renderização (HTML Robusto)
+        # Helper de Renderização (Estilo Golden Card)
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
@@ -7061,18 +7061,18 @@ def show_dashboard_page():
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
             val = king[df_top.columns[2]] 
             
-            # Sub-linhas (2º e 3º lugares) - Tratamento para não estourar
+            # Sub-linhas com nomes truncados para não estourar
             row2_html = ""
             if len(df_top) > 1:
                 p2 = df_top.iloc[1]
-                n2 = truncate_name(p2['PLAYER'], 15)
+                n2 = truncate_name(p2['PLAYER'])
                 v2 = f"{p2[df_top.columns[2]]:.1f}"
                 row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155;"><span>2. {n2}</span><span style="color:{color}; font-weight:bold;">{v2}</span></div>"""
             
             row3_html = ""
             if len(df_top) > 2:
                 p3 = df_top.iloc[2]
-                n3 = truncate_name(p3['PLAYER'], 15)
+                n3 = truncate_name(p3['PLAYER'])
                 v3 = f"{p3[df_top.columns[2]]:.1f}"
                 row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;"><span>3. {n3}</span><span style="color:{color}; font-weight:bold;">{v3}</span></div>"""
 
@@ -7122,7 +7122,6 @@ def show_dashboard_page():
         color = op['color']
         score = op['score']
         
-        # Dados Seguros
         h_name = op['hero']['name']
         h_photo = op['hero']['photo']
         h_desc = f"{op['hero']['target']} {op['hero']['stat']}"
@@ -7131,7 +7130,6 @@ def show_dashboard_page():
         p_name = p_obj['name']
         p_photo = p_obj.get('photo', p_obj.get('logo'))
         
-        # Texto da direita
         if 'partner' in op:
             p_desc = f"{op['partner']['target']} {op['partner']['stat']}"
             mid_icon = "🔗"
@@ -7139,30 +7137,36 @@ def show_dashboard_page():
             p_desc = "ALVO VULNERÁVEL"
             mid_icon = "⚔️"
 
-        # HTML IDENTICO AO DESTAQUES (Para estabilidade)
+        # HTML CORRIGIDO (Estrutura simples e robusta)
         st.markdown(f"""
-        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 8px; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
-            
-            <div style="flex: 1;">
-                <div style="color: {color}; font-size: 10px; font-weight: bold; letter-spacing: 1px;">SCORE {score}</div>
-                <div style="font-family: 'Oswald'; color: #FFF; font-size: 20px; line-height: 1.2;">{op['title']}</div>
-                <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">{op.get('impact', 'Alta Conexão Detectada')}</div>
+        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid {color}40; padding-bottom: 8px;">
+                <div style="font-family: 'Oswald'; color: #FFF; font-size: 18px; letter-spacing: 1px;">
+                    {op['title']}
+                </div>
+                <div style="background: {color}20; color: {color}; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">
+                    SCORE {score}
+                </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="display: flex; align-items: center; justify-content: space-around;">
                 <div style="text-align: center;">
-                    <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; background: #000; object-fit: cover;">
-                    <div style="font-size: 9px; color: #fff; font-weight: bold; margin-top: 2px;">{truncate_name(h_name, 12)}</div>
-                    <div style="font-size: 9px; color: {color};">{h_desc}</div>
+                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin-bottom: 5px;">
+                    <div style="color: #fff; font-weight: bold; font-size: 14px;">{truncate_name(h_name)}</div>
+                    <div style="color: {color}; font-size: 12px;">{h_desc}</div>
                 </div>
-                
-                <div style="font-size: 18px; color: #64748b;">{mid_icon}</div>
-                
+
+                <div style="font-size: 24px; color: #64748b;">{mid_icon}</div>
+
                 <div style="text-align: center;">
-                    <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #fff; background: #000; object-fit: cover;">
-                    <div style="font-size: 9px; color: #fff; font-weight: bold; margin-top: 2px;">{truncate_name(p_name, 12)}</div>
-                    <div style="font-size: 9px; color: #fff;">{p_desc}</div>
+                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; margin-bottom: 5px;">
+                    <div style="color: #fff; font-weight: bold; font-size: 14px;">{truncate_name(p_name)}</div>
+                    <div style="color: #cbd5e1; font-size: 12px;">{p_desc}</div>
                 </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.3); margin-top: 15px; padding: 8px; border-radius: 4px; font-size: 11px; color: #94a3b8; text-align: center;">
+                {op.get('impact', 'Alta Conexão Detectada')}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -7173,7 +7177,7 @@ def show_dashboard_page():
     st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
-        st.info("Nenhum jogo encontrado para hoje (Verifique o horário).")
+        st.info("Nenhum jogo encontrado para hoje.")
     else:
         odds_cache = st.session_state.get("odds", {})
         
@@ -7193,9 +7197,33 @@ def show_dashboard_page():
 def main():
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
-    # Fontes e CSS Global
-    st.markdown(FONT_LINKS, unsafe_allow_html=True)
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+# CSS AGRESSIVO PARA REMOVER CABEÇALHO VAZIO
+    st.markdown("""
+        <style>
+            /* 1. Esconde o cabeçalho padrão do Streamlit (Menu e Barra Colorida) */
+            header[data-testid="stHeader"] {
+                visibility: hidden;
+                height: 0px;
+            }
+
+            /* 2. Força o conteúdo principal a subir (Margem Negativa) */
+            .block-container {
+                padding-top: 0rem !important;
+                padding-bottom: 1rem !important;
+                margin-top: -60px !important; /* Puxa para cima ignorando limites */
+            }
+
+            /* 3. Ajuste fino para a Sidebar não ficar cortada */
+            section[data-testid="stSidebar"] .block-container {
+                padding-top: 3rem !important; /* Ajuste para o logo não colar no teto */
+            }
+            
+            /* 4. Remove gap extra entre elementos do topo */
+            div[data-testid="stVerticalBlock"] > div:first-child {
+                margin-top: 0px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
     safe_load_initial_data()
 
@@ -7292,6 +7320,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
