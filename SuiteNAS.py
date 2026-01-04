@@ -486,6 +486,37 @@ def show_cloud_diagnostics():
                     st.error(f"⚠️ **{key}**: Erro ({e})")
             
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
+
+def load_global_css():
+    st.markdown("""
+        <style>
+            /* Importando Fontes */
+            @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+            
+            /* Ajustes Globais */
+            html, body, [class*="css"] {
+                font-family: 'Inter', sans-serif;
+            }
+            h1, h2, h3 {
+                font-family: 'Oswald', sans-serif !important;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            /* Remove padding excessivo do topo */
+            .block-container {
+                padding-top: 2rem !important;
+                padding-bottom: 2rem !important;
+            }
+            
+            /* Estilização de Métricas Nativas */
+            [data-testid="stMetricValue"] {
+                font-family: 'Oswald', sans-serif;
+                font-size: 2rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
             
 
 # ============================================================================
@@ -6884,47 +6915,136 @@ def main():
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (SEM FILTROS - ACESSO TOTAL)
+    # 8. MENU LATERAL (DESIGNER MODE - COCKPIT STYLE)
     # ============================================================================
-    
-    # Lista completa de funcionalidades
-    FULL_MENU_OPTIONS = [
-        "🏠 Dashboard",
-        "🏥 Depto Médico",
-        "📈 Estatísticas Jogador",
-        "👥 Escalações",
-        "⚡ Momentum",
-        "🛡️ DvP Analysis",
-        "🎯 Desdobramentos Inteligentes",
-        "🎯 Hit Prop Hunter",
-        "🎯 Strategy 5/7/10",
-        "🧠 NEXUS",
-        "🔄 Mapa de Rotações",
-        "🏆 Trinity Club",
-        "🌪️ Blowout Hunter",
-        "⚔️ Lab Narrativas",
-        "🔥 Las Vegas Sync",
-        "🎯 Matchup Radar",
-        "📋 Auditoria",
-        "📈 Analytics Dashboard",
-        "🔍 Testar Conexão Supabase",
-        "⚙️ Config"
-    ]
-
-    # Como removemos a auth, o menu final é simplesmente o menu completo
-    final_menu = FULL_MENU_OPTIONS
-
-    # Renderiza a Sidebar Limpa (Sem botão de Logout quebrado)
     with st.sidebar:
-        # Se a variável 'name' não estiver definida por algum motivo, usa fallback
-        display_name = name if 'name' in locals() and name else "Admin Master"
+        # --- 1. CABEÇALHO DA MARCA (BRANDING) ---
+        st.markdown("""
+            <div style="text-align: center; padding-bottom: 20px;">
+                <h1 style="font-family: 'Oswald', sans-serif; font-size: 2.5rem; margin:0; 
+                           background: linear-gradient(to right, #a855f7, #eab308); 
+                           -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    SUITE NAS
+                </h1>
+                <p style="color: #64748b; font-size: 0.8rem; letter-spacing: 2px; margin-top: -10px;">
+                    V2.0 • PREDATOR MODE
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- 2. CSS PARA TRANSFORMAR RADIO BUTTONS EM MENUS ---
+        st.markdown("""
+        <style>
+            /* Esconde a bolinha do radio button nativo */
+            div[role="radiogroup"] > label > div:first-child {
+                display: none !important;
+            }
+            
+            /* Estilo base do botão de menu */
+            div[role="radiogroup"] label {
+                background: rgba(255, 255, 255, 0.03);
+                padding: 10px 15px;
+                border-radius: 8px;
+                margin-bottom: 6px;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                transition: all 0.3s ease;
+                cursor: pointer;
+                font-family: 'Inter', sans-serif;
+                font-size: 0.9rem;
+            }
+
+            /* Efeito Hover (passar o mouse) */
+            div[role="radiogroup"] label:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.2);
+                transform: translateX(5px);
+            }
+
+            /* ITEM SELECIONADO (O Segredo do Visual) */
+            div[role="radiogroup"] label[data-checked="true"] {
+                background: linear-gradient(90deg, rgba(168, 85, 247, 0.2) 0%, rgba(15, 23, 42, 0) 100%);
+                border-left: 4px solid #a855f7; /* Roxo Neon */
+                color: #fff;
+                font-weight: bold;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            }
+            
+            /* Títulos de Seção (Fake) */
+            .menu-category {
+                color: #94a3b8;
+                font-size: 0.75rem;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 1.5px;
+                margin-top: 20px;
+                margin-bottom: 10px;
+                padding-left: 5px;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # --- 3. ORGANIZAÇÃO LÓGICA (HIERARQUIA) ---
         
-        st.write(f"👤 **{display_name}**")
-        st.caption("🟢 Sistema Online")
-        st.divider()
+        # O truque aqui é usar o st.radio mas organizar a lista mentalmente
+        # O Streamlit não permite headers DENTRO do radio, então vamos fazer um "hack" visual
+        # Usando ícones para diferenciar visualmente os grupos.
+
+        MENU_GROUPS = {
+            "🧠 INTELIGÊNCIA": [
+                "🧠 NEXUS",
+                "⚡ Momentum",
+                "⚔️ Lab Narrativas",
+                "🔥 Las Vegas Sync"
+            ],
+            "📊 ANALYTICS CORE": [
+                "🏠 Dashboard",
+                "📈 Analytics Dashboard",
+                "🛡️ DvP Analysis",
+                "🏥 Depto Médico",
+                "🔄 Mapa de Rotações",
+                "👥 Escalações"
+            ],
+            "🎯 FERRAMENTAS CAÇADOR": [
+                "🌪️ Blowout Hunter",
+                "🎯 Hit Prop Hunter",
+                "🏆 Trinity Club",
+                "🎯 Strategy 5/7/10",
+                "🎯 Desdobramentos Inteligentes",
+                "🎯 Matchup Radar"
+            ],
+            "⚙️ SISTEMA": [
+                "📋 Auditoria",
+                "⚙️ Config",
+                "🔍 Testar Conexão Supabase"
+            ]
+        }
+
+        # Achata a lista para o componente funcionar
+        flat_menu = []
+        for group, items in MENU_GROUPS.items():
+            flat_menu.extend(items)
+
+        # Mostra o usuário logado
+        display_name = name if 'name' in locals() and name else "Operator"
+        st.caption(f"LOGGED AS: {display_name.upper()}")
+
+        # O COMPONENTE DE NAVEGAÇÃO
+        # Note que não passamos as categorias aqui, apenas os itens.
+        # A separação visual é feita pela ordem lógica e ícones.
+        choice = st.radio("", flat_menu, label_visibility="collapsed")
         
-        # O Menu de Navegação Principal
-        choice = st.radio("Navegação", final_menu)
+        # Rodapé Estiloso
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div style="background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;">
+                <span style="color: #10b981; font-weight: bold; font-size: 0.8rem;">● SYSTEM ONLINE</span>
+                <br>
+                <span style="color: #64748b; font-size: 0.7rem;">DataBase: Up-to-Date</span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
   
     # ============================================================================
     # DASHBOARD (VISUAL CYBER-COURT + INSIGHTS)
@@ -7222,6 +7342,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
