@@ -575,7 +575,7 @@ class TrinityEngine:
 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (v9.5 - ISOLAMENTO DE ELENCO & VÁCUO DIRETO)
+# CLASSE NEXUS ENGINE (v9.6 - SINTAXE CORRIGIDA & LÓGICA BLINDADA)
 # ============================================================================
 import math
 import json
@@ -601,7 +601,7 @@ class NexusEngine:
         self._build_rosters()
 
     def _normalize_team(self, team_raw):
-        """Converte qualquer coisa para 3 letras."""
+        """Converte qualquer variação para sigla de 3 letras."""
         if not team_raw: return "UNK"
         t = str(team_raw).upper().strip()
         mapping = {
@@ -638,9 +638,13 @@ class NexusEngine:
         except: return str(text)
 
     def _load_photo_map(self):
+        # CORREÇÃO DA SINTAXE AQUI
         if os.path.exists("nba_players_map.json"):
-            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
-            except: pass
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except: 
+                pass
         return {}
 
     def get_photo(self, name):
@@ -662,8 +666,10 @@ class NexusEngine:
 
         # 2. Vácuo (Direto no Placar)
         if self.injury_monitor:
-            try: opportunities.extend(self._scan_vacuum_opportunities())
-            except Exception as e: print(f"⚠️ Erro Vacuum: {e}")
+            try: 
+                opportunities.extend(self._scan_vacuum_opportunities())
+            except Exception as e: 
+                print(f"⚠️ Erro Vacuum: {e}")
             
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
@@ -758,10 +764,7 @@ class NexusEngine:
         # Pega lesões
         # Tenta pegar pelo código normalizado E pelo nome bruto (para garantir)
         injuries = self.injury_monitor.get_team_injuries(injured_team)
-        if not injuries:
-            # Tenta um lookup reverso simples se necessário, mas geralmente normalize resolve
-            pass
-
+        
         if not injuries: return []
 
         for inj in injuries:
@@ -7230,6 +7233,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
