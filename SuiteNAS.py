@@ -848,20 +848,24 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # --- CARREGAMENTO ---
+    # --- 1. CARREGAMENTO BLINDADO (VIA SUPABASE) ---
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
     if not full_cache:
-        st.error("❌ Logs vazios. Atualize o sistema em Config.")
+        st.error("❌ Erro: Logs vazios. Atualize o sistema em Config.")
         return
     
     # Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # Header Simples
-    st.markdown("<h1 style='text-align: center; color: white;'>🧠 PROJECT NEXUS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94a3b8; letter-spacing: 2px; font-size: 12px; font-weight: bold;'>INTELIGÊNCIA CONTEXTUAL</p>", unsafe_allow_html=True)
+    # --- 2. HEADER ORIGINAL (QUE FUNCIONAVA BEM) ---
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h1 style="font-family: 'Oswald', sans-serif; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 NEXUS INTELLIGENCE</h1>
+        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 2px;">MODO PREDADOR • SINERGIA SIMBIÓTICA • SCORE > 80</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Slider
     min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
@@ -875,84 +879,102 @@ def show_nexus_page():
         return
 
     if not opportunities:
-        st.info("Nenhuma oportunidade encontrada.")
+        st.info(f"O Nexus não detectou oportunidades de altíssima confluência (Score > {min_score}) para esta rodada.")
         return
 
-    # --- RENDERIZAÇÃO ESTÁVEL (POUCO HTML) ---
+    # --- 3. RENDERIZAÇÃO DOS CARDS (LAYOUT VALIDADO POR VOCÊ) ---
     for op in opportunities:
         
-        # Prepara Variáveis Visuais
-        is_sgp = (op['type'] == 'SGP')
-        color = "#eab308" if is_sgp else "#a855f7" # Amarelo vs Roxo
-        bg_card = "#1e293b" # Fundo escuro padrão
-        title = "⚡ SGP DETECTADA" if is_sgp else "🌪️ ALERTA DE VÁCUO"
-        
-        # Dados do Heroi
-        hero_img = op['hero']['photo']
-        hero_name = op['hero']['name']
-        hero_sub = f"{op['hero']['role']} • {op['hero']['target']} {op['hero'].get('stat','')}"
-        
-        # Dados do Parceiro/Vilão (Lado Direito)
-        if is_sgp:
-            right_img = op['partner']['photo']
-            right_name = op['partner']['name']
-            right_sub = f"{op['partner']['role']} • {op['partner']['target']}"
-            center_icon = "🔗"
-            footer_content = " | ".join([f"✅ {b}" for b in op['badges']])
-        else:
-            # No caso do Vácuo, o lado direito é o time vilão
-            # Se não tiver logo, usa um placeholder transparente
-            right_img = op['villain'].get('logo') or "https://a.espncdn.com/i/teamlogos/nba/500/nba.png"
-            right_name = op['villain']['name']
-            right_sub = f"🚑 {op['villain']['missing']}"
-            center_icon = "⚔️"
-            # Formata a Ladder como texto simples
-            ladder_str = "  |  ".join([l.replace(":", " ") for l in op['ladder']])
-            footer_content = f"📈 <b>LADDER:</b> {ladder_str} <br> 📉 <i>{op['impact']}</i>"
+        # Pega logos (se disponíveis)
+        hero_logo = op['hero'].get('logo', '')
+        villain_logo = op.get('villain', {}).get('logo', '')
+        partner_logo = op.get('partner', {}).get('logo', '')
 
-        # --- HTML ESTRUTURAL SIMPLES ---
-        # Usamos Flexbox básico que é suportado nativamente sem "explodir"
-        card_html = f"""
-        <div style="
-            border: 2px solid {color}; 
-            border-radius: 10px; 
-            background-color: {bg_card}; 
-            padding: 15px; 
-            margin-bottom: 20px;
-            color: white;
-            font-family: sans-serif;">
+        # ---------------------------------------------------------------------
+        # LAYOUT 1: SGP (ECOSSISTEMA SIMBIÓTICO)
+        # ---------------------------------------------------------------------
+        if op['type'] == 'SGP':
+            badges_html = "".join([f"<span style='background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:15px; margin-right:8px;'>{b}</span>" for b in op['badges']])
             
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
-                <span style="color: {color}; font-weight: bold; font-size: 18px;">{title}</span>
-                <span style="background-color: {color}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">SCORE {op['score']}</span>
-            </div>
-
-            <div style="display: flex; align-items: center; justify-content: space-between; text-align: center;">
+            st.markdown(f"""
+            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
+                <div style="background:{op['color']}; color:#000; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between;">
+                    <span>⚡ SGP DETECTADA</span>
+                    <span>SCORE {op['score']}</span>
+                </div>
                 
-                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
-                    <img src="{hero_img}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid {color}; object-fit: cover;">
-                    <div style="font-weight: bold; margin-top: 5px; font-size: 14px;">{hero_name}</div>
-                    <div style="color: #94a3b8; font-size: 11px;">{hero_sub}</div>
+                <div style="display:flex; padding:25px; align-items:center; justify-content:center; text-align:center;">
+                    
+                    <div style="width:35%; position: relative;">
+                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:10px; width:30px; z-index:2;">
+                        <img src="{op['hero']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid {op['color']}; object-fit:cover; background:#000;">
+                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-size:12px;">{op['hero']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['hero']['target']} {op['hero']['stat']}</div>
+                    </div>
+                    
+                    <div style="width:15%; font-size:40px; color:{op['color']};">🔗</div>
+                    
+                    <div style="width:35%; position: relative;">
+                        <img src="{partner_logo}" style="position:absolute; top:-5px; right:10px; width:30px; z-index:2;">
+                        <img src="{op['partner']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid #fff; object-fit:cover; background:#000;">
+                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['partner']['name']}</div>
+                        <div style="color:#94a3b8; font-size:12px;">{op['partner']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['partner']['target']} {op['partner']['stat']}</div>
+                    </div>
                 </div>
-
-                <div style="width: 40px; font-size: 24px; text-align: center; opacity: 0.7;">
-                    {center_icon}
-                </div>
-
-                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
-                    <img src="{right_img}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid white; object-fit: contain; background: black;">
-                    <div style="font-weight: bold; margin-top: 5px; font-size: 14px;">{right_name}</div>
-                    <div style="color: #94a3b8; font-size: 11px;">{right_sub}</div>
+                
+                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:11px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
+                    {badges_html}
                 </div>
             </div>
+            """, unsafe_allow_html=True)
 
-            <div style="margin-top: 15px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; font-size: 12px; color: #cbd5e1;">
-                {footer_content}
+        # ---------------------------------------------------------------------
+        # LAYOUT 2: VACUUM (VÁCUO DE REBOTE / PREDADOR)
+        # ---------------------------------------------------------------------
+        else:
+            # Proteção Ladder (split seguro)
+            ladder_items = []
+            for l in op['ladder']:
+                parts = l.split(':')
+                label = parts[0]
+                val = parts[1] if len(parts) > 1 else ''
+                ladder_items.append(f"<div style='background:#1e293b; padding:5px 15px; border-radius:8px; margin-bottom:5px; display:flex; justify-content:space-between;'><span>{label}</span><span style='color:#a855f7; font-weight:bold;'>{val}</span></div>")
+            ladder_html = "".join(ladder_items)
+            
+            st.markdown(f"""
+            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
+                <div style="background:{op['color']}; color:#fff; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between;">
+                    <span>🌪️ ALERTA DE VÁCUO</span>
+                    <span>SCORE {op['score']}</span>
+                </div>
+                
+                <div style="display:flex; padding:25px; align-items:flex-start;">
+                    <div style="width:40%; text-align:center; position: relative;">
+                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:0px; width:30px; z-index:2;">
+                        <img src="{op['hero']['photo']}" style="width:130px; height:130px; border-radius:10px; object-fit:cover; border: 2px solid {op['color']}; background:#000;">
+                        <div style="font-weight:bold; color:#fff; font-size:20px; margin-top:10px;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-weight:bold;">{op['hero']['status']}</div>
+                    </div>
+                    
+                    <div style="width:60%; padding-left:20px;">
+                        <div style="background:rgba(248,113,113,0.1); border:1px solid #f87171; padding:10px; border-radius:10px; margin-bottom:15px; position:relative;">
+                            <img src="{villain_logo}" style="position:absolute; top:5px; right:5px; width:30px; opacity:0.8;">
+                            <div style="color:#f87171; font-weight:bold; font-size:12px;">{op['villain']['status']}</div>
+                            <div style="color:#fff; font-size:16px; font-weight:bold;">{op['villain']['missing']}</div>
+                            <div style="color:#94a3b8; font-size:11px;">Time: {op['villain']['name']}</div>
+                        </div>
+                        <div style="font-family:'Oswald', sans-serif; font-size:12px; color:#94a3b8; margin-bottom:10px;">A ESCADA (THE LADDER)</div>
+                        {ladder_html}
+                    </div>
+                </div>
+                
+                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:12px; color:#94a3b8;">
+                    📉 <b>Impacto:</b> {op['impact']}
+                </div>
             </div>
-        </div>
-        """
-        
-        st.markdown(card_html, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -7219,6 +7241,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
