@@ -848,129 +848,138 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # --- 1. CARREGAMENTO BLINDADO (VIA SUPABASE) ---
+    # --- 1. CARREGAMENTO DE DADOS (SUPABASE / NUVEM) ---
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
     if not full_cache:
-        st.error("❌ Erro: Logs vazios. Atualize o sistema em Config.")
+        st.error("❌ Erro Crítico: Logs não encontrados no Banco de Dados.")
+        st.info("Vá em Configurações > Atualizar Dados para corrigir.")
         return
     
-    # Engine
+    # Engine (Garante que scoreboard seja lista)
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # --- 2. HEADER ORIGINAL (QUE FUNCIONAVA BEM) ---
+    # --- 2. HEADER E CONTROLES ---
     st.markdown("""
     <div style="text-align: center; margin-bottom: 25px;">
         <h1 style="font-family: 'Oswald', sans-serif; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 NEXUS INTELLIGENCE</h1>
-        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 2px;">MODO PREDADOR • SINERGIA SIMBIÓTICA • SCORE > 80</div>
+        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 2px; font-weight:bold;">MODO PREDADOR • SINERGIA SIMBIÓTICA</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Slider
-    min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
+    min_score = st.sidebar.slider("🎚️ Score Mínimo (Régua)", 50, 100, 60)
 
-    # Scan
+    # Executa Scan
     try:
         all_ops = nexus.run_nexus_scan()
         opportunities = [op for op in all_ops if op['score'] >= min_score]
     except Exception as e:
-        st.error(f"Erro scan: {e}")
+        st.error(f"Erro ao processar Nexus: {e}")
         return
 
     if not opportunities:
-        st.info(f"O Nexus não detectou oportunidades de altíssima confluência (Score > {min_score}) para esta rodada.")
+        st.warning(f"O Nexus não detectou oportunidades com Score > {min_score} para hoje.")
         return
 
-    # --- 3. RENDERIZAÇÃO DOS CARDS (LAYOUT VALIDADO POR VOCÊ) ---
+    # --- 3. RENDERIZAÇÃO DOS CARDS (LAYOUT ORIGINAL + CSS FIX) ---
     for op in opportunities:
         
-        # Pega logos (se disponíveis)
+        # Prepara Logos (Fallback seguro se não existirem)
         hero_logo = op['hero'].get('logo', '')
-        villain_logo = op.get('villain', {}).get('logo', '')
         partner_logo = op.get('partner', {}).get('logo', '')
+        villain_logo = op.get('villain', {}).get('logo', '')
 
-        # ---------------------------------------------------------------------
-        # LAYOUT 1: SGP (ECOSSISTEMA SIMBIÓTICO)
-        # ---------------------------------------------------------------------
+        # --- LAYOUT 1: SGP (ECOSSISTEMA SIMBIÓTICO) ---
         if op['type'] == 'SGP':
-            badges_html = "".join([f"<span style='background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:15px; margin-right:8px;'>{b}</span>" for b in op['badges']])
+            badges_html = "".join([f"<span style='background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:15px; margin-right:8px; display:inline-block; margin-bottom:5px;'>{b}</span>" for b in op['badges']])
             
+            # CSS INLINE PARA EVITAR EXPLOSÃO:
+            # - box-sizing: border-box (Obrigatorio para não estourar padding)
+            # - max-width: 100% (Garante que imagens não vazem)
             st.markdown(f"""
-            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
-                <div style="background:{op['color']}; color:#000; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between;">
+            <div style="box-sizing: border-box; background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden; width:100%;">
+                
+                <div style="background:{op['color']}; color:#000; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
                     <span>⚡ SGP DETECTADA</span>
-                    <span>SCORE {op['score']}</span>
+                    <span style="background:#000; color:{op['color']}; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
                 </div>
                 
-                <div style="display:flex; padding:25px; align-items:center; justify-content:center; text-align:center;">
+                <div style="display:flex; padding:20px; align-items:center; justify-content:space-between; text-align:center; flex-wrap: wrap;">
                     
-                    <div style="width:35%; position: relative;">
-                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:10px; width:30px; z-index:2;">
+                    <div style="flex: 1; min-width: 100px; position: relative;">
+                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:50%; margin-left:-55px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
                         <img src="{op['hero']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid {op['color']}; object-fit:cover; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['hero']['name']}</div>
-                        <div style="color:{op['color']}; font-size:12px;">{op['hero']['role']}</div>
-                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['hero']['target']} {op['hero']['stat']}</div>
+                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-size:11px; font-weight:bold;">{op['hero']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 8px; border-radius:5px; display:inline-block; font-size:11px; margin-top:5px; border:1px solid #334155;">
+                            {op['hero']['target']} {op['hero']['stat']}
+                        </div>
                     </div>
                     
-                    <div style="width:15%; font-size:40px; color:{op['color']};">🔗</div>
+                    <div style="width:40px; font-size:30px; color:{op['color']}; text-align:center; opacity:0.8;">🔗</div>
                     
-                    <div style="width:35%; position: relative;">
-                        <img src="{partner_logo}" style="position:absolute; top:-5px; right:10px; width:30px; z-index:2;">
+                    <div style="flex: 1; min-width: 100px; position: relative;">
+                        <img src="{partner_logo}" style="position:absolute; top:-5px; left:50%; margin-left:25px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
                         <img src="{op['partner']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid #fff; object-fit:cover; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:18px; margin-top:10px;">{op['partner']['name']}</div>
-                        <div style="color:#94a3b8; font-size:12px;">{op['partner']['role']}</div>
-                        <div style="background:#1e293b; color:#4ade80; padding:2px 10px; border-radius:5px; display:inline-block; font-size:12px; margin-top:5px;">Alvo: {op['partner']['target']} {op['partner']['stat']}</div>
+                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['partner']['name']}</div>
+                        <div style="color:#94a3b8; font-size:11px; font-weight:bold;">{op['partner']['role']}</div>
+                        <div style="background:#1e293b; color:#4ade80; padding:2px 8px; border-radius:5px; display:inline-block; font-size:11px; margin-top:5px; border:1px solid #334155;">
+                            {op['partner']['target']} {op['partner']['stat']}
+                        </div>
                     </div>
                 </div>
                 
-                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:11px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
+                <div style="background:rgba(255,255,255,0.05); padding:10px 20px; font-size:11px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
                     {badges_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-        # ---------------------------------------------------------------------
-        # LAYOUT 2: VACUUM (VÁCUO DE REBOTE / PREDADOR)
-        # ---------------------------------------------------------------------
+        # --- LAYOUT 2: VACUUM (VÁCUO DE REBOTE) ---
         else:
-            # Proteção Ladder (split seguro)
-            ladder_items = []
+            # Proteção para a Ladder não quebrar o HTML
+            ladder_rows = []
             for l in op['ladder']:
                 parts = l.split(':')
                 label = parts[0]
                 val = parts[1] if len(parts) > 1 else ''
-                ladder_items.append(f"<div style='background:#1e293b; padding:5px 15px; border-radius:8px; margin-bottom:5px; display:flex; justify-content:space-between;'><span>{label}</span><span style='color:#a855f7; font-weight:bold;'>{val}</span></div>")
-            ladder_html = "".join(ladder_items)
+                ladder_rows.append(f"""
+                <div style="background:#1e293b; padding:4px 10px; border-radius:6px; margin-bottom:4px; display:flex; justify-content:space-between; font-size:12px;">
+                    <span>{label}</span><span style="color:#a855f7; font-weight:bold;">{val}</span>
+                </div>
+                """)
+            ladder_html = "".join(ladder_rows)
             
             st.markdown(f"""
-            <div style="background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden;">
-                <div style="background:{op['color']}; color:#fff; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between;">
+            <div style="box-sizing: border-box; background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden; width:100%;">
+                <div style="background:{op['color']}; color:#fff; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
                     <span>🌪️ ALERTA DE VÁCUO</span>
-                    <span>SCORE {op['score']}</span>
+                    <span style="background:#fff; color:{op['color']}; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
                 </div>
                 
-                <div style="display:flex; padding:25px; align-items:flex-start;">
-                    <div style="width:40%; text-align:center; position: relative;">
-                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:0px; width:30px; z-index:2;">
-                        <img src="{op['hero']['photo']}" style="width:130px; height:130px; border-radius:10px; object-fit:cover; border: 2px solid {op['color']}; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:20px; margin-top:10px;">{op['hero']['name']}</div>
-                        <div style="color:{op['color']}; font-weight:bold;">{op['hero']['status']}</div>
+                <div style="display:flex; padding:20px; gap:20px; align-items:flex-start; flex-wrap: wrap;">
+                    
+                    <div style="flex: 0 0 130px; text-align:center; position:relative;">
+                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:0px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
+                        <img src="{op['hero']['photo']}" style="width:120px; height:120px; border-radius:12px; object-fit:cover; border: 2px solid {op['color']}; background:#000;">
+                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['hero']['name']}</div>
+                        <div style="color:{op['color']}; font-weight:bold; font-size:12px; text-transform:uppercase;">{op['hero']['status']}</div>
                     </div>
                     
-                    <div style="width:60%; padding-left:20px;">
-                        <div style="background:rgba(248,113,113,0.1); border:1px solid #f87171; padding:10px; border-radius:10px; margin-bottom:15px; position:relative;">
-                            <img src="{villain_logo}" style="position:absolute; top:5px; right:5px; width:30px; opacity:0.8;">
-                            <div style="color:#f87171; font-weight:bold; font-size:12px;">{op['villain']['status']}</div>
-                            <div style="color:#fff; font-size:16px; font-weight:bold;">{op['villain']['missing']}</div>
+                    <div style="flex:1; min-width: 180px;">
+                        <div style="background:rgba(248,113,113,0.1); border:1px solid #f87171; padding:10px; border-radius:10px; margin-bottom:12px; position:relative;">
+                            <img src="{villain_logo}" style="position:absolute; top:8px; right:8px; width:35px; opacity:0.9;">
+                            <div style="color:#f87171; font-weight:bold; font-size:11px;">{op['villain']['status']}</div>
+                            <div style="color:#fff; font-size:15px; font-weight:bold;">{op['villain']['missing']}</div>
                             <div style="color:#94a3b8; font-size:11px;">Time: {op['villain']['name']}</div>
                         </div>
-                        <div style="font-family:'Oswald', sans-serif; font-size:12px; color:#94a3b8; margin-bottom:10px;">A ESCADA (THE LADDER)</div>
+                        <div style="font-family:'Oswald', sans-serif; font-size:11px; color:#94a3b8; margin-bottom:5px; font-weight:bold; letter-spacing:1px;">LADDER PROJECTION</div>
                         {ladder_html}
                     </div>
                 </div>
                 
-                <div style="background:rgba(0,0,0,0.2); padding:10px 20px; font-size:12px; color:#94a3b8;">
+                <div style="background:rgba(255,255,255,0.05); padding:10px 20px; font-size:12px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
                     📉 <b>Impacto:</b> {op['impact']}
                 </div>
             </div>
@@ -7241,6 +7250,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
