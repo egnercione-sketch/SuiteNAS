@@ -575,13 +575,13 @@ class TrinityEngine:
 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (v10.0 - VARREDURA TOTAL DE LESÕES)
+# CLASSE NEXUS ENGINE (v10.1 - SINTAXE CORRIGIDA & VARREDURA TOTAL)
 # ============================================================================
 import math
 import json
 import os
 import unicodedata
-import streamlit as st # Para debug visual se precisar
+import streamlit as st 
 
 class NexusEngine:
     def __init__(self, logs_cache, games):
@@ -589,20 +589,18 @@ class NexusEngine:
         self.games = games # Lista de jogos do dia (Scoreboard)
         self.player_ids = self._load_photo_map()
         
-        # Módulos
+        # Módulos (com verificação segura)
         self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
         self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
-        # Desligamos Sinergy externo para evitar ruído, usamos lógica interna
-        self.sinergy = None 
+        self.sinergy = None # Desligado para evitar alucinações de times
 
     # --- UTILITÁRIOS ---
     def _normalize_team(self, team_raw):
-        """Converte qualquer nome para sigla de 3 letras (Normalização Agressiva)"""
+        """Converte qualquer nome para sigla de 3 letras"""
         if not team_raw: return "UNK"
         t = str(team_raw).upper().strip()
         
-        # Mapa Completo
         mapping = {
             "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS",
             "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA",
@@ -632,9 +630,13 @@ class NexusEngine:
         except: return str(text)
 
     def _load_photo_map(self):
+        # SINTAXE CORRIGIDA AQUI:
         if os.path.exists("nba_players_map.json"):
-            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
-            except: pass
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                pass
         return {}
 
     def get_photo(self, name):
@@ -655,24 +657,23 @@ class NexusEngine:
         # 1. SGP (Estratégia Sinergia)
         opportunities.extend(self._scan_sgp_opportunities())
 
-        # 2. Vácuo (Estratégia Lesão)
+        # 2. Vácuo (Estratégia Lesão com Varredura Total)
         if self.injury_monitor:
             try: 
                 opportunities.extend(self._scan_vacuum_opportunities())
             except Exception as e: 
-                print(f"⚠️ Erro Vacuum: {e}") # Print no console para debug
+                print(f"⚠️ Erro Vacuum: {e}") 
         
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
     def _scan_sgp_opportunities(self):
         found = []
-        processed = set() # Evita duplicatas
+        processed = set() 
 
-        # Itera sobre LOGS (Jogadores Ativos)
         for p_name, data in self.logs.items():
             if p_name in processed: continue
             
-            # Normaliza time do jogador
+            # Normaliza time
             my_team = self._normalize_team(data.get('team'))
             
             # Filtro 1: Motor (Assistências > 6.0)
@@ -726,19 +727,13 @@ class NexusEngine:
 
     def _scan_vacuum_opportunities(self):
         """
-        LÓGICA VÁCUO 2.0:
-        1. Cria Mapa dos Jogos: { 'DEN': 'LAL', 'LAL': 'DEN', ... }
-        2. Pega LISTA GERAL de lesões.
-        3. Para cada lesionado:
-           - O time dele joga hoje?
-           - Ele é Pivô (Center) E está OUT?
-           - Se sim -> Acha o Reboteiro do time adversário.
-           - PLOTA.
+        LÓGICA VÁCUO 2.0 (VIP LIST):
+        Garante que Jokic, Nurkic, etc sejam detectados como pivôs mesmo se a posição estiver errada.
         """
         found = []
         if not self.games: return []
 
-        # 1. Mapa de Matchups (Normalizado)
+        # 1. Mapa de Matchups
         matchups = {}
         for g in self.games:
             h = self._normalize_team(g.get('home'))
@@ -747,12 +742,12 @@ class NexusEngine:
             matchups[a] = h
         
         # 2. Varredura de Lesões
-        all_injuries = self.injury_monitor.get_all_injuries() # Retorna dict {Team: [List]}
+        all_injuries = self.injury_monitor.get_all_injuries()
         
         for team_raw, injuries in all_injuries.items():
             victim_team = self._normalize_team(team_raw)
             
-            # Se o time machucado não está no mapa de jogos de hoje, ignora
+            # Se o time machucado não joga hoje, ignora
             if victim_team not in matchups: continue
             
             predator_team = matchups[victim_team]
@@ -765,37 +760,40 @@ class NexusEngine:
                 # CRITÉRIO 1: Status OUT
                 if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
                     
-                    # CRITÉRIO 2: É Pivô? (Verificação Dupla)
+                    # CRITÉRIO 2: É Pivô? (Verificação Tripla)
                     is_center = False
                     
                     # A) Pelo Injury Report
                     if 'C' in pos_raw or 'CENTER' in pos_raw: is_center = True
                     
-                    # B) Pelo Cache de Logs (Se nome existir lá)
+                    # B) Pelo Cache de Logs
                     if not is_center and name in self.logs:
                         log_pos = str(self.logs[name].get('position', '')).upper()
                         if 'C' in log_pos or 'CENTER' in log_pos: is_center = True
                     
-                    # C) Lista VIP de Pivôs (Hardcode para garantir nomes famosos da sua lista)
-                    vip_centers = ["NIKOLA JOKIC", "DOMANTAS SABONIS", "JAKOB POELTL", "WALKER KESSLER", "JUSUF NURKIC", "ZACH EDEY", "ISAIAH HARTENSTEIN", "IVICA ZUBAC", "ALPEREN SENGUN"]
+                    # C) Lista VIP de Pivôs (Garante que seu log seja respeitado)
+                    vip_centers = [
+                        "NIKOLA JOKIC", "DOMANTAS SABONIS", "JAKOB POELTL", "WALKER KESSLER", 
+                        "JUSUF NURKIC", "ZACH EDEY", "ISAIAH HARTENSTEIN", "IVICA ZUBAC", 
+                        "ALPEREN SENGUN", "JOEL EMBIID", "DEANDRE AYTON", "JALEN DUREN"
+                    ]
                     if name.upper() in vip_centers: is_center = True
 
                     if is_center:
-                        # ACHAMOS UM VÁCUO!
-                        # Agora buscamos o Predador no time rival
+                        # ACHAMOS UM VÁCUO! Busca Predador
                         predator = self._find_best_rebounder(predator_team)
                         
                         if predator:
                             avg_reb = self._get_avg_stat(predator, 'REB')
                             
-                            # Filtro Mínimo de Qualidade
+                            # Filtro Mínimo
                             if avg_reb >= 6.0:
-                                # Boost de Ausência
+                                # Boost
                                 boost = 2.0 if avg_reb > 9 else 1.5
                                 target = math.ceil(avg_reb + boost)
                                 moon = math.ceil(avg_reb + boost + 3)
                                 
-                                score = 85 # Score alto por definição (Estratégia Validada)
+                                score = 85 
                                 if avg_reb > 10: score += 10
                                 
                                 found.append({
@@ -824,7 +822,7 @@ class NexusEngine:
                                     ],
                                     "impact": f"Sem {name}, {victim_team} perde proteção de aro."
                                 })
-                                break # Achou um pivô fora neste time, já basta para o vácuo.
+                                break 
         return found
 
     # --- AUXILIARES ---
@@ -7224,6 +7222,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
