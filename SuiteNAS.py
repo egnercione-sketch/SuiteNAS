@@ -7009,12 +7009,12 @@ def main():
         )
   
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V3.2 - NEXUS CARD FIX)
+# DASHBOARD (VISUAL ARENA V4.0 - ESTÁVEL & NATIVO)
 # ============================================================================
 def show_dashboard_page():
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data() # Função validada
+    games = get_scoreboard_data() # Scoreboard validado
     
     if df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
@@ -7026,15 +7026,17 @@ def show_dashboard_page():
         teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
     if not teams_playing_today:
-        st.info("Nenhum jogo identificado para a data de hoje.")
+        st.info("Nenhum time identificado jogando hoje.")
         df_today = pd.DataFrame()
     else:
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
 
-    # --- 2. DESTAQUES DO DIA (TOP PLAYERS ATIVOS) ---
+    # ========================================================================
+    # 2. DESTAQUES DO DIA (Golden Cards - HTML Seguro)
+    # ========================================================================
     st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
     
-    # Helper para encurtar nomes longos
+    # Helper para encurtar nomes
     def truncate_name(name, limit=16):
         if not name: return ""
         if len(name) <= limit: return name
@@ -7053,7 +7055,7 @@ def show_dashboard_page():
         top_ast = get_top_n(df_today, 'AST_AVG')
         top_reb = get_top_n(df_today, 'REB_AVG')
 
-        # Helper de Renderização (Estilo Golden Card)
+        # Renderização HTML (Versão Simplificada e Estável)
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
@@ -7061,20 +7063,18 @@ def show_dashboard_page():
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
             val = king[df_top.columns[2]] 
             
-            # Sub-linhas com nomes truncados para não estourar
+            # Sub-linhas
             row2_html = ""
             if len(df_top) > 1:
                 p2 = df_top.iloc[1]
-                n2 = truncate_name(p2['PLAYER'])
                 v2 = f"{p2[df_top.columns[2]]:.1f}"
-                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155;"><span>2. {n2}</span><span style="color:{color}; font-weight:bold;">{v2}</span></div>"""
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155;"><span>2. {truncate_name(p2['PLAYER'])}</span><span style="color:{color}; font-weight:bold;">{v2}</span></div>"""
             
             row3_html = ""
             if len(df_top) > 2:
                 p3 = df_top.iloc[2]
-                n3 = truncate_name(p3['PLAYER'])
                 v3 = f"{p3[df_top.columns[2]]:.1f}"
-                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;"><span>3. {n3}</span><span style="color:{color}; font-weight:bold;">{v3}</span></div>"""
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;"><span>3. {truncate_name(p3['PLAYER'])}</span><span style="color:{color}; font-weight:bold;">{v3}</span></div>"""
 
             st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid {color}; border-radius: 8px; overflow: hidden; height: 100%;">
@@ -7103,7 +7103,9 @@ def show_dashboard_page():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 3. MELHOR DUPLA DO DIA (NEXUS INTEGRATION) ---
+    # ========================================================================
+    # 3. MELHOR DUPLA DO DIA (TRANSPLANTE DO NEXUS - NATIVO)
+    # ========================================================================
     nexus_op = None
     if not games.empty and not df_l5.empty:
         try:
@@ -7112,75 +7114,90 @@ def show_dashboard_page():
             if logs_cache:
                 nexus = NexusEngine(logs_cache, games_dict)
                 ops = nexus.run_nexus_scan()
-                if ops: nexus_op = ops[0] # Top 1
+                if ops: nexus_op = ops[0] # Pega só o Top 1
         except: pass
 
     if nexus_op:
-        st.markdown('<div style="font-family: Oswald; color: #A855F7; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">🧬 MELHOR DUPLA DO DIA (SINERGIA & VÁCUO)</div>', unsafe_allow_html=True)
-        
         op = nexus_op
+        is_sgp = (op['type'] == 'SGP')
         color = op['color']
-        score = op['score']
+        icon = "⚡" if is_sgp else "🌪️"
         
-        h_name = op['hero']['name']
-        h_photo = op['hero']['photo']
-        h_desc = f"{op['hero']['target']} {op['hero']['stat']}"
-        
-        p_obj = op.get('partner', op.get('villain'))
-        p_name = p_obj['name']
-        p_photo = p_obj.get('photo', p_obj.get('logo'))
-        
-        if 'partner' in op:
-            p_desc = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "🔗"
-        else:
-            p_desc = "ALVO VULNERÁVEL"
-            mid_icon = "⚔️"
+        st.markdown('<div style="font-family: Oswald; color: #A855F7; font-size: 18px; margin-bottom: 5px; letter-spacing: 1px;">🧬 MELHOR OPORTUNIDADE (TOP 1 NEXUS)</div>', unsafe_allow_html=True)
 
-        # HTML CORRIGIDO (Estrutura simples e robusta)
-        st.markdown(f"""
-        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid {color}40; padding-bottom: 8px;">
-                <div style="font-family: 'Oswald'; color: #FFF; font-size: 18px; letter-spacing: 1px;">
-                    {op['title']}
-                </div>
-                <div style="background: {color}20; color: {color}; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">
-                    SCORE {score}
+        # CONTAINER PRINCIPAL (Simula o Card com Borda)
+        with st.container():
+            # Cabeçalho do Card
+            st.markdown(f"""
+            <div style="background: linear-gradient(90deg, {color}20 0%, transparent 100%); 
+                        border-left: 5px solid {color}; padding: 10px; border-radius: 5px 5px 0 0; margin-bottom: 10px;">
+                <div style="display:flex; justify-content: space-between; align-items: center;">
+                    <span style="font-family:'Oswald'; color:white; font-size:16px;">{icon} {op['title']}</span>
+                    <span style="background:{color}; color:black; font-weight:bold; padding:2px 8px; border-radius:4px; font-size:12px;">SCORE {op['score']}</span>
                 </div>
             </div>
+            """, unsafe_allow_html=True)
 
-            <div style="display: flex; align-items: center; justify-content: space-around;">
-                <div style="text-align: center;">
-                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin-bottom: 5px;">
-                    <div style="color: #fff; font-weight: bold; font-size: 14px;">{truncate_name(h_name)}</div>
-                    <div style="color: {color}; font-size: 12px;">{h_desc}</div>
-                </div>
+            # ESTRUTURA DE COLUNAS (O SEGREDO DA ESTABILIDADE)
+            # Usamos st.columns em vez de HTML flexbox
+            col_hero, col_mid, col_target = st.columns([1, 0.3, 1])
+            
+            # --- HEROI ---
+            with col_hero:
+                ch1, ch2 = st.columns([0.4, 1])
+                with ch1: st.image(op['hero']['logo'], width=40)
+                with ch2: st.image(op['hero']['photo'], width=65)
+                
+                st.markdown(f"<div style='line-height:1.2; font-weight:bold; margin-top:5px;'>{op['hero']['name']}</div>", unsafe_allow_html=True)
+                
+                t_val = op['hero'].get('target', '')
+                t_stat = op['hero'].get('stat', '')
+                st.markdown(f"<div style='color:{color}; font-size:12px; border:1px solid {color}; border-radius:4px; text-align:center; padding:2px; margin-top:4px;'>🎯 <b>{t_val}</b> {t_stat}</div>", unsafe_allow_html=True)
 
-                <div style="font-size: 24px; color: #64748b;">{mid_icon}</div>
+            # --- MEIO (VS ou LINK) ---
+            with col_mid:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if is_sgp:
+                    st.markdown(f"<div style='text-align:center; font-size:24px;'>🔗</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='text-align:center; font-size:24px;'>⚔️</div>", unsafe_allow_html=True)
 
-                <div style="text-align: center;">
-                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; margin-bottom: 5px;">
-                    <div style="color: #fff; font-weight: bold; font-size: 14px;">{truncate_name(p_name)}</div>
-                    <div style="color: #cbd5e1; font-size: 12px;">{p_desc}</div>
-                </div>
-            </div>
+            # --- PARCEIRO / VILÃO ---
+            with col_target:
+                if is_sgp:
+                    cp1, cp2 = st.columns([1, 0.4])
+                    with cp1: st.image(op['partner']['photo'], width=65)
+                    with cp2: st.image(op['partner']['logo'], width=40)
+                    
+                    st.markdown(f"<div style='line-height:1.2; font-weight:bold; margin-top:5px;'>{op['partner']['name']}</div>", unsafe_allow_html=True)
+                    
+                    p_val = op['partner']['target']
+                    p_stat = op['partner']['stat']
+                    st.markdown(f"<div style='color:white; font-size:12px; border:1px solid #64748b; border-radius:4px; text-align:center; padding:2px; margin-top:4px; background:#1e293b;'>🎯 <b>{p_val}</b> {p_stat}</div>", unsafe_allow_html=True)
+                else:
+                    cv1, cv2 = st.columns([0.4, 1])
+                    with cv1: st.image(op['villain']['logo'], width=40)
+                    with cv2: 
+                        st.markdown(f"**{op['villain']['name']}**")
+                        st.caption("Defesa")
+                    
+                    st.markdown(f"<div style='color:#f87171; font-weight:bold; font-size:12px; margin-top:5px;'>🚨 {op['villain']['status']}</div>", unsafe_allow_html=True)
 
-            <div style="background: rgba(0,0,0,0.3); margin-top: 15px; padding: 8px; border-radius: 4px; font-size: 11px; color: #94a3b8; text-align: center;">
-                {op.get('impact', 'Alta Conexão Detectada')}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
+            # Rodapé do Card
+            st.divider()
+            st.caption(f"🧠 Análise: {op.get('impact', 'Alta Sinergia Detectada')}")
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 4. GAME GRID ---
+    # ========================================================================
+    # 4. GAME GRID (INTOCÁVEL)
+    # ========================================================================
     st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
         st.info("Nenhum jogo encontrado para hoje.")
     else:
         odds_cache = st.session_state.get("odds", {})
-        
         rows = st.columns(2)
         for i, (index, game) in enumerate(games.iterrows()):
             with rows[i % 2]:
@@ -7320,6 +7337,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
