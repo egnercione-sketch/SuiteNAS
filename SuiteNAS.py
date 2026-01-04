@@ -575,118 +575,257 @@ class TrinityEngine:
 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (v7.0 - HÍBRIDA & CORRIGIDA)
+# CLASSE NEXUS ENGINE (vFINAL - SEM TEXTOS SOLTOS)
 # ============================================================================
 import math
 import json
 import os
 import unicodedata
 
-1. O Card "Ecossistema Simbiótico" (SGP)
+class NexusEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games = games
+        self.player_ids = self._load_photo_map()
+        
+        # Inicializa Módulos
+        self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
+        self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
+        self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
+        self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
 
-Quando o sinergy_engine + pace_adjuster dão Match.
+    # --- UTILITÁRIOS ---
+    def _normalize_team(self, team_raw):
+        if not team_raw: return "UNK"
+        t = str(team_raw).upper().strip()
+        mapping = {
+            "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS", 
+            "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA", 
+            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE", 
+            "DALLAS": "DAL", "MAVS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN", 
+            "DETROIT": "DET", "PISTONS": "DET", "GOLDEN STATE": "GSW", "WARRIORS": "GSW", "GS": "GSW", 
+            "HOUSTON": "HOU", "ROCKETS": "HOU", "INDIANA": "IND", "PACERS": "IND", 
+            "CLIPPERS": "LAC", "LA CLIPPERS": "LAC", "LAKERS": "LAL", "LA LAKERS": "LAL", 
+            "MEMPHIS": "MEM", "GRIZZLIES": "MEM", "MIAMI": "MIA", "HEAT": "MIA", 
+            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN", 
+            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", 
+            "NEW YORK": "NYK", "KNICKS": "NYK", "NY": "NYK", 
+            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "ORLANDO": "ORL", "MAGIC": "ORL", 
+            "PHILADELPHIA": "PHI", "SIXERS": "PHI", "PHOENIX": "PHX", "SUNS": "PHX", 
+            "PORTLAND": "POR", "BLAZERS": "POR", "SACRAMENTO": "SAC", "KINGS": "SAC", 
+            "SAN ANTONIO": "SAS", "SPURS": "SAS", "TORONTO": "TOR", "RAPTORS": "TOR", 
+            "UTAH": "UTA", "JAZZ": "UTA", "WASHINGTON": "WAS", "WIZARDS": "WAS"
+        }
+        return mapping.get(t, t[:3])
 
-Layout Visual:
+    def _strip_accents(self, text):
+        try:
+            text = unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode("utf-8")
+            return str(text)
+        except: return str(text)
 
+    def _load_photo_map(self):
+        if os.path.exists("nba_players_map.json"):
+            try:
+                with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
+            except: pass
+        return {}
 
+    def get_photo(self, name):
+        pid = self.player_ids.get(name) or self.player_ids.get(self._strip_accents(name))
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-Cabeçalho: ⚡ SGP DETECTADA (Cor: Amarelo Elétrico)
+    def get_team_logo(self, team_abbr):
+        abbr = self._normalize_team(team_abbr).lower()
+        if abbr == 'uta': abbr = 'utah'
+        if abbr == 'nop': abbr = 'no'
+        return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr}.png"
 
-Corpo Principal (Split Screen):
+    # --- MOTOR PRINCIPAL ---
+    def run_nexus_scan(self):
+        opportunities = []
+        opportunities.extend(self._scan_sgp_opportunities())
+        
+        if self.injury_monitor:
+            try: opportunities.extend(self._scan_vacuum_opportunities())
+            except: pass
+        
+        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
-Lado Esquerdo: [Foto do Garçom]
+    def _scan_sgp_opportunities(self):
+        found = []
+        # Evita duplicatas
+        processed = set()
 
-Nome: Trae Young
+        for p_name, data in self.logs.items():
+            if p_name in processed: continue
+            
+            team = self._normalize_team(data.get('team'))
+            
+            # 1. Filtro Garçom
+            avg_ast = self._get_avg_stat(p_name, 'AST')
+            if avg_ast < 6.0: continue
 
-Role: 🧠 O Motor
+            # 2. Busca Parceiro (APENAS MESMO TIME)
+            partner_name = None
+            if self.sinergy:
+                try:
+                    res = self.sinergy.analyze_synergy(p_name, team, self.logs)
+                    if res and isinstance(res, tuple):
+                        cand = res[0]
+                        if self._normalize_team(self.logs.get(cand, {}).get('team')) == team:
+                            partner_name = cand
+                except: pass
+            
+            if not partner_name:
+                partner_name, _ = self._find_statistical_partner(team, p_name)
 
-Alvo: 10+ AST
+            if not partner_name: continue
+            
+            # Dados Card
+            t_ast = f"{math.ceil(avg_ast - 0.5)}+"
+            avg_pts = self._get_avg_stat(partner_name, 'PTS')
+            t_pts = f"{math.floor(avg_pts)}+"
 
-Centro: Um ícone de Corrente 🔗 ou Sinal de + pulsando.
+            # Score
+            score = 60
+            badges = []
+            if avg_ast > 9.0: score += 10
+            if avg_pts > 24: score += 10
+            
+            opp = self._get_opponent(team)
+            if opp and self.pace_adjuster:
+                pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                if pace >= 100: 
+                    score += 10
+                    badges.append(f"🏎️ Pace: {int(pace)}")
+            
+            if opp and self.dvp_analyzer:
+                rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                if rank >= 18: 
+                    score += 15
+                    badges.append("🛡️ DvP Favorável")
 
-Texto: "Sinergia: 88%"
+            if score >= 70:
+                processed.add(p_name)
+                found.append({
+                    "type": "SGP",
+                    "title": "ECOSSISTEMA SIMBIÓTICO",
+                    "score": score,
+                    "color": "#eab308",
+                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": t_ast, "logo": self.get_team_logo(team)},
+                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": t_pts, "logo": self.get_team_logo(team)},
+                    "badges": badges + ["🔥 Sinergia Alta"]
+                })
+        return found
 
-Lado Direito: [Foto do Beneficiário]
+    def _scan_vacuum_opportunities(self):
+        """LÓGICA PURA: Pivô OUT -> Pivô Rival ganha Rebotes"""
+        found = []
+        if not self.games: return []
 
-Nome: Jalen Johnson
+        matchups = {}
+        for g in self.games:
+            h = self._normalize_team(g.get('home'))
+            a = self._normalize_team(g.get('away'))
+            matchups[h] = a; matchups[a] = h
 
-Role: 🎯 O Finalizador
+        all_injuries = self.injury_monitor.get_all_injuries()
+        
+        for team_key, injuries in all_injuries.items():
+            victim_team = self._normalize_team(team_key)
+            if victim_team not in matchups: continue
+            
+            predator_team = matchups[victim_team]
+            
+            for inj in injuries:
+                status = str(inj.get('status', '')).upper()
+                name = inj.get('name', '')
+                
+                if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
+                    # Check se é Pivô
+                    is_big = False
+                    pos = str(inj.get('position', '')).upper()
+                    if 'C' in pos or 'CENTER' in pos: is_big = True
+                    
+                    if not is_big and name in self.logs:
+                        p_pos = str(self.logs[name].get('position', '')).upper()
+                        if 'C' in p_pos or 'CENTER' in p_pos: is_big = True
+                    
+                    if not is_big: continue
 
-Alvo: 20+ PTS
+                    # ACHAMOS O VÁCUO -> BUSCA PREDADOR
+                    predator = self._find_best_rebounder(predator_team)
+                    if not predator: continue
+                    
+                    avg_reb = self._get_avg_stat(predator, 'REB')
+                    if avg_reb < 6.0: continue
 
-Rodapé (O "Porquê"): Uma linha de "Badges" (ícones pequenos) que validam a entrada:
+                    # Boost de Vácuo
+                    boost = 1.5 
+                    if avg_reb > 10: boost = 2.0
+                    
+                    target = math.ceil(avg_reb + boost)
+                    moon = math.ceil(avg_reb + boost + 3)
 
-🏎️ Pace: 105 (Muito Rápido)
+                    score = 80 
+                    if avg_reb > 10: score += 10
+                    
+                    found.append({
+                        "type": "VACUUM",
+                        "title": "VÁCUO DE REBOTE",
+                        "score": score,
+                        "color": "#a855f7",
+                        "hero": {
+                            "name": predator, "photo": self.get_photo(predator), 
+                            "status": "🧨 PREDADOR", "stat": "REB", "target": f"{target}+",
+                            "logo": self.get_team_logo(predator_team)
+                        },
+                        "villain": {
+                            "name": victim_team, "missing": name, 
+                            "status": "🚨 OUT", "logo": self.get_team_logo(victim_team)
+                        },
+                        "ladder": [
+                            f"✅ Base: {int(avg_reb)}+", 
+                            f"💰 Alvo: {target}+", 
+                            f"🚀 Lua: {moon}+"
+                        ],
+                        "impact": f"Sem {name}, {victim_team} perde proteção."
+                    })
+                    break 
+        return found
 
-🛡️ DvP: Hawks cedem muito
+    def _get_avg_stat(self, player, stat):
+        vals = self.logs.get(player, {}).get('logs', {}).get(stat, [])
+        return sum(vals[:10])/len(vals[:10]) if vals else 0
 
-🔥 Must Win: Jogo parelho
+    def _get_opponent(self, team):
+        target = self._normalize_team(team)
+        for g in self.games:
+            h = self._normalize_team(g.get('home'))
+            a = self._normalize_team(g.get('away'))
+            if h == target: return a
+            if a == target: return h
+        return None
 
-A Sensação: Você olha e vê imediatamente que um depende do outro e o cenário favorece ambos.
+    def _find_statistical_partner(self, team, exclude):
+        best, max_pts = None, 0
+        target = self._normalize_team(team)
+        for name, data in self.logs.items():
+            if self._normalize_team(data.get('team')) == target and name != exclude:
+                val = self._get_avg_stat(name, 'PTS')
+                if val > max_pts: max_pts = val; best = name
+        return best, max_pts
 
-2. O Card "Vácuo de Rebote" (The Vacuum)
-
-Quando o injuries.py + vacuum_matrix + archetype_engine dão Match.
-
-Layout Visual:
-
-
-
-Cabeçalho: 🌪️ ALERTA DE VÁCUO (Cor: Roxo/Alerta)
-
-Corpo Principal (Hero vs Villain):
-
-Lado Esquerdo (O Heroi): [Foto Grande do Pivô]
-
-Nome: Ivica Zubac
-
-Status: 🧨 DYNAMITE (Rebotes)
-
-Lado Direito (O Cenário): [Logo do Time Oponente]
-
-Status: 🚑 DEFESA COMPROMETIDA
-
-Detalhe: "Jusuf Nurkic (OUT)" em texto vermelho chamativo.
-
-A "Escada" (The Ladder):
-
-Em vez de uma linha só, mostramos 3 degraus sugeridos:
-
-✅ Base: 10+ (Safe)
-
-💰 Alvo: 12+ (Value)
-
-🚀 Lua: 15+ (High Risk/High Reward)
-
-Rodapé (O "Porquê"):
-
-📉 Impacto: "Oponente perde 4.5 REB/jogo sem o titular" (Dado vindo do vacuum_matrix).
-
-A Sensação: Você vê um predador (Zubac) prestes a atacar uma presa ferida (Time sem pivô).
-
-A Lógica do "Opportunity Score" (O Cérebro por trás do Card)
-
-No topo de cada card, teríamos um Score de 0 a 100.
-
-Isso resolve o problema de "amontoado de dados". Você só mostra o card se o Score for > 80.
-
-Como o sistema montaria isso internamente (Mentalmente):
-
-
-
-Checklist Automático:
-
-InjuryMonitor: "Tem alguém importante fora?" -> Sim (+30 pts)
-
-Archetype: "Nosso jogador explora essa fraqueza exata?" -> Sim (+20 pts)
-
-Pace: "O jogo vai ser rápido?" -> Sim (+10 pts)
-
-DvP: "A defesa já era ruim antes?" -> Sim (+20 pts)
-
-Soma: 80 Pontos.
-
-Ação: PLOTAR CARD NA TELA.
+    def _find_best_rebounder(self, team):
+        best, max_reb = None, 0
+        target = self._normalize_team(team)
+        for name, data in self.logs.items():
+            if self._normalize_team(data.get('team')) == target:
+                val = self._get_avg_stat(name, 'REB')
+                if val > max_reb: max_reb = val; best = name
+        return best
         
 def show_nexus_page():
     # Dados
@@ -7061,6 +7200,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
