@@ -7213,52 +7213,57 @@ def main():
 
         st.markdown("---")     
 
-         MENU_GROUPS = {
-            "🏠 CENTRO DE COMANDO": [
-                "🏠 Dashboard",
-                "📊 Ranking Teses",
-                "📋 Auditoria"
-            ],
-            "🧠 INTELIGÊNCIA ARTIFICIAL": [
-                "🧬 Sinergia & Vácuo",
-                "⚔️ Lab Narrativas",
-                "⚡ Momentum",
-                "🔥 Las Vegas Sync",
-                "🌪️ Blowout Hunter",
-                "🏆 Trinity Club"
-            ],
-            "🏹 CAÇADORES & ESTRATÉGIA": [
-                "🔥 Hot Streaks",
-                "📊 Matriz 5-7-10",
-                "🧩 Desdobra Múltipla"
-            ],
-            "🛡️ ANÁLISE TÁTICA": [
-                "🛡️ DvP Confrontos",
-                "📡 Matchup Radar",
-                "🏥 Depto Médico",
-                "🔄 Mapa de Rotações",
-                "👥 Escalações"
-            ],
-            "⚙️ SISTEMA": [
-                "⚙️ Config",
-                "🔍 Testar Conexão Supabase"
-            ]
-        }
+# --- CENTRO DE COMANDO ---
+    elif choice == "📊 Ranking Teses": 
+        show_analytics_dashboard() # Antigo Analytics
+    elif choice == "📋 Auditoria":
+        show_audit_page()
 
-        flat_menu = []
-        for group, items in MENU_GROUPS.items():
-            flat_menu.extend(items)
+    # --- INTELIGÊNCIA ARTIFICIAL ---
+    elif choice == "🧬 Sinergia & Vácuo":
+        show_nexus_page() # Antigo NEXUS
+    elif choice == "⚔️ Lab Narrativas":
+        show_narrative_lab()
+    elif choice == "⚡ Momentum":
+        show_momentum_page()
+    elif choice == "🔥 Las Vegas Sync":
+        show_vegas_odds_page()
+    elif choice == "🌪️ Blowout Hunter":
+        show_blowout_hunter()
+    elif choice == "🏆 Trinity Club":
+        show_trinity_club_page()
 
-        # Renderiza Menu
-        choice = st.radio("", flat_menu, label_visibility="collapsed")
+    # --- CAÇADORES & ESTRATÉGIA ---
+    elif choice == "🔥 Hot Streaks":
+        show_hit_prop_hunter() # Antigo Hit Prop Hunter
+    elif choice == "📊 Matriz 5-7-10":
+        show_5_7_10_page() # Antigo Strategy 5/7/10
+    elif choice == "🧩 Desdobra Múltipla":
+        show_smart_builder_page() # Antigo Desdobramentos
+
+    # --- ANÁLISE TÁTICA ---
+    elif choice == "🛡️ DvP Confrontos":
+        show_dvp_page() # Antigo DvP Analysis
+    elif choice == "📡 Matchup Radar":
+        show_matchup_radar() # Antigo Matchup Radar
+    elif choice == "🏥 Depto Médico":
+        show_injury_monitor()
+    elif choice == "🔄 Mapa de Rotações":
+        show_rotation_map()
+    elif choice == "👥 Escalações":
+        show_lineups_page()
+
+    # --- SISTEMA ---
+    elif choice == "⚙️ Config":
+        show_config_page()
+    elif choice == "🔍 Testar Conexão Supabase":
+        show_cloud_diagnostics()
+
         
-        # Rodapé
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style="background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;">
-                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem;">● SYSTEM ONLINE</span>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        
+# ============================================================================
+# EXECUÇÃO PRINCIPAL
+# ============================================================================
+if __name__ == "__main__":
+
+    main()
