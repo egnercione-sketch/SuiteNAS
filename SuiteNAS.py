@@ -868,39 +868,57 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # 1. Carregamento
+    # --- 1. CARREGAMENTO DE DADOS ---
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # 2. Debug Rápido (Expansível)
-    with st.expander("🛠️ Diagnóstico do Sistema (Debug)", expanded=False):
-        st.write(f"Logs Carregados: {len(full_cache) if full_cache else 0} jogadores")
-        st.write(f"Jogos no Scoreboard: {len(scoreboard) if scoreboard else 0}")
+    # --- 2. DIAGNÓSTICO DO SISTEMA (O QUE FALTOU) ---
+    # Isso vai te mostrar se o módulo de lesões está funcionando
+    with st.expander("🛠️ Diagnóstico do Sistema (Clique para abrir)", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Jogadores (Logs)", len(full_cache) if full_cache else 0)
+        c2.metric("Jogos Hoje", len(scoreboard) if scoreboard else 0)
+        
+        # Checagem de Lesões
         if INJURY_MONITOR_AVAILABLE and InjuryMonitor:
             try:
-                # Instancia temporária para checar
-                im = InjuryMonitor()
-                inj_count = len(im.get_all_injuries())
-                st.write(f"Times com Lesões no Cache: {inj_count}")
-                if inj_count == 0:
-                    st.error("⚠️ Cache de lesões vazio! O módulo Vácuo não funcionará.")
-            except: pass
+                im = InjuryMonitor() # Instancia para checar o cache
+                inj_data = im.get_all_injuries()
+                qtd_times = len(inj_data)
+                
+                # Conta total de jogadores machucados
+                total_injuried = sum(len(v) for v in inj_data.values())
+                
+                c3.metric("Times c/ Lesões", qtd_times, delta=total_injuried)
+                
+                if qtd_times == 0:
+                    st.error("⚠️ O Cache de Lesões está VAZIO! O Nexus não vai encontrar Vácuos.")
+                    st.caption("Solução: Vá em 'Config' > Clique em '🚑 ATUALIZAR LESÕES'.")
+                else:
+                    st.success(f"✅ Lesões carregadas de {qtd_times} times.")
+                    # Mostra amostra
+                    st.json(list(inj_data.keys())[:5]) 
+            except Exception as e:
+                st.error(f"Erro ao ler InjuryMonitor: {e}")
+        else:
+            c3.error("Módulo InjuryMonitor não carregado.")
 
     if not full_cache:
-        st.error("❌ Logs vazios. Atualize o sistema em Config.")
+        st.error("❌ Erro: Logs vazios. Atualize o sistema em Config.")
         return
-
+    
     # Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # Header
+    # --- 3. HEADER VISUAL ---
     st.markdown("""
     <div style="text-align: center; padding: 20px;">
-        <h1 style="color: white; font-size: 3rem; margin:0; font-family:sans-serif;">🧠 PROJECT NEXUS</h1>
+        <h1 style="color: white; font-size: 3rem; margin:0;">🧠 NEXUS INTELLIGENCE</h1>
         <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
+    # Filtro
     min_score = st.sidebar.slider("🎚️ Régua de Score", 50, 100, 60)
 
     # Scan
@@ -908,81 +926,77 @@ def show_nexus_page():
         all_ops = nexus.run_nexus_scan()
         opportunities = [op for op in all_ops if op['score'] >= min_score]
     except Exception as e:
-        st.error(f"Erro Crítico no Scan: {e}")
-        st.exception(e) # Mostra o stack trace para facilitar
+        st.error(f"Erro Crítico no Nexus: {e}")
+        st.exception(e)
         return
 
     if not opportunities:
         st.info(f"Nenhuma oportunidade encontrada com Score > {min_score}.")
         return
 
-    # Renderização
+    # --- 4. RENDERIZAÇÃO NATIVA (ESTÁVEL) ---
     for op in opportunities:
         is_sgp = (op['type'] == 'SGP')
-        theme_color = "#eab308" if is_sgp else "#a855f7"
+        
+        # Cores e Ícones
+        theme_color = "#eab308" if is_sgp else "#a855f7" # Amarelo / Roxo
         icon_type = "⚡" if is_sgp else "🌪️"
-        title_text = op['title']
         
-        # Logos
+        # Logos (Fallback)
         hero_logo = op['hero'].get('logo') or "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        villain_logo = op.get('villain', {}).get('logo') or op.get('partner', {}).get('logo', '')
         
-        # Container Visual
+        # CONTAINER PRINCIPAL
         with st.container():
-            # Barra Superior Colorida
+            # Linha Colorida Superior
             st.markdown(f"""<div style="border-top: 4px solid {theme_color}; margin-top: 15px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
             
-            # Título e Score
-            c1, c2 = st.columns([3, 1])
-            c1.markdown(f"### {icon_type} {title_text}")
-            c2.markdown(f"<div style='background:{theme_color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
+            # Cabeçalho
+            col_h1, col_h2 = st.columns([3, 1])
+            col_h1.markdown(f"### {icon_type} {op['title']}")
+            col_h2.markdown(f"<div style='background:{theme_color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
             
-            # Corpo do Card
-            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
+            # Corpo (3 Colunas)
+            c1, c2, c3 = st.columns([1, 0.4, 1])
             
-            # --- HEROI ---
-            with col_hero:
+            # Esquerda: Heroi
+            with c1:
                 st.image(op['hero']['photo'], width=100)
                 st.markdown(f"**{op['hero']['name']}**")
                 st.caption(f"{op['hero']['role']}")
                 
-                # Stat Box (Agora com valor real!)
-                target_val = op['hero']['target']
-                stat_name = op['hero'].get('stat', '')
+                # Stat Box
+                t_val = op['hero']['target']
+                t_stat = op['hero'].get('stat', '')
                 st.markdown(f"""
                 <div style="border:1px solid {theme_color}; padding:5px; border-radius:5px; text-align:center; background:#1e293b;">
-                    <span style="color:white; font-weight:bold;">{target_val}</span> 
-                    <span style="color:#94a3b8; font-size:12px;">{stat_name}</span>
+                    <span style="color:white; font-weight:bold;">{t_val}</span> 
+                    <span style="color:#94a3b8; font-size:12px;">{t_stat}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # --- CONECTOR ---
-            with col_mid:
+            # Centro: Ícone
+            with c2:
                 st.markdown("<br><br>", unsafe_allow_html=True)
-                icon_center = "🔗" if is_sgp else "⚔️"
-                st.markdown(f"<div style='text-align:center; font-size:2rem;'>{icon_center}</div>", unsafe_allow_html=True)
+                mid_icon = "🔗" if is_sgp else "⚔️"
+                st.markdown(f"<div style='text-align:center; font-size:2rem;'>{mid_icon}</div>", unsafe_allow_html=True)
 
-            # --- PARCEIRO / VILÃO ---
-            with col_target:
+            # Direita: Parceiro ou Vilão
+            with c3:
                 if is_sgp:
-                    # Partner SGP
-                    partner_logo = op['partner'].get('logo')
                     st.image(op['partner']['photo'], width=100)
                     st.markdown(f"**{op['partner']['name']}**")
                     st.caption(f"{op['partner']['role']}")
                     
-                    p_target_val = op['partner']['target'] # Valor real
-                    p_stat_name = op['partner']['stat']
-                    
+                    p_val = op['partner']['target']
+                    p_stat = op['partner'].get('stat', '')
                     st.markdown(f"""
                     <div style="border:1px solid white; padding:5px; border-radius:5px; text-align:center; background:#1e293b;">
-                        <span style="color:white; font-weight:bold;">{p_target_val}</span> 
-                        <span style="color:#94a3b8; font-size:12px;">{p_stat_name}</span>
+                        <span style="color:white; font-weight:bold;">{p_val}</span> 
+                        <span style="color:#94a3b8; font-size:12px;">{p_stat}</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    
                 else:
-                    # Villain Vacuum
-                    villain_logo = op['villain'].get('logo')
                     if villain_logo: st.image(villain_logo, width=80)
                     st.markdown(f"**{op['villain']['name']}**")
                     st.markdown(f"🚨 <span style='color:#f87171; font-weight:bold'>{op['villain']['status']}</span>", unsafe_allow_html=True)
@@ -991,18 +1005,18 @@ def show_nexus_page():
             # Rodapé
             st.divider()
             if is_sgp:
-                cols_b = st.columns(len(op['badges']) + 1)
+                cols_badges = st.columns(len(op['badges']) + 1)
                 for i, b in enumerate(op['badges']):
-                    if i < len(cols_b): cols_b[i].caption(f"✅ {b}")
+                    if i < len(cols_badges): cols_badges[i].caption(f"✅ {b}")
             else:
-                st.markdown("**📈 ESCADA (LADDER):**")
-                cl1, cl2, cl3 = st.columns(3)
+                st.markdown("**📈 LADDER PROJECTION:**")
+                l1, l2, l3 = st.columns(3)
                 for i, step in enumerate(op['ladder']):
-                    txt = step.replace(":", "")
-                    if i==0: cl1.info(txt)
-                    elif i==1: cl2.success(txt)
-                    elif i==2: cl3.warning(txt)
-                st.caption(f"📉 *Impacto: {op['impact']}*")
+                    clean_step = step.replace(":", "")
+                    if i==0: l1.info(clean_step)
+                    if i==1: l2.success(clean_step)
+                    if i==2: l3.warning(clean_step)
+                st.caption(f"📉 *{op['impact']}*")
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -7269,6 +7283,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
