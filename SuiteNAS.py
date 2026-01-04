@@ -6915,117 +6915,120 @@ def main():
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE vFINAL - DIGIBETS)
+    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL)
     # ============================================================================
     with st.sidebar:
-        # --- CSS INJECTION (VISUAL COCKPIT & DARK MODE FORCE) ---
+        # --- CSS INJECTION (VISUAL CLEAN & COMPACT) ---
+        # Cor Principal (Teal do Logo): #22d3ee
         st.markdown("""
         <style>
-            /* 1. FORÇA O FUNDO PRETO NA SIDEBAR */
+            /* 1. FORÇA O FUNDO PRETO PURO NA SIDEBAR */
             section[data-testid="stSidebar"] {
-                background-color: #0f172a !important; /* Dark Slate 900 */
+                background-color: #000000 !important;
+                border-right: 1px solid #1e293b;
             }
             
-            /* 2. Força texto claro na sidebar para contraste */
-            section[data-testid="stSidebar"] p, 
-            section[data-testid="stSidebar"] span, 
-            section[data-testid="stSidebar"] div {
-                color: #e2e8f0 !important;
+            /* 2. BRANDING */
+            .logo-container {
+                text-align: center;
+                padding-bottom: 20px;
+                padding-top: 20px;
+            }
+            .slogan-text {
+                color: #64748b; /* Cinza discreto */
+                font-family: 'Inter', sans-serif;
+                font-size: 0.65rem; /* Bem pequeno e delicado */
+                font-weight: 300;
+                letter-spacing: 1.5px;
+                margin-top: 8px;
+                text-transform: uppercase;
+                opacity: 0.8;
             }
 
-            /* 3. Estilo dos Botões do Menu (Radiogroup Hack) */
+            /* 3. MENUS (RADIO BUTTONS) */
+            /* Esconde a bolinha padrão */
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
             
+            /* Estilo do Texto (Item Normal) */
             div[role="radiogroup"] label {
-                background: rgba(255, 255, 255, 0.05);
-                padding: 12px 15px;
-                border-radius: 8px;
-                margin-bottom: 8px;
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                transition: all 0.3s ease;
+                background: transparent !important; /* Sem fundo */
+                border: none !important; /* Sem borda */
+                padding: 6px 12px !important; /* Compacto */
+                margin-bottom: 2px !important; /* Espaçamento menor */
+                transition: all 0.2s ease;
                 font-family: 'Inter', sans-serif;
-                font-size: 0.95rem;
-                color: #cbd5e1 !important; /* Texto cinza claro */
-            }
-
-            div[role="radiogroup"] label:hover {
-                background: rgba(255, 255, 255, 0.15);
-                border-color: rgba(255, 255, 255, 0.3);
-                transform: translateX(5px);
+                font-size: 0.85rem;
+                color: #94a3b8 !important; /* Texto cinza claro */
                 cursor: pointer;
             }
 
-            /* ITEM SELECIONADO */
-            div[role="radiogroup"] label[data-checked="true"] {
-                background: linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(15, 23, 42, 0) 100%);
-                border-left: 4px solid #a855f7;
+            /* Hover (Passar o mouse) */
+            div[role="radiogroup"] label:hover {
                 color: #ffffff !important;
+                padding-left: 16px !important; /* Efeito de deslize */
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.05) 0%, transparent 100%) !important;
+            }
+
+            /* ITEM SELECIONADO (A mágica do Teal) */
+            div[role="radiogroup"] label[data-checked="true"] {
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%) !important;
+                border-left: 3px solid #22d3ee !important; /* Barra lateral Teal */
+                color: #22d3ee !important; /* Texto Teal Brilhante */
                 font-weight: 600;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+            }
+            
+            /* Títulos de Categoria (Hack visual para separar grupos) */
+            .group-header {
+                color: #475569;
+                font-size: 0.65rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-top: 15px;
+                margin-bottom: 5px;
+                padding-left: 12px;
             }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- BRANDING (LOGO & TÍTULO) ---
+        # --- BRANDING (LOGO & SLOGAN) ---
+        # Nota: Ajuste a URL da imagem se necessário
         st.markdown(f"""
-            <div style="text-align: center; padding-bottom: 25px; padding-top: 10px;">
-                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="160" style="margin-bottom: 15px; border-radius: 10px; box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);">
-                <h1 style="font-family: 'Oswald', sans-serif; font-size: 2.2rem; margin:0; 
-                           color: #ffffff !important; letter-spacing: 1px;">
-                    DigiBets
-                </h1>
-                <p style="color: #94a3b8 !important; font-size: 0.75rem; font-weight: 400; margin-top: 5px; font-family: 'Inter', sans-serif;">
-                    O PODER DA IA NAS SUAS<br>APOSTAS ESPORTIVAS
-                </p>
+            <div class="logo-container">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150">
+                <div class="slogan-text">
+                    O Poder da IA nas suas Apostas
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # --- ESTRUTURA DO MENU (REORGANIZADA) ---
+        # --- ESTRUTURA DO MENU ---
+        # Criamos uma lista única, mas usamos markdown para inserir "Títulos" visuais entre eles
+        # O Streamlit não suporta headers nativos dentro do radio, então a ordem é visual.
+        
         MENU_GROUPS = {
-            "🏠 CENTRO DE COMANDO": [
-                "🏠 Dashboard",
-                "📊 Ranking Teses",
-                "📋 Auditoria"
-            ],
-            "🧠 INTELIGÊNCIA ARTIFICIAL": [
-                "🧬 Sinergia & Vácuo",
-                "⚔️ Lab Narrativas",
-                "⚡ Momentum",
-                "🔥 Las Vegas Sync",
-                "🌪️ Blowout Hunter",
-                "🏆 Trinity Club"
-            ],
-            "🏹 CAÇADORES & ESTRATÉGIA": [
-                "🔥 Hot Streaks",
-                "📊 Matriz 5-7-10",
-                "🧩 Desdobra Múltipla"
-            ],
-            "🛡️ ANÁLISE TÁTICA": [
-                "🛡️ DvP Confrontos",
-                "📡 Matchup Radar",
-                "🏥 Depto Médico",
-                "🔄 Mapa de Rotações",
-                "👥 Escalações"
-            ],
-            "⚙️ SISTEMA": [
-                "⚙️ Config",
-                "🔍 Testar Conexão Supabase"
-            ]
+            "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
+            "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
+            "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
+            "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
+            "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
         }
 
+        # Achata a lista para o componente funcionar
         flat_menu = []
-        for group, items in MENU_GROUPS.items():
-            flat_menu.extend(items)
+        for group in MENU_GROUPS.values():
+            flat_menu.extend(group)
 
         # Renderiza Menu
         choice = st.radio("", flat_menu, label_visibility="collapsed")
         
-        # Rodapé
+        # Rodapé Discreto
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             """
-            <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #334155; margin-top: 20px;">
-                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem; letter-spacing: 1px;">● SYSTEM ONLINE</span>
+            <div style="text-align: center; color: #334155; font-size: 0.6rem;">
+                ● SYSTEM ONLINE v2.1
             </div>
             """, 
             unsafe_allow_html=True
@@ -7286,5 +7289,6 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
