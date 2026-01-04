@@ -848,142 +848,131 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # --- 1. CARREGAMENTO DE DADOS (SUPABASE / NUVEM) ---
+    # --- 1. CARREGAMENTO DE DADOS (SUPABASE) ---
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
     if not full_cache:
-        st.error("❌ Erro Crítico: Logs não encontrados no Banco de Dados.")
-        st.info("Vá em Configurações > Atualizar Dados para corrigir.")
+        st.error("❌ Erro: Logs vazios. Atualize o sistema em Config.")
         return
     
-    # Engine (Garante que scoreboard seja lista)
+    # Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # --- 2. HEADER E CONTROLES ---
+    # --- 2. HEADER (Visual Limpo) ---
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 25px;">
-        <h1 style="font-family: 'Oswald', sans-serif; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 NEXUS INTELLIGENCE</h1>
-        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 2px; font-weight:bold;">MODO PREDADOR • SINERGIA SIMBIÓTICA</div>
+    <div style="text-align: center; padding: 20px;">
+        <h1 style="color: white; font-size: 3rem; margin:0;">🧠 NEXUS INTELLIGENCE</h1>
+        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
-    min_score = st.sidebar.slider("🎚️ Score Mínimo (Régua)", 50, 100, 60)
+    # Filtro Lateral
+    min_score = st.sidebar.slider("🎚️ Régua de Score", 50, 100, 60)
+    st.sidebar.caption("Filtra oportunidades com base na força do sinal.")
 
-    # Executa Scan
+    # Scan
     try:
         all_ops = nexus.run_nexus_scan()
         opportunities = [op for op in all_ops if op['score'] >= min_score]
     except Exception as e:
-        st.error(f"Erro ao processar Nexus: {e}")
+        st.error(f"Erro no Motor Nexus: {e}")
         return
 
     if not opportunities:
-        st.warning(f"O Nexus não detectou oportunidades com Score > {min_score} para hoje.")
+        st.info(f"Nenhuma oportunidade encontrada com Score > {min_score}.")
         return
 
-    # --- 3. RENDERIZAÇÃO DOS CARDS (LAYOUT ORIGINAL + CSS FIX) ---
+    # --- 3. RENDERIZAÇÃO NATIVA (ESTÁVEL) ---
     for op in opportunities:
+        is_sgp = (op['type'] == 'SGP')
         
-        # Prepara Logos (Fallback seguro se não existirem)
-        hero_logo = op['hero'].get('logo', '')
-        partner_logo = op.get('partner', {}).get('logo', '')
-        villain_logo = op.get('villain', {}).get('logo', '')
-
-        # --- LAYOUT 1: SGP (ECOSSISTEMA SIMBIÓTICO) ---
-        if op['type'] == 'SGP':
-            badges_html = "".join([f"<span style='background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:15px; margin-right:8px; display:inline-block; margin-bottom:5px;'>{b}</span>" for b in op['badges']])
+        # Definição de Cores
+        theme_color = "#eab308" if is_sgp else "#a855f7" # Amarelo / Roxo
+        icon_type = "⚡" if is_sgp else "🌪️"
+        title_text = "ECOSSISTEMA SIMBIÓTICO" if is_sgp else "ALERTA DE VÁCUO"
+        
+        # Prepara Logos (Fallback)
+        hero_logo = op['hero'].get('logo') or "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        villain_logo = op.get('villain', {}).get('logo') or op.get('partner', {}).get('logo', '')
+        
+        # --- CONTAINER DO CARD (Borda Visual) ---
+        with st.container():
+            st.markdown(f"""<div style="border-top: 4px solid {theme_color}; margin-top: 10px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
             
-            # CSS INLINE PARA EVITAR EXPLOSÃO:
-            # - box-sizing: border-box (Obrigatorio para não estourar padding)
-            # - max-width: 100% (Garante que imagens não vazem)
-            st.markdown(f"""
-            <div style="box-sizing: border-box; background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden; width:100%;">
-                
-                <div style="background:{op['color']}; color:#000; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-                    <span>⚡ SGP DETECTADA</span>
-                    <span style="background:#000; color:{op['color']}; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
-                </div>
-                
-                <div style="display:flex; padding:20px; align-items:center; justify-content:space-between; text-align:center; flex-wrap: wrap;">
-                    
-                    <div style="flex: 1; min-width: 100px; position: relative;">
-                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:50%; margin-left:-55px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
-                        <img src="{op['hero']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid {op['color']}; object-fit:cover; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['hero']['name']}</div>
-                        <div style="color:{op['color']}; font-size:11px; font-weight:bold;">{op['hero']['role']}</div>
-                        <div style="background:#1e293b; color:#4ade80; padding:2px 8px; border-radius:5px; display:inline-block; font-size:11px; margin-top:5px; border:1px solid #334155;">
-                            {op['hero']['target']} {op['hero']['stat']}
-                        </div>
-                    </div>
-                    
-                    <div style="width:40px; font-size:30px; color:{op['color']}; text-align:center; opacity:0.8;">🔗</div>
-                    
-                    <div style="flex: 1; min-width: 100px; position: relative;">
-                        <img src="{partner_logo}" style="position:absolute; top:-5px; left:50%; margin-left:25px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
-                        <img src="{op['partner']['photo']}" style="width:100px; height:100px; border-radius:50%; border:3px solid #fff; object-fit:cover; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['partner']['name']}</div>
-                        <div style="color:#94a3b8; font-size:11px; font-weight:bold;">{op['partner']['role']}</div>
-                        <div style="background:#1e293b; color:#4ade80; padding:2px 8px; border-radius:5px; display:inline-block; font-size:11px; margin-top:5px; border:1px solid #334155;">
-                            {op['partner']['target']} {op['partner']['stat']}
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="background:rgba(255,255,255,0.05); padding:10px 20px; font-size:11px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
-                    {badges_html}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # --- LAYOUT 2: VACUUM (VÁCUO DE REBOTE) ---
-        else:
-            # Proteção para a Ladder não quebrar o HTML
-            ladder_rows = []
-            for l in op['ladder']:
-                parts = l.split(':')
-                label = parts[0]
-                val = parts[1] if len(parts) > 1 else ''
-                ladder_rows.append(f"""
-                <div style="background:#1e293b; padding:4px 10px; border-radius:6px; margin-bottom:4px; display:flex; justify-content:space-between; font-size:12px;">
-                    <span>{label}</span><span style="color:#a855f7; font-weight:bold;">{val}</span>
-                </div>
-                """)
-            ladder_html = "".join(ladder_rows)
+            # Cabeçalho do Card
+            c_head1, c_head2 = st.columns([3, 1])
+            c_head1.markdown(f"### {icon_type} {title_text}")
+            c_head2.markdown(f"<div style='background:{theme_color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
             
-            st.markdown(f"""
-            <div style="box-sizing: border-box; background:#0f172a; border-radius:15px; border: 1px solid {op['color']}; margin-bottom:25px; overflow:hidden; width:100%;">
-                <div style="background:{op['color']}; color:#fff; padding:8px 20px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-                    <span>🌪️ ALERTA DE VÁCUO</span>
-                    <span style="background:#fff; color:{op['color']}; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
+            # --- CORPO DO CARD (3 COLUNAS) ---
+            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
+            
+            # 1. Lado Esquerdo (Heroi)
+            with col_hero:
+                st.image(op['hero']['photo'], width=100)
+                st.markdown(f"**{op['hero']['name']}**")
+                st.caption(f"{op['hero']['role']}")
+                # Stat Box
+                st.markdown(f"""
+                <div style="border:1px solid {theme_color}; padding:5px; border-radius:5px; text-align:center;">
+                    <span style="color:white; font-weight:bold;">{op['hero']['target']}</span> 
+                    <span style="color:#94a3b8;">{op['hero'].get('stat','')}</span>
                 </div>
-                
-                <div style="display:flex; padding:20px; gap:20px; align-items:flex-start; flex-wrap: wrap;">
-                    
-                    <div style="flex: 0 0 130px; text-align:center; position:relative;">
-                        <img src="{hero_logo}" style="position:absolute; top:-5px; left:0px; width:30px; z-index:2; filter: drop-shadow(0 0 2px #000);">
-                        <img src="{op['hero']['photo']}" style="width:120px; height:120px; border-radius:12px; object-fit:cover; border: 2px solid {op['color']}; background:#000;">
-                        <div style="font-weight:bold; color:#fff; font-size:16px; margin-top:10px; line-height:1.2;">{op['hero']['name']}</div>
-                        <div style="color:{op['color']}; font-weight:bold; font-size:12px; text-transform:uppercase;">{op['hero']['status']}</div>
+                """, unsafe_allow_html=True)
+
+            # 2. Meio (Conector)
+            with col_mid:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if is_sgp:
+                    st.markdown("<div style='text-align:center; font-size:2rem;'>🔗</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='text-align:center; font-size:2rem;'>⚔️</div>", unsafe_allow_html=True)
+
+            # 3. Lado Direito (Parceiro ou Vilão)
+            with col_target:
+                if is_sgp:
+                    st.image(op['partner']['photo'], width=100)
+                    st.markdown(f"**{op['partner']['name']}**")
+                    st.caption(f"{op['partner']['role']}")
+                    st.markdown(f"""
+                    <div style="border:1px solid white; padding:5px; border-radius:5px; text-align:center;">
+                        <span style="color:white; font-weight:bold;">{op['partner']['target']}</span> 
+                        <span style="color:#94a3b8;">{op['partner'].get('stat','')}</span>
                     </div>
-                    
-                    <div style="flex:1; min-width: 180px;">
-                        <div style="background:rgba(248,113,113,0.1); border:1px solid #f87171; padding:10px; border-radius:10px; margin-bottom:12px; position:relative;">
-                            <img src="{villain_logo}" style="position:absolute; top:8px; right:8px; width:35px; opacity:0.9;">
-                            <div style="color:#f87171; font-weight:bold; font-size:11px;">{op['villain']['status']}</div>
-                            <div style="color:#fff; font-size:15px; font-weight:bold;">{op['villain']['missing']}</div>
-                            <div style="color:#94a3b8; font-size:11px;">Time: {op['villain']['name']}</div>
-                        </div>
-                        <div style="font-family:'Oswald', sans-serif; font-size:11px; color:#94a3b8; margin-bottom:5px; font-weight:bold; letter-spacing:1px;">LADDER PROJECTION</div>
-                        {ladder_html}
-                    </div>
-                </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # No Vácuo, mostramos o logo do time rival e o desfalque
+                    if villain_logo:
+                        st.image(villain_logo, width=80)
+                    st.markdown(f"**{op['villain']['name']}**")
+                    st.markdown(f"🚨 <span style='color:#f87171'>{op['villain']['status']}</span>", unsafe_allow_html=True)
+                    st.caption(f"Sem: {op['villain']['missing']}")
+
+            # --- RODAPÉ ---
+            st.divider()
+            
+            if is_sgp:
+                # Badges como Tags
+                cols_badges = st.columns(len(op['badges']) + 1)
+                for i, badge in enumerate(op['badges']):
+                    if i < len(cols_badges):
+                        cols_badges[i].caption(f"✅ {badge}")
+            else:
+                # Ladder do Vácuo
+                st.markdown("**📈 ESCADA DE REBOTES (LADDER):**")
+                c_l1, c_l2, c_l3 = st.columns(3)
+                for i, step in enumerate(op['ladder']):
+                    # Removemos os dois pontos para evitar erro de split, se houver
+                    txt = step.replace(":", "") 
+                    if i == 0: c_l1.info(txt)
+                    if i == 1: c_l2.success(txt)
+                    if i == 2: c_l3.warning(txt)
                 
-                <div style="background:rgba(255,255,255,0.05); padding:10px 20px; font-size:12px; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.05);">
-                    📉 <b>Impacto:</b> {op['impact']}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                st.caption(f"📉 *Impacto Estatístico: {op['impact']}*")
+            
+            # Espaçamento final
+            st.markdown("<br>", unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -7250,6 +7239,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
