@@ -3120,41 +3120,37 @@ def validate_pipeline_integrity(required_components=None):
 # ============================================================================
 def get_scoreboard_data():
     """
-    Função Mestra do Scoreboard.
-    1. Ajusta Data (Madrugada NBA).
-    2. Tenta ler do Supabase.
-    3. Se velho, baixa da ESPN.
-    4. Salva no Supabase.
+    Função Mestra do Scoreboard (Fuso Horário Brasil Corrigido).
     """
     from datetime import datetime, timedelta
+    import pytz # Importante para fuso horário
     import pandas as pd
     import requests
-    import pytz
 
-    # --- 1. LÓGICA DE DATA (O PULO DO GATO 🐱) ---
-    # Se for antes das 04:00 da manhã, consideramos que ainda é o dia anterior.
-    # Isso resolve o problema dos jogos sumirem meia-noite.
-    now = datetime.now()
-    if now.hour < 4:
-        target_date = now - timedelta(days=1)
+    # --- 1. LÓGICA DE DATA (BRASIL TIMEZONE) ---
+    # Define fuso Brasil
+    tz_br = pytz.timezone('America/Sao_Paulo')
+    now_br = datetime.now(tz_br)
+    
+    # Se for antes das 04:00 da manhã, consideramos que ainda é o dia "útil" da NBA anterior
+    # (Jogos da madrugada ainda pertencem à rodada anterior)
+    if now_br.hour < 4:
+        target_date = now_br - timedelta(days=1)
     else:
-        target_date = now
+        target_date = now_br
     
     date_str = target_date.strftime("%Y%m%d")
-    cache_key = f"scoreboard_{date_str}" # Chave única por dia
     
     # --- 2. TENTA LER DO SUPABASE PRIMEIRO ---
-    # Tenta pegar cache fresco (menos de 30s)
-    # Se quiser forçar atualização sempre, comente este bloco
     try:
-        cached = get_data_universal("scoreboard") # Usa a chave genérica 'scoreboard' para o app
+        cached = get_data_universal("scoreboard")
         if cached and isinstance(cached, list) and len(cached) > 0:
-            # Verifica se o cache é deste dia mesmo (opcional, mas bom)
-            # Para simplificar, assumimos que o 'scoreboard' é sempre o "live"
+            # Opcional: Verificar se o cache bate com a data de hoje,
+            # mas vamos confiar que o botão 'Atualizar' faz o trabalho.
             return pd.DataFrame(cached)
     except: pass
 
-    # --- 3. BAIXA DA ESPN (Se não tiver cache) ---
+    # --- 3. BAIXA DA ESPN ---
     url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
     params = {"dates": date_str, "limit": 100}
     headers = {
@@ -3164,54 +3160,38 @@ def get_scoreboard_data():
 
     try:
         r = requests.get(url, params=params, headers=headers, timeout=5)
-        if r.status_code != 200:
-            return pd.DataFrame() # Retorna vazio se der erro
+        if r.status_code != 200: return pd.DataFrame()
         
         data = r.json()
         games_list = []
         
-        # Parseia o JSON complexo da ESPN para uma tabela limpa
         events = data.get("events", [])
         for evt in events:
             comp = evt["competitions"][0]
-            
-            # Times
             competitors = comp["competitors"]
             home = next((t for t in competitors if t["homeAway"] == "home"), {})
             away = next((t for t in competitors if t["homeAway"] == "away"), {})
             
-            # Status
-            status_type = evt["status"]["type"]
-            status_text = status_type["shortDetail"] # Ex: "Final", "10:30 - 4th"
-            is_live = status_type["state"] == "in"
-            is_final = status_type["state"] == "post"
-            
-            # Odds (Se disponível)
-            odds_txt = ""
-            if "odds" in comp and comp["odds"]:
-                odds_txt = comp["odds"][0].get("details", "")
+            # Status e Odds
+            status_text = evt["status"]["type"]["shortDetail"]
+            odds_txt = comp["odds"][0].get("details", "") if "odds" in comp and comp["odds"] else ""
+            odds_total = comp["odds"][0].get("overUnder", "") if "odds" in comp and comp["odds"] else ""
 
             game_dict = {
                 "gameId": evt["id"],
                 "date_str": date_str,
+                "startTimeUTC": comp.get("date"), # Importante para conversão
                 "home": home["team"]["abbreviation"],
                 "away": away["team"]["abbreviation"],
-                "home_score": home.get("score", "0"),
-                "away_score": away.get("score", "0"),
                 "status": status_text,
-                "period": evt["status"]["period"],
-                "clock": evt["status"]["displayClock"],
-                "is_active": is_live,
-                "is_final": is_final,
-                "odds": odds_txt,
+                "odds_spread": odds_txt,
+                "odds_total": odds_total,
                 "home_logo": home["team"].get("logo", ""),
                 "away_logo": away["team"].get("logo", "")
             }
             games_list.append(game_dict)
 
-        # --- 4. SALVA NO SUPABASE ---
         if games_list:
-            # Salva como JSON puro
             save_data_universal("scoreboard", games_list)
             
         return pd.DataFrame(games_list)
@@ -3219,7 +3199,6 @@ def get_scoreboard_data():
     except Exception as e:
         print(f"⚠️ Erro no Scoreboard ESPN: {e}")
         return pd.DataFrame()
-
 def fetch_team_roster(team_abbr_or_id, progress_ui=True):
     cache_path = os.path.join(CACHE_DIR, f"roster_{team_abbr_or_id}.json")
     cached = load_json(cache_path)
@@ -5061,47 +5040,41 @@ def show_audit_page():
 # FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (ATUALIZADA v2.0 - TIME & REAL DATA)
 # ============================================================================
 def render_game_card(away_team, home_team, game_data, odds_map=None):
+    import dateutil.parser
+    import pytz
+    
     # Mapeamento de Logos
     def get_logo(abbr):
         return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr.lower()}.png"
 
-    # --- 1. DADOS REAIS (DATA FETCHING) ---
-    
-    # Horário (Parseamento ISO)
-    import dateutil.parser
-    game_time = "TBD"
+    # --- 1. HORÁRIO BRASIL ---
+    game_time = "HOJE"
     try:
         raw_time = game_data.get("startTimeUTC") or game_data.get("date")
         if raw_time:
-            dt = dateutil.parser.parse(raw_time)
-            # Ajuste simples de fuso (-3h Brasil) se necessário, ou apenas formata
-            # Aqui formata apenas Hora:Minuto
-            game_time = dt.strftime("%H:%M")
-    except:
-        game_time = "HOJE"
+            # Parseia UTC e converte para SP
+            dt_utc = dateutil.parser.parse(raw_time)
+            dt_br = dt_utc.astimezone(pytz.timezone('America/Sao_Paulo'))
+            game_time = dt_br.strftime("%H:%M")
+    except: pass
 
-    # Odds (Spread & Total) - Vindo direto da ESPN (game_data)
+    # Odds (Spread & Total)
     spread_display = game_data.get("odds_spread", "N/A")
     total_display = game_data.get("odds_total", "N/A")
-    
-    # Limpeza do Spread para cálculo de risco
     spread_val = 0.0
     try:
-        if spread_display and spread_display != "N/A" and spread_display != "EVEN":
+        if spread_display and spread_display not in ["N/A", "EVEN"]:
             spread_val = float(spread_display.split()[-1])
     except: pass
 
-    # Status
     status = game_data.get('status', 'Agendado')
-    if "Final" in status: status = "FINAL"
-    
-    # --- 2. PACE REAL (DO SESSION STATE) ---
+    if "Final" in status: status = "FIM"
+
+    # --- 2. PACE REAL ---
     adv_stats = st.session_state.get('team_advanced', {})
-    
     def get_team_pace(abbr):
-        # Tenta pegar do dicionário avançado
         t_data = adv_stats.get(abbr, {})
-        if not t_data: return 100.0 # Fallback média da liga
+        if not t_data: return 100.0
         return float(t_data.get('PACE') or t_data.get('pace') or 100.0)
 
     pace_home = get_team_pace(home_team)
@@ -5110,86 +5083,71 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
     
     # Classificação Visual do Pace
     if avg_pace >= 101.5:
-        pace_color = "#00FF9C" # Verde Neon
-        pace_icon = "⚡"
+        pace_color, pace_icon = "#00FF9C", "⚡"
     elif avg_pace <= 98.5:
-        pace_color = "#FFA500" # Laranja
-        pace_icon = "🐌"
+        pace_color, pace_icon = "#FFA500", "🐌"
     else:
-        pace_color = "#9CA3AF" # Cinza
-        pace_icon = "⚖️"
+        pace_color, pace_icon = "#9CA3AF", "⚖️"
 
-    # Análise de Blowout
     blowout = calculate_blowout_risk(spread_val)
 
-    # --- 3. HTML DO CARD (DESIGNER MODE) ---
+    # --- 3. HTML DO CARD (AJUSTADO) ---
+    # Mudanças: Fontes menores (-20%), Logo menor, Spread Dourado (#FFD700)
     card_html = f"""
     <div style="
         background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 12px;
         border: 1px solid #334155;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         font-family: 'Inter', sans-serif;
         position: relative;
-        overflow: hidden;
     ">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
-        <div style="background: rgba(30, 144, 255, 0.1); color: #60A5FA; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+        <div style="background: rgba(30, 144, 255, 0.1); color: #60A5FA; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;">
             {status}
         </div>
-        <div style="font-family: 'Oswald', sans-serif; font-size: 14px; color: #F8FAFC; font-weight: 600;">
-            ⏰ {game_time}
+        <div style="font-family: 'Oswald', sans-serif; font-size: 12px; color: #E2E8F0;">
+            🕒 {game_time} (BR)
         </div>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
           <div style="text-align: center; width: 35%;">
-            <img src="{get_logo(away_team)}" style="width: 45px; height: 45px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
-            <div style="font-weight: 800; font-size: 16px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
-            <div style="font-size: 10px; color: #94A3B8;">PACE: {int(pace_away)}</div>
+            <img src="{get_logo(away_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
+            <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_away)}</div>
           </div>
           
           <div style="text-align: center; width: 30%;">
-            <div style="font-size: 10px; color: #64748B; font-weight: 600;">SPREAD</div>
-            <div style="font-size: 14px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald'; margin-bottom: 4px;">{spread_display}</div>
-            <div style="font-size: 10px; color: #64748B; font-weight: 600;">TOTAL</div>
-            <div style="font-size: 14px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
+            <div style="font-size: 9px; color: #64748B; font-weight: 600;">SPREAD</div>
+            <div style="font-size: 13px; color: #FFD700; font-weight: bold; font-family: 'Oswald'; margin-bottom: 4px; text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);">{spread_display}</div>
+            <div style="font-size: 9px; color: #64748B; font-weight: 600;">TOTAL</div>
+            <div style="font-size: 13px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
           </div>
           
           <div style="text-align: center; width: 35%;">
-            <img src="{get_logo(home_team)}" style="width: 45px; height: 45px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
-            <div style="font-weight: 800; font-size: 16px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
-            <div style="font-size: 10px; color: #94A3B8;">PACE: {int(pace_home)}</div>
+            <img src="{get_logo(home_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
+            <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_home)}</div>
           </div>
       </div>
 
-      <div style="
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 8px;
-        padding: 8px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        border: 1px solid rgba(255,255,255,0.05);
-      ">
+      <div style="background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 6px; display: flex; justify-content: space-around; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
         <div style="text-align: center;">
-            <div style="font-size: 9px; color: #94A3B8; font-weight: 600;">RITMO ({int(avg_pace)})</div>
-            <div style="color: {pace_color}; font-weight: bold; font-size: 11px;">{pace_icon}</div>
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RITMO ({int(avg_pace)})</div>
+            <div style="color: {pace_color}; font-weight: bold; font-size: 10px;">{pace_icon}</div>
         </div>
-        
-        <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.1);"></div>
-        
+        <div style="width: 1px; height: 15px; background: rgba(255,255,255,0.1);"></div>
         <div style="text-align: center;">
-            <div style="font-size: 9px; color: #94A3B8; font-weight: 600;">RISCO</div>
-            <div style="color: {blowout['color']}; font-weight: bold; font-size: 11px;" title="{blowout['desc']}">{blowout['icon']} {blowout['nivel']}</div>
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RISCO</div>
+            <div style="color: {blowout['color']}; font-weight: bold; font-size: 10px;" title="{blowout['desc']}">{blowout['icon']} {blowout['nivel']}</div>
         </div>
       </div>
     </div>
     """
-    import streamlit.components.v1 as components
-    components.html(card_html, height=240, scrolling=False)
+    components.html(card_html, height=210, scrolling=False)
 
 # ============================================================================
 # RENDERIZADORES VISUAIS 
@@ -7025,114 +6983,165 @@ def main():
         )
   
 # ============================================================================
-# DASHBOARD (VISUAL ARENA DE ELITE)
+# DASHBOARD (VISUAL ARENA V3.0 - COM NEXUS & DESTAQUES DO DIA)
 # ============================================================================
 def show_dashboard_page():
-    # Sem Header - Direto ao ponto
-    
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data() # Função de fetch do scoreboard
+    games = get_scoreboard_data()
     
     if df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
         return
 
-    # --- 2. SEÇÃO DE INSIGHTS (FLAMEJANTES) ---
-    if "insights_engine" in st.session_state:
+    # --- FILTRO: APENAS QUEM JOGA HOJE ---
+    # Identifica times que jogam hoje
+    teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
+    
+    # Filtra o DataFrame L5
+    if not teams_playing_today:
+        st.info("Nenhum time identificado jogando hoje.")
+        df_today = pd.DataFrame()
+    else:
+        df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
+
+    # --- 2. DESTAQUES DO DIA (TOP PLAYERS ATIVOS) ---
+    st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
+    
+    if df_today.empty:
+        st.warning("Nenhum jogador da base L5 joga hoje (ou nomes dos times não bateram).")
+    else:
+        # Helper para pegar top 3 filtrado
+        def get_top_n(df, col, n=3):
+            return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
+
+        top_pts = get_top_n(df_today, 'PTS_AVG')
+        top_ast = get_top_n(df_today, 'AST_AVG')
+        top_reb = get_top_n(df_today, 'REB_AVG')
+
+        # Helper de Renderização (HTML mais robusto que não estoura)
+        def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
+            if df_top.empty: return
+            king = df_top.iloc[0]
+            p_id = king['PLAYER_ID']
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
+            val = king[df_top.columns[2]] # Valor da stat
+            
+            st.markdown(f"""
+            <div style="background: #0f172a; border: 1px solid {color}; border-radius: 8px; overflow: hidden; height: 100%;">
+                <div style="background: {color}20; padding: 5px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 12px; letter-spacing: 1px;">
+                    {icon} {title}
+                </div>
+                <div style="padding: 10px; display: flex; align-items: center;">
+                    <img src="{photo}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
+                    <div>
+                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1;">{king['PLAYER']}</div>
+                        <div style="color: #94a3b8; font-size: 10px;">{king['TEAM']}</div>
+                        <div style="color: {color}; font-size: 18px; font-family: 'Oswald'; font-weight: bold;">{val:.1f}</div>
+                    </div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 5px 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1; margin-bottom: 2px;">
+                        <span>2. {df_top.iloc[1]['PLAYER'] if len(df_top)>1 else '-'}</span>
+                        <span style="color:{color}">{df_top.iloc[1][df_top.columns[2]]:.1f} if len(df_top)>1 else '-'</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1;">
+                        <span>3. {df_top.iloc[2]['PLAYER'] if len(df_top)>2 else '-'}</span>
+                        <span style="color:{color}">{df_top.iloc[2][df_top.columns[2]]:.1f} if len(df_top)>2 else '-'</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        c1, c2, c3 = st.columns(3)
+        with c1: render_golden_card("CESTINHAS", top_pts, "#FFD700", "🔥")
+        with c2: render_golden_card("GARÇONS", top_ast, "#00E5FF", "🧠")
+        with c3: render_golden_card("REBOTEIROS", top_reb, "#FF4F4F", "💪")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- 3. MELHOR DUPLA DO DIA (NEXUS INTEGRATION) ---
+    # Rodamos o Nexus silenciosamente para achar a jóia do dia
+    
+    nexus_op = None
+    if not games.empty and not df_l5.empty:
         try:
-            insights = st.session_state.insights_engine.generate_daily_insights(
-                st.session_state.get("scoreboard", []),
-                df_l5,
-                st.session_state.get("injuries_data", {})
-            )
-            if insights:
-                # Mostra apenas os 2 insights mais críticos para não poluir
-                cols = st.columns(2)
-                for i, item in enumerate(insights[:2]):
-                    with cols[i]:
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(90deg, {item['color']}20 0%, transparent 100%); border-left: 4px solid {item['color']}; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
-                            <div style="font-weight:bold; color:#E2E8F0; font-size:14px;">{item['icon']} {item['title']}</div>
-                            <div style="font-size:11px; color:#94A3B8;">{item['desc']}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-        except: pass
+            # Instancia Engine (usando a classe NexusEngine já definida no código)
+            # Converte games DF para lista de dicts se necessário
+            games_dict = games.to_dict('records')
+            # Precisamos do cache completo de logs para o Nexus, não só o L5 resumido.
+            # Tenta pegar do cache universal
+            logs_cache = get_data_universal("real_game_logs")
+            
+            if logs_cache:
+                nexus = NexusEngine(logs_cache, games_dict)
+                ops = nexus.run_nexus_scan()
+                if ops:
+                    # Pega o Top 1 (Maior Score)
+                    nexus_op = ops[0]
+        except Exception as e:
+            # print(f"Erro Nexus Dashboard: {e}") 
+            pass
 
-    # --- 3. GOLDEN PODIUM (KPIS DE ELITE) ---
-    # Top 3 em Pontos, Assistências e Rebotes
-    
-    st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">🏆 LÍDERES RECENTES (L5 FORM)</div>', unsafe_allow_html=True)
-    
-    # Helper para pegar top 3
-    def get_top_n(df, col, n=3):
-        return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
-
-    top_pts = get_top_n(df_l5, 'PTS_AVG')
-    top_ast = get_top_n(df_l5, 'AST_AVG')
-    top_reb = get_top_n(df_l5, 'REB_AVG')
-
-    # Helper de Renderização do Card Dourado
-    def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
-        # Pega o #1
-        king = df_top.iloc[0]
-        p_id = king['PLAYER_ID']
-        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
-        val = king[df_top.columns[2]] # Valor da stat
+    if nexus_op:
+        st.markdown('<div style="font-family: Oswald; color: #A855F7; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">🧬 MELHOR DUPLA DO DIA (SINERGIA & VÁCUO)</div>', unsafe_allow_html=True)
         
-        # HTML do Card
+        # Renderiza Card Especial da Dupla
+        op = nexus_op
+        color = op['color'] # Roxo ou Amarelo
+        score = op['score']
+        title = op['title']
+        
+        # HTML Customizado para a Dupla
         st.markdown(f"""
         <div style="
-            background: linear-gradient(180deg, rgba(20, 20, 20, 1) 0%, rgba(30, 30, 30, 1) 100%);
-            border: 1px solid {color};
+            background: linear-gradient(90deg, {color}15 0%, rgba(15, 23, 42, 1) 100%);
+            border: 1px solid {color}40;
+            border-left: 5px solid {color};
             border-radius: 12px;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 0 15px {color}20;
-            position: relative;
-            height: 100%;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 15px {color}15;
         ">
-            <div style="background: {color}20; padding: 8px; text-align: center; border-bottom: 1px solid {color}40;">
-                <span style="font-family: 'Oswald'; color: {color}; font-size: 14px; letter-spacing: 2px; font-weight: bold;">{icon} {title}</span>
-            </div>
-            
-            <div style="display: flex; align-items: center; padding: 15px;">
-                <img src="{photo}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
-                <div style="margin-left: 15px;">
-                    <div style="font-family: 'Oswald'; color: #FFF; font-size: 18px; line-height: 1.1;">{king['PLAYER']}</div>
-                    <div style="font-size: 11px; color: #94A3B8; margin-bottom: 4px;">{king['TEAM']}</div>
-                    <div style="font-family: 'Oswald'; color: {color}; font-size: 24px; font-weight: bold;">{val:.1f}</div>
+            <div style="flex: 1;">
+                <div style="color: {color}; font-size: 12px; font-weight: bold; letter-spacing: 2px;">SCORE {score}</div>
+                <div style="font-family: 'Oswald'; color: #FFF; font-size: 22px; line-height: 1.2;">{title}</div>
+                <div style="color: #94a3b8; font-size: 12px; margin-top: 5px;">
+                    {op.get('impact', op.get('synergy_txt', 'Alta Conexão Detectada'))}
                 </div>
             </div>
             
-            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #CBD5E1; margin-bottom: 4px;">
-                    <span>2. {df_top.iloc[1]['PLAYER']}</span>
-                    <span style="font-weight: bold; color: {color};">{df_top.iloc[1][df_top.columns[2]]:.1f}</span>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="text-align: center;">
+                    <img src="{op['hero']['photo']}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; background: #000; object-fit: cover;">
+                    <div style="font-size: 10px; color: #fff; font-weight: bold; margin-top: 2px;">{op['hero']['name']}</div>
+                    <div style="font-size: 10px; color: {color};">{op['hero']['target']} {op['hero']['stat']}</div>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #CBD5E1;">
-                    <span>3. {df_top.iloc[2]['PLAYER']}</span>
-                    <span style="font-weight: bold; color: {color};">{df_top.iloc[2][df_top.columns[2]]:.1f}</span>
+                
+                <div style="font-size: 20px; color: #64748b;">+</div>
+                
+                <div style="text-align: center;">
+                    <img src="{op.get('partner', op.get('villain'))['photo'] if 'partner' in op else op['villain']['logo']}" 
+                         style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; background: #000; object-fit: cover;">
+                    <div style="font-size: 10px; color: #fff; font-weight: bold; margin-top: 2px;">{op.get('partner', op.get('villain'))['name']}</div>
+                    <div style="font-size: 10px; color: #fff;">
+                        {op['partner']['target'] + ' ' + op['partner']['stat'] if 'partner' in op else 'ALVO VULNERÁVEL'}
+                    </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-    # Colunas
-    c1, c2, c3 = st.columns(3)
-    with c1: render_golden_card("CESTINHAS", top_pts, color="#FFD700", icon="🔥")
-    with c2: render_golden_card("GARÇONS", top_ast, color="#00E5FF", icon="🧠") # Cyan para Assist
-    with c3: render_golden_card("REBOTEIROS", top_reb, color="#FF4F4F", icon="💪") # Red para Rebote
-
+    
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 4. GAME GRID (SEM FILTROS, COM PACE REAL) ---
+    # --- 4. GAME GRID ---
     st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
-        st.info("Nenhum jogo encontrado para hoje.")
+        st.info("Nenhum jogo encontrado para hoje (verifique se já passou das 04:00 AM).")
     else:
-        # Pega as odds do session state para passar para o render
         odds_cache = st.session_state.get("odds", {})
         
         # Grid 2 colunas
@@ -7251,6 +7260,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
