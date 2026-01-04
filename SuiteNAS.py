@@ -3120,20 +3120,23 @@ def validate_pipeline_integrity(required_components=None):
 # ============================================================================
 def get_scoreboard_data():
     """
-    Função Mestra do Scoreboard (Fuso Horário Brasil Corrigido).
+    Função Mestra do Scoreboard (Fuso Horário Brasil Forçado).
     """
     from datetime import datetime, timedelta
-    import pytz # Importante para fuso horário
     import pandas as pd
     import requests
+    import pytz # Obrigatório para corrigir o erro de data
 
-    # --- 1. LÓGICA DE DATA (BRASIL TIMEZONE) ---
-    # Define fuso Brasil
-    tz_br = pytz.timezone('America/Sao_Paulo')
-    now_br = datetime.now(tz_br)
-    
-    # Se for antes das 04:00 da manhã, consideramos que ainda é o dia "útil" da NBA anterior
-    # (Jogos da madrugada ainda pertencem à rodada anterior)
+    # --- 1. LÓGICA DE DATA (FUSO SÃO PAULO) ---
+    try:
+        tz_br = pytz.timezone('America/Sao_Paulo')
+        now_br = datetime.now(tz_br)
+    except:
+        # Fallback se pytz falhar
+        now_br = datetime.now()
+
+    # Se for antes das 04:00 da manhã (madrugada), consideramos que ainda é a "noite" do dia anterior
+    # Ex: 01:00 AM do dia 05 ainda é "jogo do dia 04"
     if now_br.hour < 4:
         target_date = now_br - timedelta(days=1)
     else:
@@ -3141,13 +3144,17 @@ def get_scoreboard_data():
     
     date_str = target_date.strftime("%Y%m%d")
     
-    # --- 2. TENTA LER DO SUPABASE PRIMEIRO ---
+    # --- 2. TENTA LER DO SUPABASE ---
     try:
+        # Opcional: Adicionar lógica para verificar se o cache do supabase bate com a data de hoje
         cached = get_data_universal("scoreboard")
         if cached and isinstance(cached, list) and len(cached) > 0:
-            # Opcional: Verificar se o cache bate com a data de hoje,
-            # mas vamos confiar que o botão 'Atualizar' faz o trabalho.
-            return pd.DataFrame(cached)
+            # Verifica se o primeiro jogo do cache é da data correta
+            first_game_date = cached[0].get('date_str', '')
+            if first_game_date == date_str:
+                return pd.DataFrame(cached)
+            else:
+                pass # Cache velho, busca novo
     except: pass
 
     # --- 3. BAIXA DA ESPN ---
@@ -3168,11 +3175,9 @@ def get_scoreboard_data():
         events = data.get("events", [])
         for evt in events:
             comp = evt["competitions"][0]
-            competitors = comp["competitors"]
-            home = next((t for t in competitors if t["homeAway"] == "home"), {})
-            away = next((t for t in competitors if t["homeAway"] == "away"), {})
+            home = next((t for t in comp["competitors"] if t["homeAway"] == "home"), {})
+            away = next((t for t in comp["competitors"] if t["homeAway"] == "away"), {})
             
-            # Status e Odds
             status_text = evt["status"]["type"]["shortDetail"]
             odds_txt = comp["odds"][0].get("details", "") if "odds" in comp and comp["odds"] else ""
             odds_total = comp["odds"][0].get("overUnder", "") if "odds" in comp and comp["odds"] else ""
@@ -3180,7 +3185,7 @@ def get_scoreboard_data():
             game_dict = {
                 "gameId": evt["id"],
                 "date_str": date_str,
-                "startTimeUTC": comp.get("date"), # Importante para conversão
+                "startTimeUTC": comp.get("date"),
                 "home": home["team"]["abbreviation"],
                 "away": away["team"]["abbreviation"],
                 "status": status_text,
@@ -3199,6 +3204,7 @@ def get_scoreboard_data():
     except Exception as e:
         print(f"⚠️ Erro no Scoreboard ESPN: {e}")
         return pd.DataFrame()
+        
 def fetch_team_roster(team_abbr_or_id, progress_ui=True):
     cache_path = os.path.join(CACHE_DIR, f"roster_{team_abbr_or_id}.json")
     cached = load_json(cache_path)
@@ -6841,6 +6847,26 @@ def calculate_blowout_risk(spread_val, total_val=None):
 # EXECUÇÃO PRINCIPAL
 # ============================================================================
 def main():
+
+# CSS PARA REMOVER ESPAÇO EM BRANCO DO TOPO
+    st.markdown("""
+        <style>
+            /* Remove padding do topo da página principal */
+            .block-container {
+                padding-top: 1rem !important;
+                padding-bottom: 1rem !important;
+                margin-top: 0 !important;
+            }
+            /* Remove padding do topo da sidebar */
+            section[data-testid="stSidebar"] .block-container {
+                padding-top: 1rem !important;
+            }
+            /* Ajuste para telas menores */
+            @media (max-width: 768px) {
+                .block-container { padding-top: 0rem !important; }
+            }
+        </style>
+    """, unsafe_allow_html=True)
     safe_load_initial_data()
  
 # ============================================================================
@@ -6983,24 +7009,24 @@ def main():
         )
   
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V3.0 - COM NEXUS & DESTAQUES DO DIA)
+# DASHBOARD (VISUAL ARENA V3.1 - LAYOUT FIX)
 # ============================================================================
 def show_dashboard_page():
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data()
+    games = get_scoreboard_data() # Função corrigida acima
     
     if df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
         return
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
-    # Identifica times que jogam hoje
-    teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
+    teams_playing_today = []
+    if not games.empty:
+        teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
-    # Filtra o DataFrame L5
     if not teams_playing_today:
-        st.info("Nenhum time identificado jogando hoje.")
+        st.info("Nenhum time identificado jogando hoje (Verifique se há jogos na ESPN para esta data).")
         df_today = pd.DataFrame()
     else:
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
@@ -7011,7 +7037,7 @@ def show_dashboard_page():
     if df_today.empty:
         st.warning("Nenhum jogador da base L5 joga hoje (ou nomes dos times não bateram).")
     else:
-        # Helper para pegar top 3 filtrado
+        # Helper para pegar top 3
         def get_top_n(df, col, n=3):
             return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
 
@@ -7019,36 +7045,53 @@ def show_dashboard_page():
         top_ast = get_top_n(df_today, 'AST_AVG')
         top_reb = get_top_n(df_today, 'REB_AVG')
 
-        # Helper de Renderização (HTML mais robusto que não estoura)
+        # Helper para encurtar nomes longos (Ex: Shai Gilgeous-Alexander -> S. Gilgeous-Alexander)
+        def truncate_name(name, limit=18):
+            if len(name) <= limit: return name
+            parts = name.split()
+            if len(parts) > 1:
+                return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
+            return name[:limit]
+
+        # Helper de Renderização (HTML Robusto)
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
             p_id = king['PLAYER_ID']
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
-            val = king[df_top.columns[2]] # Valor da stat
+            val = king[df_top.columns[2]] 
             
+            # Sub-linhas (2º e 3º lugares) - Tratamento para não estourar
+            row2_html = ""
+            if len(df_top) > 1:
+                p2 = df_top.iloc[1]
+                n2 = truncate_name(p2['PLAYER'], 15)
+                v2 = f"{p2[df_top.columns[2]]:.1f}"
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155;"><span>2. {n2}</span><span style="color:{color}; font-weight:bold;">{v2}</span></div>"""
+            
+            row3_html = ""
+            if len(df_top) > 2:
+                p3 = df_top.iloc[2]
+                n3 = truncate_name(p3['PLAYER'], 15)
+                v3 = f"{p3[df_top.columns[2]]:.1f}"
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;"><span>3. {n3}</span><span style="color:{color}; font-weight:bold;">{v3}</span></div>"""
+
             st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid {color}; border-radius: 8px; overflow: hidden; height: 100%;">
-                <div style="background: {color}20; padding: 5px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 12px; letter-spacing: 1px;">
+                <div style="background: {color}20; padding: 5px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 12px; letter-spacing: 1px; border-bottom: 1px solid {color}40;">
                     {icon} {title}
                 </div>
                 <div style="padding: 10px; display: flex; align-items: center;">
                     <img src="{photo}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
-                    <div>
-                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1;">{king['PLAYER']}</div>
+                    <div style="overflow: hidden;">
+                        <div style="color: #fff; font-weight: bold; font-size: 13px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king['PLAYER'])}</div>
                         <div style="color: #94a3b8; font-size: 10px;">{king['TEAM']}</div>
                         <div style="color: {color}; font-size: 18px; font-family: 'Oswald'; font-weight: bold;">{val:.1f}</div>
                     </div>
                 </div>
-                <div style="background: rgba(0,0,0,0.3); padding: 5px 10px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1; margin-bottom: 2px;">
-                        <span>2. {df_top.iloc[1]['PLAYER'] if len(df_top)>1 else '-'}</span>
-                        <span style="color:{color}">{df_top.iloc[1][df_top.columns[2]]:.1f} if len(df_top)>1 else '-'</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1;">
-                        <span>3. {df_top.iloc[2]['PLAYER'] if len(df_top)>2 else '-'}</span>
-                        <span style="color:{color}">{df_top.iloc[2][df_top.columns[2]]:.1f} if len(df_top)>2 else '-'</span>
-                    </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 6px 10px;">
+                    {row2_html}
+                    {row3_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -7061,74 +7104,64 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- 3. MELHOR DUPLA DO DIA (NEXUS INTEGRATION) ---
-    # Rodamos o Nexus silenciosamente para achar a jóia do dia
-    
     nexus_op = None
     if not games.empty and not df_l5.empty:
         try:
-            # Instancia Engine (usando a classe NexusEngine já definida no código)
-            # Converte games DF para lista de dicts se necessário
             games_dict = games.to_dict('records')
-            # Precisamos do cache completo de logs para o Nexus, não só o L5 resumido.
-            # Tenta pegar do cache universal
             logs_cache = get_data_universal("real_game_logs")
-            
             if logs_cache:
                 nexus = NexusEngine(logs_cache, games_dict)
                 ops = nexus.run_nexus_scan()
-                if ops:
-                    # Pega o Top 1 (Maior Score)
-                    nexus_op = ops[0]
-        except Exception as e:
-            # print(f"Erro Nexus Dashboard: {e}") 
-            pass
+                if ops: nexus_op = ops[0] # Top 1
+        except: pass
 
     if nexus_op:
         st.markdown('<div style="font-family: Oswald; color: #A855F7; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">🧬 MELHOR DUPLA DO DIA (SINERGIA & VÁCUO)</div>', unsafe_allow_html=True)
         
-        # Renderiza Card Especial da Dupla
         op = nexus_op
-        color = op['color'] # Roxo ou Amarelo
+        color = op['color']
         score = op['score']
-        title = op['title']
         
-        # HTML Customizado para a Dupla
+        # Dados Seguros
+        h_name = op['hero']['name']
+        h_photo = op['hero']['photo']
+        h_desc = f"{op['hero']['target']} {op['hero']['stat']}"
+        
+        p_obj = op.get('partner', op.get('villain'))
+        p_name = p_obj['name']
+        p_photo = p_obj.get('photo', p_obj.get('logo'))
+        
+        # Texto da direita
+        if 'partner' in op:
+            p_desc = f"{op['partner']['target']} {op['partner']['stat']}"
+            mid_icon = "🔗"
+        else:
+            p_desc = "ALVO VULNERÁVEL"
+            mid_icon = "⚔️"
+
+        # HTML IDENTICO AO DESTAQUES (Para estabilidade)
         st.markdown(f"""
-        <div style="
-            background: linear-gradient(90deg, {color}15 0%, rgba(15, 23, 42, 1) 100%);
-            border: 1px solid {color}40;
-            border-left: 5px solid {color};
-            border-radius: 12px;
-            padding: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 15px {color}15;
-        ">
-            <div style="flex: 1;">
-                <div style="color: {color}; font-size: 12px; font-weight: bold; letter-spacing: 2px;">SCORE {score}</div>
-                <div style="font-family: 'Oswald'; color: #FFF; font-size: 22px; line-height: 1.2;">{title}</div>
-                <div style="color: #94a3b8; font-size: 12px; margin-top: 5px;">
-                    {op.get('impact', op.get('synergy_txt', 'Alta Conexão Detectada'))}
-                </div>
-            </div>
+        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 8px; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
             
+            <div style="flex: 1;">
+                <div style="color: {color}; font-size: 10px; font-weight: bold; letter-spacing: 1px;">SCORE {score}</div>
+                <div style="font-family: 'Oswald'; color: #FFF; font-size: 20px; line-height: 1.2;">{op['title']}</div>
+                <div style="color: #94a3b8; font-size: 11px; margin-top: 4px;">{op.get('impact', 'Alta Conexão Detectada')}</div>
+            </div>
+
             <div style="display: flex; align-items: center; gap: 15px;">
                 <div style="text-align: center;">
-                    <img src="{op['hero']['photo']}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; background: #000; object-fit: cover;">
-                    <div style="font-size: 10px; color: #fff; font-weight: bold; margin-top: 2px;">{op['hero']['name']}</div>
-                    <div style="font-size: 10px; color: {color};">{op['hero']['target']} {op['hero']['stat']}</div>
+                    <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; background: #000; object-fit: cover;">
+                    <div style="font-size: 9px; color: #fff; font-weight: bold; margin-top: 2px;">{truncate_name(h_name, 12)}</div>
+                    <div style="font-size: 9px; color: {color};">{h_desc}</div>
                 </div>
                 
-                <div style="font-size: 20px; color: #64748b;">+</div>
+                <div style="font-size: 18px; color: #64748b;">{mid_icon}</div>
                 
                 <div style="text-align: center;">
-                    <img src="{op.get('partner', op.get('villain'))['photo'] if 'partner' in op else op['villain']['logo']}" 
-                         style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; background: #000; object-fit: cover;">
-                    <div style="font-size: 10px; color: #fff; font-weight: bold; margin-top: 2px;">{op.get('partner', op.get('villain'))['name']}</div>
-                    <div style="font-size: 10px; color: #fff;">
-                        {op['partner']['target'] + ' ' + op['partner']['stat'] if 'partner' in op else 'ALVO VULNERÁVEL'}
-                    </div>
+                    <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #fff; background: #000; object-fit: cover;">
+                    <div style="font-size: 9px; color: #fff; font-weight: bold; margin-top: 2px;">{truncate_name(p_name, 12)}</div>
+                    <div style="font-size: 9px; color: #fff;">{p_desc}</div>
                 </div>
             </div>
         </div>
@@ -7140,11 +7173,10 @@ def show_dashboard_page():
     st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
-        st.info("Nenhum jogo encontrado para hoje (verifique se já passou das 04:00 AM).")
+        st.info("Nenhum jogo encontrado para hoje (Verifique o horário).")
     else:
         odds_cache = st.session_state.get("odds", {})
         
-        # Grid 2 colunas
         rows = st.columns(2)
         for i, (index, game) in enumerate(games.iterrows()):
             with rows[i % 2]:
@@ -7260,6 +7292,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
