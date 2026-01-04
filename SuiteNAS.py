@@ -6915,10 +6915,10 @@ def main():
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE - COCKPIT STYLE)
+    # 8. MENU LATERAL (DESIGNER MODE vFINAL)
     # ============================================================================
     with st.sidebar:
-        # --- 1. CABEÇALHO DA MARCA (BRANDING) ---
+        # --- BRANDING ---
         st.markdown("""
             <div style="text-align: center; padding-bottom: 20px;">
                 <h1 style="font-family: 'Oswald', sans-serif; font-size: 2.5rem; margin:0; 
@@ -6932,15 +6932,10 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        # --- 2. CSS PARA TRANSFORMAR RADIO BUTTONS EM MENUS ---
+        # --- CSS INJECTION (VISUAL COCKPIT) ---
         st.markdown("""
         <style>
-            /* Esconde a bolinha do radio button nativo */
-            div[role="radiogroup"] > label > div:first-child {
-                display: none !important;
-            }
-            
-            /* Estilo base do botão de menu */
+            div[role="radiogroup"] > label > div:first-child { display: none !important; }
             div[role="radiogroup"] label {
                 background: rgba(255, 255, 255, 0.03);
                 padding: 10px 15px;
@@ -6948,99 +6943,70 @@ def main():
                 margin-bottom: 6px;
                 border: 1px solid rgba(255, 255, 255, 0.05);
                 transition: all 0.3s ease;
-                cursor: pointer;
                 font-family: 'Inter', sans-serif;
                 font-size: 0.9rem;
             }
-
-            /* Efeito Hover (passar o mouse) */
             div[role="radiogroup"] label:hover {
                 background: rgba(255, 255, 255, 0.1);
                 border-color: rgba(255, 255, 255, 0.2);
                 transform: translateX(5px);
             }
-
-            /* ITEM SELECIONADO (O Segredo do Visual) */
             div[role="radiogroup"] label[data-checked="true"] {
                 background: linear-gradient(90deg, rgba(168, 85, 247, 0.2) 0%, rgba(15, 23, 42, 0) 100%);
-                border-left: 4px solid #a855f7; /* Roxo Neon */
+                border-left: 4px solid #a855f7;
                 color: #fff;
                 font-weight: bold;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             }
-            
-            /* Títulos de Seção (Fake) */
-            .menu-category {
-                color: #94a3b8;
-                font-size: 0.75rem;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1.5px;
-                margin-top: 20px;
-                margin-bottom: 10px;
-                padding-left: 5px;
-            }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- 3. ORGANIZAÇÃO LÓGICA (HIERARQUIA) ---
-        
-        # O truque aqui é usar o st.radio mas organizar a lista mentalmente
-        # O Streamlit não permite headers DENTRO do radio, então vamos fazer um "hack" visual
-        # Usando ícones para diferenciar visualmente os grupos.
-
+        # --- ESTRUTURA REORGANIZADA (FINAL) ---
         MENU_GROUPS = {
-            "🧠 INTELIGÊNCIA": [
-                "🧠 NEXUS",
-                "⚡ Momentum",
-                "⚔️ Lab Narrativas",
-                "🔥 Las Vegas Sync"
-            ],
-            "📊 ANALYTICS CORE": [
+            "🏠 CENTRO DE COMANDO": [
                 "🏠 Dashboard",
-                "📈 Analytics Dashboard",
-                "🛡️ DvP Analysis",
+                "📊 Ranking Teses",
+                "📋 Auditoria"
+            ],
+            "🧠 INTELIGÊNCIA ARTIFICIAL": [
+                "🧬 Sinergia & Vácuo",
+                "⚔️ Lab Narrativas",
+                "⚡ Momentum",
+                "🔥 Las Vegas Sync",
+                "🌪️ Blowout Hunter",
+                "🏆 Trinity Club"
+            ],
+            "🏹 CAÇADORES & ESTRATÉGIA": [
+                "🔥 Hot Streaks",
+                "📊 Matriz 5-7-10",
+                "🧩 Desdobra Múltipla"
+            ],
+            "🛡️ ANÁLISE TÁTICA": [
+                "🛡️ DvP Confrontos",
+                "📡 Matchup Radar",
                 "🏥 Depto Médico",
                 "🔄 Mapa de Rotações",
                 "👥 Escalações"
             ],
-            "🎯 FERRAMENTAS CAÇADOR": [
-                "🌪️ Blowout Hunter",
-                "🎯 Hit Prop Hunter",
-                "🏆 Trinity Club",
-                "🎯 Strategy 5/7/10",
-                "🎯 Desdobramentos Inteligentes",
-                "🎯 Matchup Radar"
-            ],
             "⚙️ SISTEMA": [
-                "📋 Auditoria",
                 "⚙️ Config",
                 "🔍 Testar Conexão Supabase"
             ]
         }
 
-        # Achata a lista para o componente funcionar
         flat_menu = []
         for group, items in MENU_GROUPS.items():
             flat_menu.extend(items)
 
-        # Mostra o usuário logado
-        display_name = name if 'name' in locals() and name else "Operator"
-        st.caption(f"LOGGED AS: {display_name.upper()}")
-
-        # O COMPONENTE DE NAVEGAÇÃO
-        # Note que não passamos as categorias aqui, apenas os itens.
-        # A separação visual é feita pela ordem lógica e ícones.
+        # Renderiza Menu
         choice = st.radio("", flat_menu, label_visibility="collapsed")
         
-        # Rodapé Estiloso
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        # Rodapé
+        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             """
             <div style="background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;">
-                <span style="color: #10b981; font-weight: bold; font-size: 0.8rem;">● SYSTEM ONLINE</span>
-                <br>
-                <span style="color: #64748b; font-size: 0.7rem;">DataBase: Up-to-Date</span>
+                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem;">● SYSTEM ONLINE</span>
             </div>
             """, 
             unsafe_allow_html=True
@@ -7247,206 +7213,52 @@ def main():
 
         st.markdown("---")     
 
-    # ============================================================================
-    # ANALYTICS
-    # ============================================================================
-    elif choice == "📈 Analytics Dashboard":
-        show_analytics_page()
-    
-    
-    # ============================================================================
-    # DESDOBRAMENTOS
-    # ============================================================================
-    elif choice == "🎯 Desdobramentos Inteligentes":
-        show_desdobramentos_inteligentes()
+         MENU_GROUPS = {
+            "🏠 CENTRO DE COMANDO": [
+                "🏠 Dashboard",
+                "📊 Ranking Teses",
+                "📋 Auditoria"
+            ],
+            "🧠 INTELIGÊNCIA ARTIFICIAL": [
+                "🧬 Sinergia & Vácuo",
+                "⚔️ Lab Narrativas",
+                "⚡ Momentum",
+                "🔥 Las Vegas Sync",
+                "🌪️ Blowout Hunter",
+                "🏆 Trinity Club"
+            ],
+            "🏹 CAÇADORES & ESTRATÉGIA": [
+                "🔥 Hot Streaks",
+                "📊 Matriz 5-7-10",
+                "🧩 Desdobra Múltipla"
+            ],
+            "🛡️ ANÁLISE TÁTICA": [
+                "🛡️ DvP Confrontos",
+                "📡 Matchup Radar",
+                "🏥 Depto Médico",
+                "🔄 Mapa de Rotações",
+                "👥 Escalações"
+            ],
+            "⚙️ SISTEMA": [
+                "⚙️ Config",
+                "🔍 Testar Conexão Supabase"
+            ]
+        }
 
+        flat_menu = []
+        for group, items in MENU_GROUPS.items():
+            flat_menu.extend(items)
 
-    # ============================================================================
-    # MAPA DE ROTAÇÕES - NOVA ABA
-    # ============================================================================
-
-    elif choice == "🔄 Mapa de Rotações":
-        show_mapa_rotacoes()
-
-    # ============================================================================
-    # LAB NARRATIVAS
-    # ============================================================================
-    elif choice == "⚔️ Lab Narrativas":
-        show_narrative_lab()
-
-    # ============================================================================
-    # HIT PROP 
-    # ============================================================================
-    elif choice == "🎯 Hit Prop Hunter":
-        show_hit_prop_page()
-
-    # ============================================================================
-    # ESCALAÇÕES 
-    # ============================================================================
-    elif choice == "👥 Escalações":
-        show_escalacoes()
-
-    # ============================================================================
-    # DEPTO MÉDICO
-    # ============================================================================
-    elif choice == "🏥 Depto Médico":
-        show_depto_medico()
-
-    # ============================================================================
-    # ESTATÍSTICAS JOGADOR (VISUAL NOVO)
-    # ============================================================================
-    elif choice == "📈 Estatísticas Jogador":
-        show_estatisticas_jogador()
-    
-    # ============================================================================
-    # AUDITORIA (NOVA PÁGINA)
-    # ============================================================================
-    elif choice == "📋 Auditoria":
-        show_audit_page()
-
-    # ============================================================================
-    # NEXUS
-    # ============================================================================
-    elif choice == "🧠 NEXUS":
-        show_nexus_page()
+        # Renderiza Menu
+        choice = st.radio("", flat_menu, label_visibility="collapsed")
         
-    # ============================================================================
-    # TRINITY
-    # ============================================================================
-    elif choice == "🏆 Trinity Club":
-        show_trinity_club_page()
-    
-    # ============================================================================
-    # 5/7/10
-    # ============================================================================
-    elif choice == "🎯 Strategy 5/7/10":
-        show_5_7_10_page() 
-        
-    # ============================================================================
-    # CONFIG
-    # ============================================================================
-    elif choice == "⚙️ Config":
-        show_config_page()
-
-    # ============================================================================
-    # CONFIG
-    # ============================================================================
-    elif choice == "🔍 Testar Conexão Supabase":
-        show_cloud_diagnostics()
-
-        
-        
-# ============================================================================
-# EXECUÇÃO PRINCIPAL
-# ============================================================================
-if __name__ == "__main__":
-
-    main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        # Rodapé
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div style="background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;">
+                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem;">● SYSTEM ONLINE</span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
