@@ -848,27 +848,20 @@ class NexusEngine:
         return best
         
 def show_nexus_page():
-    # --- CARREGAMENTO VIA SUPABASE (CLOUD FIRST) ---
+    # --- CARREGAMENTO ---
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
     if not full_cache:
-        st.error("❌ Erro Crítico: Logs vazios ou erro de conexão Supabase.")
-        st.info("Dica: Vá em 'Config' > 'Atualizar L5/Logs' para popular o banco.")
+        st.error("❌ Logs vazios. Atualize o sistema em Config.")
         return
     
-    if not scoreboard: scoreboard = []
-
     # Engine
-    nexus = NexusEngine(full_cache, scoreboard)
+    nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # UI Header
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="font-family: 'Oswald', sans-serif; font-size: 45px; margin-bottom: 0; color: #fff;">🧠 PROJECT NEXUS</h1>
-        <div style="color: #94a3b8; font-size: 14px; letter-spacing: 3px; font-weight:bold;">INTELIGÊNCIA CONTEXTUAL • PRECISÃO CIRÚRGICA</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Header Simples
+    st.markdown("<h1 style='text-align: center; color: white;'>🧠 PROJECT NEXUS</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8; letter-spacing: 2px; font-size: 12px; font-weight: bold;'>INTELIGÊNCIA CONTEXTUAL</p>", unsafe_allow_html=True)
 
     # Slider
     min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
@@ -878,120 +871,88 @@ def show_nexus_page():
         all_ops = nexus.run_nexus_scan()
         opportunities = [op for op in all_ops if op['score'] >= min_score]
     except Exception as e:
-        st.error(f"Erro ao rodar Nexus Scan: {e}")
+        st.error(f"Erro scan: {e}")
         return
-
-    # DEBUG VISUAL
-    if len(all_ops) > 0 and len(opportunities) == 0:
-        st.warning(f"O Nexus encontrou {len(all_ops)} oportunidades, mas todas têm Score abaixo de {min_score}. Baixe a régua!")
 
     if not opportunities:
-        st.info("Nenhuma oportunidade encontrada. Verifique se os logs estão atualizados.")
+        st.info("Nenhuma oportunidade encontrada.")
         return
 
-    # Render Cards
+    # --- RENDERIZAÇÃO ESTÁVEL (POUCO HTML) ---
     for op in opportunities:
         
-        # Garante que os campos de logo existam (fallback)
-        hero_logo = op['hero'].get('logo', '')
-        villain_logo = op.get('villain', {}).get('logo', '')
-        partner_logo = op.get('partner', {}).get('logo', '')
-
-        # --- SGP (AMARELO) ---
-        if op['type'] == 'SGP':
-            badges_html = "".join([f"<span style='background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px; margin-right:5px; font-size:11px; white-space: nowrap;'>{b}</span>" for b in op['badges']])
-            
-            st.markdown(f"""
-            <div style="width:100%; box-sizing: border-box; margin-bottom:20px;">
-                <div style="background:#0f172a; border-radius:12px; border:1px solid #eab308; box-shadow: 0 4px 20px rgba(234, 179, 8, 0.1); overflow: hidden;">
-                    <div style="background:#eab308; color:#000; padding:8px 15px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-                        <span>⚡ SGP DETECTADA</span>
-                        <span style="background:#000; color:#eab308; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
-                    </div>
-                    
-                    <div style="display:flex; padding:20px; align-items:center; flex-wrap: wrap;">
-                        <div style="flex:1; text-align:center; min-width: 100px; position: relative;">
-                            <img src="{hero_logo}" style="position: absolute; top: -5px; left: 10px; width: 30px; z-index: 2; filter: drop-shadow(0px 0px 2px #000);">
-                            <img src="{op['hero']['photo']}" style="width:80px; height:80px; border-radius:50%; border:3px solid #eab308; object-fit:cover; background: #000;">
-                            <div style="color:#fff; font-weight:bold; margin-top:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{op['hero']['name']}</div>
-                            <div style="color:#eab308; font-size:11px; font-weight:bold;">{op['hero']['role']}</div>
-                            <div style="background:#1e293b; color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block;">{op['hero']['stat']} {op['hero']['target']}</div>
-                        </div>
-                        
-                        <div style="width:40px; text-align:center; font-size:24px;">🔗</div>
-                        
-                        <div style="flex:1; text-align:center; min-width: 100px; position: relative;">
-                            <img src="{partner_logo}" style="position: absolute; top: -5px; right: 10px; width: 30px; z-index: 2; filter: drop-shadow(0px 0px 2px #000);">
-                            <img src="{op['partner']['photo']}" style="width:80px; height:80px; border-radius:50%; border:3px solid #fff; object-fit:cover; background: #000;">
-                            <div style="color:#fff; font-weight:bold; margin-top:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{op['partner']['name']}</div>
-                            <div style="color:#94a3b8; font-size:11px; font-weight:bold;">{op['partner']['role']}</div>
-                            <div style="background:#1e293b; color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block;">{op['partner']['stat']} {op['partner']['target']}</div>
-                        </div>
-                    </div>
-                    
-                    <div style="background:rgba(255,255,255,0.05); padding:10px 15px; color:#cbd5e1; font-size:12px; display:flex; align-items:center; flex-wrap: wrap; gap: 5px;">
-                        {badges_html}
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # --- VACUUM (ROXO) ---
+        # Prepara Variáveis Visuais
+        is_sgp = (op['type'] == 'SGP')
+        color = "#eab308" if is_sgp else "#a855f7" # Amarelo vs Roxo
+        bg_card = "#1e293b" # Fundo escuro padrão
+        title = "⚡ SGP DETECTADA" if is_sgp else "🌪️ ALERTA DE VÁCUO"
+        
+        # Dados do Heroi
+        hero_img = op['hero']['photo']
+        hero_name = op['hero']['name']
+        hero_sub = f"{op['hero']['role']} • {op['hero']['target']} {op['hero'].get('stat','')}"
+        
+        # Dados do Parceiro/Vilão (Lado Direito)
+        if is_sgp:
+            right_img = op['partner']['photo']
+            right_name = op['partner']['name']
+            right_sub = f"{op['partner']['role']} • {op['partner']['target']}"
+            center_icon = "🔗"
+            footer_content = " | ".join([f"✅ {b}" for b in op['badges']])
         else:
-            # Proteção na geração da Ladder (evita crash se faltar ':')
-            ladder_items = []
-            for l in op['ladder']:
-                parts = l.split(':')
-                label = parts[0]
-                val = parts[1] if len(parts) > 1 else ''
-                ladder_items.append(f"""
-                <div style="display:flex; justify-content:space-between; background:rgba(168, 85, 247, 0.1); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:12px;">
-                    <span style="color:#e2e8f0;">{label}</span>
-                    <span style="color:#a855f7; font-weight:bold;">{val}</span>
-                </div>
-                """)
-            ladder_html = "".join(ladder_items)
+            # No caso do Vácuo, o lado direito é o time vilão
+            # Se não tiver logo, usa um placeholder transparente
+            right_img = op['villain'].get('logo') or "https://a.espncdn.com/i/teamlogos/nba/500/nba.png"
+            right_name = op['villain']['name']
+            right_sub = f"🚑 {op['villain']['missing']}"
+            center_icon = "⚔️"
+            # Formata a Ladder como texto simples
+            ladder_str = "  |  ".join([l.replace(":", " ") for l in op['ladder']])
+            footer_content = f"📈 <b>LADDER:</b> {ladder_str} <br> 📉 <i>{op['impact']}</i>"
+
+        # --- HTML ESTRUTURAL SIMPLES ---
+        # Usamos Flexbox básico que é suportado nativamente sem "explodir"
+        card_html = f"""
+        <div style="
+            border: 2px solid {color}; 
+            border-radius: 10px; 
+            background-color: {bg_card}; 
+            padding: 15px; 
+            margin-bottom: 20px;
+            color: white;
+            font-family: sans-serif;">
             
-            st.markdown(f"""
-            <div style="width:100%; box-sizing: border-box; margin-bottom:20px;">
-                <div style="background:#0f172a; border-radius:12px; border:1px solid #a855f7; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.1); overflow: hidden;">
-                    <div style="background:#a855f7; color:#fff; padding:8px 15px; font-family:'Oswald', sans-serif; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-                        <span>🌪️ ALERTA DE VÁCUO</span>
-                        <span style="background:#fff; color:#a855f7; padding:2px 8px; border-radius:4px;">SCORE {op['score']}</span>
-                    </div>
-                    
-                    <div style="display:flex; padding:20px; gap:15px; flex-wrap: wrap;">
-                        <div style="width: 100px; flex-shrink: 0; text-align:center; position: relative;">
-                            <img src="{hero_logo}" style="position: absolute; top: -5px; left: -5px; width: 30px; z-index: 2; filter: drop-shadow(0px 0px 2px #000);">
-                            <img src="{op['hero']['photo']}" style="width:90px; height:90px; border-radius:10px; border:2px solid #a855f7; object-fit:cover; background: #000;">
-                            <div style="color:#fff; font-weight:bold; font-size:14px; margin-top:8px; line-height: 1.2;">{op['hero']['name']}</div>
-                            <div style="color:#a855f7; font-weight:bold; font-size:11px;">{op['hero']['status']}</div>
-                        </div>
-                        
-                        <div style="flex-grow: 1; min-width: 160px;">
-                            <div style="background:rgba(248, 113, 113, 0.15); border:1px solid #f87171; border-radius:8px; padding:10px; margin-bottom:12px; position: relative;">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <div>
-                                        <div style="color:#f87171; font-weight:bold; font-size:10px; text-transform:uppercase;">🚑 DEFESA COMPROMETIDA</div>
-                                        <div style="color:#fff; font-weight:bold; font-size:13px;">{op['villain']['missing']}</div>
-                                        <div style="color:#cbd5e1; font-size:11px;">Time: {op['villain']['name']}</div>
-                                    </div>
-                                    <img src="{villain_logo}" style="width: 35px; opacity: 0.9;">
-                                </div>
-                            </div>
-                            
-                            <div style="font-size:10px; color:#94a3b8; font-weight:bold; margin-bottom:5px;">A ESCADA (LADDER):</div>
-                            {ladder_html}
-                        </div>
-                    </div>
-                    
-                    <div style="background:rgba(255,255,255,0.05); padding:10px 15px; color:#cbd5e1; font-size:12px; display:flex; align-items:center;">
-                        📉 <span style="margin-left:5px;">{op['impact']}</span>
-                    </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                <span style="color: {color}; font-weight: bold; font-size: 18px;">{title}</span>
+                <span style="background-color: {color}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">SCORE {op['score']}</span>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; text-align: center;">
+                
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                    <img src="{hero_img}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid {color}; object-fit: cover;">
+                    <div style="font-weight: bold; margin-top: 5px; font-size: 14px;">{hero_name}</div>
+                    <div style="color: #94a3b8; font-size: 11px;">{hero_sub}</div>
+                </div>
+
+                <div style="width: 40px; font-size: 24px; text-align: center; opacity: 0.7;">
+                    {center_icon}
+                </div>
+
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                    <img src="{right_img}" style="width: 70px; height: 70px; border-radius: 50%; border: 2px solid white; object-fit: contain; background: black;">
+                    <div style="font-weight: bold; margin-top: 5px; font-size: 14px;">{right_name}</div>
+                    <div style="color: #94a3b8; font-size: 11px;">{right_sub}</div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
 
+            <div style="margin-top: 15px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; font-size: 12px; color: #cbd5e1;">
+                {footer_content}
+            </div>
+        </div>
+        """
+        
+        st.markdown(card_html, unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -7258,6 +7219,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
