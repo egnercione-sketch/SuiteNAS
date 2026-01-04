@@ -6777,9 +6777,6 @@ def calculate_blowout_risk(spread_val, total_val=None):
     except:
         return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
-# ============================================================================
-# DASHBOARD (VISUAL ARENA V6.0 - FINAL STABLE VERSION)
-# ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
     st.markdown("""
@@ -6876,7 +6873,7 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 3. MELHOR DUPLA (NEXUS - VERSÃO SIMPLIFICADA E SEGURA)
+    # 3. MELHOR DUPLA (NEXUS - VERSÃO TABELA BLINDADA)
     # ========================================================================
     nexus_op = None
     if not games.empty and not df_l5.empty:
@@ -6895,47 +6892,56 @@ def show_dashboard_page():
         score = op['score']
         
         # Dados Seguros
-        h_name = truncate_name(op['hero']['name'], 15)
+        h_name = truncate_name(op['hero']['name'], 18)
         h_photo = op['hero']['photo']
         h_info = f"{op['hero']['target']} {op['hero']['stat']}"
         
         p_obj = op.get('partner', op.get('villain'))
-        p_name = truncate_name(p_obj['name'], 15)
+        p_name = truncate_name(p_obj['name'], 18)
         p_photo = p_obj.get('photo', p_obj.get('logo'))
         p_info = f"{op['partner']['target']} {op['partner']['stat']}" if 'partner' in op else f"Alvo: {op['villain']['status']}"
         
+        mid_icon = "🔗" if 'partner' in op else "⚔️"
         impact = op.get('impact', 'Alta Sinergia')
 
         st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS)</div>', unsafe_allow_html=True)
 
-        # HTML SIMPLIFICADO (ESTRUTURA IDENTICA AO DESTAQUE PARA NÃO QUEBRAR)
+        # AQUI ESTÁ A CORREÇÃO: ESTRUTURA TABLE (NÃO QUEBRA NUNCA)
         st.markdown(f"""
-        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
-            <div style="background: {color}20; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid {color}40;">
-                <span style="font-family: 'Oswald'; color: #FFF; font-size: 15px; letter-spacing: 1px;">{op['title']}</span>
-                <span style="background: {color}; color: #000; font-weight: bold; font-size: 11px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
-            </div>
+        <table style="width: 100%; background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; border-collapse: separate; border-spacing: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.5); overflow: hidden; margin-bottom: 20px;">
+            <tr style="background: linear-gradient(90deg, {color}20 0%, transparent 100%);">
+                <td colspan="3" style="padding: 10px 15px; border-bottom: 1px solid {color}30;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-family: 'Oswald'; color: #fff; font-size: 15px; letter-spacing: 1px;">{op['title']}</span>
+                        <span style="background: {color}; color: #000; font-weight: bold; font-family: 'Oswald'; font-size: 11px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
+                    </div>
+                </td>
+            </tr>
             
-            <div style="padding: 15px; display: flex; justify-content: space-around; align-items: center;">
-                <div style="text-align: center;">
-                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
-                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 5px;">{h_name}</div>
-                    <div style="color: {color}; font-size: 11px; font-weight: bold;">{h_info}</div>
-                </div>
+            <tr>
+                <td style="width: 40%; padding: 15px 5px; text-align: center; vertical-align: top;">
+                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; display: block; margin: 0 auto;">
+                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 6px; line-height: 1.1;">{h_name}</div>
+                    <div style="color: {color}; font-size: 11px; font-weight: bold; margin-top: 2px;">{h_info}</div>
+                </td>
                 
-                <div style="font-size: 20px; color: #64748b;">⚡</div>
+                <td style="width: 20%; text-align: center; vertical-align: middle;">
+                    <div style="font-size: 24px; color: #64748b; opacity: 0.6;">{mid_icon}</div>
+                </td>
 
-                <div style="text-align: center;">
-                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000;">
-                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 5px;">{p_name}</div>
-                    <div style="color: #cbd5e1; font-size: 11px;">{p_info}</div>
-                </div>
-            </div>
-            
-            <div style="background: rgba(0,0,0,0.4); padding: 8px; text-align: center; color: #94a3b8; font-size: 10px; font-family: 'Inter';">
-                {impact}
-            </div>
-        </div>
+                <td style="width: 40%; padding: 15px 5px; text-align: center; vertical-align: top;">
+                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000; display: block; margin: 0 auto;">
+                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 6px; line-height: 1.1;">{p_name}</div>
+                    <div style="color: #cbd5e1; font-size: 11px; margin-top: 2px;">{p_info}</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td colspan="3" style="background: rgba(0,0,0,0.3); padding: 8px; text-align: center; font-family: 'Oswald'; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
+                    ANALISTA: {impact}
+                </td>
+            </tr>
+        </table>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -6958,7 +6964,6 @@ def show_dashboard_page():
                     game_data=game,
                     odds_map=odds_cache
                 )
-
 
 # ============================================================================
 # EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
@@ -7085,6 +7090,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
