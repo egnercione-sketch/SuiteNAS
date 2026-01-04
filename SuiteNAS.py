@@ -575,48 +575,61 @@ class TrinityEngine:
 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (vFINAL - SEM TEXTOS SOLTOS)
+# CLASSE NEXUS ENGINE (v9.5 - ISOLAMENTO DE ELENCO & VÁCUO DIRETO)
 # ============================================================================
 import math
 import json
 import os
 import unicodedata
+from collections import defaultdict
 
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
-        self.games = games
+        self.games = games # Scoreboard
         self.player_ids = self._load_photo_map()
         
-        # Inicializa Módulos
+        # Módulos
         self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
         self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
         self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
+        
+        # --- BLINDAGEM: MAPA DE ELENCOS ---
+        # Cria listas isoladas: {'LAL': ['LeBron', 'AD'], 'MEM': ['Ja', 'Bane']}
+        self.rosters = defaultdict(list)
+        self._build_rosters()
 
-    # --- UTILITÁRIOS ---
     def _normalize_team(self, team_raw):
+        """Converte qualquer coisa para 3 letras."""
         if not team_raw: return "UNK"
         t = str(team_raw).upper().strip()
         mapping = {
-            "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS", 
-            "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA", 
-            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE", 
-            "DALLAS": "DAL", "MAVS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN", 
-            "DETROIT": "DET", "PISTONS": "DET", "GOLDEN STATE": "GSW", "WARRIORS": "GSW", "GS": "GSW", 
-            "HOUSTON": "HOU", "ROCKETS": "HOU", "INDIANA": "IND", "PACERS": "IND", 
-            "CLIPPERS": "LAC", "LA CLIPPERS": "LAC", "LAKERS": "LAL", "LA LAKERS": "LAL", 
-            "MEMPHIS": "MEM", "GRIZZLIES": "MEM", "MIAMI": "MIA", "HEAT": "MIA", 
-            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN", 
-            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", 
-            "NEW YORK": "NYK", "KNICKS": "NYK", "NY": "NYK", 
-            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "ORLANDO": "ORL", "MAGIC": "ORL", 
-            "PHILADELPHIA": "PHI", "SIXERS": "PHI", "PHOENIX": "PHX", "SUNS": "PHX", 
-            "PORTLAND": "POR", "BLAZERS": "POR", "SACRAMENTO": "SAC", "KINGS": "SAC", 
-            "SAN ANTONIO": "SAS", "SPURS": "SAS", "TORONTO": "TOR", "RAPTORS": "TOR", 
+            "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS",
+            "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA",
+            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE",
+            "DALLAS": "DAL", "MAVS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN",
+            "DETROIT": "DET", "PISTONS": "DET", "GOLDEN STATE": "GSW", "WARRIORS": "GSW", "GS": "GSW",
+            "HOUSTON": "HOU", "ROCKETS": "HOU", "INDIANA": "IND", "PACERS": "IND",
+            "CLIPPERS": "LAC", "LA CLIPPERS": "LAC", "LAKERS": "LAL", "LA LAKERS": "LAL",
+            "MEMPHIS": "MEM", "GRIZZLIES": "MEM", "MIAMI": "MIA", "HEAT": "MIA",
+            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN",
+            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", "NEW YORK": "NYK", "KNICKS": "NYK",
+            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "ORLANDO": "ORL", "MAGIC": "ORL",
+            "PHILADELPHIA": "PHI", "SIXERS": "PHI", "PHOENIX": "PHX", "SUNS": "PHX",
+            "PORTLAND": "POR", "BLAZERS": "POR", "SACRAMENTO": "SAC", "KINGS": "SAC",
+            "SAN ANTONIO": "SAS", "SPURS": "SAS", "TORONTO": "TOR", "RAPTORS": "TOR",
             "UTAH": "UTA", "JAZZ": "UTA", "WASHINGTON": "WAS", "WIZARDS": "WAS"
         }
         return mapping.get(t, t[:3])
+
+    def _build_rosters(self):
+        """Preenche o self.rosters apenas com dados válidos."""
+        for name, data in self.logs.items():
+            raw_team = data.get('team', 'UNK')
+            norm_team = self._normalize_team(raw_team)
+            if norm_team != "UNK":
+                self.rosters[norm_team].append(name)
 
     def _strip_accents(self, text):
         try:
@@ -626,8 +639,7 @@ class NexusEngine:
 
     def _load_photo_map(self):
         if os.path.exists("nba_players_map.json"):
-            try:
-                with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
+            try: with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
             except: pass
         return {}
 
@@ -642,165 +654,201 @@ class NexusEngine:
         if abbr == 'nop': abbr = 'no'
         return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr}.png"
 
-    # --- MOTOR PRINCIPAL ---
     def run_nexus_scan(self):
         opportunities = []
-        opportunities.extend(self._scan_sgp_opportunities())
         
+        # 1. SGP (Isolado)
+        opportunities.extend(self._scan_sgp_opportunities())
+
+        # 2. Vácuo (Direto no Placar)
         if self.injury_monitor:
             try: opportunities.extend(self._scan_vacuum_opportunities())
-            except: pass
-        
+            except Exception as e: print(f"⚠️ Erro Vacuum: {e}")
+            
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
     def _scan_sgp_opportunities(self):
         found = []
-        # Evita duplicatas
-        processed = set()
+        # Itera TIME POR TIME (Isso impede Ja Morant de ver Luka Doncic)
+        for team_code, players in self.rosters.items():
+            
+            for p_name in players:
+                # 1. Filtro Motor
+                avg_ast = self._get_avg_stat(p_name, 'AST')
+                if avg_ast < 6.0: continue
 
-        for p_name, data in self.logs.items():
-            if p_name in processed: continue
-            
-            team = self._normalize_team(data.get('team'))
-            
-            # 1. Filtro Garçom
-            avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue
+                # 2. Busca Parceiro (APENAS DENTRO DE 'players')
+                partner_name = None
+                
+                # Tenta Sinergy (mas valida se está na lista players)
+                if self.sinergy:
+                    try:
+                        res = self.sinergy.analyze_synergy(p_name, team_code, self.logs)
+                        if res and isinstance(res, tuple):
+                            cand = res[0]
+                            if cand in players: # TRAVA ABSOLUTA
+                                partner_name = cand
+                    except: pass
+                
+                # Fallback: Procura cestinha DENTRO DA LISTA players
+                if not partner_name:
+                    partner_name = self._find_partner_in_list(players, exclude=p_name)
 
-            # 2. Busca Parceiro (APENAS MESMO TIME)
-            partner_name = None
-            if self.sinergy:
-                try:
-                    res = self.sinergy.analyze_synergy(p_name, team, self.logs)
-                    if res and isinstance(res, tuple):
-                        cand = res[0]
-                        if self._normalize_team(self.logs.get(cand, {}).get('team')) == team:
-                            partner_name = cand
-                except: pass
-            
-            if not partner_name:
-                partner_name, _ = self._find_statistical_partner(team, p_name)
+                if not partner_name: continue
 
-            if not partner_name: continue
-            
-            # Dados Card
-            t_ast = f"{math.ceil(avg_ast - 0.5)}+"
-            avg_pts = self._get_avg_stat(partner_name, 'PTS')
-            t_pts = f"{math.floor(avg_pts)}+"
+                # Dados do Card
+                t_ast = f"{math.ceil(avg_ast - 0.5)}+"
+                avg_pts = self._get_avg_stat(partner_name, 'PTS')
+                t_pts = f"{math.floor(avg_pts)}+"
 
-            # Score
-            score = 60
-            badges = []
-            if avg_ast > 9.0: score += 10
-            if avg_pts > 24: score += 10
-            
-            opp = self._get_opponent(team)
-            if opp and self.pace_adjuster:
-                pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                if pace >= 100: 
-                    score += 10
-                    badges.append(f"🏎️ Pace: {int(pace)}")
-            
-            if opp and self.dvp_analyzer:
-                rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                if rank >= 18: 
-                    score += 15
-                    badges.append("🛡️ DvP Favorável")
+                # Score
+                score = 60
+                badges = []
+                if avg_ast > 9.0: score += 10
+                if avg_pts > 24: score += 10
+                
+                opp = self._get_opponent(team_code)
+                if opp and self.pace_adjuster:
+                    pace = self.pace_adjuster.calculate_game_pace(team_code, opp)
+                    if pace >= 100: 
+                        score += 10
+                        badges.append(f"🏎️ Pace: {int(pace)}")
+                
+                if opp and self.dvp_analyzer:
+                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                    if rank >= 18: 
+                        score += 15
+                        badges.append("🛡️ DvP Favorável")
 
-            if score >= 70:
-                processed.add(p_name)
-                found.append({
-                    "type": "SGP",
-                    "title": "ECOSSISTEMA SIMBIÓTICO",
-                    "score": score,
-                    "color": "#eab308",
-                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": t_ast, "logo": self.get_team_logo(team)},
-                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": t_pts, "logo": self.get_team_logo(team)},
-                    "badges": badges + ["🔥 Sinergia Alta"]
-                })
+                if score >= 70:
+                    found.append({
+                        "type": "SGP",
+                        "title": "ECOSSISTEMA SIMBIÓTICO",
+                        "score": score,
+                        "color": "#eab308",
+                        "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": t_ast, "logo": self.get_team_logo(team_code)},
+                        "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": t_pts, "logo": self.get_team_logo(team_code)},
+                        "badges": badges + ["🔥 Sinergia Alta"]
+                    })
         return found
 
     def _scan_vacuum_opportunities(self):
-        """LÓGICA PURA: Pivô OUT -> Pivô Rival ganha Rebotes"""
         found = []
         if not self.games: return []
 
-        matchups = {}
-        for g in self.games:
-            h = self._normalize_team(g.get('home'))
-            a = self._normalize_team(g.get('away'))
-            matchups[h] = a; matchups[a] = h
-
-        all_injuries = self.injury_monitor.get_all_injuries()
+        print("--- INICIANDO SCAN DE VÁCUO ---") # Debug Console
         
-        for team_key, injuries in all_injuries.items():
-            victim_team = self._normalize_team(team_key)
-            if victim_team not in matchups: continue
+        # Itera JOGO POR JOGO (Mais seguro que dicionários)
+        for g in self.games:
+            home = self._normalize_team(g.get('home'))
+            away = self._normalize_team(g.get('away'))
             
-            predator_team = matchups[victim_team]
+            # Checa Home (Machucados no Home -> Vácuo para Away)
+            found.extend(self._analyze_team_vacuum(home, away))
             
-            for inj in injuries:
-                status = str(inj.get('status', '')).upper()
-                name = inj.get('name', '')
-                
-                if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
-                    # Check se é Pivô
-                    is_big = False
-                    pos = str(inj.get('position', '')).upper()
-                    if 'C' in pos or 'CENTER' in pos: is_big = True
-                    
-                    if not is_big and name in self.logs:
-                        p_pos = str(self.logs[name].get('position', '')).upper()
-                        if 'C' in p_pos or 'CENTER' in p_pos: is_big = True
-                    
-                    if not is_big: continue
+            # Checa Away (Machucados no Away -> Vácuo para Home)
+            found.extend(self._analyze_team_vacuum(away, home))
 
-                    # ACHAMOS O VÁCUO -> BUSCA PREDADOR
-                    predator = self._find_best_rebounder(predator_team)
-                    if not predator: continue
-                    
-                    avg_reb = self._get_avg_stat(predator, 'REB')
-                    if avg_reb < 6.0: continue
-
-                    # Boost de Vácuo
-                    boost = 1.5 
-                    if avg_reb > 10: boost = 2.0
-                    
-                    target = math.ceil(avg_reb + boost)
-                    moon = math.ceil(avg_reb + boost + 3)
-
-                    score = 80 
-                    if avg_reb > 10: score += 10
-                    
-                    found.append({
-                        "type": "VACUUM",
-                        "title": "VÁCUO DE REBOTE",
-                        "score": score,
-                        "color": "#a855f7",
-                        "hero": {
-                            "name": predator, "photo": self.get_photo(predator), 
-                            "status": "🧨 PREDADOR", "stat": "REB", "target": f"{target}+",
-                            "logo": self.get_team_logo(predator_team)
-                        },
-                        "villain": {
-                            "name": victim_team, "missing": name, 
-                            "status": "🚨 OUT", "logo": self.get_team_logo(victim_team)
-                        },
-                        "ladder": [
-                            f"✅ Base: {int(avg_reb)}+", 
-                            f"💰 Alvo: {target}+", 
-                            f"🚀 Lua: {moon}+"
-                        ],
-                        "impact": f"Sem {name}, {victim_team} perde proteção."
-                    })
-                    break 
         return found
+
+    def _analyze_team_vacuum(self, injured_team, predator_team):
+        """Analisa se 'injured_team' tem pivô fora e busca predador em 'predator_team'"""
+        results = []
+        
+        # Pega lesões
+        # Tenta pegar pelo código normalizado E pelo nome bruto (para garantir)
+        injuries = self.injury_monitor.get_team_injuries(injured_team)
+        if not injuries:
+            # Tenta um lookup reverso simples se necessário, mas geralmente normalize resolve
+            pass
+
+        if not injuries: return []
+
+        for inj in injuries:
+            status = str(inj.get('status', '')).upper()
+            name = inj.get('name', '')
+            
+            # Filtro: Tem que estar FORA
+            if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
+                
+                # Check: É Pivô?
+                is_big = False
+                pos = str(inj.get('position', '')).upper()
+                if 'C' in pos or 'CENTER' in pos: is_big = True
+                
+                # Check Logs se position falhar
+                if not is_big and name in self.logs:
+                    log_pos = str(self.logs[name].get('position', '')).upper()
+                    if 'C' in log_pos or 'CENTER' in log_pos: is_big = True
+                
+                if is_big:
+                    print(f"ACHEI VÁCUO: {injured_team} sem {name}. Buscando em {predator_team}...") # Debug
+                    
+                    # Busca Predador no time adversário (USANDO A LISTA BLINDADA)
+                    predator_roster = self.rosters.get(predator_team, [])
+                    predator = self._find_best_rebounder_in_list(predator_roster)
+                    
+                    if predator:
+                        avg_reb = self._get_avg_stat(predator, 'REB')
+                        
+                        # Qualidade Mínima
+                        if avg_reb >= 6.0:
+                            boost = 1.5 if avg_reb < 10 else 2.5
+                            target = math.ceil(avg_reb + boost)
+                            
+                            score = 85 # Vácuo Confirmado
+                            
+                            results.append({
+                                "type": "VACUUM",
+                                "title": "VÁCUO DE REBOTE",
+                                "score": score,
+                                "color": "#a855f7",
+                                "hero": {
+                                    "name": predator, 
+                                    "photo": self.get_photo(predator), 
+                                    "status": "🧨 PREDADOR", 
+                                    "stat": "REB", 
+                                    "target": f"{target}+",
+                                    "logo": self.get_team_logo(predator_team)
+                                },
+                                "villain": {
+                                    "name": injured_team, 
+                                    "missing": name, 
+                                    "status": "🚨 OUT", 
+                                    "logo": self.get_team_logo(injured_team)
+                                },
+                                "ladder": [
+                                    f"✅ Base: {int(avg_reb)}+", 
+                                    f"💰 Alvo: {target}+", 
+                                    f"🚀 Lua: {target+2}+"
+                                ],
+                                "impact": f"Sem {name}, {injured_team} perde proteção no aro."
+                            })
+                            break # Um por time
+        return results
+
+    # --- AUXILIARES ESTATÍSTICOS ---
+    def _find_partner_in_list(self, player_list, exclude):
+        best, max_pts = None, 0
+        for name in player_list:
+            if name != exclude:
+                val = self._get_avg_stat(name, 'PTS')
+                if val > max_pts: max_pts = val; best = name
+        return best
+
+    def _find_best_rebounder_in_list(self, player_list):
+        best, max_reb = None, 0
+        for name in player_list:
+            val = self._get_avg_stat(name, 'REB')
+            if val > max_reb: max_reb = val; best = name
+        return best
 
     def _get_avg_stat(self, player, stat):
         vals = self.logs.get(player, {}).get('logs', {}).get(stat, [])
         return sum(vals[:10])/len(vals[:10]) if vals else 0
 
     def _get_opponent(self, team):
+        # Auxiliar simples para SGP
         target = self._normalize_team(team)
         for g in self.games:
             h = self._normalize_team(g.get('home'))
@@ -808,24 +856,6 @@ class NexusEngine:
             if h == target: return a
             if a == target: return h
         return None
-
-    def _find_statistical_partner(self, team, exclude):
-        best, max_pts = None, 0
-        target = self._normalize_team(team)
-        for name, data in self.logs.items():
-            if self._normalize_team(data.get('team')) == target and name != exclude:
-                val = self._get_avg_stat(name, 'PTS')
-                if val > max_pts: max_pts = val; best = name
-        return best, max_pts
-
-    def _find_best_rebounder(self, team):
-        best, max_reb = None, 0
-        target = self._normalize_team(team)
-        for name, data in self.logs.items():
-            if self._normalize_team(data.get('team')) == target:
-                val = self._get_avg_stat(name, 'REB')
-                if val > max_reb: max_reb = val; best = name
-        return best
         
 def show_nexus_page():
     # Dados
@@ -7200,6 +7230,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
