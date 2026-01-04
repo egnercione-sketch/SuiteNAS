@@ -6778,175 +6778,10 @@ def calculate_blowout_risk(spread_val, total_val=None):
         return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
 # ============================================================================
-# EXECUÇÃO PRINCIPAL
-# ============================================================================
-def main():
-
-# CSS PARA REMOVER ESPAÇO EM BRANCO DO TOPO
-    st.markdown("""
-        <style>
-            /* Remove padding do topo da página principal */
-            .block-container {
-                padding-top: 1rem !important;
-                padding-bottom: 1rem !important;
-                margin-top: 0 !important;
-            }
-            /* Remove padding do topo da sidebar */
-            section[data-testid="stSidebar"] .block-container {
-                padding-top: 1rem !important;
-            }
-            /* Ajuste para telas menores */
-            @media (max-width: 768px) {
-                .block-container { padding-top: 0rem !important; }
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    safe_load_initial_data()
- 
-# ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL v2.3 - CORRIGIDO)
-    # ============================================================================
-    with st.sidebar:
-        # --- CSS INJECTION (VISUAL CLEAN & COMPACT) ---
-        # Cor Principal (Teal do Logo): #22d3ee
-        st.markdown("""
-        <style>
-            /* 1. FORÇA O FUNDO PRETO PURO NA SIDEBAR */
-            section[data-testid="stSidebar"] {
-                background-color: #000000 !important;
-                border-right: 1px solid #1e293b;
-            }
-            
-            /* 2. BRANDING */
-            .logo-container {
-                text-align: center;
-                padding-bottom: 20px;
-                padding-top: 20px;
-            }
-            .slogan-text {
-                color: #94a3b8; /* Mantive um cinza médio só para o slogan (hierarquia) */
-                font-family: 'Inter', sans-serif;
-                font-size: 0.6rem; /* 30% menor e delicado */
-                font-weight: 300;
-                font-style: italic; /* Itálico como pedido */
-                letter-spacing: 0.5px;
-                margin-top: 5px;
-                opacity: 0.9;
-            }
-
-            /* 3. MENUS (RADIO BUTTONS) */
-            /* Esconde a bolinha padrão */
-            div[role="radiogroup"] > label > div:first-child { display: none !important; }
-            
-            /* Estilo do Texto (Item Normal - AGORA MAIS LEGÍVEL) */
-            div[role="radiogroup"] label {
-                background: transparent !important;
-                border: none !important;
-                padding: 5px 12px !important; /* Bem compacto */
-                margin-bottom: 1px !important;
-                transition: all 0.2s ease;
-                font-family: 'Inter', sans-serif;
-                font-size: 0.90rem; /* Levemente maior para leitura */
-                font-weight: 400;
-                color: #e2e8f0 !important; /* COR CORRIGIDA: Cinza Gelo (Alto Contraste) */
-                cursor: pointer;
-                opacity: 0.9;
-            }
-
-            /* Hover (Passar o mouse) */
-            div[role="radiogroup"] label:hover {
-                color: #ffffff !important; /* Branco puro no hover */
-                padding-left: 16px !important;
-                background: linear-gradient(90deg, rgba(34, 211, 238, 0.05) 0%, transparent 100%) !important;
-                opacity: 1;
-            }
-
-            /* ITEM SELECIONADO (Brilho Teal) */
-            div[role="radiogroup"] label[data-checked="true"] {
-                background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, transparent 100%) !important;
-                border-left: 3px solid #22d3ee !important;
-                color: #22d3ee !important; /* Texto Teal Neon */
-                font-weight: 600;
-                text-shadow: 0 0 15px rgba(34, 211, 238, 0.6); /* Glow no texto */
-                opacity: 1;
-            }
-            
-            /* Títulos de Categoria (Separadores) */
-            .group-header {
-                color: #64748b; /* Cinza azulado para diferenciar dos itens */
-                font-size: 0.7rem;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 1.5px;
-                margin-top: 20px;
-                margin-bottom: 8px;
-                padding-left: 12px;
-                border-bottom: 1px solid rgba(255,255,255,0.05);
-                padding-bottom: 4px;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # --- BRANDING (LOGO & SLOGAN CORRIGIDO) ---
-        st.markdown(f"""
-            <div class="logo-container">
-                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="160">
-                <div class="slogan-text">
-                    O Poder da IA nas suas Apostas Esportivas
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        # --- ESTRUTURA DO MENU (COM CABEÇALHOS VISUAIS) ---
-        
-        # 1. Centro de Comando
-        st.markdown('<div class="group-header">Centro de Comando</div>', unsafe_allow_html=True)
-        # Nota: Estamos exibindo apenas os cabeçalhos visualmente aqui, o radio vem depois
-
-        # 2. Inteligência Artificial
-        st.markdown('<div class="group-header">Inteligência Artificial</div>', unsafe_allow_html=True)
-
-        # 3. Caçadores
-        st.markdown('<div class="group-header">Caçadores & Estratégia</div>', unsafe_allow_html=True)
-
-        # 4. Tática
-        st.markdown('<div class="group-header">Análise Tática</div>', unsafe_allow_html=True)
-
-        # 5. Sistema
-        st.markdown('<div class="group-header">Sistema</div>', unsafe_allow_html=True)
-
-        # --- VERSÃO ESTÁVEL DO MENU (SINGLE LIST) ---
-        # Recriando a lista única para garantir funcionalidade:
-        MENU_GROUPS = {
-            "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
-            "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
-            "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
-            "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
-            "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
-        }
-        flat_menu = []
-        for group in MENU_GROUPS.values():
-            flat_menu.extend(group)
-        
-        # *** AQUI ESTAVA O ERRO ANTES: AGORA ESTÁ INDENTADO ***
-        choice = st.radio("Navegação", flat_menu, label_visibility="collapsed")
-
-        # Rodapé
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style="text-align: center; color: #334155; font-size: 0.6rem; border-top: 1px solid #1e293b; padding-top: 10px;">
-                ● SYSTEM ONLINE v2.1
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-  
-# ============================================================================
-# DASHBOARD (VISUAL ARENA V5.0 - BLACK MODE & FONT FIX)
+# DASHBOARD (VISUAL ARENA V6.0 - FINAL STABLE VERSION)
 # ============================================================================
 def show_dashboard_page():
-    # CSS Helper para garantir Oswald
+    # Helper de Fontes e Cores
     st.markdown("""
     <style>
         .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
@@ -7041,7 +6876,7 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 3. MELHOR DUPLA DO DIA (HTML BLINDADO COM BORDA)
+    # 3. MELHOR DUPLA (NEXUS - VERSÃO SIMPLIFICADA E SEGURA)
     # ========================================================================
     nexus_op = None
     if not games.empty and not df_l5.empty:
@@ -7059,7 +6894,7 @@ def show_dashboard_page():
         color = op['color']
         score = op['score']
         
-        # Strings Seguras
+        # Dados Seguros
         h_name = truncate_name(op['hero']['name'], 15)
         h_photo = op['hero']['photo']
         h_info = f"{op['hero']['target']} {op['hero']['stat']}"
@@ -7067,51 +6902,38 @@ def show_dashboard_page():
         p_obj = op.get('partner', op.get('villain'))
         p_name = truncate_name(p_obj['name'], 15)
         p_photo = p_obj.get('photo', p_obj.get('logo'))
-        
-        mid_icon = "🔗" if 'partner' in op else "⚔️"
         p_info = f"{op['partner']['target']} {op['partner']['stat']}" if 'partner' in op else f"Alvo: {op['villain']['status']}"
         
         impact = op.get('impact', 'Alta Sinergia')
 
-        st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS TOP 1)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS)</div>', unsafe_allow_html=True)
 
-        # HTML UNIFICADO (COM BORDA GERAL) - IDÊNTICO AO DESTAQUE MAS LARGO
+        # HTML SIMPLIFICADO (ESTRUTURA IDENTICA AO DESTAQUE PARA NÃO QUEBRAR)
         st.markdown(f"""
-        <div style="
-            background: #0f172a; 
-            border: 1px solid {color}; 
-            border-left: 5px solid {color}; 
-            border-radius: 12px; 
-            padding: 0; 
-            margin-bottom: 20px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
-            overflow: hidden;
-        ">
-            <div style="background: linear-gradient(90deg, {color}20 0%, transparent 100%); padding: 10px 15px; border-bottom: 1px solid {color}30; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Oswald'; color: #fff; font-size: 16px; letter-spacing: 1px;">{op['title']}</span>
-                <span style="background: {color}; color: #000; font-weight: bold; font-family: 'Oswald'; font-size: 12px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
+        <div style="background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
+            <div style="background: {color}20; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid {color}40;">
+                <span style="font-family: 'Oswald'; color: #FFF; font-size: 15px; letter-spacing: 1px;">{op['title']}</span>
+                <span style="background: {color}; color: #000; font-weight: bold; font-size: 11px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
             </div>
-
+            
             <div style="padding: 15px; display: flex; justify-content: space-around; align-items: center;">
+                <div style="text-align: center;">
+                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
+                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 5px;">{h_name}</div>
+                    <div style="color: {color}; font-size: 11px; font-weight: bold;">{h_info}</div>
+                </div>
                 
-                <div style="text-align: center; width: 33%;">
-                    <img src="{h_photo}" style="width: 65px; height: 65px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; box-shadow: 0 0 10px {color}40;">
-                    <div style="font-family: 'Oswald'; color: #fff; font-size: 14px; margin-top: 5px;">{h_name}</div>
-                    <div style="font-family: 'Oswald'; color: {color}; font-size: 12px; border: 1px solid {color}60; border-radius: 4px; display: inline-block; padding: 1px 6px; margin-top: 2px;">{h_info}</div>
+                <div style="font-size: 20px; color: #64748b;">⚡</div>
+
+                <div style="text-align: center;">
+                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000;">
+                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 5px;">{p_name}</div>
+                    <div style="color: #cbd5e1; font-size: 11px;">{p_info}</div>
                 </div>
-
-                <div style="font-size: 24px; color: #64748b; opacity: 0.5;">{mid_icon}</div>
-
-                <div style="text-align: center; width: 33%;">
-                    <img src="{p_photo}" style="width: 65px; height: 65px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000;">
-                    <div style="font-family: 'Oswald'; color: #fff; font-size: 14px; margin-top: 5px;">{p_name}</div>
-                    <div style="font-family: 'Oswald'; color: #cbd5e1; font-size: 12px; border: 1px solid #475569; border-radius: 4px; display: inline-block; padding: 1px 6px; margin-top: 2px;">{p_info}</div>
-                </div>
-
             </div>
-
-            <div style="background: rgba(0,0,0,0.3); padding: 8px; text-align: center; font-family: 'Oswald'; font-size: 11px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
-                ANALISTA: {impact}
+            
+            <div style="background: rgba(0,0,0,0.4); padding: 8px; text-align: center; color: #94a3b8; font-size: 10px; font-family: 'Inter';">
+                {impact}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -7137,130 +6959,108 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 
-    # ========================================================================
-    # 4. GAME GRID (INTOCÁVEL)
-    # ========================================================================
-    st.markdown('<div style="font-family: Oswald; color: #E2E8F0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
-
-    if games.empty:
-        st.info("Nenhum jogo encontrado para hoje.")
-    else:
-        odds_cache = st.session_state.get("odds", {})
-        rows = st.columns(2)
-        for i, (index, game) in enumerate(games.iterrows()):
-            with rows[i % 2]:
-                render_game_card(
-                    away_team=game['away'],
-                    home_team=game['home'],
-                    game_data=game,
-                    odds_map=odds_cache
-                )
 
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (CORRIGIDA)
+# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
-# CSS AGRESSIVO PARA REMOVER CABEÇALHO VAZIO
+    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
     st.markdown("""
         <style>
-            /* 1. Esconde o cabeçalho padrão do Streamlit (Menu e Barra Colorida) */
-            header[data-testid="stHeader"] {
-                visibility: hidden;
-                height: 0px;
-            }
+            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
 
-            /* 2. Força o conteúdo principal a subir (Margem Negativa) */
+            /* 1. FORÇA FUNDO PRETO GLOBAL */
+            .stApp { background-color: #000000 !important; }
+            
+            /* 2. REMOVE CABEÇALHO PADRÃO */
+            header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
+
+            /* 3. MARGEM NEGATIVA NO TOPO (PUXA TUDO PRA CIMA) */
             .block-container {
                 padding-top: 0rem !important;
-                padding-bottom: 1rem !important;
-                margin-top: -60px !important; /* Puxa para cima ignorando limites */
+                padding-bottom: 2rem !important;
+                margin-top: -60px !important;
             }
 
-            /* 3. Ajuste fino para a Sidebar não ficar cortada */
+            /* 4. AJUSTE SIDEBAR */
             section[data-testid="stSidebar"] .block-container {
-                padding-top: 3rem !important; /* Ajuste para o logo não colar no teto */
+                padding-top: 2rem !important; 
+                margin-top: -20px !important;
             }
-            
-            /* 4. Remove gap extra entre elementos do topo */
-            div[data-testid="stVerticalBlock"] > div:first-child {
-                margin-top: 0px !important;
+            section[data-testid="stSidebar"] {
+                background-color: #000000 !important;
+                border-right: 1px solid #1e293b;
             }
+
+            /* 5. ESTILO MENU LATERAL (NUNITO) */
+            div[role="radiogroup"] label {
+                background: transparent !important;
+                border: none !important;
+                padding: 8px 12px !important;
+                margin-bottom: 2px !important;
+                font-family: 'Nunito', sans-serif !important;
+                font-size: 0.95rem !important;
+                color: #cbd5e1 !important;
+                border-radius: 8px !important;
+                transition: all 0.2s ease;
+            }
+            div[role="radiogroup"] label:hover {
+                background: rgba(34, 211, 238, 0.1) !important;
+                color: #ffffff !important;
+                padding-left: 18px !important;
+            }
+            div[role="radiogroup"] label[data-checked="true"] {
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, transparent 100%) !important;
+                border-left: 4px solid #22d3ee !important;
+                color: #22d3ee !important;
+                font-weight: 700 !important;
+            }
+            div[role="radiogroup"] > label > div:first-child { display: none !important; }
+
+            /* 6. SEPARADORES DE MENU (CSS INDEXING) */
+            div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
+            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
     
     safe_load_initial_data()
 
-    # --- MENU LATERAL (INDENTAÇÃO CORRIGIDA) ---
+    # --- MENU LATERAL (DENTRO DO MAIN PARA FUNCIONAR) ---
     with st.sidebar:
-        # CSS Específico da Sidebar
-        st.markdown("""
-        <style>
-            /* Fundo Preto Absoluto */
-            section[data-testid="stSidebar"] {
-                background-color: #000000 !important;
-                border-right: 1px solid #1e293b;
-            }
-            /* Menus */
-            div[role="radiogroup"] label {
-                background: transparent !important;
-                border: none !important;
-                color: #e2e8f0 !important; /* Branco Gelo */
-                font-family: 'Inter', sans-serif;
-                font-size: 0.9rem;
-                padding: 6px 10px !important;
-            }
-            div[role="radiogroup"] label:hover {
-                color: #ffffff !important;
-                padding-left: 14px !important;
-                transition: all 0.2s ease;
-            }
-            div[role="radiogroup"] label[data-checked="true"] {
-                color: #22d3ee !important; /* Teal */
-                border-left: 3px solid #22d3ee !important;
-                background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%) !important;
-            }
-            .slogan-style {
-                color: #64748b;
-                font-size: 0.65rem;
-                font-style: italic;
-                text-align: center;
-                margin-top: 5px;
-                opacity: 0.8;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # Logo
-        st.markdown("""
-            <div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
-                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="140">
-                <div class="slogan-style">O Poder da IA nas suas Apostas Esportivas</div>
+        st.markdown(f"""
+            <div style="text-align: center; padding-bottom: 10px;">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150" style="margin-bottom: 5px;">
+                <div style="color: #94a3b8; font-family: 'Nunito'; font-size: 0.6rem; font-style: italic; opacity: 0.8;">
+                    O Poder da IA nas suas Apostas Esportivas
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # Lista Única de Navegação
-        MENU_OPTIONS = [
-            # CMD
+        MENU_ITEMS = [
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
-            # IA
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
-            # HUNT
             "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
-            # TAC
             "🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
-            # SYS
             "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
+        choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
         
-        choice = st.radio("Navegação", MENU_OPTIONS, label_visibility="collapsed")
-        
-        st.markdown("<br><div style='text-align:center; color:#334155; font-size:0.6rem;'>v2.2 SYSTEM ONLINE</div>", unsafe_allow_html=True)
+        st.markdown("<br><div style='text-align: center; color: #334155; font-size: 0.6rem;'>● SYSTEM ONLINE v2.2</div>", unsafe_allow_html=True)
 
     # --- ROTEAMENTO ---
     if choice == "🏠 Dashboard": show_dashboard_page()
-    elif choice == "📊 Ranking Teses": show_analytics_dashboard() # ou show_analytics_page
+    elif choice == "📊 Ranking Teses": show_analytics_dashboard()
     elif choice == "📋 Auditoria": show_audit_page()
     
     elif choice == "🧬 Sinergia & Vácuo": show_nexus_page()
@@ -7285,6 +7085,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
