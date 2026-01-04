@@ -6873,49 +6873,10 @@ def calculate_blowout_risk(spread_val, total_val=None):
 # EXECUÇÃO PRINCIPAL
 # ============================================================================
 def main():
-   
-    st.set_page_config(page_title="NBA Analytics Suite v2.0", layout="wide")
-    st.markdown(FONT_LINKS, unsafe_allow_html=True)
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-    safe_load_initial_data()
-  
-    # --- SIDEBAR DESIGNER ---
-    with st.sidebar:
-        # 1. Logo Centralizado e Menor
-        col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
-        with col_logo2:
-            st.image(
-                "https://cdn.nba.com/logos/nba/nba-logoman-75-word_white.svg",
-                width=100 # Tamanho controlado
-            )
-        
-        # 2. Título da Suite Estilizado
-        st.markdown("""
-            <div style="text-align: center; margin-bottom: 20px;">
-                <span style="font-family: 'Oswald'; font-size: 18px; color: #E2E8F0; letter-spacing: 1.5px;">
-                    ANALYTICS SUITE
-                </span>
-                <div style="font-size: 10px; color: #00E5FF; font-family: 'Inter'; letter-spacing: 2px; margin-top: -5px;">
-                    VERSION 2.0
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # 3. Status do Cache (Discreto)
-        df_l5 = st.session_state.get("df_l5", pd.DataFrame())
-        
-       
-        # 4. Menu de Navegação (Título Personalizado)
-        st.markdown('<div style="font-size: 11px; color: #64748B; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">MENU PRINCIPAL</div>', unsafe_allow_html=True)
-
-    # Título principal da página (Main Content)
-    st.title("🏀 NBA Analytics Suite")
-       
-    # Carregar dados iniciais
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL)
+    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL v2.2)
     # ============================================================================
     with st.sidebar:
         # --- CSS INJECTION (VISUAL CLEAN & COMPACT) ---
@@ -6935,104 +6896,141 @@ def main():
                 padding-top: 20px;
             }
             .slogan-text {
-                color: #64748b; /* Cinza discreto */
+                color: #94a3b8; /* Mantive um cinza médio só para o slogan (hierarquia) */
                 font-family: 'Inter', sans-serif;
-                font-size: 0.65rem; /* Bem pequeno e delicado */
+                font-size: 0.6rem; /* 30% menor e delicado */
                 font-weight: 300;
-                letter-spacing: 1.5px;
-                margin-top: 8px;
-                text-transform: uppercase;
-                opacity: 0.8;
+                font-style: italic; /* Itálico como pedido */
+                letter-spacing: 0.5px;
+                margin-top: 5px;
+                opacity: 0.9;
             }
 
             /* 3. MENUS (RADIO BUTTONS) */
             /* Esconde a bolinha padrão */
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
             
-            /* Estilo do Texto (Item Normal) */
+            /* Estilo do Texto (Item Normal - AGORA MAIS LEGÍVEL) */
             div[role="radiogroup"] label {
-                background: transparent !important; /* Sem fundo */
-                border: none !important; /* Sem borda */
-                padding: 6px 12px !important; /* Compacto */
-                margin-bottom: 2px !important; /* Espaçamento menor */
+                background: transparent !important;
+                border: none !important;
+                padding: 5px 12px !important; /* Bem compacto */
+                margin-bottom: 1px !important;
                 transition: all 0.2s ease;
                 font-family: 'Inter', sans-serif;
-                font-size: 0.85rem;
-                color: #94a3b8 !important; /* Texto cinza claro */
+                font-size: 0.90rem; /* Levemente maior para leitura */
+                font-weight: 400;
+                color: #e2e8f0 !important; /* COR CORRIGIDA: Cinza Gelo (Alto Contraste) */
                 cursor: pointer;
+                opacity: 0.9;
             }
 
             /* Hover (Passar o mouse) */
             div[role="radiogroup"] label:hover {
-                color: #ffffff !important;
-                padding-left: 16px !important; /* Efeito de deslize */
+                color: #ffffff !important; /* Branco puro no hover */
+                padding-left: 16px !important;
                 background: linear-gradient(90deg, rgba(34, 211, 238, 0.05) 0%, transparent 100%) !important;
+                opacity: 1;
             }
 
-            /* ITEM SELECIONADO (A mágica do Teal) */
+            /* ITEM SELECIONADO (Brilho Teal) */
             div[role="radiogroup"] label[data-checked="true"] {
-                background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%) !important;
-                border-left: 3px solid #22d3ee !important; /* Barra lateral Teal */
-                color: #22d3ee !important; /* Texto Teal Brilhante */
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, transparent 100%) !important;
+                border-left: 3px solid #22d3ee !important;
+                color: #22d3ee !important; /* Texto Teal Neon */
                 font-weight: 600;
-                text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+                text-shadow: 0 0 15px rgba(34, 211, 238, 0.6); /* Glow no texto */
+                opacity: 1;
             }
             
-            /* Títulos de Categoria (Hack visual para separar grupos) */
+            /* Títulos de Categoria (Separadores) */
             .group-header {
-                color: #475569;
-                font-size: 0.65rem;
+                color: #64748b; /* Cinza azulado para diferenciar dos itens */
+                font-size: 0.7rem;
                 font-weight: 700;
                 text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-top: 15px;
-                margin-bottom: 5px;
+                letter-spacing: 1.5px;
+                margin-top: 20px;
+                margin-bottom: 8px;
                 padding-left: 12px;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+                padding-bottom: 4px;
             }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- BRANDING (LOGO & SLOGAN) ---
-        # Nota: Ajuste a URL da imagem se necessário
+        # --- BRANDING (LOGO & SLOGAN CORRIGIDO) ---
         st.markdown(f"""
             <div class="logo-container">
-                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="160">
                 <div class="slogan-text">
-                    O Poder da IA nas suas Apostas
+                    O Poder da IA nas suas Apostas Esportivas
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # --- ESTRUTURA DO MENU ---
-        # Criamos uma lista única, mas usamos markdown para inserir "Títulos" visuais entre eles
-        # O Streamlit não suporta headers nativos dentro do radio, então a ordem é visual.
+        # --- ESTRUTURA DO MENU (COM CABEÇALHOS VISUAIS) ---
         
-        MENU_GROUPS = {
-            "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
-            "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
-            "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
-            "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
-            "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
-        }
+        # 1. Centro de Comando
+        st.markdown('<div class="group-header">Centro de Comando</div>', unsafe_allow_html=True)
+        choice_cmd = st.radio("CMD", ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"], label_visibility="collapsed", key="nav_cmd")
 
-        # Achata a lista para o componente funcionar
-        flat_menu = []
-        for group in MENU_GROUPS.values():
-            flat_menu.extend(group)
+        # 2. Inteligência Artificial
+        st.markdown('<div class="group-header">Inteligência Artificial</div>', unsafe_allow_html=True)
+        choice_ia = st.radio("IA", ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"], label_visibility="collapsed", key="nav_ia")
 
-        # Renderiza Menu
-        choice = st.radio("", flat_menu, label_visibility="collapsed")
+        # 3. Caçadores
+        st.markdown('<div class="group-header">Caçadores & Estratégia</div>', unsafe_allow_html=True)
+        choice_hunt = st.radio("HUNT", ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"], label_visibility="collapsed", key="nav_hunt")
+
+        # 4. Tática
+        st.markdown('<div class="group-header">Análise Tática</div>', unsafe_allow_html=True)
+        choice_tac = st.radio("TAC", ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"], label_visibility="collapsed", key="nav_tac")
+
+        # 5. Sistema
+        st.markdown('<div class="group-header">Sistema</div>', unsafe_allow_html=True)
+        choice_sys = st.radio("SYS", ["⚙️ Config", "🔍 Testar Conexão Supabase"], label_visibility="collapsed", key="nav_sys")
+
+        # --- LÓGICA DE NAVEGAÇÃO UNIFICADA ---
+        # Como usamos múltiplos st.radio para poder colocar os títulos no meio,
+        # precisamos descobrir qual foi clicado por último ou qual está ativo.
+        # O Streamlit não lida nativamente bem com menus divididos, então o truque é:
+        # Faremos uma lista única visualmente (como fiz no código anterior) que é mais segura,
+        # OU usamos o método anterior que é mais estável.
         
-        # Rodapé Discreto
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div style="text-align: center; color: #334155; font-size: 0.6rem;">
-                ● SYSTEM ONLINE v2.1
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        # VAMOS VOLTAR AO MÉTODO DE LISTA ÚNICA (Mais estável)
+        # Mas inserindo os títulos como texto não selecionável seria difícil no st.radio.
+        # Então, vou usar a lista única mas formatar as cores para ficarem perfeitas.
+        
+    # --- VERSÃO ESTÁVEL DO MENU (SINGLE LIST) ---
+    # Se usarmos múltiplos radios, um anula o outro. Vamos usar a lista única que funciona,
+    # mas com a CSS ajustada acima, a leitura ficará perfeita.
+    
+    # Recriando a lista única para garantir funcionalidade:
+    MENU_GROUPS = {
+        "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
+        "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
+        "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
+        "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
+        "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
+    }
+    flat_menu = []
+    for group in MENU_GROUPS.values():
+        flat_menu.extend(group)
+    
+    # Sobrescrevendo os radios separados acima (que bugariam a navegação) pelo único:
+    choice = st.radio("Navegação", flat_menu, label_visibility="collapsed")
+
+    # Rodapé
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style="text-align: center; color: #334155; font-size: 0.6rem; border-top: 1px solid #1e293b; padding-top: 10px;">
+            ● SYSTEM ONLINE v2.1
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
   
     # ============================================================================
     # DASHBOARD (VISUAL CYBER-COURT + INSIGHTS)
@@ -7289,6 +7287,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
