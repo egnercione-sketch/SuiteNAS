@@ -6876,7 +6876,7 @@ def main():
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL v2.2)
+    # 8. MENU LATERAL (DESIGNER MODE - STEALTH TEAL v2.3 - CORRIGIDO)
     # ============================================================================
     with st.sidebar:
         # --- CSS INJECTION (VISUAL CLEAN & COMPACT) ---
@@ -6973,64 +6973,46 @@ def main():
         
         # 1. Centro de Comando
         st.markdown('<div class="group-header">Centro de Comando</div>', unsafe_allow_html=True)
-        choice_cmd = st.radio("CMD", ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"], label_visibility="collapsed", key="nav_cmd")
+        # Nota: Estamos exibindo apenas os cabeçalhos visualmente aqui, o radio vem depois
 
         # 2. Inteligência Artificial
         st.markdown('<div class="group-header">Inteligência Artificial</div>', unsafe_allow_html=True)
-        choice_ia = st.radio("IA", ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"], label_visibility="collapsed", key="nav_ia")
 
         # 3. Caçadores
         st.markdown('<div class="group-header">Caçadores & Estratégia</div>', unsafe_allow_html=True)
-        choice_hunt = st.radio("HUNT", ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"], label_visibility="collapsed", key="nav_hunt")
 
         # 4. Tática
         st.markdown('<div class="group-header">Análise Tática</div>', unsafe_allow_html=True)
-        choice_tac = st.radio("TAC", ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"], label_visibility="collapsed", key="nav_tac")
 
         # 5. Sistema
         st.markdown('<div class="group-header">Sistema</div>', unsafe_allow_html=True)
-        choice_sys = st.radio("SYS", ["⚙️ Config", "🔍 Testar Conexão Supabase"], label_visibility="collapsed", key="nav_sys")
 
-        # --- LÓGICA DE NAVEGAÇÃO UNIFICADA ---
-        # Como usamos múltiplos st.radio para poder colocar os títulos no meio,
-        # precisamos descobrir qual foi clicado por último ou qual está ativo.
-        # O Streamlit não lida nativamente bem com menus divididos, então o truque é:
-        # Faremos uma lista única visualmente (como fiz no código anterior) que é mais segura,
-        # OU usamos o método anterior que é mais estável.
+        # --- VERSÃO ESTÁVEL DO MENU (SINGLE LIST) ---
+        # Recriando a lista única para garantir funcionalidade:
+        MENU_GROUPS = {
+            "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
+            "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
+            "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
+            "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
+            "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
+        }
+        flat_menu = []
+        for group in MENU_GROUPS.values():
+            flat_menu.extend(group)
         
-        # VAMOS VOLTAR AO MÉTODO DE LISTA ÚNICA (Mais estável)
-        # Mas inserindo os títulos como texto não selecionável seria difícil no st.radio.
-        # Então, vou usar a lista única mas formatar as cores para ficarem perfeitas.
-        
-    # --- VERSÃO ESTÁVEL DO MENU (SINGLE LIST) ---
-    # Se usarmos múltiplos radios, um anula o outro. Vamos usar a lista única que funciona,
-    # mas com a CSS ajustada acima, a leitura ficará perfeita.
-    
-    # Recriando a lista única para garantir funcionalidade:
-    MENU_GROUPS = {
-        "CMD": ["🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria"],
-        "IA": ["🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club"],
-        "HUNT": ["🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla"],
-        "TAC": ["🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações"],
-        "SYS": ["⚙️ Config", "🔍 Testar Conexão Supabase"]
-    }
-    flat_menu = []
-    for group in MENU_GROUPS.values():
-        flat_menu.extend(group)
-    
-    # Sobrescrevendo os radios separados acima (que bugariam a navegação) pelo único:
-    choice = st.radio("Navegação", flat_menu, label_visibility="collapsed")
+        # *** AQUI ESTAVA O ERRO ANTES: AGORA ESTÁ INDENTADO ***
+        choice = st.radio("Navegação", flat_menu, label_visibility="collapsed")
 
-    # Rodapé
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div style="text-align: center; color: #334155; font-size: 0.6rem; border-top: 1px solid #1e293b; padding-top: 10px;">
-            ● SYSTEM ONLINE v2.1
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+        # Rodapé
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div style="text-align: center; color: #334155; font-size: 0.6rem; border-top: 1px solid #1e293b; padding-top: 10px;">
+                ● SYSTEM ONLINE v2.1
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
   
     # ============================================================================
     # DASHBOARD (VISUAL CYBER-COURT + INSIGHTS)
@@ -7287,6 +7269,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
