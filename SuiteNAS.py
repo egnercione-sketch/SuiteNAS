@@ -575,8 +575,13 @@ class TrinityEngine:
 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (V6.0 - VARREDURA TOTAL & LAYOUT FIEL)
+# CLASSE NEXUS ENGINE (CORRIGIDA v4.0)
+# Cole isso ANTES da função show_nexus_page()
 # ============================================================================
+import math
+import json
+import os
+
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
@@ -589,10 +594,9 @@ class NexusEngine:
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
         self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
         
-        # Debug: Verificar se carregou lesões
+        # Debug no console
         if self.injury_monitor:
-            all_inj = self.injury_monitor.get_all_injuries()
-            print(f"🚑 [Nexus] Injury Monitor carregado com {len(all_inj)} times.")
+            print(f"🚑 [Nexus] Injury Monitor ativo.")
 
     def _load_photo_map(self):
         if os.path.exists("nba_players_map.json"):
@@ -642,30 +646,36 @@ class NexusEngine:
 
             # 2. Identificar Parceiro (DO MESMO TIME)
             partner_name = None
-            partner_stats = {}
             
             # Tenta usar o módulo SinergyEngine externo se existir
             if self.sinergy:
                 try: 
-                    # Espera-se que o Sinergy retorne (nome, stats_dict)
                     res = self.sinergy.analyze_synergy(p_name, team, self.logs)
                     if res and isinstance(res, tuple):
-                        partner_name = res[0]
+                        cand_name = res[0]
+                        # TRAVA DE SEGURANÇA: Verifica se é do mesmo time mesmo
+                        cand_team = self.logs.get(cand_name, {}).get('team')
+                        if cand_team == team:
+                            partner_name = cand_name
                 except: pass
             
-            # Fallback: Busca estatística interna se o Sinergy falhar ou não achar
+            # Fallback: Busca estatística interna se o Sinergy falhar
             if not partner_name:
-                partner_name, avg_pts = self._find_statistical_partner(team, p_name)
+                partner_name, _ = self._find_statistical_partner(team, p_name)
 
             if not partner_name: continue
 
             # --- DADOS REAIS PARA O CARD ---
             # Hero (Motor)
-            hero_target = f"{math.ceil(avg_ast - 0.5)}+" # Ex: 8.8 -> 9+
+            # Uso math.ceil para arredondar para cima (Ex: 8.2 virar 9+)
+            hero_target_val = math.ceil(avg_ast - 0.5) 
+            hero_target = f"{hero_target_val}+"
             
             # Partner (Finalizador)
             p_avg_pts = self._get_avg_stat(partner_name, 'PTS')
-            partner_target = f"{math.floor(p_avg_pts)}+" # Ex: 24.8 -> 24+ (Segurança)
+            # Uso math.floor para segurança (Ex: 24.8 virar 24+)
+            partner_target_val = math.floor(p_avg_pts)
+            partner_target = f"{partner_target_val}+"
 
             # --- SCORE SYSTEM ---
             score = 60 # Base
@@ -719,7 +729,7 @@ class NexusEngine:
                         "photo": self.get_photo(partner_name), 
                         "role": "🎯 O FINALIZADOR", 
                         "stat": "PTS", 
-                        "target": partner_target, # AQUI ESTAVA O ERRO (Agora tem valor)
+                        "target": partner_target,
                         "logo": hero_logo
                     },
                     "badges": badges + ["🔥 Sinergia Confirmada"]
@@ -728,7 +738,6 @@ class NexusEngine:
 
     def _scan_vacuum_protocol(self):
         found = []
-        # Pega lista de oponentes dos jogos de hoje baseada no Scoreboard
         if not self.games: return []
         
         # Mapeia quem joga contra quem
@@ -750,28 +759,26 @@ class NexusEngine:
             
             big_out = False
             missing_player = ""
+            villain_status = "OUT"
             
             for inj in injuries:
                 status = str(inj.get('status', '')).lower()
                 name = inj.get('name', '')
-                # Verifica palavras chave de fora
                 if any(x in status for x in ['out', 'inj', 'doubt']):
-                    # Verifica se é Big Man (Pivô)
-                    # Tenta pela posição no injury report ou logs
                     is_big = False
                     pos = str(inj.get('position', '')).upper()
-                    if 'C' in pos or 'F' in pos: # Broad check
-                        # Confirma nos logs se tiver
-                        if name in self.logs:
-                            p_pos = self.logs[name].get('position', '')
-                            if 'C' in p_pos or 'Center' in p_pos:
-                                is_big = True
-                        else:
-                            is_big = True # Assume pelo report
+                    
+                    # Checagem de posição
+                    if any(x in pos for x in ['C', 'F']): is_big = True
+                    if name in self.logs:
+                        p_pos = self.logs[name].get('position', '')
+                        if 'C' in p_pos or 'Center' in p_pos:
+                            is_big = True
                     
                     if is_big:
                         big_out = True
                         missing_player = name
+                        villain_status = "OUT" if "out" in status else "GTD"
                         break
             
             if not big_out: continue
@@ -780,11 +787,10 @@ class NexusEngine:
             predator_name = self._find_best_rebounder(team)
             if not predator_name: continue
             
-            # Calcula Score e Dados
             avg_reb = self._get_avg_stat(predator_name, 'REB')
             if avg_reb < 6.0: continue
             
-            score = 75 # Base alta pois confirmamos lesão
+            score = 75
             if avg_reb > 10: score += 10
             
             hero_logo = self.get_team_logo(team)
@@ -795,24 +801,14 @@ class NexusEngine:
                 "title": "VÁCUO DE REBOTE",
                 "score": score,
                 "color": "#a855f7",
-                "hero": {
-                    "name": predator_name, 
-                    "photo": self.get_photo(predator_name), 
-                    "status": "🧨 PREDADOR", 
-                    "logo": hero_logo
-                },
-                "villain": {
-                    "name": rival, 
-                    "missing": missing_player, 
-                    "status": "🚨 DESFALQUE", 
-                    "logo": villain_logo
-                },
+                "hero": {"name": predator_name, "photo": self.get_photo(predator_name), "status": "🧨 PREDADOR", "logo": hero_logo},
+                "villain": {"name": rival, "missing": missing_player, "status": f"🚨 {villain_status}", "logo": villain_logo},
                 "ladder": [
                     f"✅ Base: {int(avg_reb)}+", 
                     f"💰 Alvo: {int(avg_reb+2)}+", 
                     f"🚀 Lua: {int(avg_reb+4)}+"
                 ],
-                "impact": f"Oponente sem {missing_player} no garrafão."
+                "impact": f"O {rival} cede +{round(avg_reb * 0.2, 1)} rebotes sem {missing_player}."
             })
 
         return found
@@ -834,7 +830,6 @@ class NexusEngine:
             a = str(g.get('away', '')).upper()
             if h == 'NO': h = 'NOP'
             if a == 'NO': a = 'NOP'
-            
             if h == target: return a
             if a == target: return h
         return None
@@ -7283,6 +7278,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
