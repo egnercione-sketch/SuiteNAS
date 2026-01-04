@@ -6886,65 +6886,68 @@ def show_dashboard_page():
                 if ops: nexus_op = ops[0]
         except: pass
 
-    if nexus_op:
+if nexus_op:
         op = nexus_op
         color = op['color']
         score = op['score']
         
-        # Dados Seguros
-        h_name = truncate_name(op['hero']['name'], 18)
+        # 1. Preparação de Dados (Strings Seguras e Curtas)
+        h_name = truncate_name(op['hero']['name'], 15)
         h_photo = op['hero']['photo']
         h_info = f"{op['hero']['target']} {op['hero']['stat']}"
         
         p_obj = op.get('partner', op.get('villain'))
-        p_name = truncate_name(p_obj['name'], 18)
+        p_name = truncate_name(p_obj['name'], 15)
         p_photo = p_obj.get('photo', p_obj.get('logo'))
-        p_info = f"{op['partner']['target']} {op['partner']['stat']}" if 'partner' in op else f"Alvo: {op['villain']['status']}"
         
-        mid_icon = "🔗" if 'partner' in op else "⚔️"
+        if 'partner' in op:
+            p_info = f"{op['partner']['target']} {op['partner']['stat']}"
+            mid_icon = "🔗" # Link
+        else:
+            p_info = f"Alvo: {op['villain']['status']}"
+            mid_icon = "⚔️" # VS
+        
         impact = op.get('impact', 'Alta Sinergia')
 
         st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS)</div>', unsafe_allow_html=True)
 
-        # AQUI ESTÁ A CORREÇÃO: ESTRUTURA TABLE (NÃO QUEBRA NUNCA)
-        st.markdown(f"""
-        <table style="width: 100%; background: #0f172a; border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; border-collapse: separate; border-spacing: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.5); overflow: hidden; margin-bottom: 20px;">
-            <tr style="background: linear-gradient(90deg, {color}20 0%, transparent 100%);">
-                <td colspan="3" style="padding: 10px 15px; border-bottom: 1px solid {color}30;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-family: 'Oswald'; color: #fff; font-size: 15px; letter-spacing: 1px;">{op['title']}</span>
-                        <span style="background: {color}; color: #000; font-weight: bold; font-family: 'Oswald'; font-size: 11px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
-                    </div>
-                </td>
-            </tr>
+        # 2. HTML BLINDADO (ESTRUTURA DE TABELA FIXA)
+        # O segredo aqui é 'table-layout: fixed' que impede a explosão
+        card_html = f"""
+        <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             
-            <tr>
-                <td style="width: 40%; padding: 15px 5px; text-align: center; vertical-align: top;">
-                    <img src="{h_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; display: block; margin: 0 auto;">
-                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 6px; line-height: 1.1;">{h_name}</div>
-                    <div style="color: {color}; font-size: 11px; font-weight: bold; margin-top: 2px;">{h_info}</div>
-                </td>
-                
-                <td style="width: 20%; text-align: center; vertical-align: middle;">
-                    <div style="font-size: 24px; color: #64748b; opacity: 0.6;">{mid_icon}</div>
-                </td>
+            <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: 'Oswald', sans-serif; color: #ffffff; font-size: 14px; letter-spacing: 1px;">{op['title']}</span>
+                <span style="background-color: {color}; color: #000000; font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 11px; padding: 2px 6px; border-radius: 4px;">SCORE {score}</span>
+            </div>
 
-                <td style="width: 40%; padding: 15px 5px; text-align: center; vertical-align: top;">
-                    <img src="{p_photo}" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000; display: block; margin: 0 auto;">
-                    <div style="color: #fff; font-family: 'Oswald'; font-size: 13px; margin-top: 6px; line-height: 1.1;">{p_name}</div>
-                    <div style="color: #cbd5e1; font-size: 11px; margin-top: 2px;">{p_info}</div>
-                </td>
-            </tr>
+            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: none; margin: 0;">
+                <tr>
+                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
+                        <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin: 0 auto; display: block;">
+                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{h_name}</div>
+                        <div style="color: {color}; font-family: sans-serif; font-size: 10px; font-weight: bold;">{h_info}</div>
+                    </td>
 
-            <tr>
-                <td colspan="3" style="background: rgba(0,0,0,0.3); padding: 8px; text-align: center; font-family: 'Oswald'; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
-                    ANALISTA: {impact}
-                </td>
-            </tr>
-        </table>
-        """, unsafe_allow_html=True)
+                    <td style="width: 20%; text-align: center; vertical-align: middle; border: none;">
+                        <div style="font-size: 20px; color: #64748b; opacity: 0.7;">{mid_icon}</div>
+                    </td>
 
-    st.markdown("<br>", unsafe_allow_html=True)
+                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
+                        <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #ffffff; object-fit: cover; margin: 0 auto; display: block;">
+                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p_name}</div>
+                        <div style="color: #cbd5e1; font-family: sans-serif; font-size: 10px;">{p_info}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div style="background-color: rgba(0,0,0,0.3); padding: 6px; text-align: center; font-family: sans-serif; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
+                ANALISTA: {impact}
+            </div>
+        </div>
+        """
+        
+        st.markdown(card_html, unsafe_allow_html=True)
 
     # ========================================================================
     # 4. GAME GRID
@@ -7090,6 +7093,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
