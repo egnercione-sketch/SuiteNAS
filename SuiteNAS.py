@@ -6915,53 +6915,72 @@ def main():
     safe_load_initial_data()
  
 # ============================================================================
-    # 8. MENU LATERAL (DESIGNER MODE vFINAL)
+    # 8. MENU LATERAL (DESIGNER MODE vFINAL - DIGIBETS)
     # ============================================================================
     with st.sidebar:
-        # --- BRANDING ---
-        st.markdown("""
-            <div style="text-align: center; padding-bottom: 20px;">
-                <h1 style="font-family: 'Oswald', sans-serif; font-size: 2.5rem; margin:0; 
-                           background: linear-gradient(to right, #a855f7, #eab308); 
-                           -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                    SUITE NAS
-                </h1>
-                <p style="color: #64748b; font-size: 0.8rem; letter-spacing: 2px; margin-top: -10px;">
-                    V2.0 • PREDATOR MODE
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        # --- CSS INJECTION (VISUAL COCKPIT) ---
+        # --- CSS INJECTION (VISUAL COCKPIT & DARK MODE FORCE) ---
         st.markdown("""
         <style>
+            /* 1. FORÇA O FUNDO PRETO NA SIDEBAR */
+            section[data-testid="stSidebar"] {
+                background-color: #0f172a !important; /* Dark Slate 900 */
+            }
+            
+            /* 2. Força texto claro na sidebar para contraste */
+            section[data-testid="stSidebar"] p, 
+            section[data-testid="stSidebar"] span, 
+            section[data-testid="stSidebar"] div {
+                color: #e2e8f0 !important;
+            }
+
+            /* 3. Estilo dos Botões do Menu (Radiogroup Hack) */
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
+            
             div[role="radiogroup"] label {
-                background: rgba(255, 255, 255, 0.03);
-                padding: 10px 15px;
+                background: rgba(255, 255, 255, 0.05);
+                padding: 12px 15px;
                 border-radius: 8px;
-                margin-bottom: 6px;
+                margin-bottom: 8px;
                 border: 1px solid rgba(255, 255, 255, 0.05);
                 transition: all 0.3s ease;
                 font-family: 'Inter', sans-serif;
-                font-size: 0.9rem;
+                font-size: 0.95rem;
+                color: #cbd5e1 !important; /* Texto cinza claro */
             }
+
             div[role="radiogroup"] label:hover {
-                background: rgba(255, 255, 255, 0.1);
-                border-color: rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.15);
+                border-color: rgba(255, 255, 255, 0.3);
                 transform: translateX(5px);
+                cursor: pointer;
             }
+
+            /* ITEM SELECIONADO */
             div[role="radiogroup"] label[data-checked="true"] {
-                background: linear-gradient(90deg, rgba(168, 85, 247, 0.2) 0%, rgba(15, 23, 42, 0) 100%);
+                background: linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(15, 23, 42, 0) 100%);
                 border-left: 4px solid #a855f7;
-                color: #fff;
-                font-weight: bold;
+                color: #ffffff !important;
+                font-weight: 600;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- ESTRUTURA REORGANIZADA (FINAL) ---
+        # --- BRANDING (LOGO & TÍTULO) ---
+        st.markdown(f"""
+            <div style="text-align: center; padding-bottom: 25px; padding-top: 10px;">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="160" style="margin-bottom: 15px; border-radius: 10px; box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);">
+                <h1 style="font-family: 'Oswald', sans-serif; font-size: 2.2rem; margin:0; 
+                           color: #ffffff !important; letter-spacing: 1px;">
+                    DigiBets
+                </h1>
+                <p style="color: #94a3b8 !important; font-size: 0.75rem; font-weight: 400; margin-top: 5px; font-family: 'Inter', sans-serif;">
+                    O PODER DA IA NAS SUAS<br>APOSTAS ESPORTIVAS
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- ESTRUTURA DO MENU (REORGANIZADA) ---
         MENU_GROUPS = {
             "🏠 CENTRO DE COMANDO": [
                 "🏠 Dashboard",
@@ -7005,8 +7024,8 @@ def main():
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             """
-            <div style="background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #334155;">
-                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem;">● SYSTEM ONLINE</span>
+            <div style="background: rgba(30, 41, 59, 0.5); padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #334155; margin-top: 20px;">
+                <span style="color: #10b981; font-weight: bold; font-size: 0.7rem; letter-spacing: 1px;">● SYSTEM ONLINE</span>
             </div>
             """, 
             unsafe_allow_html=True
@@ -7215,7 +7234,7 @@ def main():
 
 # --- CENTRO DE COMANDO ---
     elif choice == "📊 Ranking Teses": 
-        show_analytics_dashboard() # Antigo Analytics
+        show_analytics_page(): # Antigo Analytics
     elif choice == "📋 Auditoria":
         show_audit_page()
 
@@ -7267,3 +7286,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
