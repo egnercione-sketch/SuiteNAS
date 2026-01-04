@@ -582,327 +582,116 @@ import json
 import os
 import unicodedata
 
-# ============================================================================
-# CLASSE NEXUS ENGINE (v8.0 - VACUUM FIX / INVERTED LOGIC)
-# ============================================================================
-import math
-import json
-import os
-import unicodedata
+1. O Card "Ecossistema Simbiótico" (SGP)
 
-class NexusEngine:
-    def __init__(self, logs_cache, games):
-        self.logs = logs_cache
-        self.games = games # Scoreboard
-        self.player_ids = self._load_photo_map()
-        
-        # Módulos
-        self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
-        self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
-        self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
-        self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
+Quando o sinergy_engine + pace_adjuster dão Match.
 
-    # --- UTILITÁRIOS ---
-    def _strip_accents(self, text):
-        try:
-            text = unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode("utf-8")
-            return str(text)
-        except: return str(text)
+Layout Visual:
 
-    def _normalize_team(self, team_raw):
-        """Padroniza qualquer nome de time para sigla de 3 letras"""
-        if not team_raw: return "UNK"
-        t = str(team_raw).upper().strip()
-        mapping = {
-            "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS",
-            "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA",
-            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE", "CAVALIERS": "CLE",
-            "DALLAS": "DAL", "MAVS": "DAL", "MAVERICKS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN",
-            "DETROIT": "DET", "PISTONS": "DET", "GOLDEN STATE": "GSW", "WARRIORS": "GSW", "GS": "GSW",
-            "HOUSTON": "HOU", "ROCKETS": "HOU", "INDIANA": "IND", "PACERS": "IND",
-            "CLIPPERS": "LAC", "LA CLIPPERS": "LAC", "L.A. CLIPPERS": "LAC",
-            "LAKERS": "LAL", "LA LAKERS": "LAL", "L.A. LAKERS": "LAL", "LOS ANGELES LAKERS": "LAL",
-            "MEMPHIS": "MEM", "GRIZZLIES": "MEM", "MIAMI": "MIA", "HEAT": "MIA",
-            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN", "TIMBERWOLVES": "MIN",
-            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", "N.O.": "NOP",
-            "NEW YORK": "NYK", "KNICKS": "NYK", "NY": "NYK", "N.Y.": "NYK",
-            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "OKC THUNDER": "OKC",
-            "ORLANDO": "ORL", "MAGIC": "ORL", "PHILADELPHIA": "PHI", "SIXERS": "PHI", "76ERS": "PHI",
-            "PHOENIX": "PHX", "SUNS": "PHX", "PHO": "PHX", "PORTLAND": "POR", "BLAZERS": "POR", "TRAIL BLAZERS": "POR",
-            "SACRAMENTO": "SAC", "KINGS": "SAC", "SAN ANTONIO": "SAS", "SPURS": "SAS", "SA": "SAS",
-            "TORONTO": "TOR", "RAPTORS": "TOR", "UTAH": "UTA", "JAZZ": "UTA",
-            "WASHINGTON": "WAS", "WIZARDS": "WAS", "WSH": "WAS"
-        }
-        # Tenta mapear, senão pega as 3 primeiras (ex: 'DAL' -> 'DAL')
-        return mapping.get(t, t[:3])
 
-    def _load_photo_map(self):
-        if os.path.exists("nba_players_map.json"):
-            try:
-                with open("nba_players_map.json", "r", encoding="utf-8") as f: return json.load(f)
-            except: pass
-        return {}
 
-    def get_photo(self, name):
-        pid = self.player_ids.get(name) or self.player_ids.get(self._strip_accents(name))
-        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+Cabeçalho: ⚡ SGP DETECTADA (Cor: Amarelo Elétrico)
 
-    def get_team_logo(self, team_abbr):
-        abbr = self._normalize_team(team_abbr).lower()
-        if abbr == 'uta': abbr = 'utah'
-        if abbr == 'nop': abbr = 'no'
-        return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr}.png"
+Corpo Principal (Split Screen):
 
-    # --- MOTOR PRINCIPAL ---
-    def run_nexus_scan(self):
-        opportunities = []
-        
-        # 1. SGP
-        opportunities.extend(self._scan_sgp_opportunities())
+Lado Esquerdo: [Foto do Garçom]
 
-        # 2. Vácuo
-        if self.injury_monitor:
-            try: opportunities.extend(self._scan_vacuum_opportunities())
-            except Exception as e: print(f"❌ Erro Crítico Vacuum: {e}")
+Nome: Trae Young
 
-        return sorted(opportunities, key=lambda x: x['score'], reverse=True)
+Role: 🧠 O Motor
 
-    def _scan_sgp_opportunities(self):
-        found = []
-        for p_name, data in self.logs.items():
-            team = self._normalize_team(data.get('team'))
-            
-            # Filtro Garçom
-            avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue
+Alvo: 10+ AST
 
-            # Busca Parceiro (Mesmo Time)
-            partner_name = None
-            if self.sinergy:
-                try:
-                    res = self.sinergy.analyze_synergy(p_name, team, self.logs)
-                    if res and isinstance(res, tuple):
-                        cand = res[0]
-                        if self._normalize_team(self.logs.get(cand, {}).get('team')) == team:
-                            partner_name = cand
-                except: pass
-            
-            if not partner_name:
-                partner_name, _ = self._find_statistical_partner(team, p_name)
+Centro: Um ícone de Corrente 🔗 ou Sinal de + pulsando.
 
-            if not partner_name: continue
+Texto: "Sinergia: 88%"
 
-            # Targets
-            t_ast = f"{math.ceil(avg_ast - 0.5)}+"
-            avg_pts = self._get_avg_stat(partner_name, 'PTS')
-            t_pts = f"{math.floor(avg_pts)}+"
+Lado Direito: [Foto do Beneficiário]
 
-            # Score
-            score = 60
-            badges = []
-            if avg_ast > 9.0: score += 10
-            if avg_pts > 24: score += 10
-            
-            opp = self._get_opponent(team)
-            
-            if opp and self.pace_adjuster:
-                try:
-                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                    if pace >= 100: 
-                        score += 10
-                        badges.append(f"🏎️ Pace: {int(pace)}")
-                except: pass
-            
-            if opp and self.dvp_analyzer:
-                try:
-                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                    if rank >= 18: 
-                        score += 15
-                        badges.append("🛡️ DvP Favorável")
-                except: pass
+Nome: Jalen Johnson
 
-            if score >= 70:
-                found.append({
-                    "type": "SGP",
-                    "title": "ECOSSISTEMA SIMBIÓTICO",
-                    "score": score,
-                    "color": "#eab308",
-                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": t_ast, "logo": self.get_team_logo(team)},
-                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": t_pts, "logo": self.get_team_logo(team)},
-                    "badges": badges + ["🔥 Sinergia Alta"]
-                })
-        return found
+Role: 🎯 O Finalizador
 
-    def _scan_vacuum_opportunities(self):
-        """
-        LÓGICA INVERTIDA: Itera sobre TODAS as lesões e verifica se o time joga hoje.
-        Isso evita problemas de chave de dicionário (Ex: 'LAL' vs 'Lakers').
-        """
-        found = []
-        if not self.games: return []
+Alvo: 20+ PTS
 
-        # 1. Cria mapa dos jogos de hoje: { 'LAL': 'DAL', 'DAL': 'LAL', 'BOS': 'MIA'... }
-        today_matchups = {}
-        for g in self.games:
-            h = self._normalize_team(g.get('home'))
-            a = self._normalize_team(g.get('away'))
-            today_matchups[h] = a
-            today_matchups[a] = h
-        
-        # 2. Pega TODAS as lesões do sistema (flat list)
-        all_injuries_raw = self.injury_monitor.get_all_injuries() # Retorna dict {Team: [List]}
-        
-        # Itera sobre cada time que tem lesão
-        for team_key, injuries in all_injuries_raw.items():
-            
-            # Normaliza o nome do time machucado (Ex: 'Los Angeles Lakers' -> 'LAL')
-            injured_team_abbr = self._normalize_team(team_key)
-            
-            # VERIFICA SE ESSE TIME JOGA HOJE
-            if injured_team_abbr not in today_matchups:
-                continue # Time com lesão não joga hoje, pula
-            
-            # Se joga, quem é o adversário?
-            opponent_abbr = today_matchups[injured_team_abbr]
-            
-            # 3. Analisa os jogadores machucados desse time
-            for inj in injuries:
-                status = str(inj.get('status', '')).upper()
-                name = inj.get('name', '')
-                
-                # Checa se está FORA ou DÚVIDA
-                if any(x in status for x in ['OUT', 'INJ', 'DOUBT', 'QUEST']):
-                    
-                    # Tenta descobrir se é Pivô ou Estrela
-                    is_big = False
-                    is_star = False
-                    pos = str(inj.get('position', '')).upper()
-                    
-                    # Checagem por Injury Report
-                    if any(x in pos for x in ['C', 'CENTER', 'F-C']): is_big = True
-                    
-                    # Checagem por Logs (mais preciso)
-                    avg_pts_injured = 0
-                    if name in self.logs:
-                        p_data = self.logs[name]
-                        p_pos = str(p_data.get('position', '')).upper()
-                        if 'C' in p_pos or 'CENTER' in p_pos: is_big = True
-                        
-                        # Verifica se é estrela (PTS > 20)
-                        avg_pts_injured = self._get_avg_stat(name, 'PTS')
-                        if avg_pts_injured > 18.0: is_star = True
-                    
-                    # --- CRIA OPORTUNIDADE DE VÁCUO ---
-                    
-                    # CASO 1: PIVÔ FORA -> Predador de Rebotes
-                    if is_big:
-                        predator = self._find_best_rebounder(opponent_abbr)
-                        if predator:
-                            avg_reb = self._get_avg_stat(predator, 'REB')
-                            if avg_reb >= 6.0:
-                                score = 80 + (10 if avg_reb > 10 else 0)
-                                found.append({
-                                    "type": "VACUUM",
-                                    "title": "VÁCUO DE REBOTE",
-                                    "score": score,
-                                    "color": "#a855f7",
-                                    "hero": {
-                                        "name": predator, "photo": self.get_photo(predator), 
-                                        "status": "🧨 PREDADOR", "stat": "REB", "target": f"{int(avg_reb)}+",
-                                        "logo": self.get_team_logo(opponent_abbr)
-                                    },
-                                    "villain": {
-                                        "name": injured_team_abbr, "missing": name, 
-                                        "status": "🚨 OUT", "logo": self.get_team_logo(injured_team_abbr)
-                                    },
-                                    "ladder": [f"✅ {int(avg_reb)}+", f"💰 {int(avg_reb+2)}+", f"🚀 {int(avg_reb+4)}+"],
-                                    "impact": f"Sem {name}, {injured_team_abbr} sofre no garrafão."
-                                })
-                                break # Achou um caso grave neste time, passa pro próximo
-                    
-                    # CASO 2: ESTRELA FORA -> Predador de Pontos (Volume)
-                    elif is_star:
-                        predator, _ = self._find_statistical_partner(opponent_abbr, "NOBODY")
-                        if predator:
-                            avg_pts = self._get_avg_stat(predator, 'PTS')
-                            if avg_pts >= 15.0:
-                                score = 75
-                                found.append({
-                                    "type": "VACUUM",
-                                    "title": "VÁCUO DE PONTOS",
-                                    "score": score,
-                                    "color": "#a855f7",
-                                    "hero": {
-                                        "name": predator, "photo": self.get_photo(predator), 
-                                        "status": "🎯 CESTINHA", "stat": "PTS", "target": f"{int(avg_pts)}+",
-                                        "logo": self.get_team_logo(opponent_abbr)
-                                    },
-                                    "villain": {
-                                        "name": injured_team_abbr, "missing": name, 
-                                        "status": "🚨 OUT", "logo": self.get_team_logo(injured_team_abbr)
-                                    },
-                                    "ladder": [f"✅ {int(avg_pts)}+", f"💰 {int(avg_pts*1.2)}+", f"🚀 {int(avg_pts*1.4)}+"],
-                                    "impact": f"Sem {name}, jogo tende a favorecer {predator}."
-                                })
-                                break
+Rodapé (O "Porquê"): Uma linha de "Badges" (ícones pequenos) que validam a entrada:
 
-        return found
+🏎️ Pace: 105 (Muito Rápido)
 
-    # --- AUXILIARES ---
-    def _get_avg_stat(self, player, stat):
-        vals = self.logs.get(player, {}).get('logs', {}).get(stat, [])
-        return sum(vals[:10])/len(vals[:10]) if vals else 0
+🛡️ DvP: Hawks cedem muito
 
-    def _get_opponent(self, team):
-        target = self._normalize_team(team)
-        for g in self.games:
-            h = self._normalize_team(g.get('home'))
-            a = self._normalize_team(g.get('away'))
-            if h == target: return a
-            if a == target: return h
-        return None
+🔥 Must Win: Jogo parelho
 
-    def _find_statistical_partner(self, team, exclude):
-        best, max_pts = None, 0
-        target = self._normalize_team(team)
-        for name, data in self.logs.items():
-            if self._normalize_team(data.get('team')) == target and name != exclude:
-                val = self._get_avg_stat(name, 'PTS')
-                if val > max_pts: max_pts = val; best = name
-        return best, max_pts
+A Sensação: Você olha e vê imediatamente que um depende do outro e o cenário favorece ambos.
 
-    def _find_best_rebounder(self, team):
-        best, max_reb = None, 0
-        target = self._normalize_team(team)
-        for name, data in self.logs.items():
-            if self._normalize_team(data.get('team')) == target:
-                val = self._get_avg_stat(name, 'REB')
-                if val > max_reb: max_reb = val; best = name
-        return best
+2. O Card "Vácuo de Rebote" (The Vacuum)
+
+Quando o injuries.py + vacuum_matrix + archetype_engine dão Match.
+
+Layout Visual:
+
+
+
+Cabeçalho: 🌪️ ALERTA DE VÁCUO (Cor: Roxo/Alerta)
+
+Corpo Principal (Hero vs Villain):
+
+Lado Esquerdo (O Heroi): [Foto Grande do Pivô]
+
+Nome: Ivica Zubac
+
+Status: 🧨 DYNAMITE (Rebotes)
+
+Lado Direito (O Cenário): [Logo do Time Oponente]
+
+Status: 🚑 DEFESA COMPROMETIDA
+
+Detalhe: "Jusuf Nurkic (OUT)" em texto vermelho chamativo.
+
+A "Escada" (The Ladder):
+
+Em vez de uma linha só, mostramos 3 degraus sugeridos:
+
+✅ Base: 10+ (Safe)
+
+💰 Alvo: 12+ (Value)
+
+🚀 Lua: 15+ (High Risk/High Reward)
+
+Rodapé (O "Porquê"):
+
+📉 Impacto: "Oponente perde 4.5 REB/jogo sem o titular" (Dado vindo do vacuum_matrix).
+
+A Sensação: Você vê um predador (Zubac) prestes a atacar uma presa ferida (Time sem pivô).
+
+A Lógica do "Opportunity Score" (O Cérebro por trás do Card)
+
+No topo de cada card, teríamos um Score de 0 a 100.
+
+Isso resolve o problema de "amontoado de dados". Você só mostra o card se o Score for > 80.
+
+Como o sistema montaria isso internamente (Mentalmente):
+
+
+
+Checklist Automático:
+
+InjuryMonitor: "Tem alguém importante fora?" -> Sim (+30 pts)
+
+Archetype: "Nosso jogador explora essa fraqueza exata?" -> Sim (+20 pts)
+
+Pace: "O jogo vai ser rápido?" -> Sim (+10 pts)
+
+DvP: "A defesa já era ruim antes?" -> Sim (+20 pts)
+
+Soma: 80 Pontos.
+
+Ação: PLOTAR CARD NA TELA.
         
 def show_nexus_page():
-    # Carregamento
+    # Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
-    
-    # Diagnóstico Rápido
-    with st.expander("🛠️ Debug Status", expanded=False):
-        st.write(f"Logs: {len(full_cache) if full_cache else 0}")
-        st.write(f"Jogos Hoje: {len(scoreboard) if scoreboard else 0}")
-        if INJURY_MONITOR_AVAILABLE and InjuryMonitor:
-            try:
-                im = InjuryMonitor()
-                inj = im.get_all_injuries()
-                st.write(f"Times com Lesões: {len(inj)}")
-            except: st.error("Erro ao ler lesões")
-
-    if not full_cache:
-        st.error("❌ Logs vazios.")
-        return
-    
-    # Engine
-    nexus = NexusEngine(full_cache, scoreboard or [])
     
     # Header
     st.markdown("""
@@ -912,6 +701,12 @@ def show_nexus_page():
     </div>
     """, unsafe_allow_html=True)
 
+    if not full_cache:
+        st.error("❌ Logs vazios.")
+        return
+
+    # Engine
+    nexus = NexusEngine(full_cache, scoreboard or [])
     min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
 
     try:
@@ -928,27 +723,25 @@ def show_nexus_page():
     # Render
     for op in opportunities:
         is_sgp = (op['type'] == 'SGP')
-        color = "#eab308" if is_sgp else "#a855f7"
+        color = op['color']
         icon = "⚡" if is_sgp else "🌪️"
         
         with st.container():
             # Linha Topo
             st.markdown(f"""<div style="border-top: 4px solid {color}; margin-top: 15px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
             
-            # Titulo
+            # Cabeçalho
             c1, c2 = st.columns([3, 1])
             c1.markdown(f"### {icon} {op['title']}")
             c2.markdown(f"<div style='background:{color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
             
-            # Corpo
-            col_hero, col_mid, col_target = st.columns([1, 0.3, 1])
+            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
             
-            # --- ESQUERDA ---
+            # --- HEROI ---
             with col_hero:
-                # Colunas internas para alinhar Logo + Foto
                 ci1, ci2 = st.columns([0.4, 1])
                 with ci1: st.image(op['hero']['logo'], width=40)
-                with ci2: st.image(op['hero']['photo'], width=70) 
+                with ci2: st.image(op['hero']['photo'], width=70)
                 
                 st.markdown(f"**{op['hero']['name']}**")
                 st.caption(f"{op['hero'].get('role', op['hero'].get('status'))}")
@@ -960,9 +753,14 @@ def show_nexus_page():
             # --- MEIO ---
             with col_mid:
                 st.markdown("<br><br>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>{'🔗' if is_sgp else '⚔️'}</div>", unsafe_allow_html=True)
+                if is_sgp:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>🔗</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#94a3b8;'>{op.get('synergy_txt', '')}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>⚔️</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#f87171;'>VS DEFESA</div>", unsafe_allow_html=True)
 
-            # --- DIREITA ---
+            # --- ALVO ---
             with col_target:
                 if is_sgp:
                     ci3, ci4 = st.columns([1, 0.4])
@@ -985,9 +783,10 @@ def show_nexus_page():
                     st.markdown(f"🚨 <span style='color:#f87171; font-weight:bold'>{op['villain']['status']}</span>", unsafe_allow_html=True)
                     st.caption(f"Sem: {op['villain']['missing']}")
 
+            # --- RODAPÉ ---
             st.divider()
             if is_sgp:
-                st.caption(" | ".join(op['badges']))
+                st.caption(" | ".join([f"✅ {b}" for b in op['badges']]))
             else:
                 l1, l2, l3 = st.columns(3)
                 for i, s in enumerate(op['ladder']):
@@ -7262,6 +7061,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
