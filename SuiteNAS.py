@@ -582,20 +582,27 @@ import json
 import os
 import unicodedata
 
+# ============================================================================
+# CLASSE NEXUS ENGINE (v8.0 - VACUUM FIX / INVERTED LOGIC)
+# ============================================================================
+import math
+import json
+import os
+import unicodedata
+
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
         self.games = games # Scoreboard
         self.player_ids = self._load_photo_map()
         
-        # Inicializa Módulos com verificação de segurança
+        # Módulos
         self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
         self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
         self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
-        self.vacuum_matrix = VacuumMatrixAnalyzer() if 'VacuumMatrixAnalyzer' in globals() and VacuumMatrixAnalyzer else None
 
-    # --- UTILITÁRIOS (FOTOS E NOMES) ---
+    # --- UTILITÁRIOS ---
     def _strip_accents(self, text):
         try:
             text = unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode("utf-8")
@@ -603,25 +610,30 @@ class NexusEngine:
         except: return str(text)
 
     def _normalize_team(self, team_raw):
-        """Padroniza siglas (LAL, Lakers -> LAL) para evitar erros de Sinergia"""
+        """Padroniza qualquer nome de time para sigla de 3 letras"""
         if not team_raw: return "UNK"
         t = str(team_raw).upper().strip()
         mapping = {
             "ATLANTA": "ATL", "HAWKS": "ATL", "BOSTON": "BOS", "CELTICS": "BOS",
             "BROOKLYN": "BKN", "NETS": "BKN", "CHARLOTTE": "CHA", "HORNETS": "CHA",
-            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE",
-            "DALLAS": "DAL", "MAVS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN",
+            "CHICAGO": "CHI", "BULLS": "CHI", "CLEVELAND": "CLE", "CAVS": "CLE", "CAVALIERS": "CLE",
+            "DALLAS": "DAL", "MAVS": "DAL", "MAVERICKS": "DAL", "DENVER": "DEN", "NUGGETS": "DEN",
             "DETROIT": "DET", "PISTONS": "DET", "GOLDEN STATE": "GSW", "WARRIORS": "GSW", "GS": "GSW",
             "HOUSTON": "HOU", "ROCKETS": "HOU", "INDIANA": "IND", "PACERS": "IND",
-            "CLIPPERS": "LAC", "LAKERS": "LAL", "MEMPHIS": "MEM", "MIAMI": "MIA",
-            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN",
-            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", "NEW YORK": "NYK", "KNICKS": "NYK", "NY": "NYK",
-            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "ORLANDO": "ORL", "MAGIC": "ORL",
-            "PHILADELPHIA": "PHI", "SIXERS": "PHI", "PHOENIX": "PHX", "SUNS": "PHX", "PHO": "PHX",
-            "PORTLAND": "POR", "BLAZERS": "POR", "SACRAMENTO": "SAC", "KINGS": "SAC",
-            "SAN ANTONIO": "SAS", "SPURS": "SAS", "SA": "SAS", "TORONTO": "TOR", "RAPTORS": "TOR",
-            "UTAH": "UTA", "JAZZ": "UTA", "WASHINGTON": "WAS", "WIZARDS": "WAS", "WSH": "WAS"
+            "CLIPPERS": "LAC", "LA CLIPPERS": "LAC", "L.A. CLIPPERS": "LAC",
+            "LAKERS": "LAL", "LA LAKERS": "LAL", "L.A. LAKERS": "LAL", "LOS ANGELES LAKERS": "LAL",
+            "MEMPHIS": "MEM", "GRIZZLIES": "MEM", "MIAMI": "MIA", "HEAT": "MIA",
+            "MILWAUKEE": "MIL", "BUCKS": "MIL", "MINNESOTA": "MIN", "WOLVES": "MIN", "TIMBERWOLVES": "MIN",
+            "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NO": "NOP", "N.O.": "NOP",
+            "NEW YORK": "NYK", "KNICKS": "NYK", "NY": "NYK", "N.Y.": "NYK",
+            "OKLAHOMA CITY": "OKC", "THUNDER": "OKC", "OKC THUNDER": "OKC",
+            "ORLANDO": "ORL", "MAGIC": "ORL", "PHILADELPHIA": "PHI", "SIXERS": "PHI", "76ERS": "PHI",
+            "PHOENIX": "PHX", "SUNS": "PHX", "PHO": "PHX", "PORTLAND": "POR", "BLAZERS": "POR", "TRAIL BLAZERS": "POR",
+            "SACRAMENTO": "SAC", "KINGS": "SAC", "SAN ANTONIO": "SAS", "SPURS": "SAS", "SA": "SAS",
+            "TORONTO": "TOR", "RAPTORS": "TOR", "UTAH": "UTA", "JAZZ": "UTA",
+            "WASHINGTON": "WAS", "WIZARDS": "WAS", "WSH": "WAS"
         }
+        # Tenta mapear, senão pega as 3 primeiras (ex: 'DAL' -> 'DAL')
         return mapping.get(t, t[:3])
 
     def _load_photo_map(self):
@@ -632,7 +644,6 @@ class NexusEngine:
         return {}
 
     def get_photo(self, name):
-        # Tenta nome exato e nome sem acento (Doncic fix)
         pid = self.player_ids.get(name) or self.player_ids.get(self._strip_accents(name))
         if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
@@ -647,13 +658,13 @@ class NexusEngine:
     def run_nexus_scan(self):
         opportunities = []
         
-        # 1. SGP (Sinergia)
+        # 1. SGP
         opportunities.extend(self._scan_sgp_opportunities())
 
-        # 2. Vácuo (Lesões) - Se o módulo estiver ativo
+        # 2. Vácuo
         if self.injury_monitor:
             try: opportunities.extend(self._scan_vacuum_opportunities())
-            except Exception as e: print(f"Erro Vacuum: {e}")
+            except Exception as e: print(f"❌ Erro Crítico Vacuum: {e}")
 
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
@@ -662,29 +673,27 @@ class NexusEngine:
         for p_name, data in self.logs.items():
             team = self._normalize_team(data.get('team'))
             
-            # Filtro Garçom (AST > 6.0)
+            # Filtro Garçom
             avg_ast = self._get_avg_stat(p_name, 'AST')
             if avg_ast < 6.0: continue
 
-            # Busca Parceiro (Com trava de time)
+            # Busca Parceiro (Mesmo Time)
             partner_name = None
             if self.sinergy:
                 try:
-                    res = self.sinergy.analyze_synergy(p_name, team, self.logs) # Passa logs para contexto
+                    res = self.sinergy.analyze_synergy(p_name, team, self.logs)
                     if res and isinstance(res, tuple):
                         cand = res[0]
-                        # TRAVA: Só aceita se for do mesmo time
                         if self._normalize_team(self.logs.get(cand, {}).get('team')) == team:
                             partner_name = cand
                 except: pass
             
-            # Fallback Interno
             if not partner_name:
                 partner_name, _ = self._find_statistical_partner(team, p_name)
 
             if not partner_name: continue
 
-            # Targets Formatados
+            # Targets
             t_ast = f"{math.ceil(avg_ast - 0.5)}+"
             avg_pts = self._get_avg_stat(partner_name, 'PTS')
             t_pts = f"{math.floor(avg_pts)}+"
@@ -692,22 +701,26 @@ class NexusEngine:
             # Score
             score = 60
             badges = []
+            if avg_ast > 9.0: score += 10
+            if avg_pts > 24: score += 10
             
             opp = self._get_opponent(team)
             
-            # Pace
             if opp and self.pace_adjuster:
-                pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                if pace >= 100: 
-                    score += 10
-                    badges.append(f"🏎️ Pace: {int(pace)}")
+                try:
+                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
+                    if pace >= 100: 
+                        score += 10
+                        badges.append(f"🏎️ Pace: {int(pace)}")
+                except: pass
             
-            # DvP
             if opp and self.dvp_analyzer:
-                rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                if rank >= 18: 
-                    score += 15
-                    badges.append("🛡️ DvP Favorável")
+                try:
+                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
+                    if rank >= 18: 
+                        score += 15
+                        badges.append("🛡️ DvP Favorável")
+                except: pass
 
             if score >= 70:
                 found.append({
@@ -722,78 +735,117 @@ class NexusEngine:
         return found
 
     def _scan_vacuum_opportunities(self):
-        """Lógica Baseada no seu Código Antigo: Itera jogos -> Acha Pivô OUT -> Acha Predador"""
+        """
+        LÓGICA INVERTIDA: Itera sobre TODAS as lesões e verifica se o time joga hoje.
+        Isso evita problemas de chave de dicionário (Ex: 'LAL' vs 'Lakers').
+        """
         found = []
         if not self.games: return []
 
-        # 1. Mapeia jogos de hoje (Scoreboard)
-        # Ex: {'LAL': 'DAL', 'DAL': 'LAL'}
-        matchups = {}
+        # 1. Cria mapa dos jogos de hoje: { 'LAL': 'DAL', 'DAL': 'LAL', 'BOS': 'MIA'... }
+        today_matchups = {}
         for g in self.games:
             h = self._normalize_team(g.get('home'))
             a = self._normalize_team(g.get('away'))
-            matchups[h] = a; matchups[a] = h
-
-        # 2. Itera sobre cada time que joga hoje
-        for team, rival in matchups.items():
-            # Pega lesões do RIVAL
-            injuries = self.injury_monitor.get_team_injuries(rival)
-            if not injuries: continue # Se não achar pela sigla normalizada, tenta a sorte com o nome bruto se precisar
-
-            # 3. Procura Pivô (C) Importante OUT
-            big_man_out = False
-            villain_name = ""
+            today_matchups[h] = a
+            today_matchups[a] = h
+        
+        # 2. Pega TODAS as lesões do sistema (flat list)
+        all_injuries_raw = self.injury_monitor.get_all_injuries() # Retorna dict {Team: [List]}
+        
+        # Itera sobre cada time que tem lesão
+        for team_key, injuries in all_injuries_raw.items():
             
+            # Normaliza o nome do time machucado (Ex: 'Los Angeles Lakers' -> 'LAL')
+            injured_team_abbr = self._normalize_team(team_key)
+            
+            # VERIFICA SE ESSE TIME JOGA HOJE
+            if injured_team_abbr not in today_matchups:
+                continue # Time com lesão não joga hoje, pula
+            
+            # Se joga, quem é o adversário?
+            opponent_abbr = today_matchups[injured_team_abbr]
+            
+            # 3. Analisa os jogadores machucados desse time
             for inj in injuries:
                 status = str(inj.get('status', '')).upper()
-                if "OUT" in status or "INJ" in status:
-                    # Verifica Posição
+                name = inj.get('name', '')
+                
+                # Checa se está FORA ou DÚVIDA
+                if any(x in status for x in ['OUT', 'INJ', 'DOUBT', 'QUEST']):
+                    
+                    # Tenta descobrir se é Pivô ou Estrela
+                    is_big = False
+                    is_star = False
                     pos = str(inj.get('position', '')).upper()
-                    name = inj.get('name', '')
                     
-                    # Lógica flexível para achar pivô
-                    is_center = "C" in pos or "CENTER" in pos
+                    # Checagem por Injury Report
+                    if any(x in pos for x in ['C', 'CENTER', 'F-C']): is_big = True
                     
-                    # Se não tiver posição no injury report, olha nos logs
-                    if not is_center and name in self.logs:
-                        p_pos = self.logs[name].get('position', '').upper()
-                        if "C" in p_pos or "CENTER" in p_pos: is_center = True
+                    # Checagem por Logs (mais preciso)
+                    avg_pts_injured = 0
+                    if name in self.logs:
+                        p_data = self.logs[name]
+                        p_pos = str(p_data.get('position', '')).upper()
+                        if 'C' in p_pos or 'CENTER' in p_pos: is_big = True
+                        
+                        # Verifica se é estrela (PTS > 20)
+                        avg_pts_injured = self._get_avg_stat(name, 'PTS')
+                        if avg_pts_injured > 18.0: is_star = True
                     
-                    if is_center:
-                        big_man_out = True
-                        villain_name = name
-                        break # Achamos o buraco no garrafão
-
-            if not big_man_out: continue
-
-            # 4. Acha o Predador (Reboteiro do nosso time)
-            predator = self._find_best_rebounder(team)
-            if not predator: continue
-            
-            avg_reb = self._get_avg_stat(predator, 'REB')
-            if avg_reb < 6.0: continue # Ignora se média for baixa
-
-            # 5. Gera Card
-            score = 75 # Base forte
-            if avg_reb > 10: score += 10 # Reboteiro Elite
-            
-            found.append({
-                "type": "VACUUM",
-                "title": "VÁCUO DE REBOTE",
-                "score": score,
-                "color": "#a855f7",
-                "hero": {
-                    "name": predator, "photo": self.get_photo(predator), 
-                    "status": "🧨 PREDADOR", "stat": "REB", "target": f"{int(avg_reb)}+",
-                    "logo": self.get_team_logo(team)
-                },
-                "villain": {
-                    "name": rival, "missing": villain_name, 
-                    "status": "🚨 OUT", "logo": self.get_team_logo(rival)
-                },
-                "ladder": [f"✅ {int(avg_reb)}+", f"💰 {int(avg_reb+2)}+", f"🚀 {int(avg_reb+4)}+"],
-                "impact": f"Garrafão do {rival} aberto sem {villain_name}."
-            })
+                    # --- CRIA OPORTUNIDADE DE VÁCUO ---
+                    
+                    # CASO 1: PIVÔ FORA -> Predador de Rebotes
+                    if is_big:
+                        predator = self._find_best_rebounder(opponent_abbr)
+                        if predator:
+                            avg_reb = self._get_avg_stat(predator, 'REB')
+                            if avg_reb >= 6.0:
+                                score = 80 + (10 if avg_reb > 10 else 0)
+                                found.append({
+                                    "type": "VACUUM",
+                                    "title": "VÁCUO DE REBOTE",
+                                    "score": score,
+                                    "color": "#a855f7",
+                                    "hero": {
+                                        "name": predator, "photo": self.get_photo(predator), 
+                                        "status": "🧨 PREDADOR", "stat": "REB", "target": f"{int(avg_reb)}+",
+                                        "logo": self.get_team_logo(opponent_abbr)
+                                    },
+                                    "villain": {
+                                        "name": injured_team_abbr, "missing": name, 
+                                        "status": "🚨 OUT", "logo": self.get_team_logo(injured_team_abbr)
+                                    },
+                                    "ladder": [f"✅ {int(avg_reb)}+", f"💰 {int(avg_reb+2)}+", f"🚀 {int(avg_reb+4)}+"],
+                                    "impact": f"Sem {name}, {injured_team_abbr} sofre no garrafão."
+                                })
+                                break # Achou um caso grave neste time, passa pro próximo
+                    
+                    # CASO 2: ESTRELA FORA -> Predador de Pontos (Volume)
+                    elif is_star:
+                        predator, _ = self._find_statistical_partner(opponent_abbr, "NOBODY")
+                        if predator:
+                            avg_pts = self._get_avg_stat(predator, 'PTS')
+                            if avg_pts >= 15.0:
+                                score = 75
+                                found.append({
+                                    "type": "VACUUM",
+                                    "title": "VÁCUO DE PONTOS",
+                                    "score": score,
+                                    "color": "#a855f7",
+                                    "hero": {
+                                        "name": predator, "photo": self.get_photo(predator), 
+                                        "status": "🎯 CESTINHA", "stat": "PTS", "target": f"{int(avg_pts)}+",
+                                        "logo": self.get_team_logo(opponent_abbr)
+                                    },
+                                    "villain": {
+                                        "name": injured_team_abbr, "missing": name, 
+                                        "status": "🚨 OUT", "logo": self.get_team_logo(injured_team_abbr)
+                                    },
+                                    "ladder": [f"✅ {int(avg_pts)}+", f"💰 {int(avg_pts*1.2)}+", f"🚀 {int(avg_pts*1.4)}+"],
+                                    "impact": f"Sem {name}, jogo tende a favorecer {predator}."
+                                })
+                                break
 
         return found
 
@@ -7210,6 +7262,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
