@@ -487,38 +487,6 @@ def show_cloud_diagnostics():
             
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
-def load_global_css():
-    st.markdown("""
-        <style>
-            /* Importando Fontes */
-            @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@300;400;600&display=swap');
-            
-            /* Ajustes Globais */
-            html, body, [class*="css"] {
-                font-family: 'Inter', sans-serif;
-            }
-            h1, h2, h3 {
-                font-family: 'Oswald', sans-serif !important;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-            
-            /* Remove padding excessivo do topo */
-            .block-container {
-                padding-top: 2rem !important;
-                padding-bottom: 2rem !important;
-            }
-            
-            /* Estilização de Métricas Nativas */
-            [data-testid="stMetricValue"] {
-                font-family: 'Oswald', sans-serif;
-                font-size: 2rem !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    
-            
-
 # ============================================================================
 # TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
 # ============================================================================
@@ -6520,104 +6488,70 @@ def load_all_data():
         print(f"Erro detalhado: {e}")
         return False
 
-# ============================================================================
-# CUSTOM CSS (V8.0 - NBA GRID PRO)
-# ============================================================================
+# --- FONTS & CSS GLOBAL (ATUALIZADO v5.0) ---
 FONT_LINKS = """
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 """
 
 CUSTOM_CSS = """
 <style>
-/* --- GERAL --- */
-.stApp {
-    background-color: #050505;
-    background-image: radial-gradient(circle at 50% 0%, #111827 0%, #000000 80%);
-    color: #e2e8f0;
-}
+    /* 1. FORÇAR FUNDO PRETO GLOBAL (FIM DO FUNDO BRANCO) */
+    .stApp {
+        background-color: #000000 !important;
+    }
+    
+    /* 2. REMOVER PADDING DO TOPO (PRINCIPAL E SIDEBAR) */
+    header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
+    
+    .block-container {
+        padding-top: 0rem !important;
+        padding-bottom: 2rem !important;
+        margin-top: -60px !important;
+    }
+    
+    /* Padding da Sidebar - Ataque direto */
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 0rem !important;
+        margin-top: -40px !important;
+    }
 
-/* --- CARD MESTRE --- */
-.nba-card {
-    background: #09090b;
-    border: 1px solid #27272a;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    padding: 0;
-    overflow: hidden;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-    transition: transform 0.2s;
-}
-.nba-card:hover { transform: translateY(-2px); border-color: #52525b; }
+    /* 3. MENU LATERAL - FONTE ARREDONDADA (NUNITO) & BOOST VISUAL */
+    div[role="radiogroup"] label {
+        font-family: 'Nunito', sans-serif !important; /* Fonte Arredondada */
+        font-size: 1rem !important; /* Maior (Boost) */
+        font-weight: 600 !important;
+        padding: 8px 12px !important;
+        color: #94a3b8 !important;
+        border-radius: 8px !important;
+        transition: all 0.3s ease;
+    }
+    
+    /* Hover no Menu */
+    div[role="radiogroup"] label:hover {
+        background: rgba(34, 211, 238, 0.1) !important;
+        color: #ffffff !important;
+        padding-left: 18px !important;
+    }
 
-/* --- HEADER --- */
-.card-header {
-    background: rgba(255,255,255,0.02);
-    padding: 12px 16px;
-    border-bottom: 1px solid #27272a;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.matchup-text { font-family: 'Oswald', sans-serif; font-size: 16px; color: #f8fafc; letter-spacing: 0.5px; }
-.meta-text { font-size: 10px; color: #71717a; margin-top: 2px; font-family: 'Inter', sans-serif; }
-.score-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    font-weight: bold;
-    color: #22d3ee;
-    text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
-}
+    /* Item Selecionado no Menu */
+    div[role="radiogroup"] label[data-checked="true"] {
+        background: linear-gradient(90deg, rgba(34, 211, 238, 0.2) 0%, transparent 100%) !important;
+        border-left: 4px solid #22d3ee !important;
+        color: #22d3ee !important;
+        font-weight: 800 !important; /* Extra Bold */
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+    }
 
-/* --- GRID DE JOGADORES (FLEXBOX PARA SEGURANÇA) --- */
-.players-container {
-    display: flex; /* Mudança para Flexbox para evitar quebras de Grid */
-    flex-direction: row;
-    width: 100%;
-    border-bottom: 1px solid #27272a;
-}
-.player-box {
-    flex: 1; /* Cada jogador ocupa espaço igual */
-    background: #09090b;
-    padding: 12px 4px;
-    text-align: center;
-    border-right: 1px solid #27272a;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-.player-box:last-child { border-right: none; }
-
-.p-name { font-family: 'Inter', sans-serif; font-size: 11px; color: #a1a1aa; font-weight: 600; margin-bottom: 4px; }
-.p-market { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 500; margin-bottom: 4px; }
-.p-thesis { font-size: 9px; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px; }
-
-/* --- RODAPÉ --- */
-.card-footer {
-    padding: 8px 16px;
-    background: #0c0c0e;
-    display: flex;
-    justify-content: flex-end; /* Odd à direita */
-    align-items: center;
-}
-.odd-text { font-family: 'Oswald', sans-serif; font-size: 20px; color: #e2e8f0; letter-spacing: 1px; }
-
-/* --- CORES --- */
-.accent-green { color: #4ade80 !important; }
-.border-green { border-left: 4px solid #4ade80; }
-.accent-orange { color: #fbbf24 !important; }
-.border-orange { border-left: 4px solid #fbbf24; }
-.accent-blue { color: #60a5fa !important; }
-.border-blue { border-left: 4px solid #60a5fa; }
-.accent-purple { color: #c084fc !important; }
-.border-purple { border-left: 4px solid #c084fc; }
-.accent-red { color: #f87171 !important; }
-.border-red { border-left: 4px solid #f87171; }
-.accent-gold { color: #facc15 !important; }
-.border-gold { border-left: 4px solid #facc15; }
-
-/* RESET */
-h1, h2, h3 { font-family: 'Oswald', sans-serif !important; text-transform: uppercase; }
-button { font-family: 'Oswald', sans-serif !important; letter-spacing: 1px; }
+    /* 4. DASHBOARD - PADRONIZAÇÃO OSWALD */
+    /* Força Oswald em headers e textos chave */
+    h1, h2, h3, .stMarkdown div, .stMarkdown p {
+        font-family: 'Oswald', sans-serif !important;
+    }
+    
+    /* Exceção: Textos muito pequenos podem usar Inter para leitura */
+    .small-text { font-family: 'Inter', sans-serif !important; }
 </style>
 """
 # ============================================================================
@@ -7009,15 +6943,24 @@ def main():
         )
   
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V4.0 - ESTÁVEL & NATIVO)
+# DASHBOARD (VISUAL ARENA V5.0 - BLACK MODE & FONT FIX)
 # ============================================================================
 def show_dashboard_page():
+    # CSS Helper para garantir Oswald
+    st.markdown("""
+    <style>
+        .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .gold-text { color: #D4AF37; }
+        .purple-text { color: #A855F7; }
+    </style>
+    """, unsafe_allow_html=True)
+
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data() # Scoreboard validado
+    games = get_scoreboard_data()
     
     if df_l5.empty:
-        st.warning("⚠️ Base de dados L5 vazia. Atualize na aba Configuração.")
+        st.warning("⚠️ Base de dados L5 vazia.")
         return
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
@@ -7026,23 +6969,21 @@ def show_dashboard_page():
         teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
     if not teams_playing_today:
-        st.info("Nenhum time identificado jogando hoje.")
+        st.info("Nenhum jogo identificado para hoje.")
         df_today = pd.DataFrame()
     else:
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
 
     # ========================================================================
-    # 2. DESTAQUES DO DIA (Golden Cards - HTML Seguro)
+    # 2. DESTAQUES DO DIA
     # ========================================================================
-    st.markdown('<div style="font-family: Oswald; color: #D4AF37; font-size: 18px; margin-bottom: 10px; letter-spacing: 1px;">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dash-title gold-text">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
     
-    # Helper para encurtar nomes
     def truncate_name(name, limit=16):
         if not name: return ""
         if len(name) <= limit: return name
         parts = name.split()
-        if len(parts) > 1:
-            return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
+        if len(parts) > 1: return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
         return name[:limit]
 
     if df_today.empty:
@@ -7055,7 +6996,6 @@ def show_dashboard_page():
         top_ast = get_top_n(df_today, 'AST_AVG')
         top_reb = get_top_n(df_today, 'REB_AVG')
 
-        # Renderização HTML (Versão Simplificada e Estável)
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
@@ -7063,33 +7003,30 @@ def show_dashboard_page():
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
             val = king[df_top.columns[2]] 
             
-            # Sub-linhas
             row2_html = ""
             if len(df_top) > 1:
                 p2 = df_top.iloc[1]
-                v2 = f"{p2[df_top.columns[2]]:.1f}"
-                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155;"><span>2. {truncate_name(p2['PLAYER'])}</span><span style="color:{color}; font-weight:bold;">{v2}</span></div>"""
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2['PLAYER'])}</span><span style="color:{color}">{p2[df_top.columns[2]]:.1f}</span></div>"""
             
             row3_html = ""
             if len(df_top) > 2:
                 p3 = df_top.iloc[2]
-                v3 = f"{p3[df_top.columns[2]]:.1f}"
-                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;"><span>3. {truncate_name(p3['PLAYER'])}</span><span style="color:{color}; font-weight:bold;">{v3}</span></div>"""
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3['PLAYER'])}</span><span style="color:{color}">{p3[df_top.columns[2]]:.1f}</span></div>"""
 
             st.markdown(f"""
-            <div style="background: #0f172a; border: 1px solid {color}; border-radius: 8px; overflow: hidden; height: 100%;">
-                <div style="background: {color}20; padding: 5px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 12px; letter-spacing: 1px; border-bottom: 1px solid {color}40;">
+            <div style="background: #0f172a; border: 1px solid {color}; border-radius: 12px; overflow: hidden; height: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <div style="background: {color}20; padding: 6px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 13px; letter-spacing: 1px; border-bottom: 1px solid {color}40;">
                     {icon} {title}
                 </div>
-                <div style="padding: 10px; display: flex; align-items: center;">
-                    <img src="{photo}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
+                <div style="padding: 12px; display: flex; align-items: center;">
+                    <img src="{photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 12px;">
                     <div style="overflow: hidden;">
-                        <div style="color: #fff; font-weight: bold; font-size: 13px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king['PLAYER'])}</div>
-                        <div style="color: #94a3b8; font-size: 10px;">{king['TEAM']}</div>
-                        <div style="color: {color}; font-size: 18px; font-family: 'Oswald'; font-weight: bold;">{val:.1f}</div>
+                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king['PLAYER'])}</div>
+                        <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald' !important;">{king['TEAM']}</div>
+                        <div style="color: {color}; font-size: 20px; font-family: 'Oswald' !important; font-weight: bold;">{val:.1f}</div>
                     </div>
                 </div>
-                <div style="background: rgba(0,0,0,0.3); padding: 6px 10px;">
+                <div style="background: rgba(0,0,0,0.4); padding: 8px 12px;">
                     {row2_html}
                     {row3_html}
                 </div>
@@ -7104,7 +7041,7 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 3. MELHOR DUPLA DO DIA (TRANSPLANTE DO NEXUS - NATIVO)
+    # 3. MELHOR DUPLA DO DIA (HTML BLINDADO COM BORDA)
     # ========================================================================
     nexus_op = None
     if not games.empty and not df_l5.empty:
@@ -7114,80 +7051,91 @@ def show_dashboard_page():
             if logs_cache:
                 nexus = NexusEngine(logs_cache, games_dict)
                 ops = nexus.run_nexus_scan()
-                if ops: nexus_op = ops[0] # Pega só o Top 1
+                if ops: nexus_op = ops[0]
         except: pass
 
     if nexus_op:
         op = nexus_op
-        is_sgp = (op['type'] == 'SGP')
         color = op['color']
-        icon = "⚡" if is_sgp else "🌪️"
+        score = op['score']
         
-        st.markdown('<div style="font-family: Oswald; color: #A855F7; font-size: 18px; margin-bottom: 5px; letter-spacing: 1px;">🧬 MELHOR OPORTUNIDADE (TOP 1 NEXUS)</div>', unsafe_allow_html=True)
+        # Strings Seguras
+        h_name = truncate_name(op['hero']['name'], 15)
+        h_photo = op['hero']['photo']
+        h_info = f"{op['hero']['target']} {op['hero']['stat']}"
+        
+        p_obj = op.get('partner', op.get('villain'))
+        p_name = truncate_name(p_obj['name'], 15)
+        p_photo = p_obj.get('photo', p_obj.get('logo'))
+        
+        mid_icon = "🔗" if 'partner' in op else "⚔️"
+        p_info = f"{op['partner']['target']} {op['partner']['stat']}" if 'partner' in op else f"Alvo: {op['villain']['status']}"
+        
+        impact = op.get('impact', 'Alta Sinergia')
 
-        # CONTAINER PRINCIPAL (Simula o Card com Borda)
-        with st.container():
-            # Cabeçalho do Card
-            st.markdown(f"""
-            <div style="background: linear-gradient(90deg, {color}20 0%, transparent 100%); 
-                        border-left: 5px solid {color}; padding: 10px; border-radius: 5px 5px 0 0; margin-bottom: 10px;">
-                <div style="display:flex; justify-content: space-between; align-items: center;">
-                    <span style="font-family:'Oswald'; color:white; font-size:16px;">{icon} {op['title']}</span>
-                    <span style="background:{color}; color:black; font-weight:bold; padding:2px 8px; border-radius:4px; font-size:12px;">SCORE {op['score']}</span>
-                </div>
+        st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS TOP 1)</div>', unsafe_allow_html=True)
+
+        # HTML UNIFICADO (COM BORDA GERAL) - IDÊNTICO AO DESTAQUE MAS LARGO
+        st.markdown(f"""
+        <div style="
+            background: #0f172a; 
+            border: 1px solid {color}; 
+            border-left: 5px solid {color}; 
+            border-radius: 12px; 
+            padding: 0; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            overflow: hidden;
+        ">
+            <div style="background: linear-gradient(90deg, {color}20 0%, transparent 100%); padding: 10px 15px; border-bottom: 1px solid {color}30; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-family: 'Oswald'; color: #fff; font-size: 16px; letter-spacing: 1px;">{op['title']}</span>
+                <span style="background: {color}; color: #000; font-weight: bold; font-family: 'Oswald'; font-size: 12px; padding: 2px 8px; border-radius: 4px;">SCORE {score}</span>
             </div>
-            """, unsafe_allow_html=True)
 
-            # ESTRUTURA DE COLUNAS (O SEGREDO DA ESTABILIDADE)
-            # Usamos st.columns em vez de HTML flexbox
-            col_hero, col_mid, col_target = st.columns([1, 0.3, 1])
-            
-            # --- HEROI ---
-            with col_hero:
-                ch1, ch2 = st.columns([0.4, 1])
-                with ch1: st.image(op['hero']['logo'], width=40)
-                with ch2: st.image(op['hero']['photo'], width=65)
+            <div style="padding: 15px; display: flex; justify-content: space-around; align-items: center;">
                 
-                st.markdown(f"<div style='line-height:1.2; font-weight:bold; margin-top:5px;'>{op['hero']['name']}</div>", unsafe_allow_html=True)
-                
-                t_val = op['hero'].get('target', '')
-                t_stat = op['hero'].get('stat', '')
-                st.markdown(f"<div style='color:{color}; font-size:12px; border:1px solid {color}; border-radius:4px; text-align:center; padding:2px; margin-top:4px;'>🎯 <b>{t_val}</b> {t_stat}</div>", unsafe_allow_html=True)
+                <div style="text-align: center; width: 33%;">
+                    <img src="{h_photo}" style="width: 65px; height: 65px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; box-shadow: 0 0 10px {color}40;">
+                    <div style="font-family: 'Oswald'; color: #fff; font-size: 14px; margin-top: 5px;">{h_name}</div>
+                    <div style="font-family: 'Oswald'; color: {color}; font-size: 12px; border: 1px solid {color}60; border-radius: 4px; display: inline-block; padding: 1px 6px; margin-top: 2px;">{h_info}</div>
+                </div>
 
-            # --- MEIO (VS ou LINK) ---
-            with col_mid:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if is_sgp:
-                    st.markdown(f"<div style='text-align:center; font-size:24px;'>🔗</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='text-align:center; font-size:24px;'>⚔️</div>", unsafe_allow_html=True)
+                <div style="font-size: 24px; color: #64748b; opacity: 0.5;">{mid_icon}</div>
 
-            # --- PARCEIRO / VILÃO ---
-            with col_target:
-                if is_sgp:
-                    cp1, cp2 = st.columns([1, 0.4])
-                    with cp1: st.image(op['partner']['photo'], width=65)
-                    with cp2: st.image(op['partner']['logo'], width=40)
-                    
-                    st.markdown(f"<div style='line-height:1.2; font-weight:bold; margin-top:5px;'>{op['partner']['name']}</div>", unsafe_allow_html=True)
-                    
-                    p_val = op['partner']['target']
-                    p_stat = op['partner']['stat']
-                    st.markdown(f"<div style='color:white; font-size:12px; border:1px solid #64748b; border-radius:4px; text-align:center; padding:2px; margin-top:4px; background:#1e293b;'>🎯 <b>{p_val}</b> {p_stat}</div>", unsafe_allow_html=True)
-                else:
-                    cv1, cv2 = st.columns([0.4, 1])
-                    with cv1: st.image(op['villain']['logo'], width=40)
-                    with cv2: 
-                        st.markdown(f"**{op['villain']['name']}**")
-                        st.caption("Defesa")
-                    
-                    st.markdown(f"<div style='color:#f87171; font-weight:bold; font-size:12px; margin-top:5px;'>🚨 {op['villain']['status']}</div>", unsafe_allow_html=True)
+                <div style="text-align: center; width: 33%;">
+                    <img src="{p_photo}" style="width: 65px; height: 65px; border-radius: 50%; border: 2px solid #fff; object-fit: cover; background: #000;">
+                    <div style="font-family: 'Oswald'; color: #fff; font-size: 14px; margin-top: 5px;">{p_name}</div>
+                    <div style="font-family: 'Oswald'; color: #cbd5e1; font-size: 12px; border: 1px solid #475569; border-radius: 4px; display: inline-block; padding: 1px 6px; margin-top: 2px;">{p_info}</div>
+                </div>
 
-            # Rodapé do Card
-            st.divider()
-            st.caption(f"🧠 Análise: {op.get('impact', 'Alta Sinergia Detectada')}")
+            </div>
+
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; text-align: center; font-family: 'Oswald'; font-size: 11px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
+                ANALISTA: {impact}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # ========================================================================
+    # 4. GAME GRID
+    # ========================================================================
+    st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
+
+    if games.empty:
+        st.info("Nenhum jogo encontrado para hoje.")
+    else:
+        odds_cache = st.session_state.get("odds", {})
+        rows = st.columns(2)
+        for i, (index, game) in enumerate(games.iterrows()):
+            with rows[i % 2]:
+                render_game_card(
+                    away_team=game['away'],
+                    home_team=game['home'],
+                    game_data=game,
+                    odds_map=odds_cache
+                )
 
     # ========================================================================
     # 4. GAME GRID (INTOCÁVEL)
@@ -7337,6 +7285,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
