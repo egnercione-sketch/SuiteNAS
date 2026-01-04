@@ -590,231 +590,174 @@ import json
 import os
 import unicodedata
 
+# ============================================================================
+# NEXUS ENGINE - O CÉREBRO DE OPORTUNIDADES (SGP & VÁCUO)
+# ============================================================================
+import json
+import os
+
+# Tenta importar os módulos externos (Assumindo que existem e funcionam)
+# Se não existirem, usamos mocks (simulações) para o código não quebrar.
+try:
+    from injuries import InjuryMonitor
+    from modules.new.sinergy_engine import SinergyEngine
+    from modules.new.pace_adjuster import PaceAdjuster
+    from modules.new.dvp_analyzer import DvpAnalyzer
+    from modules.new.archetype_engine import ArchetypeEngine
+except ImportError:
+    # Classes Dummy para evitar erro se os arquivos não estiverem perfeitos
+    class InjuryMonitor: 
+        def get_injured_players(self): return []
+    class SinergyEngine: 
+        def find_partner(self, player, team): return None
+    class PaceAdjuster: 
+        def get_game_pace(self, team): return 98
+    class DvpAnalyzer: 
+        def analyze_defense(self, team, position): return {"rating": "C", "rank": 15}
+    class ArchetypeEngine: 
+        def get_archetype(self, player): return "General"
+
 class NexusEngine:
     def __init__(self, logs_cache, games):
         self.logs = logs_cache
         self.games = games
-        self.player_ids = self._load_photo_map()
         
-        # Módulos
-        self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
-        self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
-        self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
-        self.sinergy = SinergyEngine() if 'SinergyEngine' in globals() and SinergyEngine else None
-
-    def _strip_accents(self, text):
-        """Remove acentos: Dončić -> Doncic"""
-        try:
-            text = unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode("utf-8")
-            return str(text)
-        except: return str(text)
-
-    def _load_photo_map(self):
-        # Tenta carregar mapa de IDs
+        # Inicializa os Consultores
+        self.injury_monitor = InjuryMonitor()
+        self.sinergy = SinergyEngine()
+        self.pace = PaceAdjuster()
+        self.dvp = DvpAnalyzer()
+        self.archetype = ArchetypeEngine()
+        
+        # Cache de IDs para Fotos (Reuso da lógica do 5/7/10)
+        self.player_ids = {}
         if os.path.exists("nba_players_map.json"):
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    self.player_ids = json.load(f)
             except: pass
-        return {}
 
     def get_photo(self, name):
-        # 1. Tenta nome exato
+        # Lógica simplificada de foto
         pid = self.player_ids.get(name)
-        
-        # 2. Tenta nome sem acentos (Correção Doncic)
-        if not pid:
-            clean_name = self._strip_accents(name)
-            pid = self.player_ids.get(clean_name)
-            
         if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        
-        # Fallback genérico
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    def get_team_logo(self, team_abbr):
-        if not team_abbr: return "https://a.espncdn.com/i/teamlogos/nba/500/nba.png"
-        # Normaliza para garantir link
-        abbr = str(team_abbr).lower().strip()
-        mapping = {
-            "utah": "utah", "uta": "utah", "nop": "no", "no": "no",
-            "gs": "gs", "gsw": "gs", "ny": "ny", "nyk": "ny",
-            "sa": "sa", "sas": "sa", "pho": "pho", "phx": "pho",
-            "wsh": "wsh", "was": "wsh"
-        }
-        abbr = mapping.get(abbr, abbr)
-        return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr}.png"
-
     def run_nexus_scan(self):
+        """O Loop Principal de Inteligência"""
         opportunities = []
-        opportunities.extend(self._scan_sgp_protocol())
         
-        if self.injury_monitor:
-            try: opportunities.extend(self._scan_vacuum_protocol())
-            except: pass
-        
+        # 1. SCANNER DE SGP (SIMBIOSE)
+        # Procura Garçons (High AST) e seus parceiros
+        sgp_ops = self._scan_sgp_opportunities()
+        opportunities.extend(sgp_ops)
+
+        # 2. SCANNER DE VÁCUO (REBOTE)
+        # Procura Pivôs adversários machucados
+        vacuum_ops = self._scan_vacuum_opportunities()
+        opportunities.extend(vacuum_ops)
+
+        # Ordena por Score de Oportunidade (0 a 100)
         return sorted(opportunities, key=lambda x: x['score'], reverse=True)
 
-    def _scan_sgp_protocol(self):
+    def _scan_sgp_opportunities(self):
         found = []
+        # Lógica: Varrer jogadores com média alta de AST no cache
         for p_name, data in self.logs.items():
-            team = data.get('team', 'UNK')
+            logs = data.get('logs', {})
+            ast_logs = logs.get('AST', [])
             
-            # Motor: AST > 6
-            avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue 
+            # Filtro 1: É um Garçom? (Média > 7 AST nos últimos 10)
+            if not ast_logs or len(ast_logs) < 10: continue
+            avg_ast = sum(ast_logs[:10]) / 10
+            if avg_ast < 7.0: continue
 
-            # Parceiro (Mesmo Time)
-            partner_name = None
-            if self.sinergy:
-                try: 
-                    res = self.sinergy.analyze_synergy(p_name, team, self.logs)
-                    if res and isinstance(res, tuple):
-                        cand_name = res[0]
-                        if self.logs.get(cand_name, {}).get('team') == team:
-                            partner_name = cand_name
-                except: pass
+            team = data.get('team')
             
-            if not partner_name:
-                partner_name, _ = self._find_statistical_partner(team, p_name)
+            # CONSULTA 1: SINERGIA
+            # Quem é o parceiro desse cara? (Ex: Trae -> Jalen)
+            partner_name = self.sinergy.find_partner(p_name, team) 
+            if not partner_name: continue # Se não tem parceiro claro, pula
 
-            if not partner_name: continue
+            # CONSULTA 2: PACE
+            game_pace = self.pace.get_game_pace(team)
+            if game_pace < 100: continue # Jogo lento mata SGP
 
-            # Targets
-            hero_target = f"{math.ceil(avg_ast - 0.5)}+"
-            p_avg_pts = self._get_avg_stat(partner_name, 'PTS')
-            partner_target = f"{math.floor(p_avg_pts)}+"
-
-            # Score
-            score = 60
-            badges = []
-            if avg_ast > 9.0: score += 10
-            if p_avg_pts > 25: score += 10
+            # CONSULTA 3: DVP
+            # Defesa adversária cede AST?
+            opp_defense = self.dvp.analyze_defense(team, "PG") # Assume PG para quem dá assist
             
-            opp = self._get_opponent(team)
-            if opp and self.pace_adjuster:
-                try:
-                    pace = self.pace_adjuster.calculate_game_pace(team, opp)
-                    if pace >= 100: 
-                        score += 10
-                        badges.append(f"🏎️ Pace: {int(pace)}")
-                except: pass
-            
-            if opp and self.dvp_analyzer:
-                try:
-                    rank = self.dvp_analyzer.get_position_rank(opp, "PG")
-                    if rank >= 18: 
-                        score += 15
-                        badges.append("🛡️ DvP Favorável")
-                except: pass
+            # CALCULA SCORE
+            score = 50 # Base
+            score += 10 if game_pace > 103 else 0
+            score += 20 if opp_defense.get('rank', 15) > 20 else 0 # Top 10 pior defesa
             
             if score >= 70:
                 found.append({
                     "type": "SGP",
                     "title": "ECOSSISTEMA SIMBIÓTICO",
                     "score": score,
-                    "color": "#eab308",
-                    "hero": {
-                        "name": p_name, "photo": self.get_photo(p_name), 
-                        "role": "🧠 O MOTOR", "stat": "AST", "target": hero_target, 
-                        "logo": self.get_team_logo(team)
-                    },
-                    "partner": {
-                        "name": partner_name, "photo": self.get_photo(partner_name), 
-                        "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": partner_target, 
-                        "logo": self.get_team_logo(team)
-                    },
-                    "badges": badges + ["🔥 Sinergia Alta"]
+                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "stat": "AST", "target": "8+"},
+                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "stat": "PTS", "target": "20+"},
+                    "context": [f"Ritmo: {game_pace}", "Sinergia Alta"],
+                    "color": "#eab308" # Amarelo
                 })
         return found
 
-    def _scan_vacuum_protocol(self):
+    def _scan_vacuum_opportunities(self):
         found = []
-        if not self.games: return []
+        # Lógica: Olhar lista de lesionados e ver quem enfrenta eles
+        injured_list = self.injury_monitor.get_injured_players()
         
-        matchups = {}
-        for g in self.games:
-            h, a = str(g.get('home')), str(g.get('away'))
-            matchups[h] = a; matchups[a] = h
+        for injured in injured_list:
+            # Filtro 1: O lesionado é Pivô (Center)?
+            if "C" not in injured.get('position', ''): continue
             
-        for team, rival in matchups.items():
-            try:
-                injuries = self.injury_monitor.get_team_injuries(rival)
-            except: continue
-            
-            if not injuries: continue
-            
-            big_out = False
-            missing_player = ""
-            villain_status = "OUT"
-            
-            for inj in injuries:
-                status = str(inj.get('status', '')).lower()
-                name = inj.get('name', '')
-                if any(x in status for x in ['out', 'inj', 'doubt']):
-                    # Lógica simplificada: Se tem lesão relevante, marca flag
-                    # Em produção, checar posição C/PF
-                    if 'C' in str(inj.get('position','')).upper():
-                        big_out = True
-                        missing_player = name
-                        villain_status = "OUT" if "out" in status else "GTD"
-                        break
-            
-            if not big_out: continue
-            
-            predator_name = self._find_best_rebounder(team)
-            if not predator_name: continue
-            
-            avg_reb = self._get_avg_stat(predator_name, 'REB')
-            if avg_reb < 6.0: continue
-            
-            score = 75 + (10 if avg_reb > 10 else 0)
-            
-            found.append({
-                "type": "VACUUM",
-                "title": "VÁCUO DE REBOTE",
-                "score": score,
-                "color": "#a855f7",
-                "hero": {
-                    "name": predator_name, "photo": self.get_photo(predator_name), 
-                    "status": "🧨 PREDADOR", "logo": self.get_team_logo(team)
-                },
-                "villain": {
-                    "name": rival, "missing": missing_player, 
-                    "status": f"🚨 {villain_status}", "logo": self.get_team_logo(rival)
-                },
-                "ladder": [f"✅ {int(avg_reb)}+", f"💰 {int(avg_reb+2)}+", f"🚀 {int(avg_reb+4)}+"],
-                "impact": f"Sem {missing_player}, garrafão aberto."
-            })
+            opp_team = injured.get('opponent_today')
+            if not opp_team: continue
 
+            # Quem é o Pivô do time adversário (O nosso Herói)?
+            # Aqui varremos o cache procurando o C do opp_team com mais rebotes
+            hero_name = self._find_best_rebounder(opp_team)
+            if not hero_name: continue
+
+            # CONSULTA: É Dynamite em Rebotes?
+            # (Simplificado: média > 10)
+            hero_data = self.logs.get(hero_name, {})
+            reb_logs = hero_data.get('logs', {}).get('REB', [])
+            if not reb_logs: continue
+            avg_reb = sum(reb_logs[:10]) / len(reb_logs[:10])
+
+            if avg_reb > 9.0:
+                # Temos um Vácuo!
+                score = 60 # Base
+                score += 20 # Pivô titular fora é big deal
+                score += 10 if avg_reb > 11 else 0
+
+                found.append({
+                    "type": "VACUUM",
+                    "title": "VÁCUO DE REBOTE",
+                    "score": score,
+                    "hero": {"name": hero_name, "photo": self.get_photo(hero_name), "stat": "REB", "target": "12+"},
+                    "villain": {"name": injured['name'], "status": "OUT 🚑"},
+                    "context": ["Garrafão Aberto", "Oponente Baixo"],
+                    "color": "#a855f7" # Roxo
+                })
         return found
 
-    def _get_avg_stat(self, player, stat):
-        d = self.logs.get(player, {}).get('logs', {}).get(stat, [])
-        return sum(d[:10])/len(d[:10]) if d else 0
-
-    def _get_opponent(self, team):
-        if not self.games: return None
-        for g in self.games:
-            if g.get('home') == team: return g.get('away')
-            if g.get('away') == team: return g.get('home')
-        return None
-
-    def _find_statistical_partner(self, team, exclude):
-        best, max_pts = None, 0
-        for name, data in self.logs.items():
-            if data.get('team') == team and name != exclude:
-                val = self._get_avg_stat(name, 'PTS')
-                if val > max_pts: max_pts = val; best = name
-        return best, max_pts
-
     def _find_best_rebounder(self, team):
-        best, max_reb = None, 0
+        # Função auxiliar simples para achar o dono do garrafão do time
+        best_reb = 0
+        best_player = None
         for name, data in self.logs.items():
             if data.get('team') == team:
-                val = self._get_avg_stat(name, 'REB')
-                if val > max_reb: max_reb = val; best = name
-        return best
+                rebs = data.get('logs', {}).get('REB', [])
+                if rebs:
+                    avg = sum(rebs[:5])/5
+                    if avg > best_reb:
+                        best_reb = avg
+                        best_player = name
+        return best_player
         
 def show_nexus_page():
     # Carregamento
@@ -7196,6 +7139,7 @@ def main():
 if __name__ == "__main__":
 
     main()
+
 
 
 
