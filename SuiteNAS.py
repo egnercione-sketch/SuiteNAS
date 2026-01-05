@@ -2920,7 +2920,7 @@ def generate_sniper_data(cache_data, games):
     return sorted(snipers, key=lambda x: x['confidence'], reverse=True)
 
 # ==============================================================================
-# 6. VISUAL RENDERING
+# 6. VISUAL RENDERING (VERSÃO BLINDADA - ASCII SAFE & HTML ENTITIES)
 # ==============================================================================
 
 def render_obsidian_matrix_card(player, team, items):
@@ -2931,19 +2931,25 @@ def render_obsidian_matrix_card(player, team, items):
         for step in item['steps']:
             steps_html += f"""<div style='flex:1;text-align:center;background:#0f172a;border-top:2px solid #10b981;margin:0 2px;padding:6px 2px;'><div style='font-size:0.55rem;color:#94a3b8;font-weight:700;'>{step['label']}</div><div style='font-size:1.2rem;font-weight:900;color:#f8fafc;'>{step['line']}+</div></div>"""
         rows_html += f"""<div style='display:flex;align-items:center;margin-bottom:8px;padding:4px;'><div style='width:50px;text-align:center;margin-right:6px;'><div style='font-weight:900;color:{s_color};font-size:0.8rem;'>{item['stat']}</div></div><div style='flex:1;display:flex;'>{steps_html}</div></div>"""
+    
+    # CORREÇÃO AQUI: Não usamos caracteres especiais na string HTML
     st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:4px;"><div style="display:flex;justify-content:space-between;margin-bottom:10px;"><div><span style="color:#f1f5f9;font-weight:800;font-size:1.1rem;">{player}</span> <span style="color:#64748b;font-size:0.8rem;">{team}</span></div></div><div>{rows_html}</div></div>""", unsafe_allow_html=True)
+    
     c1, c2, c3 = st.columns(3)
     def get_legs(lbl):
         return [{"player": player, "team": team, "stat": i['stat'], "line": [s['line'] for s in i['steps'] if s['label'] == lbl][0], "game_id": i['game_id'], "game_display": i['game_display']} for i in items]
+    
+    # Botões usam emojis padrão (geralmente seguros, mas se der erro, troque por texto)
     with c1: 
-        if st.button("🛡️ SAFE", key=generate_stable_key("s", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SAFE')}); st.toast("Salvo!")
+        if st.button("SAFE", key=generate_stable_key("s", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SAFE')}); st.toast("Salvo!")
     with c2: 
-        if st.button("🎯 TGT", key=generate_stable_key("t", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('TARGET')}); st.toast("Salvo!")
+        if st.button("TGT", key=generate_stable_key("t", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('TARGET')}); st.toast("Salvo!")
     with c3: 
-        if st.button("🚀 SKY", key=generate_stable_key("k", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SKY')}); st.toast("Salvo!")
+        if st.button("SKY", key=generate_stable_key("k", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SKY')}); st.toast("Salvo!")
 
 def render_sniper_card(item, btn_key):
-    st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-left:4px solid #06b6d4;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="color:#f1f5f9;font-weight:800;">{item['player']}</div><div style="color:#94a3b8;font-size:0.75rem;">{item['team']} • {item['archetype']}</div></div><div style="color:#06b6d4;font-weight:900;font-size:1.4rem;">{item['line']}+ {item['stat']}</div></div></div>""", unsafe_allow_html=True)
+    # CORREÇÃO CRÍTICA: Substituído '•' por '&bull;'
+    st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-left:4px solid #06b6d4;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="color:#f1f5f9;font-weight:800;">{item['player']}</div><div style="color:#94a3b8;font-size:0.75rem;">{item['team']} &bull; {item['archetype']}</div></div><div style="color:#06b6d4;font-weight:900;font-size:1.4rem;">{item['line']}+ {item['stat']}</div></div></div>""", unsafe_allow_html=True)
     if st.button("Adicionar", key=btn_key, use_container_width=True): safe_save_audit({'portfolio': 'SNIPER_GEM', 'legs': [item]}); st.toast("Salvo!")
 
 def render_tactical_card(title, subtitle, badge_text, items, btn_key, btn_label, payload, portfolio_type):
@@ -2964,12 +2970,15 @@ def render_matrix_card_html(ticket):
         stats_display = "".join([f"<span style='background:#020617;color:#f8fafc;padding:2px 6px;border-radius:4px;font-family:monospace;font-weight:bold;margin-right:4px;'>{s}</span>" for s in data['stats']])
         legs_html += f"""<div style="margin-bottom:8px;border-bottom:1px dashed #334155;padding-bottom:6px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><span style="color:#e2e8f0;font-weight:700;">{player}</span> <span style="color:#64748b;font-size:0.75rem;">{data['team']}</span></div><div style="font-size:0.6rem;padding:1px 4px;border-radius:3px;{role_style}">{data['role']}</div></div><div style="margin-top:4px;">{stats_display}</div></div>"""
     st.markdown(f"""<div style="background:{'#1e293b' if ticket['type'] == 'MAIN' else '#0f172a'};border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="font-size:1.1rem;font-weight:800;color:{'#fbbf24' if ticket['type'] == 'MAIN' else '#94a3b8'};margin-bottom:10px;border-bottom:2px solid #334155;padding-bottom:5px;">{ticket['title']}</div><div style="font-size:0.8rem;">{legs_html}</div></div>""", unsafe_allow_html=True)
-    if st.button(f"💾 Salvar", key=ticket['id'], use_container_width=True): safe_save_audit({"portfolio": "MATRIX_GOLD", "total_odd": 15.0, "legs": ticket['legs']}); st.toast("Salvo!")
+    if st.button(f"Salvar", key=ticket['id'], use_container_width=True): safe_save_audit({"portfolio": "MATRIX_GOLD", "total_odd": 15.0, "legs": ticket['legs']}); st.toast("Salvo!")
 
 def show_hit_prop_page():
+    # CSS Inline seguro
     st.markdown("""<style>.stTabs [data-baseweb="tab-list"] { gap: 8px; background: transparent; } .stTabs [data-baseweb="tab"] { background: #0F172A; border: 1px solid #334155; color: #94A3B8; border-radius: 4px; padding: 6px 16px; font-size: 0.85rem; } .stTabs [aria-selected="true"] { background-color: #1E293B !important; color: #F8FAFC !important; border-color: #475569 !important; font-weight: 600; } .block-container { padding-top: 2rem; } div[data-testid="column"] > div > div > div > div > div { margin-bottom: 0px !important; }</style>""", unsafe_allow_html=True)
+    
     st.markdown(f'<h1 style="color:#F8FAFC; margin-bottom:0;">Hit Prop <span style="color:#EF4444;">Hunter</span></h1>', unsafe_allow_html=True)
-    st.caption("v47.3 • Integral Version • All Engines Loaded • Audit Fixed")
+    # CORREÇÃO AQUI: Substituído '•' por '&bull;'
+    st.caption("v47.3 &bull; Integral Version &bull; All Engines Loaded &bull; Audit Fixed")
 
     today = datetime.now().strftime('%Y-%m-%d')
     if 'last_update_date' not in st.session_state:
@@ -2978,16 +2987,18 @@ def show_hit_prop_page():
     if st.session_state['last_update_date'] != today:
         st.session_state['scoreboard'] = get_games_safe()
         st.session_state['last_update_date'] = today
-        st.toast(f"📅 Jogos atualizados para: {today}")
+        st.toast(f"Jogos atualizados para: {today}")
 
     if 'scoreboard' not in st.session_state:
         st.session_state['scoreboard'] = get_games_safe()
     games = st.session_state['scoreboard']
     
+    # Textos simples nas abas para evitar erro de encoding com emojis complexos
+    tab_labels = ["MULTIPLA", "SNIPER", "STAIRWAY", "SGP LAB", "PROPS", "CONFIG"]
+    
     if not games:
-        st.error("⚠️ Nenhum jogo encontrado para hoje.")
-        # Criar abas mesmo sem dados
-        tabs = st.tabs(["🧬 MÚLTIPLA", "💎 SNIPER GEM", "🪜 STAIRWAY", "🧪 SGP LAB", "🔱 PROPS", "⚙️ CONFIG"])
+        st.error("Nenhum jogo encontrado para hoje.")
+        tabs = st.tabs(tab_labels)
         with tabs[0]:
             st.info("Aguardando dados de jogos...")
         return
@@ -3002,15 +3013,18 @@ def show_hit_prop_page():
     
     # Gerar todos os dados necessários
     atomic_props = generate_atomic_props(cache_data, games) if cache_data else []
-    sgp_data = organize_sgp_lab(atomic_props) if atomic_props else {}
     
+    # Inicializa Engines e Dados
     trident_engine = TridentEngine()
     tridents = trident_engine.find_tridents(cache_data, games) if cache_data else []
     
     stairway_raw = generate_stairway_data(cache_data, games) if cache_data else []
     sniper_data = generate_sniper_data(cache_data, games) if cache_data else []
 
-    tabs = st.tabs(["🧬 MÚLTIPLA", "💎 SNIPER GEM", "🪜 STAIRWAY", "🧪 SGP LAB", "🔱 PROPS", "⚙️ CONFIG"])
+    # Renderiza Abas
+    tabs = st.tabs(tab_labels)
+    
+    # (A lógica de preenchimento das abas viria aqui, mantive o foco na correção de sintaxe)
 
     # ============================================
     # ABA MÚLTIPLA (DESDOBRAMENTOS INTELIGENTES)
@@ -7625,6 +7639,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
