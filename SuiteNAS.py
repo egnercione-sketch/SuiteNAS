@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V46.0 - AUTO-PILOT)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V48.0 - TARGET 'INJURIES')
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6856,86 +6856,51 @@ def show_depto_medico():
         .bio-title { font-family: 'Oswald', sans-serif; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
         .bio-sub { font-family: 'Nunito', sans-serif; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
 
-        /* HERO: ALA HOSPITALAR (ESTRELAS) */
         .hospital-ward {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px;
         }
 
         .ward-card {
             background: linear-gradient(145deg, #2b1111, #1a0b0b);
-            border: 1px solid #7f1d1d;
-            border-left: 5px solid #ef4444;
-            border-radius: 10px;
-            padding: 15px;
-            display: flex; align-items: center; gap: 15px;
-            box-shadow: 0 4px 10px rgba(220, 38, 38, 0.1);
-            position: relative;
-            overflow: hidden;
+            border: 1px solid #7f1d1d; border-left: 5px solid #ef4444; border-radius: 10px;
+            padding: 15px; display: flex; align-items: center; gap: 15px;
+            box-shadow: 0 4px 10px rgba(220, 38, 38, 0.1); position: relative; overflow: hidden;
         }
         
-        /* Efeito de Sirene */
         .pulse-alert {
             position: absolute; top: 0; right: 0; width: 100%; height: 100%;
             background: radial-gradient(circle, rgba(255,0,0,0.1) 0%, rgba(0,0,0,0) 70%);
-            animation: pulse 2s infinite;
-            pointer-events: none;
+            animation: pulse 2s infinite; pointer-events: none;
         }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
-        .w-img {
-            width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
-            border: 2px solid #ef4444; background: #000; z-index: 1;
-        }
-
+        .w-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #ef4444; background: #000; z-index: 1; }
         .w-info { z-index: 1; width: 100%; }
         .w-name { font-family: 'Oswald', sans-serif; font-size: 18px; color: #fff; line-height: 1.1; }
         .w-meta { font-size: 12px; color: #fca5a5; font-weight: bold; margin-top: 2px; }
-        .w-status { 
-            font-size: 11px; font-weight: bold; background: #7f1d1d; color: #fecaca; 
-            padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 6px; 
-            border: 1px solid #ef4444;
-        }
+        .w-status { font-size: 11px; font-weight: bold; background: #7f1d1d; color: #fecaca; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 6px; border: 1px solid #ef4444; }
 
-        /* LISTA GERAL */
-        .roster-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;
-        }
-
-        .injury-mini-card {
-            background: #1e293b; border: 1px solid #334155; border-radius: 8px;
-            padding: 10px; display: flex; align-items: center; justify-content: space-between;
-        }
-        
+        .roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+        .injury-mini-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
         .inj-left { display: flex; align-items: center; gap: 10px; }
         .inj-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #0f172a; border: 1px solid #475569; }
         .inj-txt { display: flex; flex-direction: column; }
         .inj-name { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; }
         .inj-desc { font-size: 10px; color: #94a3b8; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .inj-badge { 
-            font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; 
-            text-align: center; min-width: 60px;
-        }
-        
+        .inj-badge { font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; text-align: center; min-width: 60px; }
         .st-out { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
         .st-gtd { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid #f97316; }
         .st-prob { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
 
-        .team-separator {
-            font-family: 'Oswald'; font-size: 18px; color: #cbd5e1; 
-            border-bottom: 2px solid #334155; padding-bottom: 5px; margin: 25px 0 15px 0;
-            display: flex; justify-content: space-between; align-items: center;
-        }
+        .team-separator { font-family: 'Oswald'; font-size: 18px; color: #cbd5e1; border-bottom: 2px solid #334155; padding-bottom: 5px; margin: 25px 0 15px 0; display: flex; justify-content: space-between; align-items: center; }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="bio-title">🚑 BIO-MONITOR</div>', unsafe_allow_html=True)
-    st.markdown('<div class="bio-sub">Sincronização automática com Supabase Cloud.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="bio-sub">Conectando ao banco de dados Supabase...</div>', unsafe_allow_html=True)
 
-    # --- 2. CARREGAMENTO AUTOMÁTICO (AUTO-PILOT) ---
+    # --- 2. CONFIGURAÇÃO DE MAPAS ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -6944,7 +6909,6 @@ def show_depto_medico():
             return text.upper().strip()
         except: return ""
 
-    # Carrega L5 para Impacto
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_IMPACT_MAP = {}
     PLAYER_ID_MAP = {}
@@ -6961,72 +6925,96 @@ def show_depto_medico():
                 nm = normalize_str(row.get(c_name, ''))
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0
-                
                 impact = 0
-                if mins >= 30: impact = 2 # Estrela
-                elif mins >= 20: impact = 1 # Rotação
-                
+                if mins >= 30: impact = 2 
+                elif mins >= 20: impact = 1
                 PLAYER_IMPACT_MAP[nm] = impact
                 PLAYER_ID_MAP[nm] = row.get(c_id, 0)
         except: pass
 
-    # --- 3. FETCH E TRATAMENTO DE DADOS ---
+    # --- 3. FETCH E PARSING INTELIGENTE ---
     injuries_list = []
     data_source = "NONE"
     
-    # Tentativa 1: Cache v44 (Nome explícito do arquivo)
-    raw_data = get_data_universal('injuries_cache_v44')
+    # === AQUI ESTÁ A CORREÇÃO: TENTAR A CHAVE 'INJURIES' PRIMEIRO ===
+    # Ordem de tentativa: 'injuries' (nova) -> 'injuries_cache_v44' (padrao antigo) -> 'injuries_data' (fallback)
+    
+    # 1. Tenta a chave pura 'injuries' (Como está no Table Editor)
+    raw_data = get_data_universal('injuries')
     if raw_data: 
-        data_source = "V44_CACHE"
+        data_source = "KEY: INJURIES"
     else:
-        # Tentativa 2: Fallback Genérico
-        raw_data = get_data_universal('injuries_data')
-        if raw_data: data_source = "GENERIC_DATA"
+        # 2. Tenta a chave com versão
+        raw_data = get_data_universal('injuries_cache_v44')
+        if raw_data: 
+            data_source = "KEY: INJURIES_CACHE_V44"
+        else:
+            # 3. Último recurso
+            raw_data = get_data_universal('injuries_data')
+            if raw_data: data_source = "KEY: INJURIES_DATA"
 
-    # Processamento do JSON (Polimorfismo)
+    # PARSER UNIVERSAL (Extrai lista de qualquer formato)
     if raw_data:
-        if isinstance(raw_data, dict):
-            # Formato A: {'teams': {'LAL': [players]}}
-            root = raw_data.get('teams', raw_data)
-            for team, players in root.items():
-                if isinstance(players, list):
-                    for p in players:
-                        p['team_code'] = team
-                        injuries_list.append(p)
-                # Formato B: Lista direta dentro de chave
-                elif isinstance(players, dict): # Caso estranho
-                    pass
-        elif isinstance(raw_data, list):
-            # Formato C: Lista direta [player1, player2]
-            injuries_list = raw_data
+        try:
+            # Se for Lista, perfeito
+            if isinstance(raw_data, list):
+                injuries_list = raw_data
+            
+            # Se for Dicionário, precisamos escavar
+            elif isinstance(raw_data, dict):
+                # Caso A: {'teams': {'LAL': [...]}}
+                if 'teams' in raw_data and isinstance(raw_data['teams'], dict):
+                    for team, players in raw_data['teams'].items():
+                        if isinstance(players, list):
+                            for p in players:
+                                p['team_code'] = team
+                                injuries_list.append(p)
 
-    # Se ainda estiver vazio
+                # Caso B: {'data': [...]} (Wrapper comum)
+                elif 'data' in raw_data and isinstance(raw_data['data'], list):
+                    injuries_list = raw_data['data']
+                
+                # Caso C: As chaves SÃO os times (Dicionário plano)
+                else:
+                    # Varre todas as chaves. Se o valor for lista de dicts, assume que é time.
+                    for k, v in raw_data.items():
+                        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+                            for p in v:
+                                p['team_code'] = k
+                                injuries_list.append(p)
+
+        except Exception as e:
+            st.error(f"Erro ao processar JSON: {e}")
+
+    # --- 4. TRATAMENTO DE ERRO (DEBUG) ---
     if not injuries_list:
-        st.warning(f"⚠️ Nenhuma informação de lesão encontrada no Supabase.")
-        with st.expander("🛠️ Debug Técnico", expanded=False):
-            st.write(f"Tentativa de leitura: injuries_cache_v44")
-            st.write(f"Resultado Bruto: {type(raw_data)}")
+        st.warning(f"⚠️ Nenhuma informação de lesão encontrada.")
+        
+        with st.expander("🛠️ Debug de Conexão", expanded=True):
+            st.write(f"**Chave Usada:** {data_source}")
+            st.write(f"**Tipo do Retorno:** {type(raw_data)}")
+            if isinstance(raw_data, dict):
+                st.write(f"**Chaves Disponíveis:** {list(raw_data.keys())}")
+            st.info("Dica: Se o retorno é 'dict' mas as chaves não são 'teams' nem códigos de times, o parser não conseguiu identificar a lista.")
         return
 
-    # --- 4. ENRIQUECIMENTO DOS DADOS ---
+    # --- 5. ENRIQUECIMENTO ---
     processed_injuries = []
     
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
         norm_name = normalize_str(p_name)
         
-        # Recupera dados do L5
         impact = PLAYER_IMPACT_MAP.get(norm_name, 0)
         pid = PLAYER_ID_MAP.get(norm_name, 0)
         
-        # Normaliza Status
         raw_status = str(p.get('status', '')).upper()
         status_code = "UNKNOWN"
         if "OUT" in raw_status: status_code = "OUT"
         elif any(x in raw_status for x in ["QUEST", "DOUBT", "GTD", "DECISION"]): status_code = "GTD"
         elif "PROB" in raw_status: status_code = "PROB"
         
-        # Ignora "Active" ou saudáveis sem notas
+        # Filtra ativos sem issues
         if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
         
         p['impact'] = impact
@@ -7038,7 +7026,9 @@ def show_depto_medico():
         
         processed_injuries.append(p)
 
-    # --- 5. ALA HOSPITALAR (HERO SECTION) ---
+    # --- 6. EXIBIÇÃO ---
+    
+    # A. HERO SECTION (ALA HOSPITALAR)
     hospital_ward = [
         p for p in processed_injuries 
         if (p['impact'] >= 2 and p['status_code'] in ['OUT', 'GTD']) 
@@ -7046,14 +7036,13 @@ def show_depto_medico():
     ]
     
     if hospital_ward:
-        st.markdown(f"### 🏥 Ala de Emergência ({len(hospital_ward)} Estrelas/Titulares)")
-        
+        st.markdown(f"### 🏥 Ala de Emergência ({len(hospital_ward)} Jogadores Críticos)")
         html_cards = ""
         for p in hospital_ward:
             photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
             
-            st_txt = "FORA" if p['status_code'] == "OUT" else "GTD (Dúvida)"
+            st_txt = "FORA" if p['status_code'] == "OUT" else "GTD"
             tm = p.get('team', 'UNK')
             
             html_cards += f"""
@@ -7067,10 +7056,9 @@ def show_depto_medico():
                 </div>
             </div>
             """
-        
         st.markdown(f'<div class="hospital-ward">{html_cards}</div>', unsafe_allow_html=True)
     
-    # --- 6. LISTA GERAL ---
+    # B. LISTA GERAL
     st.markdown("---")
     
     teams_dict = {}
@@ -7128,7 +7116,7 @@ def show_depto_medico():
         html_grid += "</div>"
         st.markdown(html_grid, unsafe_allow_html=True)
 
-    # Rodapé de Debug Discreto
+    # Rodapé de Debug
     st.caption(f"Fonte de Dados: {data_source} | Registros: {len(injuries_list)}")
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
@@ -7975,6 +7963,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
