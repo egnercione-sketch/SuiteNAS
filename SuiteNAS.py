@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V13.0 - SUPABASE CLOUD NATIVE)
+# PÁGINA: BLOWOUT RADAR (V13.1 - ROBUST COLUMN FIX)
 # ============================================================================
 def show_blowout_hunter_page():
     import pandas as pd
@@ -781,8 +781,8 @@ def show_blowout_hunter_page():
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR (L25 CLOUD)</div>', unsafe_allow_html=True)
 
     # --- 2. CONFIGURAÇÃO DE CHAVES NUVEM ---
-    KEY_LOGS = "real_game_logs"  # Onde estão os logs brutos no Supabase
-    KEY_DNA = "rotation_dna_l25" # Onde vamos salvar a inteligência processada
+    KEY_LOGS = "real_game_logs"  
+    KEY_DNA = "rotation_dna_l25" 
 
     # Botão para Forçar Recalculo
     with st.expander("⚙️ Gerenciamento de Inteligência Artificial"):
@@ -809,73 +809,97 @@ def show_blowout_hunter_page():
                 
                 df_logs = pd.DataFrame(raw_logs)
                 
-                # Conversão de Tipos (Blindagem)
-                cols = ['MIN', 'PTS', 'REB', 'AST', 'Player_ID']
-                for c in cols: 
+                # --- AUTO FIX COLUNAS (NORMALIZAÇÃO) ---
+                # Converte todas as colunas para MAIÚSCULO para evitar erro de case sensitivity
+                df_logs.columns = [str(c).upper() for c in df_logs.columns]
+                
+                # Detecta coluna de Time
+                COL_TEAM = None
+                for c in ['TEAM_ABBREVIATION', 'TEAM', 'TEAM_ABBREV', 'TEAM_NAME']:
+                    if c in df_logs.columns:
+                        COL_TEAM = c
+                        break
+                
+                # Detecta coluna de Jogador
+                COL_PLAYER = None
+                for c in ['PLAYER_NAME', 'PLAYER', 'NAME']:
+                    if c in df_logs.columns:
+                        COL_PLAYER = c
+                        break
+                
+                # Detecta ID do Jogador
+                COL_PID = None
+                for c in ['PLAYER_ID', 'ID', 'PERSON_ID']:
+                    if c in df_logs.columns:
+                        COL_PID = c
+                        break
+
+                if not COL_TEAM or not COL_PLAYER:
+                    st.error(f"❌ Colunas obrigatórias não encontradas. Cols disponíveis: {list(df_logs.columns)}")
+                    return
+
+                # Conversão Numérica Blindada
+                for c in ['MIN', 'PTS', 'REB', 'AST']:
                     if c in df_logs.columns: df_logs[c] = pd.to_numeric(df_logs[c], errors='coerce').fillna(0)
 
-                status.write("📊 Logs baixados. Identificando 'Abutres' de Garbage Time...")
+                status.write(f"📊 Logs baixados. Colunas detectadas: {COL_TEAM}, {COL_PLAYER}. Processando...")
                 
                 # 2. PROCESSAMENTO INTELIGENTE (L25 FORENSICS)
                 new_dna = {}
-                # Garante que temos a coluna de time
-                if 'TEAM_ABBREVIATION' in df_logs.columns:
-                    all_teams = df_logs['TEAM_ABBREVIATION'].unique()
+                all_teams = df_logs[COL_TEAM].unique()
+                
+                for team in all_teams:
+                    t_logs = df_logs[df_logs[COL_TEAM] == team]
                     
-                    for team in all_teams:
-                        t_logs = df_logs[df_logs['TEAM_ABBREVIATION'] == team]
+                    # A. Define quem é BANCO (Média < 24 min na temporada)
+                    player_avgs = t_logs.groupby(COL_PLAYER)['MIN'].mean()
+                    bench_players = player_avgs[player_avgs < 24].index.tolist()
+                    
+                    team_vultures = []
+                    
+                    for p_name in bench_players:
+                        # Pega todos os jogos desse reserva
+                        p_logs = t_logs[t_logs[COL_PLAYER] == p_name]
+                        avg_min = player_avgs[p_name]
                         
-                        # A. Define quem é BANCO (Média < 24 min na temporada)
-                        player_avgs = t_logs.groupby('PLAYER_NAME')['MIN'].mean()
-                        bench_players = player_avgs[player_avgs < 24].index.tolist()
+                        # B. Detecta "OPORTUNIDADE" (Blowout Games)
+                        threshold = max(18, avg_min * 1.5)
+                        opportunity_games = p_logs[p_logs['MIN'] >= threshold]
                         
-                        team_vultures = []
-                        
-                        for p_name in bench_players:
-                            # Pega todos os jogos desse reserva
-                            p_logs = t_logs[t_logs['PLAYER_NAME'] == p_name]
-                            avg_min = player_avgs[p_name]
+                        if not opportunity_games.empty and len(opportunity_games) >= 1:
+                            # Calcula média nesses jogos específicos
+                            b_pts = opportunity_games['PTS'].mean()
+                            b_reb = opportunity_games['REB'].mean()
+                            b_ast = opportunity_games['AST'].mean()
+                            b_min = opportunity_games['MIN'].mean()
                             
-                            # B. Detecta "OPORTUNIDADE" (Blowout Games)
-                            # Critério: Jogou mais de 18 min OU 50% acima da média dele
-                            threshold = max(18, avg_min * 1.5)
-                            opportunity_games = p_logs[p_logs['MIN'] >= threshold]
-                            
-                            if not opportunity_games.empty and len(opportunity_games) >= 1:
-                                # Calcula média nesses jogos específicos
-                                b_pts = opportunity_games['PTS'].mean()
-                                b_reb = opportunity_games['REB'].mean()
-                                b_ast = opportunity_games['AST'].mean()
-                                b_min = opportunity_games['MIN'].mean()
-                                
-                                # Filtro de Relevância (Soma de stats > 8)
-                                if (b_pts + b_reb + b_ast) > 8:
-                                    # Pega ID (Safe)
-                                    pid_vals = p_logs['Player_ID'].values
+                            # Filtro de Relevância
+                            if (b_pts + b_reb + b_ast) > 8:
+                                # Pega ID (Safe)
+                                pid = 0
+                                if COL_PID and COL_PID in p_logs.columns:
+                                    pid_vals = p_logs[COL_PID].values
                                     pid = pid_vals[0] if len(pid_vals) > 0 else 0
-                                    
-                                    team_vultures.append({
-                                        "id": int(pid),
-                                        "name": p_name,
-                                        "avg_min": float(avg_min),
-                                        "blowout_min": float(b_min),
-                                        "pts": float(b_pts),
-                                        "reb": float(b_reb),
-                                        "ast": float(b_ast),
-                                        "count": len(opportunity_games)
-                                    })
-                        
-                        # Ordena por pontos no blowout
-                        team_vultures.sort(key=lambda x: x['pts'], reverse=True)
-                        new_dna[team] = team_vultures[:5] # Top 5
+                                
+                                team_vultures.append({
+                                    "id": int(pid),
+                                    "name": p_name,
+                                    "avg_min": float(avg_min),
+                                    "blowout_min": float(b_min),
+                                    "pts": float(b_pts),
+                                    "reb": float(b_reb),
+                                    "ast": float(b_ast),
+                                    "count": len(opportunity_games)
+                                })
                     
-                    # 3. SALVA NA NUVEM
-                    save_data_universal(KEY_DNA, new_dna)
-                    DNA_DB = new_dna
-                    status.update(label="✅ DNA Salvo no Supabase!", state="complete", expanded=False)
-                else:
-                    st.error("Logs sem coluna 'TEAM_ABBREVIATION'. Verifique estrutura.")
-                    return
+                    # Ordena por pontos no blowout
+                    team_vultures.sort(key=lambda x: x['pts'], reverse=True)
+                    new_dna[team] = team_vultures[:5] # Top 5
+                
+                # 3. SALVA NA NUVEM
+                save_data_universal(KEY_DNA, new_dna)
+                DNA_DB = new_dna
+                status.update(label="✅ DNA Salvo no Supabase!", state="complete", expanded=False)
                 
             except Exception as e:
                 st.error(f"Erro ao processar na nuvem: {e}")
@@ -7745,6 +7769,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
