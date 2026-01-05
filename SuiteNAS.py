@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V4.0 - AUTO-RUN & TRIPLE BARREL)
+# PÁGINA: BLOWOUT RADAR (V5.0 - AUTO-HIERARCHY & TRIPLE BARREL)
 # ============================================================================
 def show_blowout_hunter_page():
     import re
@@ -805,69 +805,65 @@ def show_blowout_hunter_page():
         st.error("❌ Base de Dados L5 vazia. Impossível calcular projeções.")
         return
 
-    # --- 3. AUTO-RUN: GERAÇÃO DE INTELIGÊNCIA (Sem Botão) ---
+    # --- 3. AUTO-RUN: GERAÇÃO DE INTELIGÊNCIA (HIERARQUIA DIRETA) ---
     # Cache key baseada na hora/data para renovar durante o dia
-    cache_key = f"blowout_v4_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
+    cache_key = f"blowout_v5_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
     
     # Se não tiver dados cacheados, GERA AGORA
     if cache_key not in st.session_state:
-        with st.spinner("🔄 Processando rotações de banco e normalizando times..."):
+        # Mapa de Tradução (ESPN -> NBA API)
+        ESPN_TO_NBA = {
+            "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
+            "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "NOR": "NOP"
+        }
+        
+        vulture_dna = {}
+        
+        # Lista única de times jogando hoje (normalizada)
+        teams_playing_raw = set([g['home'] for g in games] + [g['away'] for g in games])
+        
+        for raw_team in teams_playing_raw:
+            # Tenta encontrar o time no DF L5
+            nba_team = ESPN_TO_NBA.get(raw_team, raw_team)
             
-            # Mapa de Tradução (ESPN -> NBA API)
-            # Garante que 'GS' vire 'GSW', 'NY' vire 'NYK', etc.
-            ESPN_TO_NBA = {
-                "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
-                "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "NOR": "NOP"
-            }
+            # Filtra elenco desse time
+            roster = df_l5[df_l5['TEAM'] == nba_team]
             
-            vulture_dna = {}
+            # Se não achou, tenta sem normalização ou com match parcial
+            if roster.empty:
+                roster = df_l5[df_l5['TEAM'].str.contains(raw_team, case=False, na=False)]
             
-            # Lista única de times jogando hoje (normalizada)
-            teams_playing_raw = set([g['home'] for g in games] + [g['away'] for g in games])
-            
-            for raw_team in teams_playing_raw:
-                # Tenta encontrar o time no DF L5
-                nba_team = ESPN_TO_NBA.get(raw_team, raw_team)
+            if not roster.empty:
+                # LÓGICA DE HIERARQUIA (GARANTE RESULTADOS)
+                # Pega reservas (Min < 24)
+                # Ordena por Minutos (para pegar a rotação real, não deep bench morto)
+                bench = roster[
+                    (roster['MIN_AVG'] < 24) & 
+                    (roster['MIN_AVG'] > 5)
+                ].sort_values('MIN_AVG', ascending=False)
                 
-                # Filtra elenco desse time
-                roster = df_l5[df_l5['TEAM'] == nba_team]
-                
-                # Se não achou, tenta sem normalização ou com match parcial
-                if roster.empty:
-                    roster = df_l5[df_l5['TEAM'].str.contains(raw_team, case=False, na=False)]
-                
-                if not roster.empty:
-                    # Lógica Vulture: Pega reservas (Min < 24) ordenados por PTS
-                    # Removemos quem joga muito pouco (< 5 min) para evitar "fantasmas"
-                    bench = roster[
-                        (roster['MIN_AVG'] < 24) & 
-                        (roster['MIN_AVG'] > 5)
-                    ].sort_values('PTS_AVG', ascending=False)
+                team_vultures = []
+                # Pega até 5 reservas
+                for _, p in bench.head(5).iterrows(): 
+                    # Projeção Otimista (Garbage Time Boost)
+                    # Simula um jogo de 28-30 min para quem joga 15
+                    mult = 1.8 
+                    if p['MIN_AVG'] < 12: mult = 2.5 # Se joga pouco, multiplica mais
                     
-                    team_vultures = []
-                    for _, p in bench.head(5).iterrows(): # Top 5 Reservas
-                        # Projeção Otimista (Garbage Time Boost x1.8 a x2.5 dependendo dos minutos)
-                        # Quem joga menos tem multiplicador maior pois ganha mais tempo proporcionalmente
-                        mult = 2.5 if p['MIN_AVG'] < 15 else 1.5
-                        
-                        team_vultures.append({
-                            "id": int(p['PLAYER_ID']),
-                            "name": p['PLAYER'],
-                            "min_avg": p['MIN_AVG'],
-                            "proj_pts": float(p.get('PTS_AVG', 0)) * mult,
-                            "proj_reb": float(p.get('REB_AVG', 0)) * mult,
-                            "proj_ast": float(p.get('AST_AVG', 0)) * mult
-                        })
-                    
-                    # Salva no dicionário usando a chave RAW (do Scoreboard) para facilitar o retrieve
-                    vulture_dna[raw_team] = team_vultures
-            
-            # Salva no cache
-            st.session_state[cache_key] = vulture_dna
-            
-            # Recarrega para exibir limpo
-            time.sleep(0.2)
-            st.rerun()
+                    team_vultures.append({
+                        "id": int(p['PLAYER_ID']),
+                        "name": p['PLAYER'],
+                        "min_avg": p['MIN_AVG'],
+                        "proj_pts": float(p.get('PTS_AVG', 0)) * mult,
+                        "proj_reb": float(p.get('REB_AVG', 0)) * mult,
+                        "proj_ast": float(p.get('AST_AVG', 0)) * mult
+                    })
+                
+                # Salva no dicionário usando a chave RAW (do Scoreboard) para facilitar o retrieve
+                vulture_dna[raw_team] = team_vultures
+        
+        # Salva no cache
+        st.session_state[cache_key] = vulture_dna
 
     # Recupera dados do cache
     VULTURE_DATA = st.session_state.get(cache_key, {})
@@ -7707,6 +7703,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
