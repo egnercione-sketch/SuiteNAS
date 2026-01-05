@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V22.0 - INJURY SHIELD PROTECTED)
+# PÁGINA: BLOWOUT RADAR (V23.0 - INJURY FIRST & AUTO-UPDATE)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -743,7 +743,7 @@ def show_blowout_hunter_page():
     import time
     import numpy as np
     
-    # --- 1. ESTILO VISUAL (CLEAN UI) ---
+    # --- 1. ESTILO VISUAL ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
@@ -802,11 +802,19 @@ def show_blowout_hunter_page():
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 2. CONFIGURAÇÃO DE DADOS ---
-    KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_final_v22" # Nova chave para forçar refresh com filtro
+    # --- 2. PASSO ZERO: ATUALIZAÇÃO FORÇADA DE LESÕES ---
+    # Isso garante que pegamos o dado mais fresco do Supabase ANTES de qualquer cálculo
+    try:
+        fresh_injuries = get_data_universal('injuries_data')
+        if fresh_injuries:
+            st.session_state['injuries_data'] = fresh_injuries
+    except: pass
 
-    # Carrega Mapa de IDs (df_l5)
+    # --- 3. CONFIGURAÇÃO E DADOS ---
+    KEY_LOGS = "real_game_logs"
+    KEY_DNA = "rotation_dna_v23" # Nova chave para garantir reprocessamento com filtro novo
+
+    # Mapas Auxiliares (L5)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
@@ -819,163 +827,165 @@ def show_blowout_hunter_page():
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 3. AUTO-RUN (PROCESSAMENTO COM FILTRO DE LESÃO) ---
-    
-    if 'dna_final_v22' not in st.session_state:
-        with st.spinner("🤖 Analisando histórico L25 e filtrando lesionados..."):
+    # --- 4. ENGINE AUTO-RUN (PROCESSAMENTO COM FILTRO RIGOROSO) ---
+    # Verifica se precisa rodar (Se não tiver na sessão)
+    if 'dna_final_v23' not in st.session_state:
+        
+        with st.spinner("🏥 Verificando boletim médico e analisando rotação..."):
             try:
-                # 1. Carrega Lesões Primeiro (CRÍTICO)
+                # A. Construção da Lista Negra (Banned Players)
                 banned_players = set()
                 try:
                     raw_inj = st.session_state.get('injuries_data', [])
                     flat_inj = []
                     
-                    # Normaliza estrutura de lesões (pode ser dict ou list)
                     if isinstance(raw_inj, dict):
                         for t in raw_inj.values(): flat_inj.extend(t)
                     elif isinstance(raw_inj, list):
                         flat_inj = raw_inj
-                        
+                    
+                    # Palavras-chave de exclusão (Inclui Day-to-Day agora)
+                    EXCLUSION_KEYWORDS = ['out', 'doubt', 'surg', 'injur', 'protocol', 'day', 'dtd', 'quest']
+                    
                     for i in flat_inj:
-                        # Status que indicam "Não Joga"
                         status = str(i.get('status', '')).lower()
-                        if any(x in status for x in ['out', 'doubt', 'surg', 'injur', 'protocol']):
+                        # Se contiver qualquer palavra chave, bane
+                        if any(x in status for x in EXCLUSION_KEYWORDS):
                             p_name = i.get('player') or i.get('name')
                             if p_name:
                                 banned_players.add(str(p_name).upper().strip())
                 except Exception as e:
-                    print(f"Erro ao processar lesões: {e}")
+                    print(f"Erro filtro lesão: {e}")
 
-                # 2. Tenta pegar do Cache Nuvem
+                # B. Baixa e Processa Logs
                 cloud_dna = get_data_universal(KEY_DNA)
                 
-                if not cloud_dna:
-                    raw_data = get_data_universal(KEY_LOGS)
-                    if raw_data:
-                        new_dna = {}
-                        temp_team_data = {}
+                # Se não tiver cache ou quisermos garantir fresh data devido a lesão nova
+                # Como queremos garantir que o filtro de lesão pegue AGORA, recalculamos.
+                raw_data = get_data_universal(KEY_LOGS)
+                
+                if raw_data:
+                    new_dna = {}
+                    temp_team_data = {}
+                    
+                    def clean_list(lst):
+                        if not lst: return []
+                        return [float(x) if x is not None else 0.0 for x in lst]
+
+                    for p_name, p_data in raw_data.items():
+                        if not isinstance(p_data, dict): continue
                         
-                        def clean_list(lst):
-                            if not lst: return []
-                            return [float(x) if x is not None else 0.0 for x in lst]
+                        norm_name = str(p_name).upper().strip()
+                        
+                        # --- O ESCUDO DE LESÃO ---
+                        if norm_name in banned_players:
+                            continue # Valanciunas cai aqui se estiver DTD/OUT
+                        
+                        p_id = PLAYER_ID_MAP.get(norm_name, 0)
+                        
+                        team = str(p_data.get('team', 'UNK')).upper().strip()
+                        if team in ['UNK', 'NONE']: team = PLAYER_TEAM_MAP.get(norm_name, 'UNK')
+                        if team == 'UNK': continue 
 
-                        for p_name, p_data in raw_data.items():
-                            if not isinstance(p_data, dict): continue
+                        logs = p_data.get('logs', {})
+                        if not logs: continue
+                        
+                        try:
+                            pts_list = clean_list(logs.get('PTS', []))
+                            min_list = clean_list(logs.get('MIN', []))
+                            reb_list = clean_list(logs.get('REB', []))
+                            ast_list = clean_list(logs.get('AST', []))
                             
-                            norm_name = str(p_name).upper().strip()
-                            
-                            # --- FILTRO DE LESÃO (O ESCUDO) ---
-                            if norm_name in banned_players:
-                                continue # Pula jogador lesionado imediatamente
-                            
-                            p_id = PLAYER_ID_MAP.get(norm_name, 0)
-                            
-                            team = str(p_data.get('team', 'UNK')).upper().strip()
-                            if team in ['UNK', 'NONE']: team = PLAYER_TEAM_MAP.get(norm_name, 'UNK')
-                            if team == 'UNK': continue 
+                            if not pts_list: continue
 
-                            logs = p_data.get('logs', {})
-                            if not logs: continue
+                            avg_min = p_data.get('logs', {}).get('MIN_AVG', 0)
+                            if avg_min == 0 and min_list: avg_min = sum(min_list) / len(min_list)
                             
-                            try:
-                                pts_list = clean_list(logs.get('PTS', []))
-                                min_list = clean_list(logs.get('MIN', []))
-                                reb_list = clean_list(logs.get('REB', []))
-                                ast_list = clean_list(logs.get('AST', []))
+                            # Filtro Reserva (< 26 min)
+                            if avg_min > 26: continue
+
+                            is_qualified = False
+                            b_pts, b_reb, b_ast, b_min = 0,0,0,0
+                            logic_type = "REGULAR"
+
+                            # Lógica Sniper (Minutos detalhados)
+                            if min_list and len(min_list) == len(pts_list):
+                                arr_min = np.array(min_list)
+                                mask = arr_min >= max(12.0, avg_min * 2.0)
                                 
-                                if not pts_list: continue
+                                if np.any(mask):
+                                    is_qualified = True
+                                    logic_type = "SNIPER"
+                                    arr_pts = np.array(pts_list)
+                                    arr_reb = np.array(reb_list)
+                                    arr_ast = np.array(ast_list)
+                                    b_pts = np.mean(arr_pts[mask])
+                                    b_reb = np.mean(arr_reb[mask])
+                                    b_ast = np.mean(arr_ast[mask])
+                                    b_min = np.mean(arr_min[mask])
 
-                                avg_min = p_data.get('logs', {}).get('MIN_AVG', 0)
-                                if avg_min == 0 and min_list: avg_min = sum(min_list) / len(min_list)
-                                
-                                # Filtro Reserva
-                                if avg_min > 26: continue
-
-                                is_qualified = False
-                                b_pts, b_reb, b_ast, b_min = 0,0,0,0
-                                logic_type = "REGULAR"
-
-                                # Lógica Sniper
-                                if min_list and len(min_list) == len(pts_list):
-                                    arr_min = np.array(min_list)
-                                    mask = arr_min >= max(12.0, avg_min * 2.0)
-                                    
-                                    if np.any(mask):
+                            # Lógica Fallback
+                            if not is_qualified and avg_min > 8.0:
+                                limit = len(pts_list)
+                                p = np.array(pts_list[:limit])
+                                r = np.array(reb_list[:limit]) if len(reb_list) >= limit else np.zeros(limit)
+                                a = np.array(ast_list[:limit]) if len(ast_list) >= limit else np.zeros(limit)
+                                scores = p + r*1.2 + a*1.5
+                                if len(scores) > 0:
+                                    top_idx = np.argsort(scores)[-3:]
+                                    if np.mean(scores[top_idx]) > 5.0:
                                         is_qualified = True
-                                        logic_type = "SNIPER"
-                                        arr_pts = np.array(pts_list)
-                                        arr_reb = np.array(reb_list)
-                                        arr_ast = np.array(ast_list)
-                                        b_pts = np.mean(arr_pts[mask])
-                                        b_reb = np.mean(arr_reb[mask])
-                                        b_ast = np.mean(arr_ast[mask])
-                                        b_min = np.mean(arr_min[mask])
+                                        logic_type = "CEILING"
+                                        b_pts = np.mean(p[top_idx])
+                                        b_reb = np.mean(r[top_idx])
+                                        b_ast = np.mean(a[top_idx])
+                                        b_min = avg_min
 
-                                # Lógica Fallback
-                                if not is_qualified and avg_min > 8.0:
-                                    limit = len(pts_list)
-                                    p = np.array(pts_list[:limit])
-                                    r = np.array(reb_list[:limit]) if len(reb_list) >= limit else np.zeros(limit)
-                                    a = np.array(ast_list[:limit]) if len(ast_list) >= limit else np.zeros(limit)
-                                    scores = p + r*1.2 + a*1.5
-                                    if len(scores) > 0:
-                                        top_idx = np.argsort(scores)[-3:]
-                                        if np.mean(scores[top_idx]) > 5.0:
-                                            is_qualified = True
-                                            logic_type = "CEILING"
-                                            b_pts = np.mean(p[top_idx])
-                                            b_reb = np.mean(r[top_idx])
-                                            b_ast = np.mean(a[top_idx])
-                                            b_min = avg_min
+                            if is_qualified:
+                                impact = b_pts + b_reb + b_ast
+                                if team not in temp_team_data: temp_team_data[team] = []
+                                
+                                temp_team_data[team].append({
+                                    "id": int(p_id),
+                                    "name": p_name,
+                                    "avg_min": float(avg_min),
+                                    "blowout_min": float(b_min),
+                                    "pts": float(b_pts),
+                                    "reb": float(b_reb),
+                                    "ast": float(b_ast),
+                                    "score": float(impact),
+                                    "type": logic_type
+                                })
+                        except: continue
 
-                                if is_qualified:
-                                    impact = b_pts + b_reb + b_ast
-                                    if team not in temp_team_data: temp_team_data[team] = []
-                                    
-                                    temp_team_data[team].append({
-                                        "id": int(p_id),
-                                        "name": p_name,
-                                        "avg_min": float(avg_min),
-                                        "blowout_min": float(b_min),
-                                        "pts": float(b_pts),
-                                        "reb": float(b_reb),
-                                        "ast": float(b_ast),
-                                        "score": float(impact),
-                                        "type": logic_type
-                                    })
-                            except: continue
-
-                        # Ordena e Salva
-                        for t, players in temp_team_data.items():
-                            players.sort(key=lambda x: x['score'], reverse=True)
-                            new_dna[t] = players[:5]
-                        
-                        save_data_universal(KEY_DNA, new_dna)
-                        st.session_state['dna_final_v22'] = new_dna
-                    else:
-                         st.session_state['dna_final_v22'] = {}
+                    # Ordena e Salva
+                    for t, players in temp_team_data.items():
+                        players.sort(key=lambda x: x['score'], reverse=True)
+                        new_dna[t] = players[:5]
+                    
+                    save_data_universal(KEY_DNA, new_dna)
+                    st.session_state['dna_final_v23'] = new_dna
                 else:
-                    st.session_state['dna_final_v22'] = cloud_dna
-
+                    st.session_state['dna_final_v23'] = {}
+            
             except Exception as e:
-                st.error(f"Erro no Auto-Run: {e}")
-                st.session_state['dna_final_v22'] = {}
+                st.error(f"Erro Auto-Update: {e}")
+                st.session_state['dna_final_v23'] = {}
 
-    DNA_DB = st.session_state.get('dna_final_v22', {})
+    DNA_DB = st.session_state.get('dna_final_v23', {})
 
-    # --- 4. EXIBIÇÃO ---
+    # --- 5. EXIBIÇÃO LIMPA ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Aguardando jogos...")
         return
 
-    # Slider limpo
     st.markdown("---")
     c_sim, c_vazio = st.columns([1, 2])
     with c_sim:
         force_spread = st.slider("🎛️ Simular Cenário de Blowout (Spread):", 0, 30, 0)
 
-    # Mapa de Times
+    # Alias Map
     ALIAS_MAP = {
         "GS": "GSW", "GSW": "GSW", "GOLDEN STATE": "GSW",
         "NY": "NYK", "NYK": "NYK", "NEW YORK": "NYK",
@@ -996,7 +1006,6 @@ def show_blowout_hunter_page():
             if q in k or k in q: return DNA_DB[k]
         return []
 
-    # Loop de Jogos
     for g in games:
         raw_s = g.get('odds_spread', '0')
         try: real_s = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_s))[-1]))
@@ -1077,12 +1086,6 @@ def show_blowout_hunter_page():
             """, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Botão Discreto (Menu)
-    with st.expander("⚙️ Opções", expanded=False):
-        if st.button("Forçar Reanálise de Dados"):
-            st.session_state.pop('dna_final_v22', None)
-            st.rerun()
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
@@ -7836,6 +7839,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
