@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V21.0 - CLEAN & AUTOMATIC)
+# PÁGINA: BLOWOUT RADAR (V22.0 - INJURY SHIELD PROTECTED)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -749,7 +749,6 @@ def show_blowout_hunter_page():
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
         .radar-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
         
-        /* Container do Card Principal */
         .match-container {
             background-color: #1e293b;
             border-radius: 12px;
@@ -759,7 +758,6 @@ def show_blowout_hunter_page():
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
 
-        /* Cabeçalho do Card */
         .risk-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
         .risk-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 80%); border-left: 5px solid #EF4444; }
         .risk-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 80%); border-left: 5px solid #F59E0B; }
@@ -770,11 +768,9 @@ def show_blowout_hunter_page():
         .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; margin-bottom: 2px; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
-        /* Área de Conteúdo (Jogadores) */
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
         .team-label { color: #64748b; font-size: 10px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 2px; }
 
-        /* Linha do Jogador */
         .vulture-row { 
             display: flex; justify-content: space-between; align-items: center; 
             padding: 8px; margin-bottom: 6px;
@@ -808,7 +804,7 @@ def show_blowout_hunter_page():
 
     # --- 2. CONFIGURAÇÃO DE DADOS ---
     KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_final"
+    KEY_DNA = "rotation_dna_final_v22" # Nova chave para forçar refresh com filtro
 
     # Carrega Mapa de IDs (df_l5)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
@@ -823,16 +819,36 @@ def show_blowout_hunter_page():
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 3. AUTO-RUN (PROCESSAMENTO AUTOMÁTICO) ---
-    # Se não tiver na sessão, roda a lógica imediatamente.
-    if 'dna_final' not in st.session_state:
-        with st.spinner("🤖 Analisando histórico L25 e identificando reservas..."):
+    # --- 3. AUTO-RUN (PROCESSAMENTO COM FILTRO DE LESÃO) ---
+    
+    if 'dna_final_v22' not in st.session_state:
+        with st.spinner("🤖 Analisando histórico L25 e filtrando lesionados..."):
             try:
-                # Tenta pegar do Cache Nuvem Primeiro
+                # 1. Carrega Lesões Primeiro (CRÍTICO)
+                banned_players = set()
+                try:
+                    raw_inj = st.session_state.get('injuries_data', [])
+                    flat_inj = []
+                    
+                    # Normaliza estrutura de lesões (pode ser dict ou list)
+                    if isinstance(raw_inj, dict):
+                        for t in raw_inj.values(): flat_inj.extend(t)
+                    elif isinstance(raw_inj, list):
+                        flat_inj = raw_inj
+                        
+                    for i in flat_inj:
+                        # Status que indicam "Não Joga"
+                        status = str(i.get('status', '')).lower()
+                        if any(x in status for x in ['out', 'doubt', 'surg', 'injur', 'protocol']):
+                            p_name = i.get('player') or i.get('name')
+                            if p_name:
+                                banned_players.add(str(p_name).upper().strip())
+                except Exception as e:
+                    print(f"Erro ao processar lesões: {e}")
+
+                # 2. Tenta pegar do Cache Nuvem
                 cloud_dna = get_data_universal(KEY_DNA)
                 
-                # Se não existir na nuvem, ou se quisermos garantir atualização fresca:
-                # (Aqui optei por processar se não tiver cache. O usuário não precisa clicar)
                 if not cloud_dna:
                     raw_data = get_data_universal(KEY_LOGS)
                     if raw_data:
@@ -847,6 +863,11 @@ def show_blowout_hunter_page():
                             if not isinstance(p_data, dict): continue
                             
                             norm_name = str(p_name).upper().strip()
+                            
+                            # --- FILTRO DE LESÃO (O ESCUDO) ---
+                            if norm_name in banned_players:
+                                continue # Pula jogador lesionado imediatamente
+                            
                             p_id = PLAYER_ID_MAP.get(norm_name, 0)
                             
                             team = str(p_data.get('team', 'UNK')).upper().strip()
@@ -874,7 +895,7 @@ def show_blowout_hunter_page():
                                 b_pts, b_reb, b_ast, b_min = 0,0,0,0
                                 logic_type = "REGULAR"
 
-                                # Lógica Sniper (Minutos detalhados)
+                                # Lógica Sniper
                                 if min_list and len(min_list) == len(pts_list):
                                     arr_min = np.array(min_list)
                                     mask = arr_min >= max(12.0, avg_min * 2.0)
@@ -890,7 +911,7 @@ def show_blowout_hunter_page():
                                         b_ast = np.mean(arr_ast[mask])
                                         b_min = np.mean(arr_min[mask])
 
-                                # Lógica Fallback (Ceiling)
+                                # Lógica Fallback
                                 if not is_qualified and avg_min > 8.0:
                                     limit = len(pts_list)
                                     p = np.array(pts_list[:limit])
@@ -930,25 +951,25 @@ def show_blowout_hunter_page():
                             new_dna[t] = players[:5]
                         
                         save_data_universal(KEY_DNA, new_dna)
-                        st.session_state['dna_final'] = new_dna
+                        st.session_state['dna_final_v22'] = new_dna
                     else:
-                         st.session_state['dna_final'] = {}
+                         st.session_state['dna_final_v22'] = {}
                 else:
-                    st.session_state['dna_final'] = cloud_dna
+                    st.session_state['dna_final_v22'] = cloud_dna
 
             except Exception as e:
                 st.error(f"Erro no Auto-Run: {e}")
-                st.session_state['dna_final'] = {}
+                st.session_state['dna_final_v22'] = {}
 
-    DNA_DB = st.session_state.get('dna_final', {})
+    DNA_DB = st.session_state.get('dna_final_v22', {})
 
-    # --- 4. EXIBIÇÃO LIMPA ---
+    # --- 4. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Aguardando jogos...")
         return
 
-    # Slider limpo no topo
+    # Slider limpo
     st.markdown("---")
     c_sim, c_vazio = st.columns([1, 2])
     with c_sim:
@@ -982,7 +1003,6 @@ def show_blowout_hunter_page():
         except: real_s = 0.0
         final_spread = max(real_s, force_spread)
         
-        # Define Estilo e Texto do Header
         if final_spread >= 12.5:
             risk_cls, risk_txt = "risk-high", "🔥 ALTO RISCO (BLOWOUT)"
             show_players = True
@@ -993,7 +1013,6 @@ def show_blowout_hunter_page():
             risk_cls, risk_txt = "risk-low", "JOGO EQUILIBRADO"
             show_players = False
         
-        # Renderiza Card
         st.markdown(f"""
         <div class="match-container">
             <div class="risk-header {risk_cls}">
@@ -1005,11 +1024,9 @@ def show_blowout_hunter_page():
             </div>
         """, unsafe_allow_html=True)
 
-        # Renderiza Jogadores (Se aplicável)
         if show_players:
             c1, c2 = st.columns(2)
             
-            # Função para renderizar coluna do time
             def render_team_col(col, t_name):
                 data = get_team_data(t_name)
                 with col:
@@ -1020,7 +1037,6 @@ def show_blowout_hunter_page():
                     
                     if data:
                         for p in data[:3]:
-                            # Foto
                             photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                             if p.get('id') and p['id'] != 0:
                                 photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
@@ -1049,19 +1065,24 @@ def show_blowout_hunter_page():
                     else:
                         st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados.</div>", unsafe_allow_html=True)
                     
-                    st.markdown("</div>", unsafe_allow_html=True) # Fecha players-area
+                    st.markdown("</div>", unsafe_allow_html=True)
 
             render_team_col(c1, g['away'])
             render_team_col(c2, g['home'])
         else:
-            # Se for equilibrado, mensagem limpa
             st.markdown("""
             <div style="padding:15px; text-align:center; background:rgba(0,0,0,0.2); color:#64748b; font-size:12px; font-weight:bold;">
                 🛡️ Foco nos Titulares (Spread Baixo)
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True) # Fecha match-container
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Botão Discreto (Menu)
+    with st.expander("⚙️ Opções", expanded=False):
+        if st.button("Forçar Reanálise de Dados"):
+            st.session_state.pop('dna_final_v22', None)
+            st.rerun()
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
@@ -7815,6 +7836,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
