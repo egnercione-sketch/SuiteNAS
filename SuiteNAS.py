@@ -886,7 +886,7 @@ def show_blowout_hunter_page():
             
 
 # ============================================================================
-# ENGINE MOMENTUM (CÁLCULO E CACHE)
+# ENGINE MOMENTUM (CÁLCULO E CACHE - V2.0 BLINDADA)
 # ============================================================================
 def get_momentum_data():
     """
@@ -895,41 +895,37 @@ def get_momentum_data():
     # 1. Tenta recuperar do Cache Universal
     cached_data = get_data_universal("momentum_cache")
     
-    # Validação simples: se tem dados e parece válido
     if cached_data and isinstance(cached_data, list) and len(cached_data) > 0:
         return pd.DataFrame(cached_data)
 
-    # 2. Se não tem cache, calcula do zero usando df_l5
+    # 2. Se não tem cache, calcula do zero
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
     if df_l5.empty:
         return pd.DataFrame()
 
     try:
-        # Cria uma cópia para não alterar o original
+        # LIMPEZA CRÍTICA: Remove linhas onde Jogador ou Time são nulos
         df = df_l5.copy()
+        df = df.dropna(subset=['PLAYER', 'TEAM']) 
         
-        # --- ALGORITMO DE MOMENTUM (Score 0-100) ---
-        # Normalização simples baseada em PRA (Points+Reb+Ast) ponderado por minutos
-        # Isso é uma simplificação, você pode deixar mais complexo depois
-        
-        # Cria PRA
+        # --- ALGORITMO DE MOMENTUM ---
         df['PRA'] = df['PTS_AVG'] + df['REB_AVG'] + df['AST_AVG']
         
-        # Eficiência (PRA por Minuto)
+        # Evita divisão por zero nos minutos
         df['EFF_PER_MIN'] = df['PRA'] / df['MIN_AVG'].replace(0, 1)
         
-        # Normalização Min-Max para Score 0-100
         min_eff = df['EFF_PER_MIN'].min()
         max_eff = df['EFF_PER_MIN'].max()
         
-        # O Score é 70% Eficiência + 30% Volume (Minutos), para não valorizar quem joga 2min
-        df['SCORE_RAW'] = ((df['EFF_PER_MIN'] - min_eff) / (max_eff - min_eff)) * 100
+        # Normalização segura
+        if max_eff == min_eff:
+            df['SCORE_RAW'] = 50
+        else:
+            df['SCORE_RAW'] = ((df['EFF_PER_MIN'] - min_eff) / (max_eff - min_eff)) * 100
         
-        # Ajuste Fino
         df['MOMENTUM_SCORE'] = df['SCORE_RAW'].apply(lambda x: min(100, max(0, x)))
         
-        # Define Status
         def get_status(score):
             if score >= 75: return "🔥 BULLISH"
             if score <= 35: return "🧊 BEARISH"
@@ -937,30 +933,30 @@ def get_momentum_data():
             
         df['STATUS'] = df['MOMENTUM_SCORE'].apply(get_status)
         
-        # Converte para lista de dicts para salvar no JSON/Supabase
-        data_to_save = df.to_dict('records')
+        # CORREÇÃO DA NUVEM: Substitui NaN por 0 ou vazio antes de salvar (JSON não aceita NaN)
+        df_clean = df.fillna(0)
         
-        # Salva no Cache Universal
+        data_to_save = df_clean.to_dict('records')
         save_data_universal("momentum_cache", data_to_save)
         
-        return df
+        return df_clean
 
     except Exception as e:
         st.error(f"Erro ao calcular momentum: {e}")
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA MOMENTUM (VISUAL WALL STREET v2.2 - CORREÇÃO TYPE ERROR)
+# PÁGINA MOMENTUM (VISUAL WALL STREET v2.3 - SEM 'TODOS' & FIX CRASH)
 # ============================================================================
 def show_momentum_page():
-    # Tenta importar a biblioteca gráfica. Se não tiver, avisa o usuário.
+    # Tenta importar plotly
     try:
         import plotly.express as px
     except ImportError:
-        st.error("⚠️ Biblioteca gráfica ausente. Por favor, adicione 'plotly' ao seu requirements.txt")
+        st.error("⚠️ Biblioteca plotly ausente.")
         return
 
-    # CSS Específico para esta página (Ticker e Cards)
+    # CSS Específico
     st.markdown("""
     <style>
         .market-header { font-family: 'Oswald'; font-size: 24px; color: #fff; letter-spacing: 2px; }
@@ -978,7 +974,7 @@ def show_momentum_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Dados
+    # 1. Carrega Dados
     df = get_momentum_data()
     
     if df.empty:
@@ -988,90 +984,90 @@ def show_momentum_page():
     # --- TOP HEADER: MARKET SNAPSHOT ---
     c1, c2, c3, c4 = st.columns(4)
     
-    # KPIs Rápidos
     avg_score = df['MOMENTUM_SCORE'].mean()
     bulls = len(df[df['STATUS'] == "🔥 BULLISH"])
     bears = len(df[df['STATUS'] == "🧊 BEARISH"])
     vol = df['MIN_AVG'].mean()
 
-    with c1:
-        st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#22d3ee">{avg_score:.1f}</div><div class="ticker-lbl">ÍNDICE GERAL</div></div>""", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls}</div><div class="ticker-lbl">EM ALTA (BULLS)</div></div>""", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears}</div><div class="ticker-lbl">EM BAIXA (BEARS)</div></div>""", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"""<div class="ticker-box"><div class="ticker-val">{vol:.1f}m</div><div class="ticker-lbl">VOLUME MÉDIO</div></div>""", unsafe_allow_html=True)
+    with c1: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#22d3ee">{avg_score:.1f}</div><div class="ticker-lbl">ÍNDICE GERAL</div></div>""", unsafe_allow_html=True)
+    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls}</div><div class="ticker-lbl">EM ALTA (BULLS)</div></div>""", unsafe_allow_html=True)
+    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears}</div><div class="ticker-lbl">EM BAIXA (BEARS)</div></div>""", unsafe_allow_html=True)
+    with c4: st.markdown(f"""<div class="ticker-box"><div class="ticker-val">{vol:.1f}m</div><div class="ticker-lbl">VOLUME MÉDIO</div></div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- FILTROS INTELIGENTES ---
+    # --- FILTROS OBRIGATÓRIOS (SEM 'TODOS OS TIMES') ---
     col_search, col_pos = st.columns([2, 1])
+    
     with col_search:
-        # CORREÇÃO AQUI: dropna() remove vazios e astype(str) garante que é texto
-        teams = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
-        teams.insert(0, "TODOS OS TIMES")
-        sel_team = st.selectbox("Filtrar por Time", teams)
+        # Garante que é string, remove duplicatas e ordena
+        teams_list = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
+        
+        if not teams_list:
+            st.warning("Nenhum time encontrado na base.")
+            return
+
+        # Seleciona o primeiro time automaticamente
+        sel_team = st.selectbox("Selecione o Time (Mercado Específico)", teams_list, index=0)
     
     with col_pos:
         positions = ["TODAS", "G", "F", "C"]
         sel_pos = st.selectbox("Posição", positions)
 
-    # Aplica Filtros
-    df_filtered = df.copy()
-    if sel_team != "TODOS OS TIMES":
-        df_filtered = df_filtered[df_filtered['TEAM'] == sel_team]
+    # Aplica Filtros (Sempre filtra por time agora)
+    df_filtered = df[df['TEAM'] == sel_team].copy()
     
     if 'POS' in df_filtered.columns and sel_pos != "TODAS":
         df_filtered = df_filtered[df_filtered['POS'].str.contains(sel_pos, na=False)]
 
     st.markdown("---")
 
-    # --- 2. MATRIZ DE DISPERSÃO (O GRÁFICO BLOOMBERG) ---
-    st.markdown('<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ DE OPORTUNIDADES</div>', unsafe_allow_html=True)
+    # --- 2. MATRIZ DE DISPERSÃO (GRAFICO) ---
+    st.markdown(f'<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ: {sel_team}</div>', unsafe_allow_html=True)
     
-    # Criando o Gráfico (Protegido)
     try:
-        fig = px.scatter(
-            df_filtered, 
-            x="MIN_AVG", 
-            y="MOMENTUM_SCORE",
-            color="MOMENTUM_SCORE",
-            color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
-            size="PTS_AVG",
-            hover_name="PLAYER",
-            hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
-            template="plotly_dark",
-            height=400
-        )
-        
-        fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            xaxis_title="VOLUME (MINUTOS)",
-            yaxis_title="MOMENTUM SCORE",
-            font=dict(family="Inter"),
-            margin=dict(l=0, r=0, t=0, b=0)
-        )
-        
-        fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
-        fig.add_vline(x=25, line_dash="dot", line_color="#334155")
-        
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Eixo X: Minutos Jogados | Eixo Y: Score de Momentum | Tamanho: Média de Pontos")
-        
+        if not df_filtered.empty:
+            fig = px.scatter(
+                df_filtered, 
+                x="MIN_AVG", 
+                y="MOMENTUM_SCORE",
+                color="MOMENTUM_SCORE",
+                color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
+                size="PTS_AVG",
+                hover_name="PLAYER",
+                hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
+                template="plotly_dark",
+                height=400
+            )
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis_title="VOLUME (MINUTOS)",
+                yaxis_title="MOMENTUM SCORE",
+                font=dict(family="Inter"),
+                margin=dict(l=0, r=0, t=0, b=0)
+            )
+            
+            fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
+            fig.add_vline(x=25, line_dash="dot", line_color="#334155")
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sem dados para exibir o gráfico.")
+            
     except Exception as e:
-        # Fallback silencioso se o gráfico falhar
-        st.info("Visualização gráfica indisponível no momento.")
+        st.info("Visualização gráfica indisponível.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 3. LISTAS BULL & BEAR (CARDS TIPO AÇÃO) ---
+    # --- 3. LISTAS BULL & BEAR ---
     col_bull, col_bear = st.columns(2)
 
     bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False)
     bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True)
 
+    # Helper de Renderização (BLINDADO CONTRA ERRO DE NOME)
     def render_market_card(player_row, type="bull"):
         if type == "bull":
             color = "#00ff9c"
@@ -1086,7 +1082,12 @@ def show_momentum_page():
         photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
         score = player_row['MOMENTUM_SCORE']
         
-        name = player_row['PLAYER']
+        # --- CORREÇÃO DO ERRO TYPE ERROR ---
+        # Força conversão para string e trata nulos
+        raw_name = player_row.get('PLAYER', '')
+        name = str(raw_name) if raw_name else "Desconhecido"
+        
+        # Truncar nome seguro
         if len(name) > 18: name = name[:16] + "..."
 
         st.markdown(f"""
@@ -1113,19 +1114,19 @@ def show_momentum_page():
         """, unsafe_allow_html=True)
 
     with col_bull:
-        st.markdown(f'<div class="market-header" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 MARKET BULLS (TOP 10)</div><br>', unsafe_allow_html=True)
+        st.markdown(f'<div class="market-header" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 {sel_team} BULLS</div><br>', unsafe_allow_html=True)
         if bulls_list.empty:
-            st.info("Nenhum jogador em tendência de alta clara.")
+            st.info(f"Nenhum jogador do {sel_team} em alta explosiva.")
         else:
-            for _, row in bulls_list.head(10).iterrows():
+            for _, row in bulls_list.iterrows():
                 render_market_card(row, "bull")
 
     with col_bear:
-        st.markdown(f'<div class="market-header" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 MARKET BEARS (TOP 10)</div><br>', unsafe_allow_html=True)
+        st.markdown(f'<div class="market-header" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 {sel_team} BEARS</div><br>', unsafe_allow_html=True)
         if bears_list.empty:
-            st.info("Nenhum jogador em tendência de baixa crítica.")
+            st.info(f"Nenhum jogador do {sel_team} em baixa crítica.")
         else:
-            for _, row in bears_list.head(10).iterrows():
+            for _, row in bears_list.iterrows():
                 render_market_card(row, "bear")
 # ============================================================================
 # PROPS ODDS - LAS VEGAS
@@ -7757,6 +7758,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
