@@ -6950,8 +6950,9 @@ if nexus_op:
         st.markdown(card_html, unsafe_allow_html=True)
 
     # ========================================================================
-    # 4. GAME GRID
+    # 4. GAME GRID (ALINHAMENTO CORRIGIDO)
     # ========================================================================
+    # Esta linha deve ter exatamente 4 espaços de recuo (mesmo nível do 'if nexus_op')
     st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
@@ -7093,6 +7094,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
