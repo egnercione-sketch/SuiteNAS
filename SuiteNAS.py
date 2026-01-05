@@ -1455,131 +1455,113 @@ class NexusEngine:
                 if val > max_reb: max_reb = val; best = name
         return best
         
-# ============================================================================
-# PÁGINA: NEXUS INTELLIGENCE (VISUAL FINAL V4.0 - ASCII SAFE MODE)
-# ============================================================================
 def show_nexus_page():
-    # 1. Dados
+    # Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # HEADER (SEM CARACTERES ESPECIAIS NO CODIGO PYTHON)
-    # Substituimos o ponto (bullet) por &bull; e o cerebro por codigo HTML
+    # Header
     st.markdown("""
-    <div style="padding: 20px; text-align: center;">
-        <h1 style="font-family: 'Oswald', sans-serif; font-size: 48px; color: #fff; margin: 0;">&#129504; NEXUS INTELLIGENCE</h1>
-        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px; font-size: 14px; margin-top: 5px;">MODO PREDADOR &bull; PRECISAO CIRURGICA</p>
+    <div style="text-align: center; padding: 20px;">
+        <h1 style="color: white; font-size: 3rem; margin:0; font-family:sans-serif;">🧠 NEXUS INTELLIGENCE</h1>
+        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
     if not full_cache:
-        st.error("Logs de jogos vazios. Atualize a base de dados.")
+        st.error("❌ Logs vazios.")
         return
 
-    # 2. Filtros (REMOVIDOS EMOJIS DOS LABELS DO STREAMLIT)
-    st.markdown("<div style='background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155;'>", unsafe_allow_html=True)
-    c_slider, c_type = st.columns([2, 1])
-    with c_slider:
-        # Removido emoji do label
-        min_score = st.slider("Score Minimo (Qualidade)", 50, 100, 65)
-    with c_type:
-        filter_type = st.selectbox("Tipo de Oportunidade", ["TODAS", "SGP (Duplas)", "DEF (vs Defesa)"])
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Engine
+    nexus = NexusEngine(full_cache, scoreboard or [])
+    min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
 
-    # 3. Engine & Execução
     try:
-        # Tenta importar caso não esteja no escopo global
-        if 'NexusEngine' not in globals():
-            from modules.new_modules.nexus_engine import NexusEngine 
-            
-        nexus = NexusEngine(full_cache, scoreboard or [])
         all_ops = nexus.run_nexus_scan()
-        
-        # Filtragem
         opportunities = [op for op in all_ops if op['score'] >= min_score]
-        
-        if filter_type == "SGP (Duplas)":
-            opportunities = [op for op in opportunities if op['type'] == 'SGP']
-        elif filter_type == "DEF (vs Defesa)":
-            opportunities = [op for op in opportunities if op['type'] != 'SGP']
-            
     except Exception as e:
-        # Msg simples sem caracteres especiais
-        st.info("Aguardando sincronizacao da Engine Nexus...")
+        st.error(f"Erro no Scan: {e}")
         return
 
     if not opportunities:
-        st.info(f"Nenhuma oportunidade encontrada com Score acima de {min_score}.")
+        st.info("Nenhuma oportunidade encontrada.")
         return
 
-    # Icone de Raio via HTML: &#9889;
-    st.markdown(f"**&#9889; {len(opportunities)} Oportunidades Encontradas**", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # 4. Renderização (CARD BLINDADO - TABELA HTML)
+    # Render
     for op in opportunities:
+        is_sgp = (op['type'] == 'SGP')
         color = op['color']
-        score = op['score']
+        icon = "⚡" if is_sgp else "🌪️"
         
-        # Conversão Segura de Strings e tratativa de acentos
-        title = str(op['title'])
-        
-        # Hero Data
-        h_name = str(op['hero']['name'])
-        if len(h_name) > 18: h_name = h_name[:16] + "..."
-        h_photo = op['hero']['photo']
-        h_info = f"{op['hero']['target']} {op['hero']['stat']}"
-        
-        # Partner/Villain Data
-        p_obj = op.get('partner', op.get('villain'))
-        p_name = str(p_obj['name'])
-        if len(p_name) > 18: p_name = p_name[:16] + "..."
-        p_photo = p_obj.get('photo', p_obj.get('logo'))
-        
-        # Ícones HTML
-        if 'partner' in op:
-            p_info = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "&#128279;" # Link Icon
-        else:
-            p_info = f"Alvo: {op['villain']['status']}"
-            mid_icon = "&#9876;" # Swords Icon
+        with st.container():
+            # Linha Topo
+            st.markdown(f"""<div style="border-top: 4px solid {color}; margin-top: 15px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
             
-        impact = op.get('impact', 'Alta Sinergia Detectada')
+            # Cabeçalho
+            c1, c2 = st.columns([3, 1])
+            c1.markdown(f"### {icon} {op['title']}")
+            c2.markdown(f"<div style='background:{color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
+            
+            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
+            
+            # --- HEROI ---
+            with col_hero:
+                ci1, ci2 = st.columns([0.4, 1])
+                with ci1: st.image(op['hero']['logo'], width=40)
+                with ci2: st.image(op['hero']['photo'], width=70)
+                
+                st.markdown(f"**{op['hero']['name']}**")
+                st.caption(f"{op['hero'].get('role', op['hero'].get('status'))}")
+                
+                t_val = op['hero'].get('target', '')
+                t_stat = op['hero'].get('stat', '')
+                st.markdown(f"<div style='border:1px solid {color}; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{t_val}</b> {t_stat}</div>", unsafe_allow_html=True)
 
-        # Card HTML
-        card_html = f"""
-        <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Oswald', sans-serif; color: #ffffff; font-size: 14px; letter-spacing: 1px;">{title}</span>
-                <span style="background-color: {color}; color: #000000; font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 11px; padding: 2px 6px; border-radius: 4px;">SCORE {score}</span>
-            </div>
+            # --- MEIO ---
+            with col_mid:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if is_sgp:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>🔗</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#94a3b8;'>{op.get('synergy_txt', '')}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>⚔️</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#f87171;'>VS DEFESA</div>", unsafe_allow_html=True)
 
-            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: none; margin: 0;">
-                <tr>
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{h_name}</div>
-                        <div style="color: {color}; font-family: sans-serif; font-size: 10px; font-weight: bold;">{h_info}</div>
-                    </td>
+            # --- ALVO ---
+            with col_target:
+                if is_sgp:
+                    ci3, ci4 = st.columns([1, 0.4])
+                    with ci3: st.image(op['partner']['photo'], width=70)
+                    with ci4: st.image(op['partner']['logo'], width=40)
+                    
+                    st.markdown(f"**{op['partner']['name']}**")
+                    st.caption(f"{op['partner']['role']}")
+                    
+                    p_val = op['partner']['target']
+                    p_stat = op['partner']['stat']
+                    st.markdown(f"<div style='border:1px solid white; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{p_val}</b> {p_stat}</div>", unsafe_allow_html=True)
+                else:
+                    cv1, cv2 = st.columns([0.4, 1])
+                    with cv1: st.image(op['villain']['logo'], width=40)
+                    with cv2: 
+                        st.markdown(f"**{op['villain']['name']}**")
+                        st.caption("Adversário")
+                    
+                    st.markdown(f"🚨 <span style='color:#f87171; font-weight:bold'>{op['villain']['status']}</span>", unsafe_allow_html=True)
+                    st.caption(f"Sem: {op['villain']['missing']}")
 
-                    <td style="width: 20%; text-align: center; vertical-align: middle; border: none;">
-                        <div style="font-size: 20px; color: #64748b; opacity: 0.7;">{mid_icon}</div>
-                    </td>
-
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #ffffff; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p_name}</div>
-                        <div style="color: #cbd5e1; font-family: sans-serif; font-size: 10px;">{p_info}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="background-color: rgba(0,0,0,0.3); padding: 6px; text-align: center; font-family: sans-serif; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
-                ANALISTA: {impact}
-            </div>
-        </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
+            # --- RODAPÉ ---
+            st.divider()
+            if is_sgp:
+                st.caption(" | ".join([f"✅ {b}" for b in op['badges']]))
+            else:
+                l1, l2, l3 = st.columns(3)
+                for i, s in enumerate(op['ladder']):
+                    s = s.replace(":", "")
+                    if i==0: l1.info(s)
+                    if i==1: l2.success(s)
+                    if i==2: l3.warning(s)
+                st.caption(f"📉 {op['impact']}")
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -7656,6 +7638,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
