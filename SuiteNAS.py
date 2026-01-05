@@ -488,7 +488,7 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-# PÁGINA: DVP SNIPER (V30.0 - PRO VISUAL & MULTI-TARGET)
+# PÁGINA: DVP SNIPER (V31.0 - FULL SPECTRUM & VISUAL TIERS)
 # ============================================================================
 def show_dvp_analysis():
     import streamlit as st
@@ -497,7 +497,7 @@ def show_dvp_analysis():
     import unicodedata
     import html
 
-    # --- 1. FUNÇÕES AUXILIARES (NORMALIZAÇÃO) ---
+    # --- 1. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -506,120 +506,110 @@ def show_dvp_analysis():
             return text.upper().strip()
         except: return ""
 
-    # --- 2. CSS VISUAL (SNIPER THEME V30) ---
+    # --- 2. CSS VISUAL (TIERS) ---
     st.markdown("""
     <style>
         .dvp-title { font-family: 'Oswald'; font-size: 28px; color: #fff; margin-bottom: 5px; }
         .dvp-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
 
-        /* CARD PRINCIPAL */
         .sniper-card {
             background-color: #1e293b;
             border-radius: 10px;
-            padding: 10px 15px;
-            margin-bottom: 10px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
             border: 1px solid #334155;
             display: flex;
             align-items: center;
             justify-content: space-between;
             transition: transform 0.2s;
         }
-        .sniper-card:hover { transform: translateX(5px); }
+        .sniper-card:hover { transform: translateX(3px); border-color: #64748b; }
 
-        /* Lado Esquerdo: Jogador */
-        .player-box { display: flex; align-items: center; gap: 12px; width: 60%; }
+        .player-box { display: flex; align-items: center; gap: 10px; width: 65%; }
         .s-img {
-            width: 45px; height: 45px; border-radius: 50%;
+            width: 40px; height: 40px; border-radius: 50%;
             object-fit: cover; background: #0f172a;
-            border: 2px solid #475569;
+            border: 2px solid #334155;
         }
         .s-info { display: flex; flex-direction: column; }
-        .s-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; }
-        .s-meta { font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; margin-top: 2px; }
+        .s-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; }
+        .s-meta { font-size: 10px; color: #94a3b8; font-weight: bold; text-transform: uppercase; margin-top: 2px; }
         
-        /* Badge de Posição */
         .pos-badge { 
             background: rgba(255,255,255,0.1); color: #cbd5e1; 
-            padding: 1px 5px; border-radius: 4px; font-size: 9px; margin-left: 5px; 
+            padding: 1px 4px; border-radius: 3px; font-size: 8px; margin-left: 4px; 
         }
 
-        /* Lado Direito: Rank */
-        .rank-box { text-align: right; min-width: 80px; }
+        .rank-box { text-align: right; min-width: 70px; }
         .rank-val { 
-            font-family: 'Oswald'; font-size: 22px; font-weight: bold; 
-            padding: 2px 10px; border-radius: 6px; display: inline-block;
-            min-width: 50px; text-align: center;
+            font-family: 'Oswald'; font-size: 18px; font-weight: bold; 
+            padding: 2px 8px; border-radius: 4px; display: inline-block;
+            min-width: 40px; text-align: center;
         }
-        .rank-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: bold; }
+        .rank-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: bold; }
 
-        /* Cores de Rank */
-        .rank-green { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; box-shadow: 0 0 10px rgba(34, 197, 94, 0.2); }
-        .rank-red { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+        /* Cores de Rank (Tiers) */
+        .rank-elite { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; } /* 25-30 */
+        .rank-good { background: rgba(34, 197, 94, 0.1); color: #86efac; border: 1px solid #4ade80; } /* 16-24 */
+        .rank-avg { background: rgba(250, 204, 21, 0.1); color: #fde047; border: 1px solid #eab308; } /* 11-15 */
+        .rank-bad { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; } /* 1-10 */
 
-        /* Headers de Seção */
         .matchup-header { 
             font-family: 'Oswald'; font-size: 16px; color: #e2e8f0; 
             background: linear-gradient(90deg, #0f172a 0%, transparent 100%);
-            padding: 8px 12px; border-left: 4px solid #6366f1; margin-top: 20px; margin-bottom: 10px;
+            padding: 6px 10px; border-left: 4px solid #3b82f6; margin-top: 15px; margin-bottom: 8px;
             border-radius: 0 4px 4px 0;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="dvp-title">🎯 DvP SNIPER</div>', unsafe_allow_html=True)
-    st.markdown('<div class="dvp-sub">Análise de vulnerabilidade defensiva por posição (Defense vs Position).</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dvp-title">🎯 DvP RADAR (FULL)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dvp-sub">Análise completa de matchup por posição. Rank 30 = Defesa mais fraca (Melhor para atacar).</div>', unsafe_allow_html=True)
 
-    # --- 3. DADOS & CONFIGURAÇÃO ---
-    # Inicializa Analisador DvP
+    # --- 3. DADOS ---
     dvp_analyzer = st.session_state.get("dvp_analyzer")
-    if not dvp_analyzer or not hasattr(dvp_analyzer, 'defense_data'):
+    if not dvp_analyzer:
         try:
             from modules.new_modules.dvp_analyzer import DvPAnalyzer
             st.session_state.dvp_analyzer = DvPAnalyzer()
             dvp_analyzer = st.session_state.dvp_analyzer
         except:
-            st.error("⚠️ Módulo DvP não carregado.")
+            st.error("Módulo DvP offline.")
             return
 
-    # Carrega Scoreboard e L5
     games = st.session_state.get("scoreboard", [])
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
 
     if not games:
-        st.warning("⚠️ Scoreboard vazio. Atualize em Config.")
+        st.warning("Scoreboard vazio.")
         return
 
-    # --- 4. PREPARAÇÃO DE MAPAS (IDs e Posições Reais) ---
-    PLAYER_DATA_MAP = {} # Nome -> {id, pos, min}
+    # --- 4. MAPAS & FILTROS ---
+    PLAYER_DATA_MAP = {}
     
     if not df_l5.empty:
         try:
-            # Normaliza colunas
             cols = [c.upper() for c in df_l5.columns]
             df_l5.columns = cols
             
-            # Identifica colunas chaves
             col_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             col_team = next((c for c in cols if 'TEAM' in c), 'TEAM')
-            col_pos = next((c for c in cols if 'POS' in c), None) # Posição Oficial
+            col_pos = next((c for c in cols if 'POS' in c), None)
             col_min = next((c for c in cols if 'MIN' in c), 'MIN')
             col_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
 
-            # Cria mapa
             for _, row in df_l5.iterrows():
                 p_name = normalize_str(row.get(col_name, ''))
                 if p_name:
                     PLAYER_DATA_MAP[p_name] = {
                         "id": row.get(col_id, 0),
                         "team": str(row.get(col_team, 'UNK')).upper(),
-                        "pos": str(row.get(col_pos, 'UNK')).upper().replace('-', '/'), # Ex: PF-C -> PF/C
+                        "pos": str(row.get(col_pos, 'UNK')).upper().replace('-', '/'),
                         "min": float(row.get(col_min, 0))
                     }
-        except Exception as e:
-            # print(f"Erro mapeando L5: {e}") 
-            pass
+        except: pass
 
-    # --- 5. FILTRO DE LESÕES (INJURY SHIELD V27) ---
+    # Lesões
     banned_players = set()
     try:
         fresh_inj = get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
@@ -648,20 +638,17 @@ def show_dvp_analysis():
                 banned_players.add(normalize_str(p_name))
     except: pass
 
-    # --- 6. LÓGICA MULTI-TARGET ---
-    # Mapeia Jogadores por Time e Posição (baseado no L5)
-    TEAM_ROSTER = {} # { "LAL": { "PG": [player_obj, ...], "SG": ... } }
-    
+    # --- 5. LOGICA MULTI-TARGET ---
+    TEAM_ROSTER = {} 
     POS_KEYS = ["PG", "SG", "SF", "PF", "C"]
     
     for p_name, data in PLAYER_DATA_MAP.items():
-        if p_name in banned_players: continue # Filtra lesionado
-        if data['min'] < 20: continue # Filtra pouco tempo de quadra
+        if p_name in banned_players: continue
+        if data['min'] < 20: continue 
         
         tm = data['team']
         if tm not in TEAM_ROSTER: TEAM_ROSTER[tm] = {k: [] for k in POS_KEYS}
         
-        # Lógica de Posição Flexível (Se for SF/PF, entra em ambos)
         raw_pos = data['pos']
         assigned = False
         for k in POS_KEYS:
@@ -669,93 +656,77 @@ def show_dvp_analysis():
                 TEAM_ROSTER[tm][k].append(data)
                 assigned = True
         
-        # Fallback se não tiver posição clara (ex: "G", "F")
         if not assigned:
             if "G" in raw_pos: 
-                TEAM_ROSTER[tm]["PG"].append(data)
-                TEAM_ROSTER[tm]["SG"].append(data)
+                TEAM_ROSTER[tm]["PG"].append(data); TEAM_ROSTER[tm]["SG"].append(data)
             elif "F" in raw_pos:
-                TEAM_ROSTER[tm]["SF"].append(data)
-                TEAM_ROSTER[tm]["PF"].append(data)
+                TEAM_ROSTER[tm]["SF"].append(data); TEAM_ROSTER[tm]["PF"].append(data)
             elif "C" in raw_pos:
                 TEAM_ROSTER[tm]["C"].append(data)
 
-    # Ordena rosters por minutos
     for tm in TEAM_ROSTER:
         for pos in TEAM_ROSTER[tm]:
             TEAM_ROSTER[tm][pos].sort(key=lambda x: x['min'], reverse=True)
 
-    # --- 7. PROCESSAMENTO DOS JOGOS ---
+    # --- 6. PROCESSAMENTO ---
     TEAM_MAP_API = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN"}
-    
     matchups_data = []
 
-    with st.spinner("Analisando matchups defensivos..."):
-        for g in games:
-            home, away = g['home'], g['away']
-            home_code = TEAM_MAP_API.get(home, home)
-            away_code = TEAM_MAP_API.get(away, away)
-            
-            game_analysis = {"game": f"{away} @ {home}", "targets": [], "avoids": []}
-            
-            # Analisa Home vs Away Defense
-            # (Time da Casa ataca, Time de Fora defende)
-            # Para cada posição, qual o Rank da defesa Away?
-            for side, attack_team, def_team_code in [('HOME', home_code, away_code), ('AWAY', away_code, home_code)]:
+    for g in games:
+        home, away = g['home'], g['away']
+        home_code = TEAM_MAP_API.get(home, home)
+        away_code = TEAM_MAP_API.get(away, away)
+        
+        # Targets = Rank > 15 (Defesa Fraca)
+        # Avoids = Rank <= 15 (Defesa Forte)
+        game_analysis = {"game": f"{away} @ {home}", "targets": [], "avoids": []}
+        
+        for side, attack_team, def_team_code in [('HOME', home_code, away_code), ('AWAY', away_code, home_code)]:
+            if attack_team not in TEAM_ROSTER: continue
+
+            for pos in POS_KEYS:
+                rank = dvp_analyzer.get_position_rank(def_team_code, pos)
                 
-                if attack_team not in TEAM_ROSTER: continue
-
-                for pos in POS_KEYS:
-                    # Pega Rank Defensivo do Oponente
-                    rank = dvp_analyzer.get_position_rank(def_team_code, pos)
+                # AQUI ESTÁ A MUDANÇA: Processa TODOS os ranks
+                # Antes tinha 'if rank >= 25 or rank <= 5'
+                
+                players = TEAM_ROSTER[attack_team].get(pos, [])
+                for p in players[:1]: # Pega o principal da posição
                     
-                    # Critérios:
-                    # Rank >= 25 (Pior Defesa -> Verde/Alvo)
-                    # Rank <= 5 (Melhor Defesa -> Vermelho/Evitar)
+                    is_target = rank > 15 # Se rank > 15, é um matchup favorável
+                    lst = game_analysis["targets"] if is_target else game_analysis["avoids"]
                     
-                    if rank >= 25 or rank <= 5:
-                        # Busca jogadores do time atacante nessa posição
-                        players = TEAM_ROSTER[attack_team].get(pos, [])
-                        
-                        # Pega até 2 jogadores relevantes (>24 min já filtrado)
-                        for p in players[:2]:
-                            # Evita duplicar o mesmo jogador no mesmo jogo em posições diferentes
-                            # (Ex: Luka não aparecer como PG alvo e SG alvo ao mesmo tempo, escolhe o primeiro)
-                            is_target = rank >= 25
-                            lst = game_analysis["targets"] if is_target else game_analysis["avoids"]
-                            
-                            # Check duplicata na lista
-                            if not any(x['name'] == p['name'] for x in lst):
-                                lst.append({
-                                    "name": p['name'], # Nome é a chave no PLAYER_DATA_MAP (normalizado)
-                                    "real_name": list(PLAYER_DATA_MAP.keys())[list(PLAYER_DATA_MAP.keys()).index(p['name'])], # Hack pra pegar nome display se possível, ou usa p['name']
-                                    "id": p['id'],
-                                    "pos": pos,
-                                    "rank": rank,
-                                    "min": p['min'],
-                                    "opp": def_team_code
-                                })
+                    if not any(x['name'] == p['name'] for x in lst):
+                        lst.append({
+                            "name": p['name'], 
+                            "id": p['id'],
+                            "pos": pos,
+                            "rank": rank,
+                            "min": p['min'],
+                            "opp": def_team_code
+                        })
 
-            if game_analysis["targets"] or game_analysis["avoids"]:
-                matchups_data.append(game_analysis)
+        if game_analysis["targets"] or game_analysis["avoids"]:
+            matchups_data.append(game_analysis)
 
-    # --- 8. RENDERIZAÇÃO ---
+    # --- 7. RENDERIZAÇÃO ---
     if not matchups_data:
-        st.info("Nenhum matchup extremo (Rank Top 5 ou Bottom 5) identificado para hoje.")
+        st.info("Nenhum dado de matchup encontrado.")
         return
 
     def render_sniper_card(p, is_target):
-        # Recupera Nome Original para display (se o normalizado ficou feio)
         display_name = p['name'].title() 
-        
         photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         if p['id'] != 0:
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png"
         
-        rank_cls = "rank-green" if is_target else "rank-red"
-        rank_lbl = "DEFESA FRACA (ALVO)" if is_target else "DEFESA ELITE (EVITAR)"
+        # Lógica de Cores por Tier
+        rank = p['rank']
+        if rank >= 25: rank_cls, rank_lbl = "rank-elite", "DEFESA PÉSSIMA"
+        elif rank >= 16: rank_cls, rank_lbl = "rank-good", "DEFESA FRACA"
+        elif rank >= 11: rank_cls, rank_lbl = "rank-avg", "DEFESA MÉDIA"
+        else: rank_cls, rank_lbl = "rank-bad", "DEFESA ELITE"
         
-        # Ícone de posição
         pos_icons = {"PG": "🏀", "SG": "🏹", "SF": "🗡️", "PF": "💪", "C": "🛡️"}
         icon = pos_icons.get(p['pos'], "👤")
 
@@ -765,40 +736,36 @@ def show_dvp_analysis():
                 <img src="{photo}" class="s-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
                 <div class="s-info">
                     <div class="s-name">{display_name} <span class="pos-badge">{icon} {p['pos']}</span></div>
-                    <div class="s-meta">{p['min']:.0f} MIN • vs {p['opp']}</div>
+                    <div class="s-meta">{p['min']:.0f}M • vs {p['opp']}</div>
                 </div>
             </div>
             <div class="rank-box">
-                <div class="rank-val {rank_cls}">#{p['rank']}</div>
-                <div class="rank-lbl">{rank_lbl}</div>
+                <div class="rank-val {rank_cls}">#{rank}</div>
             </div>
         </div>
         """
 
     for match in matchups_data:
         st.markdown(f'<div class="matchup-header">{match["game"]}</div>', unsafe_allow_html=True)
-        
         c1, c2 = st.columns(2)
         
-        # Coluna OVER (Alvos)
         with c1:
+            st.markdown("<div style='color:#4ade80; font-size:11px; font-weight:bold; margin-bottom:5px; text-align:center;'>🚀 ATAQUE FAVORÁVEL (Rank 16-30)</div>", unsafe_allow_html=True)
             if match['targets']:
-                # Ordena por Rank (Pior defesa primeiro = Maior numero)
                 sorted_targets = sorted(match['targets'], key=lambda x: x['rank'], reverse=True)
                 html_block = "".join([render_sniper_card(p, True) for p in sorted_targets])
                 st.markdown(html_block, unsafe_allow_html=True)
             else:
-                st.markdown("<div style='text-align:center; color:#64748b; padding:10px; font-size:12px;'>Sem alvos claros.</div>", unsafe_allow_html=True)
+                st.caption("Sem vantagens claras.")
 
-        # Coluna UNDER (Evitar)
         with c2:
+            st.markdown("<div style='color:#f87171; font-size:11px; font-weight:bold; margin-bottom:5px; text-align:center;'>🛡️ MATCHUP DIFÍCIL (Rank 1-15)</div>", unsafe_allow_html=True)
             if match['avoids']:
-                # Ordena por Rank (Melhor defesa primeiro = Menor numero)
                 sorted_avoids = sorted(match['avoids'], key=lambda x: x['rank'])
                 html_block = "".join([render_sniper_card(p, False) for p in sorted_avoids])
                 st.markdown(html_block, unsafe_allow_html=True)
             else:
-                st.markdown("<div style='text-align:center; color:#64748b; padding:10px; font-size:12px;'>Sem ameaças defensivas.</div>", unsafe_allow_html=True)
+                st.caption("Sem bloqueios defensivos.")
                 
 # ============================================================================
 # PÁGINA: BLOWOUT RADAR (V27.0 - TARGETING V44 CACHE)
@@ -8119,6 +8086,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
