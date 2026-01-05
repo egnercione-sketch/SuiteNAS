@@ -1931,13 +1931,13 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: STRATEGY 5/7/10 (VERSÃO BLINDADA V3.0 - INLINE STYLES)
+# PAGINA: STRATEGY 5/7/10 (VERSAO BLINDADA V3.1 - ASCII SAFE)
 # ============================================================================
 def show_5_7_10_page():
     import json
     import os
 
-    # --- 1. CONFIGURAÇÃO E CARREGAMENTO ---
+    # --- 1. CONFIGURACAO E CARREGAMENTO ---
     def local_load_json(filepath):
         if os.path.exists(filepath):
             try:
@@ -1954,10 +1954,10 @@ def show_5_7_10_page():
         full_cache = local_load_json("real_game_logs.json") or {}
 
     # Executa a Engine
-    # (Supondo que a classe FiveSevenTenEngine já está importada/definida)
     try:
+        # Verifica importacao
         if 'FiveSevenTenEngine' not in globals():
-            from modules.new_modules.five_seven_ten import FiveSevenTenEngine # Ajuste se necessário
+            from modules.new_modules.five_seven_ten import FiveSevenTenEngine
         
         engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
         opportunities, diag = engine.analyze_market()
@@ -1965,11 +1965,12 @@ def show_5_7_10_page():
         st.error(f"Erro ao inicializar Engine 5-7-10: {e}")
         return
 
-    # --- 2. CABEÇALHO ---
+    # --- 2. CABECALHO ---
+    # Icone de Alvo via HTML: &#127919;
     st.markdown("## &#127919; Strategy 5 / 7 / 10")
     st.caption("Scanner de Glue Guys & Estrelas: Da seguranca (5+) a explosao (10+). Base L25.")
 
-    # --- 3. DIAGNÓSTICO ---
+    # --- 3. DIAGNOSTICO ---
     with st.expander("Diagnostico do Sistema"):
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Jogadores DB", diag.get("total_players", 0))
@@ -1982,10 +1983,10 @@ def show_5_7_10_page():
 
     if not opportunities:
         if diag.get("playing_today", 0) > 0:
-            st.info("Nenhum jogador atingiu os critérios (50% Safe / 8% Explosão) hoje.")
+            st.info("Nenhum jogador atingiu os criterios (50% Safe / 8% Explosao) hoje.")
         return
 
-    # --- 4. RENDERIZAÇÃO (ESTILOS INLINE PARA EVITAR ERROS DE SINTAXE) ---
+    # --- 4. RENDERIZACAO (ESTILOS INLINE PARA EVITAR ERROS DE SINTAXE) ---
     
     # Filtros
     filter_stat = st.radio("Filtrar:", ["TODOS", "AST", "REB"], horizontal=True)
@@ -1993,8 +1994,7 @@ def show_5_7_10_page():
     if filter_stat == "AST": f_opps = [x for x in opportunities if x['stat'] == 'AST']
     if filter_stat == "REB": f_opps = [x for x in opportunities if x['stat'] == 'REB']
 
-    # Definição de Estilos (Strings Python Puras)
-    # Usamos strings normais aqui, sem f-string, para não confundir o parser
+    # Definicao de Estilos (Strings Python Puras - ASCII Only)
     s_card = "background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);"
     s_img = "width: 55px; height: 55px; border-radius: 50%; object-fit: cover; background: #000;"
     s_info = "margin-left: 15px; width: 140px;"
@@ -2010,7 +2010,7 @@ def show_5_7_10_page():
     s_val = "font-family: sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px;"
 
     for item in f_opps:
-        # Lógica de Cor
+        # Logica de Cor
         if "DYNAMITE" in item['archetype']:
             border_c = "#f87171"
         else:
@@ -2021,14 +2021,15 @@ def show_5_7_10_page():
         target_pct = item['metrics']['Target_7']
         ceil_pct = item['metrics']['Ceiling_10']
         
-        # HTML Montado com F-String LIMPA (Apenas variáveis, sem CSS complexo dentro)
+        # HTML Montado
+        # SUBSTITUICAO CRITICA: O simbolo de ponto foi trocado por &bull;
         html = f"""
         <div style="{s_card} border-left: 5px solid {border_c};">
             <img src="{item['photo']}" style="{s_img} border: 2px solid {border_c};">
             
             <div style="{s_info}">
                 <div style="{s_name}">{item['player']}</div>
-                <div style="{s_team}">{item['team']} vs {item['opp']} • {item['stat']}</div>
+                <div style="{s_team}">{item['team']} vs {item['opp']} &bull; {item['stat']}</div>
                 <div style="{s_arch}">{item['archetype']}</div>
             </div>
             
@@ -7624,6 +7625,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
