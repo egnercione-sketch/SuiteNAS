@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V24.0 - REAL-TIME INJURY SHIELD)
+# PÁGINA: BLOWOUT RADAR (V25.0 - ACCENT REMOVAL & FUZZY MATCH)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -742,12 +742,20 @@ def show_blowout_hunter_page():
     import re
     import time
     import numpy as np
+    import unicodedata
     
-    # --- 1. ESTILO VISUAL ---
+    # --- 1. FUNÇÃO DE NORMALIZAÇÃO DE TEXTO (A SALVAÇÃO) ---
+    def normalize_str(text):
+        """Remove acentos, força maiúsculo e remove espaços extras."""
+        if not text: return ""
+        # Normaliza Unicode (ex: 'č' vira 'c')
+        text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+        return text.upper().strip()
+
+    # --- 2. ESTILO VISUAL ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
-        .radar-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
         
         .match-container {
             background-color: #1e293b;
@@ -802,41 +810,43 @@ def show_blowout_hunter_page():
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 2. PASSO CRÍTICO: ATUALIZAÇÃO E BUILD DA LISTA NEGRA ---
-    # Carrega lesões da nuvem AGORA
+    # --- 3. ATUALIZAÇÃO E BUILD DA LISTA NEGRA (COM NORMALIZAÇÃO) ---
     try:
         fresh_injuries = get_data_universal('injuries_data')
         if fresh_injuries:
             st.session_state['injuries_data'] = fresh_injuries
     except: pass
 
-    # Constrói o conjunto de Banidos (Banned Set)
     banned_players = set()
+    debug_injuries_found = []
+    
     try:
         raw_inj = st.session_state.get('injuries_data', [])
         flat_inj = []
-        
         if isinstance(raw_inj, dict):
             for t in raw_inj.values(): flat_inj.extend(t)
         elif isinstance(raw_inj, list):
             flat_inj = raw_inj
         
-        # Palavras que indicam fora/dúvida
-        EXCLUSION_KEYWORDS = ['out', 'doubt', 'surg', 'injur', 'protocol', 'day', 'dtd', 'quest']
+        # Palavras-chave estendidas
+        EXCLUSION_KEYWORDS = ['out', 'doubt', 'surg', 'injur', 'protocol', 'day', 'dtd', 'quest', 'gtd']
         
         for i in flat_inj:
             status = str(i.get('status', '')).lower()
             if any(x in status for x in EXCLUSION_KEYWORDS):
                 p_name = i.get('player') or i.get('name')
                 if p_name:
-                    banned_players.add(str(p_name).upper().strip())
-    except: pass
+                    clean_name = normalize_str(p_name)
+                    banned_players.add(clean_name)
+                    debug_injuries_found.append(f"{clean_name} ({status})")
+    except Exception as e:
+        print(f"Erro filtro lesão: {e}")
 
-    # --- 3. CONFIGURAÇÃO E DADOS ---
+    # --- 4. CONFIGURAÇÃO E DADOS ---
     KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_v24" # Nova chave para cache limpo
+    KEY_DNA = "rotation_dna_v25" # Nova chave V25
 
-    # Mapas Auxiliares (L5)
+    # Mapas L5
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
@@ -844,20 +854,20 @@ def show_blowout_hunter_page():
     if not df_l5.empty:
         try:
             df_norm = df_l5.copy()
-            df_norm['PLAYER_NORM'] = df_norm['PLAYER'].str.upper().str.strip()
+            # Usa a mesma normalização aqui
+            df_norm['PLAYER_NORM'] = df_norm['PLAYER'].apply(normalize_str)
             PLAYER_ID_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['PLAYER_ID']))
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 4. ENGINE AUTO-RUN (Gera o DNA Bruto - Sem filtrar lesão aqui) ---
-    # Motivo: O cache deve conter todos os reservas bons. A lesão filtramos na exibição.
-    
-    if 'dna_final_v24' not in st.session_state:
-        with st.spinner("🤖 Analisando histórico L25..."):
+    # --- 5. ENGINE AUTO-RUN ---
+    if 'dna_final_v25' not in st.session_state:
+        with st.spinner("🤖 Gerando inteligência de rotação..."):
             try:
-                # Tenta cache nuvem
+                # Tenta cache
                 cloud_dna = get_data_universal(KEY_DNA)
                 
+                # Se não tiver cache, processa
                 if not cloud_dna:
                     raw_data = get_data_universal(KEY_LOGS)
                     if raw_data:
@@ -871,10 +881,10 @@ def show_blowout_hunter_page():
                         for p_name, p_data in raw_data.items():
                             if not isinstance(p_data, dict): continue
                             
-                            norm_name = str(p_name).upper().strip()
+                            norm_name = normalize_str(p_name)
                             
-                            # Nota: NÃO filtramos lesão aqui para o cache ser durável
-                            # Filtramos apenas na renderização
+                            # NOTA: O filtro de lesão acontece NA EXIBIÇÃO, não aqui.
+                            # Assim, se ele se curar, aparece sem precisar recalcular.
                             
                             p_id = PLAYER_ID_MAP.get(norm_name, 0)
                             
@@ -896,7 +906,6 @@ def show_blowout_hunter_page():
                                 avg_min = p_data.get('logs', {}).get('MIN_AVG', 0)
                                 if avg_min == 0 and min_list: avg_min = sum(min_list) / len(min_list)
                                 
-                                # Filtro Reserva (< 26 min)
                                 if avg_min > 26: continue
 
                                 is_qualified = False
@@ -907,7 +916,6 @@ def show_blowout_hunter_page():
                                 if min_list and len(min_list) == len(pts_list):
                                     arr_min = np.array(min_list)
                                     mask = arr_min >= max(12.0, avg_min * 2.0)
-                                    
                                     if np.any(mask):
                                         is_qualified = True
                                         logic_type = "SNIPER"
@@ -942,7 +950,8 @@ def show_blowout_hunter_page():
                                     
                                     temp_team_data[team].append({
                                         "id": int(p_id),
-                                        "name": p_name,
+                                        "name": p_name, # Nome original para display
+                                        "clean_name": norm_name, # Nome limpo para filtro
                                         "avg_min": float(avg_min),
                                         "blowout_min": float(b_min),
                                         "pts": float(b_pts),
@@ -953,23 +962,22 @@ def show_blowout_hunter_page():
                                     })
                             except: continue
 
-                    # Ordena e Salva Top 10 (Guardamos mais para ter margem caso top 3 estejam lesionados)
                     for t, players in temp_team_data.items():
                         players.sort(key=lambda x: x['score'], reverse=True)
                         new_dna[t] = players[:10]
                     
                     save_data_universal(KEY_DNA, new_dna)
-                    st.session_state['dna_final_v24'] = new_dna
+                    st.session_state['dna_final_v25'] = new_dna
                 else:
-                    st.session_state['dna_final_v24'] = cloud_dna if cloud_dna else {}
+                    st.session_state['dna_final_v25'] = cloud_dna if cloud_dna else {}
 
             except Exception as e:
-                st.error(f"Erro no Auto-Run: {e}")
-                st.session_state['dna_final_v24'] = {}
+                st.error(f"Erro Auto-Run: {e}")
+                st.session_state['dna_final_v25'] = {}
 
-    DNA_DB = st.session_state.get('dna_final_v24', {})
+    DNA_DB = st.session_state.get('dna_final_v25', {})
 
-    # --- 5. EXIBIÇÃO ---
+    # --- 6. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Aguardando jogos...")
@@ -982,13 +990,12 @@ def show_blowout_hunter_page():
 
     # Alias Map
     ALIAS_MAP = {
-        "GS": "GSW", "GSW": "GSW", "GOLDEN STATE": "GSW",
-        "NY": "NYK", "NYK": "NYK", "NEW YORK": "NYK",
-        "NO": "NOP", "NOP": "NOP", "NOR": "NOP",
-        "SA": "SAS", "SAS": "SAS", "UTAH": "UTA", "UTA": "UTA",
-        "PHO": "PHX", "PHX": "PHX", "WSH": "WAS", "WAS": "WAS",
-        "BRK": "BKN", "BKN": "BKN", "CHO": "CHA", "CHA": "CHA",
-        "LAL": "LAL", "LAC": "LAC", "DET": "DET", "OKC": "OKC"
+        "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
+        "NO": "NOP", "NOP": "NOP", "NOR": "NOP", "SA": "SAS", "SAS": "SAS",
+        "UTAH": "UTA", "UTA": "UTA", "PHO": "PHX", "PHX": "PHX",
+        "WSH": "WAS", "WAS": "WAS", "BRK": "BKN", "BKN": "BKN",
+        "CHO": "CHA", "CHA": "CHA", "LAL": "LAL", "LAC": "LAC",
+        "DET": "DET", "OKC": "OKC"
     }
 
     def get_team_data(query):
@@ -1040,8 +1047,15 @@ def show_blowout_hunter_page():
                     """, unsafe_allow_html=True)
                     
                     if data:
-                        # --- FILTRO REAL-TIME DE LESÃO ---
-                        active_players = [p for p in data if p['name'].upper().strip() not in banned_players]
+                        # --- FILTRO REAL-TIME COM NORMALIZAÇÃO ---
+                        active_players = []
+                        for p in data:
+                            # Tenta usar nome limpo já salvo, ou limpa na hora
+                            p_clean = p.get('clean_name') or normalize_str(p['name'])
+                            
+                            # Verifica se está na lista negra (que já está normalizada)
+                            if p_clean not in banned_players:
+                                active_players.append(p)
                         
                         if active_players:
                             for p in active_players[:3]:
@@ -1071,7 +1085,7 @@ def show_blowout_hunter_page():
                                 </div>
                                 """, unsafe_allow_html=True)
                         else:
-                            st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Todos os reservas listados estão DTD/OUT.</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Reservas listados estão lesionados.</div>", unsafe_allow_html=True)
                     else:
                         st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados.</div>", unsafe_allow_html=True)
                     
@@ -1087,6 +1101,18 @@ def show_blowout_hunter_page():
             """, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- 7. VERIFICADOR DE BANIDOS (DEBUG FINAL) ---
+    with st.expander("🕵️ Ver Lista de Lesionados (Check)", expanded=False):
+        st.write(f"Total de jogadores banidos: {len(banned_players)}")
+        search_p = st.text_input("Testar Jogador:", "VALANCIUNAS")
+        if search_p:
+            clean_s = normalize_str(search_p)
+            is_banned = clean_s in banned_players
+            st.write(f"Nome Normalizado: {clean_s}")
+            st.write(f"Está Banido? {'✅ SIM' if is_banned else '❌ NÃO'}")
+            if is_banned: st.success("Filtro funcionando!")
+            else: st.error("Jogador não encontrado na lista de lesões.")
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
@@ -7840,6 +7866,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
