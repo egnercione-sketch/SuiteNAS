@@ -946,253 +946,159 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA: MOMENTUM (VISUAL DIRETO - SEM FILTROS)
+# PÁGINA: MOMENTUM (V4.0 - Z-SCORE REAL & FOTOS)
 # ============================================================================
 def show_momentum_page():
-    # CSS Específico
+    # CSS para os Cards com Foto
     st.markdown("""
     <style>
-        .mom-header { font-family: 'Oswald'; font-size: 24px; color: #fff; margin-bottom: 5px; }
-        .mom-sub { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+        .mom-header { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 10px; letter-spacing: 1px; }
         
+        /* Card Container */
         .mom-card {
-            background: rgba(15, 23, 42, 0.6);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
+            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 12px;
+            padding: 0; /* Padding zero para a imagem encostar */
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            border-left-width: 4px;
-            border-left-style: solid;
+            border: 1px solid #334155;
+            overflow: hidden; /* Para a imagem não vazar */
             transition: transform 0.2s;
         }
-        .mom-card:hover { transform: translateX(5px); background: rgba(15, 23, 42, 0.8); }
+        .mom-card:hover { transform: scale(1.02); border-color: #64748B; }
         
-        .mom-hot { border-left-color: #10B981; }  /* Verde para Hot */
-        .mom-cold { border-left-color: #EF4444; } /* Vermelho para Cold */
+        /* Borda Colorida Lateral */
+        .border-hot { border-left: 6px solid #10B981; }
+        .border-cold { border-left: 6px solid #EF4444; }
         
-        .mom-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; }
-        .mom-lbl { font-size: 10px; color: #64748B; text-transform: uppercase; }
-        
-        .trend-badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-            display: inline-block;
-            margin-left: 5px;
+        /* Área da Foto */
+        .mom-img-box {
+            width: 80px;
+            height: 80px;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
         }
-        .trend-up { background: rgba(16, 185, 129, 0.1); color: #10B981; }
-        .trend-down { background: rgba(239, 68, 68, 0.1); color: #EF4444; }
+        .mom-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.9;
+        }
+        
+        /* Área de Texto */
+        .mom-info { padding: 10px 15px; flex-grow: 1; }
+        
+        .mom-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; }
+        .mom-team { font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; }
+        
+        .mom-stat-row { display: flex; justify-content: space-between; align-items: end; }
+        .mom-score { font-family: 'Oswald'; font-size: 22px; font-weight: bold; }
+        .mom-avg { font-size: 10px; color: #64748B; text-align: right; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR</div>', unsafe_allow_html=True)
-    st.markdown('<div class="mom-sub">Análise de aceleração de performance (L5 vs Season). Quem está subindo e quem está descendo.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
+    st.info("Ranking baseado na Dominância Relativa (Z-Score). Quem está produzindo muito acima ou abaixo da média da liga nos últimos 5 jogos.")
 
     # 1. DADOS
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     if df_l5.empty:
-        st.warning("Dados insuficientes. Atualize na aba Config.")
+        st.warning("Dados insuficientes. Vá em Config > Atualizar L5.")
         return
 
-    # 2. CÁLCULO DE MOMENTUM (Z-SCORE SIMPLIFICADO)
-    # Momentum = (Média L5 - Média Season) / Média Season
-    # Filtramos jogadores com minutos relevantes (>15 min) para evitar ruído de banco
+    # 2. CÁLCULO ESTATÍSTICO (Z-SCORE)
+    # Filtro mínimo de minutos para evitar ruído
+    df_calc = df_l5[df_l5['MIN_AVG'] >= 15].copy()
     
-    df_mom = df_l5[df_l5['MIN_AVG'] >= 15].copy()
-    
-    # Previne divisão por zero
-    df_mom = df_mom[df_mom['PTS_AVG'] > 0] 
-    
-    # Calcula Delta % para Pontos (Pode expandir para PRA se quiser)
-    # Assumindo que temos pts_L5 (recente) e PTS_AVG (season) ou algo similar.
-    # Se só tivermos L5 no dataframe, o cálculo de momentum real precisa de dados da temporada.
-    # Vou assumir que PTS_AVG é a média da temporada e pts_L5 é a recente. 
-    # Se não tiver pts_L5 explícito, usaremos uma heurística simples com as colunas disponíveis.
-    
-    # Tentativa de identificar colunas
-    col_season = 'PTS_AVG' # Média Geral
-    col_recent = 'pts_L5'  # Média Recente (se existir)
-    
-    if col_recent not in df_mom.columns:
-        # Se não tiver a coluna explícita, vamos simular que PTS_AVG é a recente e criar um fake "season" 
-        # (Idealmente você tem as duas médias. Vou usar PTS_AVG como a métrica principal de analise)
-        # Vamos calcular o Z-Score dentro do próprio dataset L5 para ver quem está desviando da média da LIGA.
-        mean_league = df_mom['PTS_AVG'].mean()
-        std_league = df_mom['PTS_AVG'].std()
-        df_mom['z_score'] = (df_mom['PTS_AVG'] - mean_league) / std_league
-        df_mom['momentum_val'] = df_mom['z_score'] # Placeholder
-    else:
-        # Se tivermos as duas, calculamos a variação
-        df_mom['momentum_val'] = (df_mom[col_recent] - df_mom[col_season]) / df_mom[col_season] * 100
+    if df_calc.empty:
+        st.warning("Nenhum jogador com mais de 15 minutos de média.")
+        return
 
-    # Classificação
-    df_mom = df_mom.sort_values('momentum_val', ascending=False)
-    
-    # Top 10 Quentes e Top 10 Frios
-    top_hot = df_mom.head(10)
-    top_cold = df_mom.tail(10).sort_values('momentum_val', ascending=True) # Os mais negativos primeiro
+    # Usaremos PRA (Points + Rebounds + Assists) para medir impacto geral
+    # Se PRA não existir, calcula na hora
+    if 'PRA_AVG' not in df_calc.columns:
+        df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
 
-    # 3. RENDERIZAÇÃO LADO A LADO
+    # Estatísticas da Liga (Amostra Atual)
+    mean_league = df_calc['PRA_AVG'].mean()
+    std_league = df_calc['PRA_AVG'].std()
+    
+    # Evita divisão por zero
+    if std_league == 0: std_league = 1
+
+    # Z-Score: Quantos desvios padrão acima/abaixo da média o jogador está?
+    df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
+
+    # 3. SEPARAÇÃO HOT / COLD
+    # Hot: Os maiores Z-Scores (Dominantes)
+    top_hot = df_calc.nlargest(10, 'z_score')
+    
+    # Cold: Os menores Z-Scores, mas...
+    # IMPORTANTE: Para ser "Frio" relevante, o cara tem que jogar muito e produzir pouco.
+    # Filtramos quem joga > 20 min mas tem Z-Score negativo.
+    df_cold_candidates = df_calc[df_calc['MIN_AVG'] >= 24]
+    top_cold = df_cold_candidates.nsmallest(10, 'z_score')
+
+    # 4. RENDERIZAÇÃO
     c1, c2 = st.columns(2)
 
-    # --- COLUNA HOT (ESQUERDA) ---
-    with c1:
-        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:18px; margin-bottom:10px;">&#128200; EM ALTA (HOT)</div>', unsafe_allow_html=True)
-        if top_hot.empty:
-            st.info("Sem dados suficientes.")
-        else:
-            for _, row in top_hot.iterrows():
-                val = row['momentum_val']
-                # Se for Z-score (ex: 2.5), formatamos diferente de %
-                val_str = f"+{val:.1f} (Z)" if abs(val) < 10 else f"+{val:.0f}%"
-                
-                name = row.get('PLAYER', 'Unknown')
-                team = row.get('TEAM', '')
-                pts = row.get('PTS_AVG', 0)
-                
-                st.markdown(f"""
-                <div class="mom-card mom-hot">
-                    <div>
-                        <div style="font-weight:bold; color:#fff; font-size:14px;">{name} <span style="font-size:10px; color:#94a3b8;">{team}</span></div>
-                        <div style="font-size:11px; color:#10B981;">Performance Acelerada</div>
+    # Função Helper de Renderização
+    def render_momentum_card(col, row, type_card):
+        is_hot = type_card == "HOT"
+        css_class = "border-hot" if is_hot else "border-cold"
+        color = "#10B981" if is_hot else "#EF4444"
+        icon_html = "&#128200;" if is_hot else "&#128201;" # Chart Up / Down
+        
+        pid = int(row['PLAYER_ID'])
+        name = row['PLAYER']
+        team = row['TEAM']
+        pra = row['PRA_AVG']
+        z = row['z_score']
+        
+        # Foto da NBA
+        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        
+        # HTML do Card
+        col.markdown(f"""
+        <div class="mom-card {css_class}">
+            <div class="mom-img-box">
+                <img src="{photo_url}" class="mom-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+            </div>
+            <div class="mom-info">
+                <div class="mom-team">{team}</div>
+                <div class="mom-name">{name}</div>
+                <div class="mom-stat-row">
+                    <div style="font-size:11px; color:{color}; font-weight:bold;">
+                        {icon_html} {z:+.2f} <span style="color:#64748B;">(Z-Score)</span>
                     </div>
-                    <div style="text-align:right;">
-                        <div class="mom-val" style="color:#10B981;">{val_str}</div>
-                        <div class="mom-lbl">Média: {pts:.1f}</div>
+                    <div>
+                        <div class="mom-score" style="color:#fff;">{pra:.1f}</div>
+                        <div class="mom-avg">PRA (Média L5)</div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # --- COLUNA COLD (DIREITA) ---
+    # --- COLUNA HOT ---
+    with c1:
+        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
+        for _, row in top_hot.iterrows():
+            render_momentum_card(c1, row, "HOT")
+
+    # --- COLUNA COLD ---
     with c2:
-        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:18px; margin-bottom:10px;">&#128201; EM BAIXA (COLD)</div>', unsafe_allow_html=True)
+        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
+        st.caption("Jogadores com +24min de quadra produzindo abaixo da média da liga.")
         if top_cold.empty:
-            st.info("Sem dados suficientes.")
+            st.info("Nenhum jogador 'Frio' relevante detectado (todos os titulares estão produzindo o esperado).")
         else:
             for _, row in top_cold.iterrows():
-                val = row['momentum_val']
-                val_str = f"{val:.1f} (Z)" if abs(val) < 10 else f"{val:.0f}%"
-                
-                name = row.get('PLAYER', 'Unknown')
-                team = row.get('TEAM', '')
-                pts = row.get('PTS_AVG', 0)
-                
-                st.markdown(f"""
-                <div class="mom-card mom-cold">
-                    <div>
-                        <div style="font-weight:bold; color:#fff; font-size:14px;">{name} <span style="font-size:10px; color:#94a3b8;">{team}</span></div>
-                        <div style="font-size:11px; color:#EF4444;">Performance em Queda</div>
-                    </div>
-                    <div style="text-align:right;">
-                        <div class="mom-val" style="color:#EF4444;">{val_str}</div>
-                        <div class="mom-lbl">Média: {pts:.1f}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    st.caption("Nota: Momentum calculado com base na variação de desempenho recente (Z-Score ou Delta %) em relação à média estabelecida.")
-# ============================================================================
-# PROPS ODDS - LAS VEGAS
-# ============================================================================
-def show_props_odds_page():
-    st.header("🔥 Props & Odds Reais (Pinnacle)")
-
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🔄 Atualizar Jogos do Dia (Spreads/Totais)"):
-            with st.spinner("Conectando à Pinnacle..."):
-                # --- LÓGICA RECRIADA AQUI (Substituindo update_pinnacle_data) ---
-                try:
-                    # Instancia o cliente importado (certifique-se que o import está no topo)
-                    client = PinnacleClient("13e1dd2e12msh72d0553fca0e8aap16eeacjsn9d69ddb0d2bb")
-                    
-                    # 1. Busca Jogos
-                    games = client.get_nba_games()
-                    
-                    if not games:
-                        st.warning("Nenhum jogo com odds abertas encontrado.")
-                    else:
-                        # 2. Salva no Session State
-                        st.session_state['pinnacle_games'] = games
-                        
-                        # Cria mapa rápido
-                        odds_map = {}
-                        for g in games:
-                            odds_map[g['home_team']] = g
-                            odds_map[g['away_team']] = g
-                        
-                        st.session_state['pinnacle_odds_map'] = odds_map
-                        st.success(f"✅ Odds Atualizadas! {len(games)} jogos carregados.")
-                        
-                except Exception as e:
-                    st.error(f"Erro ao conectar na Pinnacle: {e}")
-
-    with col2:
-        if st.button("🎯 Sincronizar Player Props"):
-            if 'pinnacle_games' not in st.session_state:
-                st.error("Primeiro atualize os jogos do dia (Botão da esquerda)!")
-            else:
-                games = st.session_state['pinnacle_games']
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                try:
-                    client = PinnacleClient("13e1dd2e12msh72d0553fca0e8aap16eeacjsn9d69ddb0d2bb")
-                    full_map = {}
-                    total = len(games)
-                    
-                    for i, game in enumerate(games):
-                        status_text.text(f"Processando {i+1}/{total}: {game['away_team']} @ {game['home_team']}")
-                        props = client.get_player_props(game['game_id'])
-                        for p in props:
-                            name = p['player']
-                            if name not in full_map:
-                                full_map[name] = {}
-                            
-                            # Salva a linha e a odd
-                            full_map[name][p['market']] = {
-                                "line": p['line'],
-                                "odds": p['odds']
-                            }
-                        progress_bar.progress((i + 1) / total)
-                    
-                    st.session_state['pinnacle_props_map'] = full_map
-                    progress_bar.empty()
-                    status_text.empty()
-                    
-                    total_props = sum(len(v) for v in full_map.values())
-                    st.success(f"✅ {len(full_map)} jogadores | {total_props} props sincronizados!")
-                    
-                except Exception as e:
-                    st.error(f"Erro ao buscar props: {e}")
-
-    # Mostrar status
-    st.divider()
-    if 'pinnacle_games' in st.session_state:
-        st.info(f"🟢 {len(st.session_state['pinnacle_games'])} jogos carregados")
-    if 'pinnacle_props_map' in st.session_state:
-        total_props = sum(len(v) for v in st.session_state.get('pinnacle_props_map', {}).values())
-        st.success(f"🎯 {len(st.session_state['pinnacle_props_map'])} jogadores | {total_props} props disponíveis")
-    
-    # Opcional: busca por jogador
-    if 'pinnacle_props_map' in st.session_state:
-        player_name = st.text_input("Buscar props de um jogador:")
-        if player_name:
-            matches = {k: v for k, v in st.session_state['pinnacle_props_map'].items() if player_name.lower() in k.lower()}
-            if matches:
-                for name, props in matches.items():
-                    st.write(f"**{name}**")
-                    for market, data in props.items():
-                        # Ajuste para ler dicionário ou valor direto
-                        line = data.get('line') if isinstance(data, dict) else data
-                        odd = data.get('odds') if isinstance(data, dict) else 1.90
-                        st.write(f"• {market}: {line} (@{odd})")
-            else:
-                st.info("Jogador não encontrado nas props do dia.")
+                render_momentum_card(c2, row, "COLD")
                 
 
 # ============================================================================
@@ -7763,6 +7669,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
