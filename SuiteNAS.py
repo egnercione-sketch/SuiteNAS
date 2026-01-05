@@ -8022,7 +8022,7 @@ def main():
     elif choice == "🏆 Trinity Club": show_trinity_club_page()
     
     elif choice == "🔥 Hot Streaks": show_hit_prop_page()
-    elif choice == "📊 Matriz 5-7-10": show_5_7_10_page()
+    elif choice == "📊 Matriz 5-7-10": show_matriz_5_7_10_page()
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
     
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
@@ -8035,6 +8035,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
