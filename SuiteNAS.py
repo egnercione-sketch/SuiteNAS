@@ -488,7 +488,7 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-# PÁGINA: DVP TACTICAL BOARD (V35.0 - FULL ROSTER VIEW)
+# PÁGINA: DVP TACTICAL BOARD (V36.0 - OPEN DATA & DEBUGGER)
 # ============================================================================
 def show_dvp_analysis():
     import streamlit as st
@@ -506,20 +506,38 @@ def show_dvp_analysis():
             return text.upper().strip()
         except: return ""
 
+    # Mapeamento agressivo para garantir que todos falem a mesma língua
     UNIVERSAL_MAP = {
         "GS": "GSW", "GOLDEN STATE": "GSW", "WARRIORS": "GSW",
         "NY": "NYK", "NEW YORK": "NYK", "KNICKS": "NYK",
-        "NO": "NOP", "NEW ORLEANS": "NOP", "PELICANS": "NOP",
+        "NO": "NOP", "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NOR": "NOP",
         "SA": "SAS", "SAN ANTONIO": "SAS", "SPURS": "SAS",
         "PHO": "PHX", "PHOENIX": "PHX", "SUNS": "PHX",
         "WSH": "WAS", "WASHINGTON": "WAS", "WIZARDS": "WAS",
-        "UTAH": "UTA", "JAZZ": "UTA",
-        "BRK": "BKN", "BROOKLYN": "BKN", "NETS": "BKN",
-        "CHO": "CHA", "CHARLOTTE": "CHA", "HORNETS": "CHA",
+        "UTAH": "UTA", "JAZZ": "UTA", "UTA": "UTA",
+        "BRK": "BKN", "BROOKLYN": "BKN", "NETS": "BKN", "BKN": "BKN",
+        "CHO": "CHA", "CHARLOTTE": "CHA", "HORNETS": "CHA", "CHA": "CHA",
         "LAL": "LAL", "LAKERS": "LAL",
         "LAC": "LAC", "CLIPPERS": "LAC",
         "DET": "DET", "DETROIT": "DET", "PISTONS": "DET",
-        "OKC": "OKC", "OKLAHOMA": "OKC", "THUNDER": "OKC"
+        "OKC": "OKC", "OKLAHOMA": "OKC", "THUNDER": "OKC",
+        "ATL": "ATL", "ATLANTA": "ATL",
+        "BOS": "BOS", "BOSTON": "BOS",
+        "CHI": "CHI", "CHICAGO": "CHI",
+        "CLE": "CLE", "CLEVELAND": "CLE",
+        "DAL": "DAL", "DALLAS": "DAL",
+        "DEN": "DEN", "DENVER": "DEN",
+        "HOU": "HOU", "HOUSTON": "HOU",
+        "IND": "IND", "INDIANA": "IND",
+        "MEM": "MEM", "MEMPHIS": "MEM",
+        "MIA": "MIA", "MIAMI": "MIA",
+        "MIL": "MIL", "MILWAUKEE": "MIL",
+        "MIN": "MIN", "MINNESOTA": "MIN",
+        "ORL": "ORL", "ORLANDO": "ORL",
+        "PHI": "PHI", "PHILADELPHIA": "PHI",
+        "POR": "POR", "PORTLAND": "POR",
+        "SAC": "SAC", "SACRAMENTO": "SAC",
+        "TOR": "TOR", "TORONTO": "TOR"
     }
 
     def get_standard_team_code(raw_team):
@@ -538,10 +556,10 @@ def show_dvp_analysis():
             border: 1px solid #334155;
             border-bottom: none;
             border-radius: 8px 8px 0 0;
-            padding: 10px;
+            padding: 8px;
             text-align: center;
-            font-family: 'Oswald'; font-size: 18px; color: #e2e8f0;
-            margin-top: 20px;
+            font-family: 'Oswald'; font-size: 16px; color: #e2e8f0;
+            margin-top: 15px;
         }
 
         /* CONTAINER DOS TIMES */
@@ -555,53 +573,53 @@ def show_dvp_analysis():
             margin-bottom: 10px;
         }
 
-        .team-column { flex: 1; padding: 10px; }
+        .team-column { flex: 1; padding: 5px; }
         .team-column:first-child { border-right: 1px solid #334155; }
         
         .col-header { 
-            font-size: 12px; font-weight: bold; color: #94a3b8; text-transform: uppercase; 
-            margin-bottom: 8px; text-align: center; border-bottom: 2px solid #334155; padding-bottom: 4px;
+            font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase; 
+            margin-bottom: 6px; text-align: center; border-bottom: 1px solid #334155; padding-bottom: 2px;
         }
 
         /* LINHA DO JOGADOR */
         .tactical-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 6px; margin-bottom: 4px;
+            padding: 4px 6px; margin-bottom: 3px;
             background: rgba(255,255,255,0.02);
             border-radius: 4px;
-            border-left: 3px solid transparent;
+            border-left: 2px solid transparent;
         }
         
-        .p-left { display: flex; align-items: center; gap: 8px; }
-        .p-face { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #000; border: 1px solid #475569; }
+        .p-left { display: flex; align-items: center; gap: 6px; }
+        .p-face { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #000; border: 1px solid #475569; }
         .p-details { display: flex; flex-direction: column; }
-        .p-nick { font-family: 'Oswald'; font-size: 13px; color: #e2e8f0; line-height: 1.1; }
-        .p-pos { font-size: 9px; color: #94a3b8; font-weight: bold; }
+        .p-nick { font-family: 'Oswald'; font-size: 12px; color: #e2e8f0; line-height: 1.1; }
+        .p-pos { font-size: 8px; color: #94a3b8; font-weight: bold; }
 
         /* RANK BADGE */
         .rank-badge {
             font-family: 'Roboto Mono', monospace;
-            font-size: 12px; font-weight: bold;
-            padding: 2px 6px; border-radius: 4px;
-            min-width: 35px; text-align: center;
+            font-size: 11px; font-weight: bold;
+            padding: 1px 5px; border-radius: 3px;
+            min-width: 30px; text-align: center;
             border: 1px solid rgba(255,255,255,0.1);
         }
 
         /* CORES DE RANK */
-        .rk-elite { background: #22c55e; color: #000; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); } /* 25-30 */
+        .rk-elite { background: #22c55e; color: #000; box-shadow: 0 0 5px rgba(34, 197, 94, 0.4); } /* 25-30 */
         .rk-good { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: #22c55e; } /* 20-24 */
         .rk-avg { background: rgba(234, 179, 8, 0.1); color: #facc15; border-color: #eab308; } /* 11-19 */
         .rk-bad { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: #ef4444; } /* 1-10 */
         
-        .missing-data { text-align: center; font-size: 11px; color: #64748b; padding: 20px; font-style: italic; }
+        .missing-data { text-align: center; font-size: 10px; color: #64748b; padding: 15px; font-style: italic; }
 
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="board-title">🛡️ DvP TACTICAL BOARD</div>', unsafe_allow_html=True)
-    st.markdown('<div class="board-sub">Análise tática completa. Rank defensivo do oponente por posição.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="board-sub">Rank defensivo do oponente por posição. (Rank 30 = Pior Defesa/Melhor Alvo).</div>', unsafe_allow_html=True)
 
-    # --- 3. CARREGAMENTO DE DADOS ---
+    # --- 3. DADOS ---
     dvp_analyzer = st.session_state.get("dvp_analyzer")
     if not dvp_analyzer:
         try:
@@ -617,14 +635,12 @@ def show_dvp_analysis():
         st.warning("Scoreboard vazio. Atualize em Config.")
         return
 
-    # --- 4. ENGINE HÍBRIDA (ROSTER BUILDER) ---
+    # --- 4. ENGINE DE DADOS (ABERTA) ---
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
     real_logs = get_data_universal('real_game_logs') or {}
     
-    TEAMS_PLAYING_TODAY = set()
-    for g in games:
-        TEAMS_PLAYING_TODAY.add(get_standard_team_code(g['home']))
-        TEAMS_PLAYING_TODAY.add(get_standard_team_code(g['away']))
+    # Debug: Times encontrados no banco
+    FOUND_TEAMS = set()
 
     # Filtro Lesão
     banned_players = set()
@@ -651,8 +667,7 @@ def show_dvp_analysis():
                 banned_players.add(normalize_str(p_name))
     except: pass
 
-    # Construção de Roster (Lista Simples por Time)
-    # TEAM_ROSTER = { "LAL": [ {name, pos, min, id}, ... ] }
+    # Roster Builder - Carrega TUDO, sem filtrar por jogo
     TEAM_ROSTER = {}
 
     def infer_position_single(stats):
@@ -661,11 +676,11 @@ def show_dvp_analysis():
         if reb >= 9.0: return "C"
         if reb >= 6.0 and ast < 3.0: return "PF"
         if pts >= 20.0: return "SG"
-        return "SF" # Fallback
+        return "SF" 
 
     processed_players = set()
 
-    # 1. Fonte Oficial
+    # 1. Fonte Oficial (L5)
     if not df_l5.empty:
         try:
             cols = [c.upper() for c in df_l5.columns]
@@ -683,25 +698,23 @@ def show_dvp_analysis():
                 raw_team = str(row.get(col_team, 'UNK'))
                 team = get_standard_team_code(raw_team)
                 
-                if team not in TEAMS_PLAYING_TODAY and team != "UNK": continue
-                if team not in TEAM_ROSTER: TEAM_ROSTER[team] = []
+                if team == 'UNK': continue
                 
-                # Limpa Posição (Pega a primeira se for G-F)
+                if team not in TEAM_ROSTER: TEAM_ROSTER[team] = []
+                FOUND_TEAMS.add(team)
+                
                 raw_pos = str(row.get(col_pos, 'SF')).upper().replace('-', '/')
-                main_pos = raw_pos.split('/')[0] # Pega a primária
-                if len(main_pos) > 2: main_pos = "SF" # Segurança
+                main_pos = raw_pos.split('/')[0]
+                if len(main_pos) > 2: main_pos = "SF"
                 
                 TEAM_ROSTER[team].append({
-                    "name": p_name,
-                    "id": row.get(col_id, 0),
-                    "min": float(row.get(col_min, 0)),
-                    "pos": main_pos,
-                    "source": "OFFICIAL"
+                    "name": p_name, "id": row.get(col_id, 0),
+                    "min": float(row.get(col_min, 0)), "pos": main_pos
                 })
                 processed_players.add(p_name)
         except: pass
 
-    # 2. Fonte Inferida
+    # 2. Fonte Logs (Emergência)
     if real_logs:
         for p_name, p_data in real_logs.items():
             norm_name = normalize_str(p_name)
@@ -710,47 +723,46 @@ def show_dvp_analysis():
             
             raw_team = str(p_data.get('team', 'UNK'))
             team = get_standard_team_code(raw_team)
-            if team not in TEAMS_PLAYING_TODAY: continue
-
+            
+            if team == 'UNK': continue # Se log não tem time, não tem como usar
+            
             if team not in TEAM_ROSTER: TEAM_ROSTER[team] = []
+            FOUND_TEAMS.add(team)
             
             logs = p_data.get('logs', {})
             stats_avg = {}
-            valid_log = False
+            valid = False
             for k in ['PTS', 'REB', 'AST', 'MIN']:
                 vals = logs.get(k, [])
                 clean = [float(x) for x in vals if x is not None]
-                if clean:
+                if clean: 
                     stats_avg[k] = sum(clean)/len(clean)
-                    valid_log = True
+                    valid = True
                 else: stats_avg[k] = 0
             
-            if not valid_log or stats_avg['MIN'] < 15: continue
+            if not valid or stats_avg['MIN'] < 10: continue # Minimo 10 min
             
             inf_pos = infer_position_single(stats_avg)
             
             TEAM_ROSTER[team].append({
                 "name": p_name, "id": 0,
-                "min": stats_avg['MIN'], "pos": inf_pos,
-                "source": "INFERRED"
+                "min": stats_avg['MIN'], "pos": inf_pos
             })
 
-    # Ordena Roster por Minutos
+    # Ordena Roster
     for tm in TEAM_ROSTER:
         TEAM_ROSTER[tm].sort(key=lambda x: x['min'], reverse=True)
 
-    # --- 5. RENDERIZAÇÃO (BOARD STYLE) ---
+    # --- 5. RENDERIZAÇÃO ---
     
     def render_player_row(p, opp_code):
-        # Busca Rank DvP
         rank = dvp_analyzer.get_position_rank(opp_code, p['pos'])
         if not rank: rank = 15
         
-        # Estilo do Rank
-        if rank >= 25: rk_cls = "rk-elite" # Verde Neon
-        elif rank >= 20: rk_cls = "rk-good" # Verde
-        elif rank >= 11: rk_cls = "rk-avg" # Amarelo
-        else: rk_cls = "rk-bad" # Vermelho
+        if rank >= 25: rk_cls = "rk-elite"
+        elif rank >= 20: rk_cls = "rk-good"
+        elif rank >= 11: rk_cls = "rk-avg"
+        else: rk_cls = "rk-bad"
         
         photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         if p['id'] != 0:
@@ -770,6 +782,8 @@ def show_dvp_analysis():
             <div class="rank-badge {rk_cls}">#{rank}</div>
         </div>
         """
+    
+    any_missing = False
 
     for g in games:
         home_code = get_standard_team_code(g['home'])
@@ -777,27 +791,13 @@ def show_dvp_analysis():
         
         st.markdown(f'<div class="game-header">{away_code} @ {home_code}</div>', unsafe_allow_html=True)
         
-        c1, c2 = st.columns([1, 1]) # Estrutura manual para garantir width, mas usando HTML abaixo é melhor
+        roster_away = TEAM_ROSTER.get(away_code, [])[:8]
+        roster_home = TEAM_ROSTER.get(home_code, [])[:8]
         
-        # Renderiza HTML Grid
-        # Coluna Away (Esquerda) vs Home (Direita)
+        html_away = "".join([render_player_row(p, home_code) for p in roster_away]) if roster_away else f'<div class="missing-data">Sinal perdido: {away_code}</div>'
+        html_home = "".join([render_player_row(p, away_code) for p in roster_home]) if roster_home else f'<div class="missing-data">Sinal perdido: {home_code}</div>'
         
-        roster_away = TEAM_ROSTER.get(away_code, [])[:8] # Top 8 rotação
-        roster_home = TEAM_ROSTER.get(home_code, [])[:8] # Top 8 rotação
-        
-        # Monta HTML Coluna Esquerda
-        html_away = ""
-        if roster_away:
-            html_away = "".join([render_player_row(p, home_code) for p in roster_away])
-        else:
-            html_away = f'<div class="missing-data">Dados de {away_code} indisponíveis.<br>Verifique logs.</div>'
-
-        # Monta HTML Coluna Direita
-        html_home = ""
-        if roster_home:
-            html_home = "".join([render_player_row(p, away_code) for p in roster_home])
-        else:
-            html_home = f'<div class="missing-data">Dados de {home_code} indisponíveis.<br>Verifique logs.</div>'
+        if not roster_away or not roster_home: any_missing = True
 
         st.markdown(f"""
         <div class="matchup-container">
@@ -811,6 +811,13 @@ def show_dvp_analysis():
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    # --- 6. DEBUGGER NO RODAPÉ (SÓ SE PRECISAR) ---
+    if any_missing:
+        with st.expander("📡 Diagnóstico de Sinal (Debug)", expanded=False):
+            st.write("**Times Disponíveis na Memória:**")
+            st.write(sorted(list(FOUND_TEAMS)))
+            st.info("Se o time do jogo não estiver na lista acima, ele não foi encontrado nem no L5 nem nos Logs Brutos (ou está como UNK).")
                 
 # ============================================================================
 # PÁGINA: BLOWOUT RADAR (V27.0 - TARGETING V44 CACHE)
@@ -7886,6 +7893,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
