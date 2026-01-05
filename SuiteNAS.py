@@ -3043,38 +3043,46 @@ def show_hit_prop_page():
             
     # Certifique-se de preencher as outras abas com sua lógica original.
 
+# ============================================
+    # DEFINICAO DAS ABAS (ASCII PURO)
     # ============================================
-    # ABA MÚLTIPLA (DESDOBRAMENTOS INTELIGENTES)
+    # Nomes das abas sem emojis e sem acentos para evitar erro de encoding
+    tabs = st.tabs(["MULTIPLA", "SNIPER", "STAIRWAY", "SGP LAB", "PROPS", "CONFIG"])
+
+    # ============================================
+    # ABA 0: MULTIPLA (DESDOBRAMENTOS)
     # ============================================
     with tabs[0]:
-        st.markdown("### 🧬 MÚLTIPLA (Desdobramentos Inteligentes)")
+        # HTML Entity para DNA: &#129468;
+        st.markdown("### &#129468; MULTIPLA (Desdobramentos Inteligentes)", unsafe_allow_html=True)
         
         # Verificar se temos dados suficientes
         if not cache_data:
-            st.error("❌ Dados de jogadores não carregados.")
+            st.error("ERRO: Dados de jogadores nao carregados.")
+            # HTML Entity para Engrenagem: &#9881;
             st.markdown("""
-            **Solução:** Vá para a aba **⚙️ CONFIG** e clique em:
-            1. **🔄 ATUALIZAR STATS (NBA)** - Para baixar dados dos jogadores
-            2. **🏛️ ATUALIZAR ODDS DE MERCADO** - Para obter odds atualizadas
-            """)
+            **Solucao:** Va para a aba **&#9881; CONFIG** e clique em:
+            1. **ATUALIZAR STATS (NBA)** - Para baixar dados dos jogadores
+            2. **ATUALIZAR ODDS DE MERCADO** - Para obter odds atualizadas
+            """, unsafe_allow_html=True)
         elif not games:
-            st.error("❌ Nenhum jogo encontrado para hoje.")
+            st.error("ERRO: Nenhum jogo encontrado para hoje.")
         elif not tridents:
-            st.warning("⚠️ Nenhum Trident encontrado.")
+            st.warning("ALERTA: Nenhum Trident encontrado.")
             st.markdown("""
-            **Possíveis causas:**
+            **Possiveis causas:**
             1. Thresholds muito altos nos Tridents
-            2. Jogadores sem histórico suficiente
+            2. Jogadores sem historico suficiente
             3. Necessidade de atualizar dados
             """)
         else:
             # GERAR MATRIX TICKETS
-            with st.spinner("🔄 Gerando múltiplas inteligentes..."):
+            with st.spinner("Gerando multiplas inteligentes..."):
                 try:
                     pool = matrix_engine.analyze_market_pool(cache_data, games, tridents)
                     
-                    # Diagnóstico
-                    with st.expander("📊 Diagnóstico do Pool", expanded=False):
+                    # Diagnostico
+                    with st.expander("Diagnostico do Pool", expanded=False):
                         st.write(f"**Anchors encontrados**: {len(pool.get('ANCHORS', []))}")
                         st.write(f"**Boosters encontrados**: {len(pool.get('BOOSTERS', []))}")
                         
@@ -3087,41 +3095,40 @@ def show_hit_prop_page():
                     matrix_tickets = matrix_engine.generate_smart_matrix(pool)
                     
                     if matrix_tickets:
-                        st.success(f"🎯 {len(matrix_tickets)} múltiplas inteligentes geradas!")
+                        st.success(f"Sucesso: {len(matrix_tickets)} multiplas inteligentes geradas!")
                         
                         # Separar por tipo
                         alpha_tickets = [t for t in matrix_tickets if t['type'] == 'ALPHA']
                         beta_tickets = [t for t in matrix_tickets if t['type'] == 'BETA']
                         
                         if alpha_tickets:
-                            st.markdown("#### 🔥 MÚLTIPLAS ALPHA (Premium)")
+                            st.markdown("#### ALPHA (Premium)")
                             for ticket in alpha_tickets:
                                 render_matrix_card_html(ticket)
                         
                         if beta_tickets:
-                            st.markdown("#### ⚡ MÚLTIPLAS BETA (Alternativas)")
+                            st.markdown("#### BETA (Alternativas)")
                             for ticket in beta_tickets:
                                 render_matrix_card_html(ticket)
                     else:
-                        st.info("📭 Nenhuma múltipla válida encontrada com os critérios atuais.")
+                        st.info("Nenhuma multipla valida encontrada com os criterios atuais.")
                         st.markdown("""
-                        **Soluções possíveis:**
+                        **Solucoes possiveis:**
                         1. Ajustar thresholds na classe MatrixEngine
                         2. Atualizar odds de mercado
-                        3. Aguardar mais jogadores com histórico
+                        3. Aguardar mais jogadores com historico
                         """)
                         
                 except Exception as e:
-                    st.error(f"❌ Erro ao gerar múltiplas: {str(e)}")
-                    import traceback
-                    with st.expander("🔍 Ver detalhes do erro"):
-                        st.code(traceback.format_exc())
+                    st.error(f"Erro ao gerar multiplas: {str(e)}")
+                    # Removemos traceback complexo para evitar erros de string
     
     # ============================================
-    # ABA SNIPER GEM
+    # ABA 1: SNIPER GEM
     # ============================================
     with tabs[1]:
-        st.markdown("### 💎 SNIPER GEM (Volume Shooters)")
+        # HTML Entity para Diamante: &#128142;
+        st.markdown("### &#128142; SNIPER GEM (Volume Shooters)", unsafe_allow_html=True)
         if not sniper_data:
             st.info("Nenhuma oportunidade detectada.")
         else:
@@ -3139,10 +3146,11 @@ def show_hit_prop_page():
                 st.divider()
     
     # ============================================
-    # ABA STAIRWAY
+    # ABA 2: STAIRWAY
     # ============================================
     with tabs[2]:
-        st.markdown("### 🪜 STAIRWAY (Matrix View)")
+        # HTML Entity para Escada: &#129692;
+        st.markdown("### &#129692; STAIRWAY (Matrix View)", unsafe_allow_html=True)
         if not stairway_raw:
             st.info("Nada hoje.")
         else:
@@ -3163,10 +3171,11 @@ def show_hit_prop_page():
                 st.divider()
     
     # ============================================
-    # ABA SGP LAB
+    # ABA 3: SGP LAB
     # ============================================
     with tabs[3]:
-        st.markdown("### 🧪 SGP LAB")
+        # HTML Entity para Tubo de Ensaio: &#12951ea;
+        st.markdown("### &#129514; SGP LAB", unsafe_allow_html=True)
         if not sgp_data:
             st.info("Nada.")
         else:
@@ -3179,14 +3188,16 @@ def show_hit_prop_page():
                     with cols[i % 3]:
                         items = [(prop['stat'], prop['line'], "") for prop in p_data['props']]
                         btn_key = generate_stable_key("sgp", p_data['player'], f"{p_data['team']}_{sgp_counter}")
-                        render_tactical_card(p_data['player'], p_data['team'], "100%", items, btn_key, "🧪 Adicionar", p_data, "SGP_LAB")
+                        # Botao sem emoji
+                        render_tactical_card(p_data['player'], p_data['team'], "100%", items, btn_key, "Adicionar", p_data, "SGP_LAB")
                 st.markdown("---")
     
     # ============================================
-    # ABA PROPS
+    # ABA 4: PROPS
     # ============================================
     with tabs[4]:
-        st.markdown("### 🔱 PROPS")
+        # HTML Entity para Tridente: &#128305;
+        st.markdown("### &#128305; PROPS", unsafe_allow_html=True)
         if not tridents:
             st.info("Nada.")
         else:
@@ -3201,33 +3212,36 @@ def show_hit_prop_page():
                     with cols[i % 3]:
                         items_c = [(s, l, "") for s, l in item['components']]
                         btn_key = generate_stable_key("tri", item['player'], f"{item['team']}_{i}")
-                        render_tactical_card(item['player'], f"{item['team']} • {item['archetype']}", f"{item['hit_rate']:.0%}", items_c, btn_key, "🔱 Salvar", item, "TRIDENT")
+                        # Substituicao critica: Hifen no lugar de bullet point
+                        display_text = f"{item['team']} - {item['archetype']}"
+                        render_tactical_card(item['player'], display_text, f"{item['hit_rate']:.0%}", items_c, btn_key, "Salvar", item, "TRIDENT")
                 st.markdown("---")
     
     # ============================================
-    # ABA CONFIG
+    # ABA 5: CONFIG
     # ============================================
     with tabs[5]:
-        st.markdown("### 🔧 Configurações & Mercado")
+        st.markdown("### Configuracoes & Mercado")
         
-        if st.button("🏛️ ATUALIZAR ODDS DE MERCADO (PINNACLE)", help="Consome cota de API."):
-            with st.spinner("Conectando à Pinnacle..."):
+        # Botoes sem emojis
+        if st.button("ATUALIZAR ODDS DE MERCADO (PINNACLE)", help="Consome cota de API."):
+            with st.spinner("Conectando a Pinnacle..."):
                 ok, msg = odds_manager.force_update()
                 if ok:
                     st.success(msg)
                 else:
                     st.error(msg)
         
-        st.caption("Última atualização: " + str(odds_manager.load_odds().get('updated_at', 'Nunca')))
+        st.caption("Ultima atualizacao: " + str(odds_manager.load_odds().get('updated_at', 'Nunca')))
         st.divider()
         
         c1, c2 = st.columns(2)
-        if c1.button("🔄 ATUALIZAR STATS (NBA)"):
+        if c1.button("ATUALIZAR STATS (NBA)"):
             st.session_state['scoreboard'] = get_games_safe()
             update_batch_cache(st.session_state['scoreboard'])
             st.rerun()
         
-        if c2.button("🗑️ LIMPAR CACHE GERAL"):
+        if c2.button("LIMPAR CACHE GERAL"):
             try:
                 os.remove("cache/real_game_logs.json")
                 st.success("Cache limpo!")
@@ -3244,7 +3258,7 @@ def show_hit_prop_page():
                 st.error(msg)
         
         st.divider()
-        with st.expander("📂 Abrir Dados Brutos"):
+        with st.expander("Abrir Dados Brutos"):
             if pd is not None and atomic_props:
                 st.dataframe(pd.DataFrame(atomic_props), use_container_width=True)
             else:
@@ -7656,6 +7670,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
