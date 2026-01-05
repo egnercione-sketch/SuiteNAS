@@ -8,3 +8,4 @@ nba_api
 bcrypt
 supabase
 scipy
+plotly
