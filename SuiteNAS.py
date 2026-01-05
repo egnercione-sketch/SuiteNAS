@@ -6778,7 +6778,7 @@ def calculate_blowout_risk(spread_val, total_val=None):
         return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V6.1 - INDENTAÇÃO CORRIGIDA)
+# DASHBOARD (VISUAL ARENA V7.0 - STABLE & CLEAN)
 # ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
@@ -6786,7 +6786,6 @@ def show_dashboard_page():
     <style>
         .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
         .gold-text { color: #D4AF37; }
-        .purple-text { color: #A855F7; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -6876,83 +6875,7 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 3. MELHOR DUPLA (NEXUS - VERSÃO TABELA BLINDADA)
-    # ========================================================================
-    nexus_op = None
-    if not games.empty and not df_l5.empty:
-        try:
-            games_dict = games.to_dict('records')
-            logs_cache = get_data_universal("real_game_logs")
-            if logs_cache:
-                nexus = NexusEngine(logs_cache, games_dict)
-                ops = nexus.run_nexus_scan()
-                if ops: nexus_op = ops[0]
-        except: pass
-
-    if nexus_op:
-        op = nexus_op
-        color = op['color']
-        score = op['score']
-        
-        # Preparação de Dados (Strings Seguras)
-        h_name = truncate_name(op['hero']['name'], 15)
-        h_photo = op['hero']['photo']
-        h_info = f"{op['hero']['target']} {op['hero']['stat']}"
-        
-        p_obj = op.get('partner', op.get('villain'))
-        p_name = truncate_name(p_obj['name'], 15)
-        p_photo = p_obj.get('photo', p_obj.get('logo'))
-        
-        if 'partner' in op:
-            p_info = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "🔗"
-        else:
-            p_info = f"Alvo: {op['villain']['status']}"
-            mid_icon = "⚔️"
-        
-        impact = op.get('impact', 'Alta Sinergia')
-
-        st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS)</div>', unsafe_allow_html=True)
-
-        # HTML BLINDADO (TABELA)
-        card_html = f"""
-        <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Oswald', sans-serif; color: #ffffff; font-size: 14px; letter-spacing: 1px;">{op['title']}</span>
-                <span style="background-color: {color}; color: #000000; font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 11px; padding: 2px 6px; border-radius: 4px;">SCORE {score}</span>
-            </div>
-
-            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: none; margin: 0;">
-                <tr>
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{h_name}</div>
-                        <div style="color: {color}; font-family: sans-serif; font-size: 10px; font-weight: bold;">{h_info}</div>
-                    </td>
-
-                    <td style="width: 20%; text-align: center; vertical-align: middle; border: none;">
-                        <div style="font-size: 20px; color: #64748b; opacity: 0.7;">{mid_icon}</div>
-                    </td>
-
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #ffffff; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p_name}</div>
-                        <div style="color: #cbd5e1; font-family: sans-serif; font-size: 10px;">{p_info}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="background-color: rgba(0,0,0,0.3); padding: 6px; text-align: center; font-family: sans-serif; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
-                ANALISTA: {impact}
-            </div>
-        </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ========================================================================
-    # 4. GAME GRID (ALINHAMENTO CORRIGIDO AQUI)
+    # 3. GAME GRID (MANTIDO)
     # ========================================================================
     st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
@@ -7094,6 +7017,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
