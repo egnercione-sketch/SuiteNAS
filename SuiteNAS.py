@@ -946,13 +946,20 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA: MOMENTUM (V4.1 - LÓGICA CORRIGIDA & SEPARAÇÃO ESTRITA)
+# PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
 def show_momentum_page():
-    # CSS para os Cards com Foto
-    st.markdown("""
+    # --- 1. CSS SEGURO (Separado para evitar erro de decimal literal) ---
+    # Usamos uma string normal (sem 'f') para que o Python ignore os números css
+    MOMENTUM_CSS = """
     <style>
-        .mom-header { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 10px; letter-spacing: 1px; }
+        .mom-header { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 26px; 
+            color: #fff; 
+            margin-bottom: 10px; 
+            letter-spacing: 1px; 
+        }
         
         /* Card Container */
         .mom-card {
@@ -968,7 +975,7 @@ def show_momentum_page():
         }
         .mom-card:hover { transform: scale(1.02); border-color: #64748B; }
         
-        /* Borda Colorida Lateral */
+        /* Bordas */
         .border-hot { border-left: 6px solid #10B981; }
         .border-cold { border-left: 6px solid #EF4444; }
         
@@ -992,27 +999,41 @@ def show_momentum_page():
         /* Área de Texto */
         .mom-info { padding: 10px 15px; flex-grow: 1; }
         
-        .mom-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; }
-        .mom-team { font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; }
+        .mom-name { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 16px; 
+            color: #fff; 
+            line-height: 1.1; 
+        }
+        .mom-team { 
+            font-size: 11px; 
+            color: #94a3b8; 
+            font-weight: bold; 
+            margin-bottom: 4px; 
+        }
         
         .mom-stat-row { display: flex; justify-content: space-between; align-items: end; }
         .mom-score { font-family: 'Oswald'; font-size: 22px; font-weight: bold; }
         .mom-avg { font-size: 10px; color: #64748B; text-align: right; }
     </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(MOMENTUM_CSS, unsafe_allow_html=True)
 
+    # HTML Entity para Raio: &#9889;
     st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
     st.info("Ranking baseado na Dominância Relativa. Jogadores com performance muito acima ou muito abaixo da média da liga nos últimos 5 jogos.")
 
-    # 1. DADOS
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    if df_l5.empty:
+    # --- 2. DADOS ---
+    # Importante: .copy() para não quebrar outras páginas que usam df_l5
+    original_df = st.session_state.get('df_l5', pd.DataFrame())
+    
+    if original_df.empty:
         st.warning("Dados insuficientes. Vá em Config > Atualizar L5.")
         return
 
-    # 2. CÁLCULO ESTATÍSTICO (Z-SCORE)
-    # Filtro mínimo de minutos para evitar ruído (ex: quem jogou 2 min e fez 2 pts)
-    df_calc = df_l5[df_l5['MIN_AVG'] >= 15].copy()
+    # --- 3. CÁLCULO ESTATÍSTICO (Z-SCORE) ---
+    # Filtro mínimo de minutos para evitar ruído
+    df_calc = original_df[original_df['MIN_AVG'] >= 15].copy()
     
     if df_calc.empty:
         st.warning("Nenhum jogador com mais de 15 minutos de média carregado.")
@@ -1032,29 +1053,29 @@ def show_momentum_page():
     # Z-Score: Quantos desvios padrão acima/abaixo da média o jogador está?
     df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
 
-    # 3. SEPARAÇÃO RIGOROSA HOT / COLD
+    # --- 4. SEPARAÇÃO RIGOROSA HOT / COLD ---
     
-    # HOT: Z-Score Positivo (Acima da média), ordenado do maior para o menor
+    # HOT: Apenas Z-Score Positivo (> 0)
     hot_candidates = df_calc[df_calc['z_score'] > 0].copy()
     top_hot = hot_candidates.sort_values('z_score', ascending=False).head(10)
     
-    # COLD: Z-Score Negativo (Abaixo da média), ordenado do menor (mais negativo) para o maior
-    # Filtro de minutos mais alto para COLD (24min) para pegar titulares jogando mal, não reservas.
+    # COLD: Apenas Z-Score Negativo (< 0) E Titulares (Min > 24)
     cold_candidates = df_calc[
         (df_calc['z_score'] < 0) & 
         (df_calc['MIN_AVG'] >= 24)
     ].copy()
     top_cold = cold_candidates.sort_values('z_score', ascending=True).head(10)
 
-    # 4. RENDERIZAÇÃO
+    # --- 5. RENDERIZAÇÃO ---
     c1, c2 = st.columns(2)
 
-    # Função Helper de Renderização
+    # Função Helper de Renderização (Local)
     def render_momentum_card(col, row, type_card):
         is_hot = type_card == "HOT"
         css_class = "border-hot" if is_hot else "border-cold"
         color = "#10B981" if is_hot else "#EF4444"
-        icon_html = "&#128200;" if is_hot else "&#128201;" # Chart Up / Down
+        # HTML Entities: Chart Up (&#128200;) / Chart Down (&#128201;)
+        icon_html = "&#128200;" if is_hot else "&#128201;"
         
         pid = int(row['PLAYER_ID'])
         name = row['PLAYER']
@@ -1065,11 +1086,11 @@ def show_momentum_page():
         # Foto da NBA
         photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         
-        # HTML do Card
+        # HTML do Card (F-String segura, sem CSS complexo dentro)
         col.markdown(f"""
         <div class="mom-card {css_class}">
             <div class="mom-img-box">
-                <img src="{photo_url}" class="mom-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                <img src="{photo_url}" class="mom-img">
             </div>
             <div class="mom-info">
                 <div class="mom-team">{team}</div>
@@ -1084,6 +1105,29 @@ def show_momentum_page():
                     </div>
                 </div>
             </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- COLUNA HOT ---
+    with c1:
+        # HTML Entity Fire: &#128293;
+        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
+        if top_hot.empty:
+            st.info("Nenhum destaque positivo relevante (Z > 0).")
+        else:
+            for _, row in top_hot.iterrows():
+                render_momentum_card(c1, row, "HOT")
+
+    # --- COLUNA COLD ---
+    with c2:
+        # HTML Entity Snow: &#10052;
+        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
+        st.caption("Jogadores titulares (+24min) com performance abaixo da média.")
+        if top_cold.empty:
+            st.info("Nenhum titular com performance negativa crítica (Z < 0).")
+        else:
+            for _, row in top_cold.iterrows():
+                render_momentum_card(c2, row, "COLD")
                 
 
 # ============================================================================
@@ -7654,6 +7698,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
