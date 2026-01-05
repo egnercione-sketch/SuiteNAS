@@ -1456,56 +1456,56 @@ class NexusEngine:
         return best
         
 # ============================================================================
-# PÁGINA: NEXUS INTELLIGENCE (VISUAL TABLE - BLINDADO)
+# PÁGINA: NEXUS INTELLIGENCE (VERSÃO BLINDADA V3.0 - NO-EMOJI CODE)
 # ============================================================================
 def show_nexus_page():
-    # CSS Específico
+    # 1. CSS SEGURO (USANDO STRING NORMAL, NÃO F-STRING)
+    # Importante: Não coloque 'f' antes das aspas triplas aqui.
     st.markdown("""
     <style>
-        .nexus-header { font-family: 'Oswald'; font-size: 3rem; color: #fff; margin: 0; text-align: center; }
+        .nexus-header { font-family: 'Oswald', sans-serif; font-size: 3rem; color: #fff; margin: 0; text-align: center; }
         .nexus-sub { color: #94a3b8; font-weight: bold; letter-spacing: 3px; text-align: center; font-size: 0.8rem; }
         .filter-box { background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155; }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Dados
+    # 2. Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # HEADER (SEM EMOJI LITERAL PRA EVITAR ERRO)
+    # HEADER (EMOJIS VIA CÓDIGO HTML PARA EVITAR ERROS DE ARQUIVO)
+    # &#129504; = Cérebro | &#9889; = Raio | &#128279; = Link | &#9876; = Espadas
     st.markdown("""
     <div style="padding: 20px;">
-        <h1 class="nexus-header">NEXUS INTELLIGENCE</h1>
+        <h1 class="nexus-header">&#129504; NEXUS INTELLIGENCE</h1>
         <p class="nexus-sub">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
     if not full_cache:
-        st.error("❌ Logs de jogos vazios. Atualize a base de dados.")
+        st.error("Logs de jogos vazios. Atualize a base de dados.")
         return
 
-    # 2. Engine & Filtros
-    # Importação protegida da Engine
-    try:
-        # Tente importar de onde estiver o seu arquivo class NexusEngine
-        # Se a classe já estiver neste arquivo, ignore o import
-        pass 
-    except: pass
-
-    # Filtros Visuais
+    # 3. Filtros
     c_slider, c_type = st.columns([2, 1])
     with c_slider:
-        min_score = st.slider("🎚️ Score Mínimo (Qualidade da Conexão)", 50, 100, 65)
+        min_score = st.slider("Score Minimo (Qualidade)", 50, 100, 65)
     with c_type:
         filter_type = st.selectbox("Tipo de Oportunidade", ["TODAS", "SGP (Duplas)", "DEF (vs Defesa)"])
 
-    # Execução
-    nexus = NexusEngine(full_cache, scoreboard or [])
-    
+    # 4. Engine & Execução
+    # Tenta instanciar a Engine
     try:
+        if 'NexusEngine' not in globals():
+            # Fallback se a classe não estiver importada globalmente
+            from modules.new_modules.nexus_engine import NexusEngine # Ajuste o caminho se necessário
+            
+        nexus = NexusEngine(full_cache, scoreboard or [])
         all_ops = nexus.run_nexus_scan()
-        # Filtros
+        
+        # Filtragem
         opportunities = [op for op in all_ops if op['score'] >= min_score]
+        
         if filter_type == "SGP (Duplas)":
             opportunities = [op for op in opportunities if op['type'] == 'SGP']
         elif filter_type == "DEF (vs Defesa)":
@@ -1519,15 +1519,15 @@ def show_nexus_page():
         st.info(f"Nenhuma oportunidade encontrada com Score acima de {min_score}.")
         return
 
-    st.markdown(f"**⚡ {len(opportunities)} Oportunidades Encontradas**")
+    st.markdown(f"**&#9889; {len(opportunities)} Oportunidades Encontradas**", unsafe_allow_html=True)
     st.markdown("---")
 
-    # 3. Renderização (USANDO TABELA BLINDADA)
+    # 5. Renderização (CARD BLINDADO - TABELA HTML)
     for op in opportunities:
         color = op['color']
         score = op['score']
         
-        # Strings Seguras
+        # Conversão Segura de Strings
         title = str(op['title'])
         
         # Hero Data
@@ -1542,16 +1542,17 @@ def show_nexus_page():
         if len(p_name) > 18: p_name = p_name[:16] + "..."
         p_photo = p_obj.get('photo', p_obj.get('logo'))
         
+        # Ícones HTML
         if 'partner' in op:
             p_info = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "🔗" # Link symbol
+            mid_icon = "&#128279;" # Link Icon
         else:
             p_info = f"Alvo: {op['villain']['status']}"
-            mid_icon = "⚔️" # Swords symbol
+            mid_icon = "&#9876;" # Swords Icon
             
         impact = op.get('impact', 'Alta Sinergia Detectada')
 
-        # HTML TABLE (Igual ao Dashboard - Não Quebra)
+        # Card HTML (Sem f-string na parte de CSS inline complexo para evitar conflitos)
         card_html = f"""
         <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
@@ -7661,6 +7662,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
