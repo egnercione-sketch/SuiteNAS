@@ -2074,6 +2074,9 @@ class FiveSevenTenEngine:
 # ============================================================================
 # PÁGINA: MATRIZ 5-7-10 (ESCADINHA) - DIRECT VIEW
 # ============================================================================
+# ============================================================================
+# PÁGINA: MATRIZ 5-7-10 (V29.0 - LEGEND & POLISH)
+# ============================================================================
 def show_matriz_5_7_10_page():
     import json
     import pandas as pd
@@ -2096,11 +2099,19 @@ def show_matriz_5_7_10_page():
         if prob >= 20: return "#ef4444" # Red
         return "#334155" # Grey
 
-    # --- 2. CSS (LAYOUT ESCADINHA ROBUSTO) ---
+    # --- 2. CSS (LAYOUT ESCADINHA + LEGENDA) ---
     st.markdown("""
     <style>
         .matriz-title { font-family: 'Oswald'; font-size: 32px; color: #fff; margin-bottom: 0px; letter-spacing: 1px; }
-        .matriz-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 30px; }
+        .matriz-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 15px; }
+        
+        /* LEGENDA */
+        .legend-container {
+            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
+            background: rgba(255,255,255,0.05); padding: 8px 15px; border-radius: 6px;
+            font-size: 11px; color: #cbd5e1; margin-bottom: 25px; border: 1px solid #334155;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
         
         .section-header { 
             font-family: 'Oswald'; font-size: 20px; color: #e2e8f0; 
@@ -2108,7 +2119,7 @@ def show_matriz_5_7_10_page():
             display: flex; align-items: center; gap: 10px;
         }
 
-        /* CARD PRINCIPAL - FLEXBOX SEGURO */
+        /* CARD PRINCIPAL */
         .ladder-card {
             background-color: #1e293b;
             border-radius: 10px;
@@ -2117,13 +2128,12 @@ def show_matriz_5_7_10_page():
             border: 1px solid #334155;
             display: flex;
             align-items: center;
-            flex-wrap: wrap; /* Evita explosão no mobile */
+            flex-wrap: wrap; 
             gap: 15px;
             transition: transform 0.2s;
         }
         .ladder-card:hover { border-color: #6366f1; transform: translateY(-2px); }
 
-        /* Coluna Esquerda: Jogador */
         .player-box { display: flex; align-items: center; min-width: 200px; flex: 1; }
         .p-img {
             width: 55px; height: 55px; border-radius: 50%;
@@ -2133,7 +2143,6 @@ def show_matriz_5_7_10_page():
         .p-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .p-meta { font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
         
-        /* Coluna Direita: A Escadinha */
         .steps-container { display: flex; gap: 8px; flex: 2; justify-content: flex-end; align-items: center; }
         
         .step-item {
@@ -2146,10 +2155,8 @@ def show_matriz_5_7_10_page():
         .step-head { font-size: 10px; color: #cbd5e1; font-weight: bold; margin-bottom: 2px; }
         .step-val { font-family: 'Roboto Mono', monospace; font-size: 16px; font-weight: bold; }
         
-        .trend-icon { font-size: 18px; margin-left: 10px; }
-        
         /* Badges */
-        .badge-glue { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #3b82f6; }
+        .badge-glue { background: #172554; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #3b82f6; }
         .badge-dyna { background: #450a0a; color: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #ef4444; }
 
     </style>
@@ -2158,9 +2165,21 @@ def show_matriz_5_7_10_page():
     st.markdown('<div class="matriz-title">🏗️ MATRIZ 5-7-10</div>', unsafe_allow_html=True)
     st.markdown('<div class="matriz-sub">Análise de probabilidade em degraus ("Escadinha"). Base L25.</div>', unsafe_allow_html=True)
 
-    # --- 3. PREPARAÇÃO DE DADOS ---
+    # --- 3. LEGENDA EXPLICATIVA ---
+    st.markdown("""
+    <div class="legend-container">
+        <div class="legend-item">📈 <b>Aquecendo:</b> Média Recente (L5) > Média Geral</div>
+        <div class="legend-item">📉 <b>Esfriando:</b> Média Recente (L5) < Média Geral</div>
+        <div class="legend-item">➡️ <b>Estável:</b> Performance Constante</div>
+        <div style="flex-grow:1"></div>
+        <div class="legend-item"><span class="badge-glue">🧪 GLUE</span> Seguro no 5+</div>
+        <div class="legend-item"><span class="badge-dyna">🧨 BOOM</span> Explosivo no 10+</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- 4. PREPARAÇÃO DE DADOS ---
     
-    # A. Scoreboard (Quem joga hoje?)
+    # A. Scoreboard
     scoreboard = st.session_state.get('scoreboard', [])
     if not scoreboard:
         st.warning("⚠️ Scoreboard vazio. Atualize os jogos na aba Config.")
@@ -2176,7 +2195,7 @@ def show_matriz_5_7_10_page():
             if g['home'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
             if g['away'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
 
-    # B. Mapa de IDs e Times (L5)
+    # B. Mapa de IDs (L5)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
@@ -2188,9 +2207,9 @@ def show_matriz_5_7_10_page():
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 4. ENGINE DE PROCESSAMENTO ---
+    # --- 5. ENGINE DE PROCESSAMENTO ---
     
-    with st.spinner("Construindo as escadinhas..."):
+    with st.spinner("Calculando probabilidades..."):
         # 1. Lesões (Shield V27)
         banned_players = set()
         try:
@@ -2226,7 +2245,6 @@ def show_matriz_5_7_10_page():
             st.error("Logs L25 não disponíveis.")
             return
 
-        # Listas separadas para REB e AST
         reb_ladder = []
         ast_ladder = []
 
@@ -2265,7 +2283,6 @@ def show_matriz_5_7_10_page():
                     p7 = (np.sum(arr >= 7) / n) * 100
                     p10 = (np.sum(arr >= 10) / n) * 100
                     
-                    # Critério Mínimo: Tem que ser seguro no 5+ OU explosivo no 10+
                     if p5 >= 75 or p10 >= 20:
                         l5 = np.mean(arr[:5]) if n >= 5 else np.mean(arr)
                         l25 = np.mean(arr)
@@ -2303,9 +2320,9 @@ def show_matriz_5_7_10_page():
                         }
                         ast_ladder.append(item)
 
-    # --- 5. RENDERIZAÇÃO (SEM MENUS, TUDO À MOSTRA) ---
+    # --- 6. RENDERIZAÇÃO ---
     
-    # Ordenação: Dynamite pelo teto, Glue pela base
+    # Ordenação
     reb_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
     ast_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
 
@@ -2319,8 +2336,8 @@ def show_matriz_5_7_10_page():
         c10 = get_step_color(p['p10'])
         
         trend_icon = "➡️"
-        if p['trend'] > 0.5: trend_icon = "📈" # Subindo
-        elif p['trend'] < -0.5: trend_icon = "📉" # Caindo
+        if p['trend'] > 0.5: trend_icon = "📈" 
+        elif p['trend'] < -0.5: trend_icon = "📉"
         
         badge_html = f'<span class="badge-glue">🧪 GLUE</span>' if p['type'] == 'GLUE' else f'<span class="badge-dyna">🧨 BOOM</span>'
 
@@ -8035,6 +8052,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
