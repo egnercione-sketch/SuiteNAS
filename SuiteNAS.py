@@ -1456,20 +1456,19 @@ class NexusEngine:
         return best
         
 # ============================================================================
-# PÁGINA: NEXUS INTELLIGENCE (VISUAL FINAL V3.2 - INLINE STYLES SAFE MODE)
+# PÁGINA: NEXUS INTELLIGENCE (VISUAL FINAL V4.0 - ASCII SAFE MODE)
 # ============================================================================
 def show_nexus_page():
     # 1. Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # HEADER COM ESTILO DIRETO (INLINE) PARA EVITAR ERROS DE SINTAXE PYTHON
-    # Removemos o bloco <style> e aplicamos direto na tag.
-    # Usamos HTML Entities para os ícones: &#129504; (Cérebro)
+    # HEADER (SEM CARACTERES ESPECIAIS NO CODIGO PYTHON)
+    # Substituimos o ponto (bullet) por &bull; e o cerebro por codigo HTML
     st.markdown("""
     <div style="padding: 20px; text-align: center;">
         <h1 style="font-family: 'Oswald', sans-serif; font-size: 48px; color: #fff; margin: 0;">&#129504; NEXUS INTELLIGENCE</h1>
-        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px; font-size: 14px; margin-top: 5px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
+        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px; font-size: 14px; margin-top: 5px;">MODO PREDADOR &bull; PRECISAO CIRURGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1477,12 +1476,12 @@ def show_nexus_page():
         st.error("Logs de jogos vazios. Atualize a base de dados.")
         return
 
-    # 2. Filtros
-    # Usamos container padrão do Streamlit para evitar CSS complexo aqui
+    # 2. Filtros (REMOVIDOS EMOJIS DOS LABELS DO STREAMLIT)
     st.markdown("<div style='background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155;'>", unsafe_allow_html=True)
     c_slider, c_type = st.columns([2, 1])
     with c_slider:
-        min_score = st.slider("Score Mínimo (Qualidade)", 50, 100, 65)
+        # Removido emoji do label
+        min_score = st.slider("Score Minimo (Qualidade)", 50, 100, 65)
     with c_type:
         filter_type = st.selectbox("Tipo de Oportunidade", ["TODAS", "SGP (Duplas)", "DEF (vs Defesa)"])
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1505,15 +1504,15 @@ def show_nexus_page():
             opportunities = [op for op in opportunities if op['type'] != 'SGP']
             
     except Exception as e:
-        # Em caso de erro, mostramos msg amigável e paramos
-        st.info("Aguardando sincronização da Engine Nexus...")
+        # Msg simples sem caracteres especiais
+        st.info("Aguardando sincronizacao da Engine Nexus...")
         return
 
     if not opportunities:
         st.info(f"Nenhuma oportunidade encontrada com Score acima de {min_score}.")
         return
 
-    # Ícone de Raio: &#9889;
+    # Icone de Raio via HTML: &#9889;
     st.markdown(f"**&#9889; {len(opportunities)} Oportunidades Encontradas**", unsafe_allow_html=True)
     st.markdown("---")
 
@@ -1522,7 +1521,7 @@ def show_nexus_page():
         color = op['color']
         score = op['score']
         
-        # Conversão Segura de Strings
+        # Conversão Segura de Strings e tratativa de acentos
         title = str(op['title'])
         
         # Hero Data
@@ -1547,7 +1546,7 @@ def show_nexus_page():
             
         impact = op.get('impact', 'Alta Sinergia Detectada')
 
-        # Card HTML (Sem f-string no bloco style para evitar conflito)
+        # Card HTML
         card_html = f"""
         <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
@@ -7657,6 +7656,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
