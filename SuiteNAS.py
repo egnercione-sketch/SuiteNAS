@@ -3582,13 +3582,11 @@ class FeatureStore:
         return result
 
 # ============================================================================
-# FUNÇÃO AUXILIAR: PROCESS ROSTER (COMPLETA COM STATS)
+# FUNCAO AUXILIAR: PROCESS ROSTER (VERSAO SANITIZADA)
 # ============================================================================
 def process_roster(roster_list, team_abbr, is_home):
-    """
-    Processa o roster integrando L5, Stats Individuais e Archetypes.
-    CORREÇÃO: Agora retorna PTS, REB, AST, STL, BLK, 3PM para evitar KeyError.
-    """
+    # Processa o roster integrando L5, Stats Individuais e Archetypes.
+    # Retorna chaves essenciais para evitar KeyError.
     processed = []
     df_l5 = st.session_state.get("df_l5")
     
@@ -3596,42 +3594,52 @@ def process_roster(roster_list, team_abbr, is_home):
         player = normalize_roster_entry(entry)
         player_name = player.get("PLAYER", "N/A")
         
-        # Overrides de posição
+        # Overrides de posicao (Nomes sem acento para seguranca)
         position_overrides = {
-            "LeBron James": "SF", "Nikola Jokić": "C", "Luka Dončić": "PG",
+            "LeBron James": "SF", "Nikola Jokic": "C", "Luka Doncic": "PG",
             "Giannis Antetokounmpo": "PF", "Jimmy Butler": "SF", "Stephen Curry": "PG",
             "Joel Embiid": "C", "Jayson Tatum": "SF", "Kevin Durant": "SF", 
             "Anthony Davis": "PF", "Bam Adebayo": "C", "Domantas Sabonis": "C"
         }
-        pos = position_overrides.get(player_name, player.get("POSITION", "").upper())
+        # Tenta pegar override, senao pega do player, senao vazio
+        pos_raw = player.get("POSITION", "")
+        # Remove caracteres nao-ascii do nome antes de buscar no dict
+        p_name_clean = player_name.encode('ascii', 'ignore').decode('ascii')
+        pos = position_overrides.get(p_name_clean, pos_raw.upper())
+        
         starter = player.get("STARTER", False)
         
         # Status
-        status_raw = player.get("STATUS", "").lower()
+        status_raw = str(player.get("STATUS", "")).lower()
         badge_color = "#9CA3AF"
         status_display = "ACTIVE"
+        
         if any(k in status_raw for k in ["out", "ir", "injur"]):
-            badge_color = "#EF4444"; status_display = "OUT"
+            badge_color = "#EF4444"
+            status_display = "OUT"
         elif "questionable" in status_raw or "doubt" in status_raw or "gtd" in status_raw:
-            badge_color = "#F59E0B"; status_display = "QUEST"
+            badge_color = "#F59E0B"
+            status_display = "QUEST"
         elif any(k in status_raw for k in ["active", "available", "probable"]):
-            badge_color = "#10B981"; status_display = "ACTIVE"
+            badge_color = "#10B981"
+            status_display = "ACTIVE"
             
         # Stats Iniciais (Zeros)
         stats = {
             "MIN_AVG": 0, "USG_PCT": 0, "PRA_AVG": 0,
             "PTS_AVG": 0, "REB_AVG": 0, "AST_AVG": 0,
-            "STL_AVG": 0, "BLK_AVG": 0, "THREEPA_AVG": 0 # Usado como proxy de 3PM se não tiver
+            "STL_AVG": 0, "BLK_AVG": 0, "THREEPA_AVG": 0
         }
         
         archetypes_clean_list = [] 
         
         if df_l5 is not None and not df_l5.empty:
+            # Busca insensivel a caixa
             matches = df_l5[df_l5["PLAYER"].str.contains(player_name, case=False, na=False)]
             if not matches.empty:
                 row = matches.iloc[0]
                 
-                # Extrair TODAS as stats necessárias
+                # Extrair TODAS as stats necessarias com seguranca (.get)
                 stats["MIN_AVG"] = row.get("MIN_AVG", 0)
                 stats["USG_PCT"] = row.get("USG_PCT", 0) if "USG_PCT" in df_l5.columns else 0
                 stats["PRA_AVG"] = row.get("PRA_AVG", 0)
@@ -3642,10 +3650,9 @@ def process_roster(roster_list, team_abbr, is_home):
                 stats["BLK_AVG"] = row.get("BLK_AVG", 0)
                 stats["THREEPA_AVG"] = row.get("THREEPA_AVG", 0) if "THREEPA_AVG" in df_l5.columns else 0
                 
-                # --- INTEGRAÇÃO ARCHETYPE ENGINE ---
+                # --- INTEGRACAO ARCHETYPE ENGINE ---
                 if "archetype_engine" in st.session_state:
                     try:
-                        # Monta payload para o engine
                         engine_stats = {
                             "REB_AVG": stats["REB_AVG"], "AST_AVG": stats["AST_AVG"],
                             "PTS_AVG": stats["PTS_AVG"], "USAGE_RATE": stats["USG_PCT"],
@@ -3666,7 +3673,7 @@ def process_roster(roster_list, team_abbr, is_home):
                     except Exception:
                         archetypes_clean_list = []
 
-        # Role
+        # Role Logic
         role = "deep_bench"
         if starter: role = "starter"
         elif stats["MIN_AVG"] >= 20: role = "rotation"
@@ -3674,75 +3681,43 @@ def process_roster(roster_list, team_abbr, is_home):
         
         profile_str = ", ".join(archetypes_clean_list[:2]) if archetypes_clean_list else "-"
 
-        # Retorno Completo (Incluindo PTS, REB, AST para evitar KeyError)
+        # Retorno Completo (Mapeamento Explicito)
         processed.append({
             "PLAYER": player_name,
             "POSITION": pos,
             "ROLE": role,
             "STATUS": status_display,
-            "STATUS_FULL": player.get("STATUS", ""),
+            "STATUS_FULL": str(player.get("STATUS", "")),
             "STATUS_BADGE": badge_color,
             "PROFILE": profile_str,
             "ARCHETYPES": archetypes_clean_list,
             
             # Stats Essenciais
-            "MIN_AVG": stats["MIN_AVG"],
-            "USG_PCT": stats["USG_PCT"],
-            "PRA_AVG": stats["PRA_AVG"],
-            "PTS": stats["PTS_AVG"],
-            "REB": stats["REB_AVG"],
-            "AST": stats["AST_AVG"],
-            "STL": stats["STL_AVG"],
-            "BLK": stats["BLK_AVG"],
-            "3PM": stats["THREEPA_AVG"] # Proxy
+            "MIN_AVG": float(stats["MIN_AVG"]),
+            "USG_PCT": float(stats["USG_PCT"]),
+            "PRA_AVG": float(stats["PRA_AVG"]),
+            "PTS": float(stats["PTS_AVG"]),
+            "REB": float(stats["REB_AVG"]),
+            "AST": float(stats["AST_AVG"]),
+            "STL": float(stats["STL_AVG"]),
+            "BLK": float(stats["BLK_AVG"]),
+            "3PM": float(stats["THREEPA_AVG"])
         })
     
     return processed
 
 def validate_pipeline_integrity(required_components=None):
-    """
-    Valida se os dados necessários para o pipeline estão disponíveis.
-    """
+    # Valida se os dados necessarios para o pipeline estao disponiveis.
     if required_components is None:
         required_components = ['l5', 'scoreboard']
     
     checks = {
-        'l5': {
-            'name': 'Dados L5 (últimos 5 jogos)',
-            'critical': True,
-            'status': False,
-            'message': ''
-        },
-        'scoreboard': {
-            'name': 'Scoreboard do dia',
-            'critical': True,
-            'status': False,
-            'message': ''
-        },
-        'odds': {
-            'name': 'Odds das casas',
-            'critical': False,
-            'status': False,
-            'message': ''
-        },
-        'dvp': {
-            'name': 'Dados Defense vs Position',
-            'critical': False,
-            'status': False,
-            'message': ''
-        },
-        'injuries': {
-            'name': 'Dados de lesões',
-            'critical': False,
-            'status': False,
-            'message': ''
-        },
-        'advanced_system': {
-            'name': 'Sistema Avançado',
-            'critical': False,
-            'status': False,
-            'message': ''
-        }
+        'l5': {'name': 'Dados L5', 'critical': True, 'status': False, 'message': ''},
+        'scoreboard': {'name': 'Scoreboard', 'critical': True, 'status': False, 'message': ''},
+        'odds': {'name': 'Odds', 'critical': False, 'status': False, 'message': ''},
+        'dvp': {'name': 'Dados DvP', 'critical': False, 'status': False, 'message': ''},
+        'injuries': {'name': 'Lesoes', 'critical': False, 'status': False, 'message': ''},
+        'advanced_system': {'name': 'Sistema Avancado', 'critical': False, 'status': False, 'message': ''}
     }
     
     # Validar L5
@@ -3750,47 +3725,47 @@ def validate_pipeline_integrity(required_components=None):
         df_l5 = st.session_state.get('df_l5')
         if df_l5 is not None and hasattr(df_l5, 'shape') and not df_l5.empty:
             checks['l5']['status'] = True
-            checks['l5']['message'] = f'Carregados {len(df_l5)} jogadores'
+            checks['l5']['message'] = f'OK ({len(df_l5)} players)'
         else:
-            checks['l5']['message'] = 'Dados L5 não disponíveis'
+            checks['l5']['message'] = 'Indisponivel'
     
     # Validar scoreboard
     if 'scoreboard' in required_components:
         scoreboard = st.session_state.get('scoreboard')
         if scoreboard and len(scoreboard) > 0:
             checks['scoreboard']['status'] = True
-            checks['scoreboard']['message'] = f'{len(scoreboard)} jogos hoje'
+            checks['scoreboard']['message'] = f'OK ({len(scoreboard)} games)'
         else:
-            checks['scoreboard']['message'] = 'Nenhum jogo encontrado para hoje'
+            checks['scoreboard']['message'] = 'Vazio'
     
     # Validar odds
     if 'odds' in required_components:
         odds = st.session_state.get('odds')
         if odds and len(odds) > 0:
             checks['odds']['status'] = True
-            checks['odds']['message'] = f'{len(odds)} jogos com odds'
+            checks['odds']['message'] = 'OK'
         else:
-            checks['odds']['message'] = 'Odds não disponíveis'
+            checks['odds']['message'] = 'Indisponivel'
     
     # Validar DvP
     if 'dvp' in required_components:
-        dvp_analyzer = st.session_state.get('dvp_analyzer')
-        if dvp_analyzer and hasattr(dvp_analyzer, 'defense_data') and dvp_analyzer.defense_data:
+        dvp = st.session_state.get('dvp_analyzer')
+        if dvp and hasattr(dvp, 'defense_data') and dvp.defense_data:
             checks['dvp']['status'] = True
-            checks['dvp']['message'] = f'Dados de {len(dvp_analyzer.defense_data)} times'
+            checks['dvp']['message'] = 'OK'
         else:
-            checks['dvp']['message'] = 'Dados DvP não disponíveis'
+            checks['dvp']['message'] = 'Indisponivel'
     
-    # Validar lesões
+    # Validar lesoes
     if 'injuries' in required_components:
-        injuries = st.session_state.get('injuries_data')
-        if injuries and len(injuries) > 0:
+        inj = st.session_state.get('injuries_data')
+        if inj and len(inj) > 0:
             checks['injuries']['status'] = True
-            checks['injuries']['message'] = f'Lesões carregadas'
+            checks['injuries']['message'] = 'OK'
         else:
-            checks['injuries']['message'] = 'Dados de lesões não disponíveis'
+            checks['injuries']['message'] = 'Indisponivel'
     
-    # Validar sistema avançado
+    # Validar sistema avancado
     if 'advanced_system' in required_components:
         if st.session_state.get("use_advanced_features", False):
             checks['advanced_system']['status'] = True
@@ -3798,7 +3773,6 @@ def validate_pipeline_integrity(required_components=None):
         else:
             checks['advanced_system']['message'] = 'Inativo'
     
-    # Determinar se todos os componentes críticos estão ok
     all_critical_ok = all(
         check['status'] for key, check in checks.items() 
         if key in required_components and check['critical']
@@ -3807,27 +3781,19 @@ def validate_pipeline_integrity(required_components=None):
     return all_critical_ok, checks
 
 # ============================================================================
-# DATA FETCHERS
+# DATA FETCHERS (SANITIZED & ROBUST)
 # ============================================================================
 def get_scoreboard_data():
-    """
-    Função Mestra do Scoreboard (Fuso Horário Brasil Forçado).
-    """
     from datetime import datetime, timedelta
     import pandas as pd
     import requests
-    import pytz # Obrigatório para corrigir o erro de data
+    
+    # Logica de Data Manual (Sem dependencia de pytz para evitar erros)
+    # UTC-3 para Brasil (Simples e eficaz)
+    now_utc = datetime.utcnow()
+    now_br = now_utc - timedelta(hours=3)
 
-    # --- 1. LÓGICA DE DATA (FUSO SÃO PAULO) ---
-    try:
-        tz_br = pytz.timezone('America/Sao_Paulo')
-        now_br = datetime.now(tz_br)
-    except:
-        # Fallback se pytz falhar
-        now_br = datetime.now()
-
-    # Se for antes das 04:00 da manhã (madrugada), consideramos que ainda é a "noite" do dia anterior
-    # Ex: 01:00 AM do dia 05 ainda é "jogo do dia 04"
+    # Se for madrugada (antes das 4AM), conta como dia anterior
     if now_br.hour < 4:
         target_date = now_br - timedelta(days=1)
     else:
@@ -3835,20 +3801,16 @@ def get_scoreboard_data():
     
     date_str = target_date.strftime("%Y%m%d")
     
-    # --- 2. TENTA LER DO SUPABASE ---
+    # 1. TENTA LER DO SUPABASE/CACHE UNIVERSAL
     try:
-        # Opcional: Adicionar lógica para verificar se o cache do supabase bate com a data de hoje
         cached = get_data_universal("scoreboard")
         if cached and isinstance(cached, list) and len(cached) > 0:
-            # Verifica se o primeiro jogo do cache é da data correta
-            first_game_date = cached[0].get('date_str', '')
+            first_game_date = str(cached[0].get('date_str', ''))
             if first_game_date == date_str:
                 return pd.DataFrame(cached)
-            else:
-                pass # Cache velho, busca novo
     except: pass
 
-    # --- 3. BAIXA DA ESPN ---
+    # 2. BAIXA DA ESPN API
     url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
     params = {"dates": date_str, "limit": 100}
     headers = {
@@ -3866,24 +3828,34 @@ def get_scoreboard_data():
         events = data.get("events", [])
         for evt in events:
             comp = evt["competitions"][0]
-            home = next((t for t in comp["competitors"] if t["homeAway"] == "home"), {})
-            away = next((t for t in comp["competitors"] if t["homeAway"] == "away"), {})
             
+            # Busca segura por Home/Away
+            home = {}
+            away = {}
+            for t in comp["competitors"]:
+                if t["homeAway"] == "home": home = t
+                elif t["homeAway"] == "away": away = t
+            
+            # Status e Odds
             status_text = evt["status"]["type"]["shortDetail"]
-            odds_txt = comp["odds"][0].get("details", "") if "odds" in comp and comp["odds"] else ""
-            odds_total = comp["odds"][0].get("overUnder", "") if "odds" in comp and comp["odds"] else ""
+            
+            odds_txt = ""
+            odds_total = ""
+            if "odds" in comp and comp["odds"]:
+                odds_txt = comp["odds"][0].get("details", "")
+                odds_total = comp["odds"][0].get("overUnder", "")
 
             game_dict = {
                 "gameId": evt["id"],
                 "date_str": date_str,
                 "startTimeUTC": comp.get("date"),
-                "home": home["team"]["abbreviation"],
-                "away": away["team"]["abbreviation"],
+                "home": home.get("team", {}).get("abbreviation", "UNK"),
+                "away": away.get("team", {}).get("abbreviation", "UNK"),
                 "status": status_text,
                 "odds_spread": odds_txt,
                 "odds_total": odds_total,
-                "home_logo": home["team"].get("logo", ""),
-                "away_logo": away["team"].get("logo", "")
+                "home_logo": home.get("team", {}).get("logo", ""),
+                "away_logo": away.get("team", {}).get("logo", "")
             }
             games_list.append(game_dict)
 
@@ -3893,30 +3865,33 @@ def get_scoreboard_data():
         return pd.DataFrame(games_list)
 
     except Exception as e:
-        print(f"⚠️ Erro no Scoreboard ESPN: {e}")
+        # Erro silencioso ou log simples
         return pd.DataFrame()
         
 def fetch_team_roster(team_abbr_or_id, progress_ui=True):
-    cache_path = os.path.join(CACHE_DIR, f"roster_{team_abbr_or_id}.json")
+    # Sanitizacao do caminho
+    safe_team_code = str(team_abbr_or_id).strip().upper()
+    cache_path = os.path.join(CACHE_DIR, f"roster_{safe_team_code}.json")
+    
     cached = load_json(cache_path)
     if cached:
         return cached
     
-    espn_code = ESPN_TEAM_CODES.get(team_abbr_or_id, team_abbr_or_id.lower())
+    # Codigos ESPN fixos para garantir compatibilidade
+    espn_code = ESPN_TEAM_CODES.get(safe_team_code, safe_team_code.lower())
     url = ESPN_TEAM_ROSTER_TEMPLATE.format(team=espn_code)
     
     try:
         if progress_ui:
-            st.info(f"Buscando roster para {team_abbr_or_id}...")
+            st.info(f"Buscando roster: {safe_team_code}...")
         
         r = requests.get(url, timeout=10, headers=HEADERS)
         r.raise_for_status()
         jr = r.json()
+        
         save_json(cache_path, jr)
         return jr
-    except Exception as e:
-        if progress_ui:
-            st.warning(f"Falha ao buscar roster para {team_abbr_or_id}: {e}")
+    except Exception:
         return {}
 
 # ============================================================================
@@ -7670,41 +7645,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
