@@ -7297,219 +7297,222 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (SCANNER GLOBAL AUTOMÁTICO)
-# ============================================================================
-# ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V2.0 - AUTO SCAN)
+# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V3.0 - GRID & THREATS)
 # ============================================================================
 def show_narrative_lab():
     import time
     
-    # CSS Específico (Simples e Seguro)
+    # CSS Específico para o Layout "War Room"
     st.markdown("""
     <style>
-        .war-room-header { font-family: 'Oswald'; font-size: 26px; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
-        .sub-header { font-family: 'Oswald'; font-size: 16px; color: #94a3b8; letter-spacing: 1px; margin-bottom: 20px; }
-        .game-title { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; background: #1e293b; padding: 5px 10px; border-radius: 4px; display: inline-block; }
+        /* Header */
+        .war-room-title { font-family: 'Oswald'; font-size: 28px; color: #fff; letter-spacing: 2px; margin-bottom: 5px; }
+        .war-room-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
+        
+        /* Top Threats Cards */
+        .threat-card {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            transition: transform 0.2s;
+        }
+        .threat-card:hover { transform: translateY(-5px); }
+        .threat-val { font-family: 'Oswald'; font-size: 32px; font-weight: bold; margin: 5px 0; }
+        .threat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
+        
+        /* Battle Grid */
+        .battle-header { 
+            background: #1e293b; color: #e2e8f0; 
+            padding: 8px 15px; border-radius: 6px; 
+            font-family: 'Oswald'; font-size: 16px; 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #334155;
+            margin-top: 20px; margin-bottom: 10px;
+        }
+        
+        /* Player Mini Cards */
+        .p-card {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-left-width: 4px;
+            border-left-style: solid;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .p-card-killer { border-left-color: #FF4F4F; background: linear-gradient(90deg, rgba(255, 79, 79, 0.1) 0%, transparent 100%); }
+        .p-card-cold { border-left-color: #00E5FF; background: linear-gradient(90deg, rgba(0, 229, 255, 0.1) 0%, transparent 100%); }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Carregar Engine & Dados
+    # 1. SETUP & DADOS
     try:
-        # Tenta importar (ajuste o caminho conforme sua estrutura real)
         from modules.new_modules.narrative_intelligence import NarrativeIntelligence
         if "narrative_engine" not in st.session_state:
             st.session_state.narrative_engine = NarrativeIntelligence()
         engine = st.session_state.narrative_engine
     except ImportError:
-        st.error("⚠️ Módulo NarrativeIntelligence não encontrado. Verifique a instalação.")
+        st.error("⚠️ Engine não encontrada.")
         return
 
-    # Dados Básicos
     games = st.session_state.get("scoreboard", [])
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
     if not games or df_l5.empty:
-        st.warning("⚠️ Dados insuficientes (Scoreboard ou L5 vazios). Atualize na aba Config.")
+        st.warning("⚠️ Dados insuficientes. Atualize na aba Config.")
         return
 
-    # 2. LÓGICA DE AUTO-SCAN (CACHE)
-    # Verificamos se já temos o relatório de hoje gerado para não rodar tudo de novo
-    if "narrative_cache" not in st.session_state:
-        st.session_state.narrative_cache = {}
+    # 2. AUTO-SCAN LÓGICO (Processamento)
+    if "narrative_cache_v3" not in st.session_state:
+        st.session_state.narrative_cache_v3 = {}
 
-    # Chave de cache baseada na quantidade de jogos (simples)
-    cache_key = f"scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d')}"
-    
-    scan_results = st.session_state.narrative_cache.get(cache_key)
+    cache_key = f"war_room_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d')}"
+    scan_results = st.session_state.narrative_cache_v3.get(cache_key)
 
-    # Se não tem cache, RODA O SCAN AGORA
     if not scan_results:
-        with st.status("📡 Escaneando Histórico de Confrontos (H2H)...", expanded=True) as status:
+        with st.status("📡 Rastreando Anomalias H2H...", expanded=True) as status:
             scan_results = []
+            ESPN_MAP = {"SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA", "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"}
             
-            # Mapeamento de Siglas (ESPN -> NBA Database)
-            ESPN_TO_NBA_MAP = {
-                "SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA",
-                "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"
-            }
-
-            total_steps = len(games)
-            progress_bar = st.progress(0)
-
+            prog = st.progress(0)
             for i, game in enumerate(games):
                 try:
-                    away_raw = game['away']
-                    home_raw = game['home']
+                    away_raw, home_raw = game['away'], game['home']
+                    away_n = ESPN_MAP.get(away_raw, away_raw)
+                    home_n = ESPN_MAP.get(home_raw, home_raw)
                     
-                    # Normaliza nomes
-                    away_norm = ESPN_TO_NBA_MAP.get(away_raw, away_raw)
-                    home_norm = ESPN_TO_NBA_MAP.get(home_raw, home_raw)
+                    # Analisa os Top 8 de cada time (aumentei o range)
+                    r_away = df_l5[df_l5['TEAM'] == away_n].sort_values('PTS_AVG', ascending=False).head(8)
+                    r_home = df_l5[df_l5['TEAM'] == home_n].sort_values('PTS_AVG', ascending=False).head(8)
 
-                    # Seleciona Top 5 Jogadores de cada time (pelo L5)
-                    roster_away = df_l5[df_l5['TEAM'] == away_norm].sort_values('PTS_AVG', ascending=False).head(5)
-                    roster_home = df_l5[df_l5['TEAM'] == home_norm].sort_values('PTS_AVG', ascending=False).head(5)
+                    def analyze_player(row, opp_team, my_team):
+                        pid, pname = row['PLAYER_ID'], row['PLAYER']
+                        data = engine.get_player_matchup_history(pid, pname, opp_team)
+                        
+                        if data and 'comparison' in data:
+                            diff = data['comparison'].get('diff_pct', 0)
+                            
+                            # LÓGICA DE CLASSIFICAÇÃO RIGOROSA
+                            n_type = "NEUTRAL"
+                            if diff >= 15: n_type = "KILLER"      # +15% melhor que a média
+                            elif diff <= -15: n_type = "COLD"     # -15% pior que a média
+                            
+                            if n_type != "NEUTRAL":
+                                scan_results.append({
+                                    "game_id": f"{away_raw} @ {home_raw}",
+                                    "player": pname,
+                                    "team": my_team,
+                                    "opponent": opp_team,
+                                    "diff": diff,
+                                    "avg": data['avg_stats'].get('PTS', 0),
+                                    "type": n_type,
+                                    "pid": pid,
+                                    "badge": data.get('badge', '')
+                                })
+
+                    for _, p in r_away.iterrows(): analyze_player(p, home_n, away_raw)
+                    for _, p in r_home.iterrows(): analyze_player(p, away_n, home_raw)
                     
-                    # Analisa Away vs Home
-                    for _, p in roster_away.iterrows():
-                        data = engine.get_player_matchup_history(p['PLAYER_ID'], p['PLAYER'], home_norm)
-                        if data and data.get('badge'): # Só salva se tiver badge (Killer/Fria)
-                            scan_results.append({
-                                "game": f"{away_raw} @ {home_raw}",
-                                "player": p['PLAYER'],
-                                "team": away_raw,
-                                "opponent": home_raw,
-                                "data": data,
-                                "type": "KILLER" if "KILLER" in data['badge'] else "COLD"
-                            })
-
-                    # Analisa Home vs Away
-                    for _, p in roster_home.iterrows():
-                        data = engine.get_player_matchup_history(p['PLAYER_ID'], p['PLAYER'], away_norm)
-                        if data and data.get('badge'):
-                            scan_results.append({
-                                "game": f"{away_raw} @ {home_raw}",
-                                "player": p['PLAYER'],
-                                "team": home_raw,
-                                "opponent": away_raw,
-                                "data": data,
-                                "type": "KILLER" if "KILLER" in data['badge'] else "COLD"
-                            })
-                    
-                    progress_bar.progress((i + 1) / total_steps)
-                except Exception:
-                    continue # Pula jogo se der erro
-
-            # Salva no cache
-            st.session_state.narrative_cache[cache_key] = scan_results
+                    prog.progress((i+1)/len(games))
+                except: continue
+            
+            st.session_state.narrative_cache_v3[cache_key] = scan_results
             status.update(label="✅ Scan Completo!", state="complete", expanded=False)
-            time.sleep(0.5) # Breve pausa para ler
-            st.rerun() # Recarrega para exibir limpo
+            time.sleep(0.5)
+            st.rerun()
 
-    # 3. INTERFACE VISUAL (WAR ROOM)
-    # Header com ícone de Espadas Cruzadas (HTML Entity)
-    st.markdown('<div class="war-room-header">&#9876; NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sub-header">Rastreamento automático de anomalias estatísticas em {len(games)} confrontos.</div>', unsafe_allow_html=True)
+    # 3. RENDERIZAÇÃO DA UI (LAYOUT SOLICITADO)
+    
+    st.markdown('<div class="war-room-title">&#9876; NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
+    st.markdown('<div class="war-room-sub">Monitoramento de anomalias estatísticas históricas.</div>', unsafe_allow_html=True)
 
     if not scan_results:
-        st.info("Nenhuma narrativa relevante (Killer ou Fria) detectada nos jogos de hoje.")
+        st.info("Nenhuma anomalia crítica detectada hoje (Jogos equilibrados).")
         return
 
-    # --- SEÇÃO 1: TOP THREATS (Os Maiores Killers) ---
-    # Filtra apenas os Killers e ordena pela diferença percentual
+    # --- A. TICKER DE ALERTA (TOP 3 THREATS) ---
     killers = [x for x in scan_results if x['type'] == "KILLER"]
-    killers_sorted = sorted(killers, key=lambda x: x['data']['comparison']['diff_pct'], reverse=True)[:3]
-
-    if killers_sorted:
-        # Icone de Fogo HTML: &#128293;
-        st.markdown('<div style="font-family:Oswald; color:#FF4F4F; font-size:18px; margin-bottom:10px;">&#128293; AMEAÇAS DE NÍVEL CRÍTICO (TOP KILLERS)</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        for idx, item in enumerate(killers_sorted):
-            col = [c1, c2, c3][idx]
-            with col:
-                # Renderiza Card Simplificado
-                p_name = item['player']
-                opp = item['opponent']
-                avg = item['data']['avg_stats']['PTS']
-                diff = item['data']['comparison']['diff_pct']
-                p_id = item['data'].get('player_id', 0) # Assumindo que a engine retorna isso, senão 0
-                
-                # Foto
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png" if p_id else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-
+    top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
+    
+    if top_threats:
+        cols = st.columns(3)
+        for idx, t in enumerate(top_threats):
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(t['pid'])}.png"
+            color = "#FF4F4F"
+            
+            with cols[idx]:
                 st.markdown(f"""
-                <div style="background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: 1px solid #FF4F4F; border-radius: 8px; padding: 10px; text-align: center;">
-                    <img src="{photo}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #FF4F4F; object-fit: cover;">
-                    <div style="font-family:'Oswald'; color:#fff; font-size:14px; margin-top:5px;">{p_name}</div>
-                    <div style="font-size:10px; color:#94a3b8;">vs {opp}</div>
-                    <div style="font-family:'Oswald'; font-size:20px; color:#FF4F4F; font-weight:bold;">+{diff:.0f}%</div>
-                    <div style="font-size:10px; color:#FF4F4F;">SOBRE A MÉDIA ({avg} PTS)</div>
+                <div class="threat-card" style="border-top: 4px solid {color};">
+                    <div style="display:flex; justify-content:center; margin-bottom:10px;">
+                        <img src="{photo}" style="width:60px; height:60px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
+                    </div>
+                    <div style="font-family:'Oswald'; font-size:16px; color:#fff;">{t['player']}</div>
+                    <div style="font-size:11px; color:#94a3b8;">vs {t['opponent']}</div>
+                    <div class="threat-val" style="color:{color};">+{t['diff']:.0f}%</div>
+                    <div class="threat-lbl">Performance Histórica</div>
                 </div>
                 """, unsafe_allow_html=True)
-        st.markdown("---")
-
-    # --- SEÇÃO 2: GRID DE BATALHA (POR JOGO) ---
-    # Agrupa resultados por jogo
+    
+    # --- B. GRID DE BATALHA (MATCHUPS) ---
+    # Agrupa por Jogo
     games_dict = {}
     for item in scan_results:
-        g = item['game']
-        if g not in games_dict: games_dict[g] = []
-        games_dict[g].append(item)
+        gid = item['game_id']
+        if gid not in games_dict: games_dict[gid] = {"home": [], "away": []}
+        
+        # Identifica lado (Home ou Away) baseado no nome do time no ID do jogo
+        # ID: "AWAY @ HOME"
+        away_name, home_name = gid.split(" @ ")
+        if item['team'] == home_name:
+            games_dict[gid]["home"].append(item)
+        else:
+            games_dict[gid]["away"].append(item)
 
-    # Renderiza cada jogo
-    for game_name, narratives in games_dict.items():
-        # Icone de Bola de Basquete HTML: &#127936;
-        st.markdown(f'<div class="game-title">&#127936; {game_name}</div>', unsafe_allow_html=True)
+    for game_name, rosters in games_dict.items():
+        away_team, home_team = game_name.split(" @ ")
         
-        # Colunas para organizar
-        cols = st.columns(2)
+        # Renderiza Header do Jogo
+        st.markdown(f"""
+        <div class="battle-header">
+            <div>✈️ {away_team}</div>
+            <div style="font-size:12px; color:#64748B;">VS</div>
+            <div>🏠 {home_team}</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        for i, narr in enumerate(narratives):
-            with cols[i % 2]: # Alterna colunas
-                # Prepara dados para o card
-                d = narr['data']
-                badge_type = narr['type']
-                
-                if badge_type == "KILLER":
-                    color = "#FF4F4F"
-                    bg_color = "rgba(255, 79, 79, 0.1)"
-                    icon = "&#128293;" # Fire
-                    label = "HISTÓRICO KILLER"
+        c1, c2 = st.columns(2)
+        
+        # Função interna para renderizar lista
+        def render_list(col, items, align="left"):
+            with col:
+                if not items:
+                    st.markdown(f"<div style='text-align:{align}; color:#475569; font-size:12px; padding:10px;'><i>Neutro</i></div>", unsafe_allow_html=True)
                 else:
-                    color = "#00E5FF"
-                    bg_color = "rgba(0, 229, 255, 0.1)"
-                    icon = "&#10052;" # Snowflake
-                    label = "HISTÓRICO FRIO"
-                
-                p_name = narr['player']
-                avg_pts = d['avg_stats'].get('PTS', 0)
-                diff = d['comparison'].get('diff_pct', 0)
-                games_played = d.get('games_played', 0)
-                
-                # HTML BLINDADO (TABELA)
-                st.markdown(f"""
-                <table style="width: 100%; background: #0f172a; border-left: 4px solid {color}; border-radius: 4px; border-collapse: collapse; margin-bottom: 10px;">
-                    <tr>
-                        <td style="padding: 10px;">
-                            <div style="font-family:'Oswald'; font-size:15px; color:#fff;">{p_name}</div>
-                            <div style="font-size:10px; color:#94a3b8;">vs {narr['opponent']}</div>
-                        </td>
-                        <td style="padding: 10px; text-align: right;">
-                            <div style="background: {bg_color}; color: {color}; font-size: 10px; padding: 2px 6px; border-radius: 4px; display: inline-block; font-weight: bold;">
-                                {icon} {label}
+                    for p in items:
+                        is_killer = p['type'] == "KILLER"
+                        css_class = "p-card-killer" if is_killer else "p-card-cold"
+                        color = "#FF4F4F" if is_killer else "#00E5FF"
+                        icon = "&#128293;" if is_killer else "&#10052;" # Fire / Snowflake
+                        sign = "+" if p['diff'] > 0 else ""
+                        
+                        st.markdown(f"""
+                        <div class="p-card {css_class}">
+                            <div>
+                                <div style="font-weight:bold; font-size:13px; color:#fff;">{p['player']}</div>
+                                <div style="font-size:10px; color:{color}; font-weight:bold;">{icon} {p['badge']}</div>
                             </div>
-                            <div style="font-family:'Oswald'; font-size:18px; color:{color}; margin-top: 4px;">
-                                {avg_pts} <span style="font-size:10px; color:#94a3b8;">PTS (MÉDIA)</span>
+                            <div style="text-align:right;">
+                                <div style="font-family:'Oswald'; font-size:16px; color:{color};">{sign}{p['diff']:.0f}%</div>
+                                <div style="font-size:9px; color:#94a3b8;">Avg: {p['avg']:.1f}</div>
                             </div>
-                            <div style="font-size:9px; color:{color};">
-                                {diff:+.0f}% vs Temporada ({games_played} Jogos)
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-                """, unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
+                        </div>
+                        """, unsafe_allow_html=True)
+
+        render_list(c1, rosters["away"], "left")
+        render_list(c2, rosters["home"], "right")
 # ============================================================================
 # FUNÇÃO PARA RENDERIZAR CARD DE JOGO (ATUALIZADA)
 # ============================================================================
@@ -7794,6 +7797,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
