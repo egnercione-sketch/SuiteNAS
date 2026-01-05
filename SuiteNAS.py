@@ -6937,7 +6937,197 @@ def show_depto_medico():
             if p['norm_name'] == norm_inj: return p
             
         # 3. Tentativa "Contém" (ex: "Giannis" in "Giannis Antetokounmpo")
-        for
+        for p in candidates:
+            if norm_inj in p['norm_name'] or p['norm_name'] in norm_inj: return p
+            
+        # 4. Tentativa Sobrenome (Último recurso)
+        inj_parts = norm_inj.split()
+        if len(inj_parts) > 1:
+            lastname = inj_parts[-1]
+            for p in candidates:
+                if lastname in p['norm_name']: return p
+                
+        return None
+
+    # --- 5. FETCH DOS DADOS DE LESÃO ---
+    injuries_list = []
+    # Tenta chaves em ordem
+    keys = ['injuries', 'injuries_cache_v44', 'injuries_data']
+    raw_data = None
+    for k in keys:
+        raw_data = get_data_universal(k)
+        if raw_data: break
+
+    # Parser Universal
+    if raw_data:
+        try:
+            if isinstance(raw_data, list):
+                injuries_list = raw_data
+            elif isinstance(raw_data, dict):
+                # Flattening de dicionários
+                target = raw_data.get('teams', raw_data.get('data', raw_data))
+                if isinstance(target, dict):
+                    for k, v in target.items():
+                        if isinstance(v, list):
+                            for p in v:
+                                if isinstance(p, dict):
+                                    # Captura time da chave se possível (Ex: "LAL")
+                                    if len(k) <= 3: p['_source_team'] = normalize_str(k)
+                                    injuries_list.append(p)
+                elif isinstance(target, list):
+                    injuries_list = target
+        except: pass
+
+    if not injuries_list:
+        st.info("ℹ️ Nenhuma lesão reportada.")
+        return
+
+    # --- 6. CRUZAMENTO E ENRIQUECIMENTO ---
+    final_report = []
+
+    for p in injuries_list:
+        p_name = p.get('player') or p.get('name') or "Unknown"
+        
+        # Tenta descobrir o time vindo do relatório
+        source_team = normalize_str(p.get('team') or p.get('team_code') or p.get('_source_team') or "UNK")
+        
+        # Busca no DB (aqui corrigimos a falta de ID/Foto)
+        db_player = find_player_in_db(p_name, source_team)
+        
+        # Se achou no DB, usa dados oficiais. Se não, usa o que tem.
+        if db_player:
+            final_name = db_player['name']
+            final_team = db_player['team']
+            final_id = db_player['id']
+            final_min = db_player['min']
+            final_pos = db_player['pos_cat']
+        else:
+            final_name = p_name
+            final_team = source_team
+            final_id = 0
+            final_min = 0.0
+            final_pos = 'F'
+
+        # Status Code
+        raw_status = str(p.get('status', '')).upper()
+        if "OUT" in raw_status: s_code = "OUT"
+        elif any(x in raw_status for x in ["GTD", "QUEST", "DOUBT"]): s_code = "GTD"
+        elif "PROB" in raw_status: s_code = "PROB"
+        else: s_code = raw_status[:10]
+
+        if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
+
+        # Impacto
+        impact = 0
+        if final_min >= 28: impact = 2 # Estrela
+        elif final_min >= 18: impact = 1 # Rotação
+
+        # Lógica NEXT MAN UP (Corrigida: Escopo Local)
+        replacement = None
+        if impact >= 1 and s_code in ['OUT', 'GTD']:
+            # Busca candidatos APENAS do mesmo time e mesma posição
+            candidates = [
+                c for c in MASTER_ROSTER 
+                if c['team'] == final_team 
+                and c['pos_cat'] == final_pos
+                and c['name'] != final_name # Não pode ser ele mesmo
+            ]
+            # Ordena por minutos (quem joga mais assume)
+            candidates.sort(key=lambda x: x['min'], reverse=True)
+            
+            if candidates:
+                replacement = candidates[0]['name']
+
+        # Monta objeto final (AQUI ESTAVA O ERRO DO KEYERROR 'MIN')
+        # Agora garantimos que todas as chaves existem
+        final_report.append({
+            "name": final_name,
+            "team": final_team,
+            "id": final_id,
+            "min": final_min, # <--- Chave garantida
+            "status": s_code,
+            "desc": p.get('description') or p.get('details') or "",
+            "impact": impact,
+            "replacement": replacement
+        })
+
+    # --- 7. RENDERIZAÇÃO (NATIVA + CSS) ---
+    
+    # A. HERO SECTION (Estrelas Críticas)
+    critical = [p for p in final_report if p['impact'] == 2 and p['status'] in ['OUT', 'GTD']]
+    
+    if critical:
+        st.error(f"🚨 **HOSPITAL WARD ({len(critical)} Estrelas Fora/Dúvida)**")
+        
+        cols = st.columns(4)
+        for i, p in enumerate(critical):
+            with cols[i % 4]:
+                with st.container(border=True):
+                    # Foto
+                    photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                    st.image(photo, use_container_width=True)
+                    
+                    # Nome
+                    short_name = p['name'].split()[-1] if len(p['name'].split()) > 1 else p['name']
+                    st.markdown(f"**{short_name}** ({p['team']})")
+                    
+                    # Status Badge (HTML in Markdown)
+                    cls = "st-out" if p['status'] == "OUT" else "st-gtd"
+                    st.markdown(f'<span class="{cls}">{p["status"]}</span>', unsafe_allow_html=True)
+                    
+                    # Replacement
+                    if p['replacement']:
+                        rep_short = p['replacement'].split()[-1]
+                        st.markdown(f'<div class="rep-row">Sobe: <span class="rep-name">{rep_short}</span></div>', unsafe_allow_html=True)
+
+    st.divider()
+
+    # B. LISTA POR TIME
+    # Agrupa
+    teams_dict = {}
+    for p in final_report:
+        if p['team'] not in teams_dict: teams_dict[p['team']] = []
+        teams_dict[p['team']].append(p)
+    
+    # Ordena times por soma de impacto
+    sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
+
+    for tm, players in sorted_teams:
+        if tm == "UNK": continue # Pula times desconhecidos
+        
+        impact_score = sum(p['impact'] for p in players)
+        
+        # Header Time
+        if impact_score >= 3:
+            st.subheader(f"🔥 {tm} (Impacto Alto)")
+        elif impact_score >= 1:
+            st.subheader(f"⚠️ {tm} (Impacto Médio)")
+        else:
+            st.subheader(f"🛡️ {tm} (Rotação)")
+            
+        # Grid Jogadores
+        players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
+        
+        row_cols = st.columns(3)
+        for idx, p in enumerate(players):
+            with row_cols[idx % 3]:
+                with st.container(border=True):
+                    c1, c2 = st.columns([1, 2.5])
+                    with c1:
+                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                        st.image(photo, use_container_width=True)
+                    with c2:
+                        st.markdown(f"**{p['name']}**")
+                        
+                        cls = "st-out" if p['status'] == "OUT" else ("st-gtd" if p['status'] == "GTD" else "st-prob")
+                        st.markdown(f'<span class="{cls}">{p["status"]}</span>', unsafe_allow_html=True)
+                        
+                        if p['desc']:
+                            st.caption(f"{p['desc'][:40]}...")
+                    
+                    if p['replacement']:
+                         rep_short = p['replacement'].split()[-1]
+                         st.markdown(f'<div class="rep-row">Beneficiado: <span class="rep-name">{rep_short}</span></div>', unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -7783,6 +7973,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
