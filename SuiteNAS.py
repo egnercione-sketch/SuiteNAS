@@ -7158,7 +7158,7 @@ def show_depto_medico():
                 </div>
                 """, unsafe_allow_html=True)
             
-            st.
+            st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -8004,6 +8004,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
