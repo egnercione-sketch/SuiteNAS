@@ -946,9 +946,16 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA MOMENTUM (VISUAL GLOBAL DIRETO - SEM FILTROS)
+# PÁGINA MOMENTUM (VISUAL WALL STREET v2.3 - SEM 'TODOS' & FIX CRASH)
 # ============================================================================
 def show_momentum_page():
+    # Tenta importar plotly
+    try:
+        import plotly.express as px
+    except ImportError:
+        st.error("⚠️ Biblioteca plotly ausente.")
+        return
+
     # CSS Específico
     st.markdown("""
     <style>
@@ -964,17 +971,10 @@ def show_momentum_page():
         }
         .ticker-val { font-size: 18px; font-weight: bold; }
         .ticker-lbl { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
-        .section-title {
-            font-family: 'Oswald'; 
-            font-size: 18px; 
-            margin-bottom: 15px; 
-            padding-bottom: 5px;
-            letter-spacing: 1px;
-        }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Dados
+    # 1. Carrega Dados
     df = get_momentum_data()
     
     if df.empty:
@@ -985,14 +985,149 @@ def show_momentum_page():
     c1, c2, c3, c4 = st.columns(4)
     
     avg_score = df['MOMENTUM_SCORE'].mean()
-    bulls_count = len(df[df['STATUS'] == "🔥 BULLISH"])
-    bears_count = len(df[df['STATUS'] == "🧊 BEARISH"])
+    bulls = len(df[df['STATUS'] == "🔥 BULLISH"])
+    bears = len(df[df['STATUS'] == "🧊 BEARISH"])
     vol = df['MIN_AVG'].mean()
 
     with c1: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#22d3ee">{avg_score:.1f}</div><div class="ticker-lbl">ÍNDICE GERAL</div></div>""", unsafe_allow_html=True)
-    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls_count}</div><div class="ticker-lbl">MERCADO EM ALTA</div></div>""", unsafe_allow_html=True)
-    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears_count}</div><div class="ticker-lbl">MERCADO EM BAIXA</div></div>""", unsafe_allow_html=True)
-    with c4: st.markdown(f"""<div class="ticker-box"><div class="ticker-val
+    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls}</div><div class="ticker-lbl">EM ALTA (BULLS)</div></div>""", unsafe_allow_html=True)
+    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears}</div><div class="ticker-lbl">EM BAIXA (BEARS)</div></div>""", unsafe_allow_html=True)
+    with c4: st.markdown(f"""<div class="ticker-box"><div class="ticker-val">{vol:.1f}m</div><div class="ticker-lbl">VOLUME MÉDIO</div></div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- FILTROS OBRIGATÓRIOS (SEM 'TODOS OS TIMES') ---
+    col_search, col_pos = st.columns([2, 1])
+    
+    with col_search:
+        # Garante que é string, remove duplicatas e ordena
+        teams_list = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
+        
+        if not teams_list:
+            st.warning("Nenhum time encontrado na base.")
+            return
+
+        # Seleciona o primeiro time automaticamente
+        sel_team = st.selectbox("Selecione o Time (Mercado Específico)", teams_list, index=0)
+    
+    with col_pos:
+        positions = ["TODAS", "G", "F", "C"]
+        sel_pos = st.selectbox("Posição", positions)
+
+    # Aplica Filtros (Sempre filtra por time agora)
+    df_filtered = df[df['TEAM'] == sel_team].copy()
+    
+    if 'POS' in df_filtered.columns and sel_pos != "TODAS":
+        df_filtered = df_filtered[df_filtered['POS'].str.contains(sel_pos, na=False)]
+
+    st.markdown("---")
+
+    # --- 2. MATRIZ DE DISPERSÃO (GRAFICO) ---
+    st.markdown(f'<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ: {sel_team}</div>', unsafe_allow_html=True)
+    
+    try:
+        if not df_filtered.empty:
+            fig = px.scatter(
+                df_filtered, 
+                x="MIN_AVG", 
+                y="MOMENTUM_SCORE",
+                color="MOMENTUM_SCORE",
+                color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
+                size="PTS_AVG",
+                hover_name="PLAYER",
+                hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
+                template="plotly_dark",
+                height=400
+            )
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis_title="VOLUME (MINUTOS)",
+                yaxis_title="MOMENTUM SCORE",
+                font=dict(family="Inter"),
+                margin=dict(l=0, r=0, t=0, b=0)
+            )
+            
+            fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
+            fig.add_vline(x=25, line_dash="dot", line_color="#334155")
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sem dados para exibir o gráfico.")
+            
+    except Exception as e:
+        st.info("Visualização gráfica indisponível.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- 3. LISTAS BULL & BEAR ---
+    col_bull, col_bear = st.columns(2)
+
+    bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False)
+    bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True)
+
+    # Helper de Renderização (BLINDADO CONTRA ERRO DE NOME)
+    def render_market_card(player_row, type="bull"):
+        if type == "bull":
+            color = "#00ff9c"
+            bg_grad = "linear-gradient(90deg, rgba(0, 255, 156, 0.1) 0%, transparent 100%)"
+            trend = "EM ALTA"
+        else:
+            color = "#f87171"
+            bg_grad = "linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%)"
+            trend = "EM BAIXA"
+
+        p_id = int(player_row.get('PLAYER_ID', 0))
+        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
+        score = player_row['MOMENTUM_SCORE']
+        
+        # --- CORREÇÃO DO ERRO TYPE ERROR ---
+        # Força conversão para string e trata nulos
+        raw_name = player_row.get('PLAYER', '')
+        name = str(raw_name) if raw_name else "Desconhecido"
+        
+        # Truncar nome seguro
+        if len(name) > 18: name = name[:16] + "..."
+
+        st.markdown(f"""
+        <div style="
+            background: #0f172a; 
+            border-left: 4px solid {color}; 
+            border-radius: 4px; 
+            margin-bottom: 8px; 
+            padding: 8px; 
+            display: flex; 
+            align-items: center; 
+            background: {bg_grad};
+        ">
+            <img src="{photo}" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
+            <div style="flex-grow: 1;">
+                <div style="font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1;">{name}</div>
+                <div style="font-size: 10px; color: #94a3b8;">{player_row['TEAM']} • {trend}</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-family: 'Oswald'; font-size: 18px; color: {color}; font-weight: bold;">{score:.0f}</div>
+                <div style="font-size: 8px; color: {color};">SCORE</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_bull:
+        st.markdown(f'<div class="market-header" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 {sel_team} BULLS</div><br>', unsafe_allow_html=True)
+        if bulls_list.empty:
+            st.info(f"Nenhum jogador do {sel_team} em alta explosiva.")
+        else:
+            for _, row in bulls_list.iterrows():
+                render_market_card(row, "bull")
+
+    with col_bear:
+        st.markdown(f'<div class="market-header" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 {sel_team} BEARS</div><br>', unsafe_allow_html=True)
+        if bears_list.empty:
+            st.info(f"Nenhum jogador do {sel_team} em baixa crítica.")
+        else:
+            for _, row in bears_list.iterrows():
+                render_market_card(row, "bear")
 # ============================================================================
 # PROPS ODDS - LAS VEGAS
 # ============================================================================
@@ -1455,131 +1590,113 @@ class NexusEngine:
                 if val > max_reb: max_reb = val; best = name
         return best
         
-# ============================================================================
-# PÁGINA: NEXUS INTELLIGENCE (VISUAL FINAL V4.0 - ASCII SAFE MODE)
-# ============================================================================
 def show_nexus_page():
-    # 1. Dados
+    # Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # HEADER (SEM CARACTERES ESPECIAIS NO CODIGO PYTHON)
-    # Substituimos o ponto (bullet) por &bull; e o cerebro por codigo HTML
+    # Header
     st.markdown("""
-    <div style="padding: 20px; text-align: center;">
-        <h1 style="font-family: 'Oswald', sans-serif; font-size: 48px; color: #fff; margin: 0;">&#129504; NEXUS INTELLIGENCE</h1>
-        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px; font-size: 14px; margin-top: 5px;">MODO PREDADOR &bull; PRECISAO CIRURGICA</p>
+    <div style="text-align: center; padding: 20px;">
+        <h1 style="color: white; font-size: 3rem; margin:0; font-family:sans-serif;">🧠 NEXUS INTELLIGENCE</h1>
+        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
     </div>
     """, unsafe_allow_html=True)
 
     if not full_cache:
-        st.error("Logs de jogos vazios. Atualize a base de dados.")
+        st.error("❌ Logs vazios.")
         return
 
-    # 2. Filtros (REMOVIDOS EMOJIS DOS LABELS DO STREAMLIT)
-    st.markdown("<div style='background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155;'>", unsafe_allow_html=True)
-    c_slider, c_type = st.columns([2, 1])
-    with c_slider:
-        # Removido emoji do label
-        min_score = st.slider("Score Minimo (Qualidade)", 50, 100, 65)
-    with c_type:
-        filter_type = st.selectbox("Tipo de Oportunidade", ["TODAS", "SGP (Duplas)", "DEF (vs Defesa)"])
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Engine
+    nexus = NexusEngine(full_cache, scoreboard or [])
+    min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
 
-    # 3. Engine & Execução
     try:
-        # Tenta importar caso não esteja no escopo global
-        if 'NexusEngine' not in globals():
-            from modules.new_modules.nexus_engine import NexusEngine 
-            
-        nexus = NexusEngine(full_cache, scoreboard or [])
         all_ops = nexus.run_nexus_scan()
-        
-        # Filtragem
         opportunities = [op for op in all_ops if op['score'] >= min_score]
-        
-        if filter_type == "SGP (Duplas)":
-            opportunities = [op for op in opportunities if op['type'] == 'SGP']
-        elif filter_type == "DEF (vs Defesa)":
-            opportunities = [op for op in opportunities if op['type'] != 'SGP']
-            
     except Exception as e:
-        # Msg simples sem caracteres especiais
-        st.info("Aguardando sincronizacao da Engine Nexus...")
+        st.error(f"Erro no Scan: {e}")
         return
 
     if not opportunities:
-        st.info(f"Nenhuma oportunidade encontrada com Score acima de {min_score}.")
+        st.info("Nenhuma oportunidade encontrada.")
         return
 
-    # Icone de Raio via HTML: &#9889;
-    st.markdown(f"**&#9889; {len(opportunities)} Oportunidades Encontradas**", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # 4. Renderização (CARD BLINDADO - TABELA HTML)
+    # Render
     for op in opportunities:
+        is_sgp = (op['type'] == 'SGP')
         color = op['color']
-        score = op['score']
+        icon = "⚡" if is_sgp else "🌪️"
         
-        # Conversão Segura de Strings e tratativa de acentos
-        title = str(op['title'])
-        
-        # Hero Data
-        h_name = str(op['hero']['name'])
-        if len(h_name) > 18: h_name = h_name[:16] + "..."
-        h_photo = op['hero']['photo']
-        h_info = f"{op['hero']['target']} {op['hero']['stat']}"
-        
-        # Partner/Villain Data
-        p_obj = op.get('partner', op.get('villain'))
-        p_name = str(p_obj['name'])
-        if len(p_name) > 18: p_name = p_name[:16] + "..."
-        p_photo = p_obj.get('photo', p_obj.get('logo'))
-        
-        # Ícones HTML
-        if 'partner' in op:
-            p_info = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "&#128279;" # Link Icon
-        else:
-            p_info = f"Alvo: {op['villain']['status']}"
-            mid_icon = "&#9876;" # Swords Icon
+        with st.container():
+            # Linha Topo
+            st.markdown(f"""<div style="border-top: 4px solid {color}; margin-top: 15px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
             
-        impact = op.get('impact', 'Alta Sinergia Detectada')
+            # Cabeçalho
+            c1, c2 = st.columns([3, 1])
+            c1.markdown(f"### {icon} {op['title']}")
+            c2.markdown(f"<div style='background:{color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
+            
+            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
+            
+            # --- HEROI ---
+            with col_hero:
+                ci1, ci2 = st.columns([0.4, 1])
+                with ci1: st.image(op['hero']['logo'], width=40)
+                with ci2: st.image(op['hero']['photo'], width=70)
+                
+                st.markdown(f"**{op['hero']['name']}**")
+                st.caption(f"{op['hero'].get('role', op['hero'].get('status'))}")
+                
+                t_val = op['hero'].get('target', '')
+                t_stat = op['hero'].get('stat', '')
+                st.markdown(f"<div style='border:1px solid {color}; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{t_val}</b> {t_stat}</div>", unsafe_allow_html=True)
 
-        # Card HTML
-        card_html = f"""
-        <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-family: 'Oswald', sans-serif; color: #ffffff; font-size: 14px; letter-spacing: 1px;">{title}</span>
-                <span style="background-color: {color}; color: #000000; font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 11px; padding: 2px 6px; border-radius: 4px;">SCORE {score}</span>
-            </div>
+            # --- MEIO ---
+            with col_mid:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if is_sgp:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>🔗</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#94a3b8;'>{op.get('synergy_txt', '')}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>⚔️</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#f87171;'>VS DEFESA</div>", unsafe_allow_html=True)
 
-            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: none; margin: 0;">
-                <tr>
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{h_name}</div>
-                        <div style="color: {color}; font-family: sans-serif; font-size: 10px; font-weight: bold;">{h_info}</div>
-                    </td>
+            # --- ALVO ---
+            with col_target:
+                if is_sgp:
+                    ci3, ci4 = st.columns([1, 0.4])
+                    with ci3: st.image(op['partner']['photo'], width=70)
+                    with ci4: st.image(op['partner']['logo'], width=40)
+                    
+                    st.markdown(f"**{op['partner']['name']}**")
+                    st.caption(f"{op['partner']['role']}")
+                    
+                    p_val = op['partner']['target']
+                    p_stat = op['partner']['stat']
+                    st.markdown(f"<div style='border:1px solid white; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{p_val}</b> {p_stat}</div>", unsafe_allow_html=True)
+                else:
+                    cv1, cv2 = st.columns([0.4, 1])
+                    with cv1: st.image(op['villain']['logo'], width=40)
+                    with cv2: 
+                        st.markdown(f"**{op['villain']['name']}**")
+                        st.caption("Adversário")
+                    
+                    st.markdown(f"🚨 <span style='color:#f87171; font-weight:bold'>{op['villain']['status']}</span>", unsafe_allow_html=True)
+                    st.caption(f"Sem: {op['villain']['missing']}")
 
-                    <td style="width: 20%; text-align: center; vertical-align: middle; border: none;">
-                        <div style="font-size: 20px; color: #64748b; opacity: 0.7;">{mid_icon}</div>
-                    </td>
-
-                    <td style="width: 40%; text-align: center; vertical-align: top; padding: 15px 5px; border: none;">
-                        <img src="{p_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #ffffff; object-fit: cover; margin: 0 auto; display: block;">
-                        <div style="color: #ffffff; font-family: 'Oswald', sans-serif; font-size: 13px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{p_name}</div>
-                        <div style="color: #cbd5e1; font-family: sans-serif; font-size: 10px;">{p_info}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="background-color: rgba(0,0,0,0.3); padding: 6px; text-align: center; font-family: sans-serif; font-size: 10px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.05);">
-                ANALISTA: {impact}
-            </div>
-        </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
+            # --- RODAPÉ ---
+            st.divider()
+            if is_sgp:
+                st.caption(" | ".join([f"✅ {b}" for b in op['badges']]))
+            else:
+                l1, l2, l3 = st.columns(3)
+                for i, s in enumerate(op['ladder']):
+                    s = s.replace(":", "")
+                    if i==0: l1.info(s)
+                    if i==1: l2.success(s)
+                    if i==2: l3.warning(s)
+                st.caption(f"📉 {op['impact']}")
 # ============================================================================
 # FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
 # ============================================================================
@@ -1661,130 +1778,103 @@ def render_trinity_table(members, label_suffix="L10"):
 
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (VERSÃO FINAL BLINDADA - NO-FORMAT ERROR)
+# PÁGINA PRINCIPAL (CSS CORRIGIDO COM !IMPORTANT)
 # ============================================================================
 def show_trinity_club_page():
-    # Helper para renderizar a tabela
-    def render_trinity_table(members, label):
-        if not members:
-            st.info(f"Nenhum jogador atingiu o critério de consistência {label} hoje.")
-            return
-
-        # Estilos Inline (Strings simples para não confundir o Python)
-        style_card = "background: #0f172a; border-left: 4px solid #D4AF37; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);"
-        style_name = "font-family: 'Oswald', sans-serif; font-size: 16px; color: #F8FAFC; font-weight: 500; text-transform: uppercase; margin: 0;"
-        style_match = "font-size: 11px; color: #94a3b8; margin-bottom: 8px;"
-        
-        style_stat_lbl = "font-family: sans-serif; font-size: 10px; color: #64748B; text-transform: uppercase;"
-        style_stat_val = "font-family: 'Oswald', sans-serif; font-size: 18px; color: #10B981; font-weight: bold;"
-        
-        style_target_box = "background: rgba(212, 175, 55, 0.1); border-radius: 6px; padding: 5px 10px; border: 1px solid rgba(212, 175, 55, 0.15); text-align: center;"
-        style_target_val = "font-family: 'Oswald', sans-serif; font-size: 20px; color: #D4AF37; font-weight: bold; line-height: 1;"
-        style_target_sub = "font-size: 9px; color: #D4AF37; opacity: 0.8;"
-
-        for p in members:
-            # 1. Extração Segura de Dados
-            p_name = str(p.get('player', 'Desconhecido'))
-            p_team = str(p.get('team', 'N/A'))
-            p_opp = str(p.get('opponent', 'N/A'))
-            
-            # 2. Valores Numéricos
-            raw_floor = p.get('floor_l5', 0) if label == 'L5' else (p.get('floor_l10', 0) if label == 'L10' else p.get('floor_l15', 0))
-            raw_avg = p.get('pts_avg', 0)
-            raw_target = p.get('safe_target', 0)
-            
-            # 3. Formatação PRÉVIA (AQUI ESTAVA O ERRO ANTES)
-            # Formatamos fora da f-string do HTML para evitar SyntaxError
-            val_floor = f"{raw_floor:.1f}"
-            val_avg = f"{raw_avg:.1f}"
-            val_target = f"{raw_target:.1f}"
-
-            # 4. HTML Simplificado (Só insere as strings já formatadas)
-            html = f"""
-            <div style="{style_card}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    
-                    <div style="flex: 2;">
-                        <div style="{style_name}">{p_name}</div>
-                        <div style="{style_match}">{p_team} vs {p_opp}</div>
-                        <div style="display: flex; gap: 15px;">
-                            <div>
-                                <div style="{style_stat_lbl}">PISO {label}</div>
-                                <div style="{style_stat_val}">{val_floor}</div>
-                            </div>
-                            <div>
-                                <div style="{style_stat_lbl}">MEDIA</div>
-                                <div style="{style_stat_val}">{val_avg}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="flex: 1; display: flex; justify-content: flex-end;">
-                        <div style="{style_target_box}">
-                            <div style="{style_target_val}">{val_target}</div>
-                            <div style="{style_target_sub}">ALVO SEGURO</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """
-            st.markdown(html, unsafe_allow_html=True)
-
-    # --- INÍCIO DA PÁGINA ---
-    # Usamos HTML entity para o troféu para evitar erro de encoding
-    st.markdown("## &#127942; Trinity Club (Consistencia Extrema)")
+    st.markdown("## 🏆 Trinity Club (Consistência Extrema)")
     
-    # 1. Carregamento
-    full_cache = get_data_universal("real_game_logs")
-    scoreboard = get_data_universal("scoreboard")
+    # --- CARREGAMENTO VIA SUPABASE ---
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    scoreboard = get_data_universal("scoreboard", os.path.join("cache", "scoreboard_today.json"))
 
     if not full_cache:
-        st.warning("Aguardando dados de logs...")
+        st.warning("Aguardando dados...")
         return
 
-    # Tenta carregar Engine
-    try:
-        # Verifica se precisa importar
-        if 'TrinityEngine' not in globals():
-            from modules.new_modules.trinity_engine import TrinityEngine
-        engine = TrinityEngine(full_cache, scoreboard or [])
-    except Exception as e:
-        # Fallback silencioso ou msg simples
-        st.info("Carregando motor Trinity...")
-        return
+    engine = TrinityEngine(full_cache, st.session_state.scoreboard)
 
-    st.caption("Analise a consistencia dos jogadores em 3 horizontes temporais diferentes.")
+    st.header("🏆 Trinity Club")
+    st.caption("Analise a consistência dos jogadores em 3 horizontes temporais diferentes.")
 
-    # 2. Glossário (Estilo Inline Seguro)
+    # --- CSS GLOBAL (Blindado com !important) ---
     st.markdown("""
-    <div style="background: rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; font-family: sans-serif; font-size: 11px; color: #94a3b8; display: flex; flex-wrap: wrap; gap: 15px; border-left: 3px solid #D4AF37;">
-        <div style="display: flex; align-items: center; gap: 5px;"><span style="color: #D4AF37;">&#128202; FORMA:</span> Piso da Janela</div>
-        <div style="display: flex; align-items: center; gap: 5px;"><span style="color: #D4AF37;">&#127968; LOCAL:</span> Piso Casa/Fora</div>
-        <div style="display: flex; align-items: center; gap: 5px;"><span style="color: #D4AF37;">&#9876; H2H:</span> Piso Vs Oponente</div>
-        <div style="display: flex; align-items: center; gap: 5px;"><span style="color: #D4AF37;">&#128737; ALVO:</span> Meta Segura</div>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
+        
+        /* Glossário & Layout */
+        .glossary-box {
+            background: rgba(255, 255, 255, 0.03); border-radius: 6px; padding: 8px 15px; margin-bottom: 20px;
+            font-family: 'Inter', sans-serif; font-size: 10px; color: #64748B; display: flex; justify-content: space-between; border-left: 3px solid #D4AF37;
+        }
+        .glossary-item { display: flex; align-items: center; gap: 5px; }
+        .gloss-icon { color: #D4AF37; font-weight: 600; }
+        .thin-sep { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 10px 0; }
+        
+        /* Identidade */
+        .trin-name { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 14px !important; /* Forçado */
+            color: #F8FAFC; font-weight: 500; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px; 
+        }
+        .trin-matchup { font-size: 10px !important; color: #64748B; margin-top: 2px; }
+        
+        /* ESTATÍSTICAS (Fonte Fixada) */
+        .stat-group { display: flex; flex-direction: column; }
+        .stat-lbl { 
+            font-family: 'Inter', sans-serif; 
+            font-size: 9px !important; 
+            color: #64748B; text-transform: uppercase; margin-bottom: 2px; 
+        }
+        .stat-val { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 16px !important; /* AQUI ESTAVA O PROBLEMA - Agora travado em 16px */
+            color: #10B981; 
+            font-weight: 500; 
+        }
+        
+        /* ALVO */
+        .target-pill { 
+            background: rgba(212, 175, 55, 0.1); border-radius: 6px; padding: 4px 12px; 
+            display: inline-block; text-align: center; border: 1px solid rgba(212, 175, 55, 0.15); 
+        }
+        .target-val { 
+            font-family: 'Oswald', sans-serif; 
+            font-size: 18px !important; /* Forçado */
+            color: #D4AF37; font-weight: 600; line-height: 1.1; 
+        }
+        .target-sub { 
+            font-size: 9px !important; 
+            color: #D4AF37; opacity: 0.8; font-weight: 600; 
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="glossary-box">
+        <div class="glossary-item"><span class="gloss-icon">📊 FORMA</span> Piso da Janela</div>
+        <div class="glossary-item"><span class="gloss-icon">🏠 LOCAL</span> Piso Casa/Fora</div>
+        <div class="glossary-item"><span class="gloss-icon">⚔️ H2H</span> Piso Vs Opp</div>
+        <div class="glossary-item"><span class="gloss-icon">🛡️ ALVO</span> Meta Segura</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Abas
-    tab_l5, tab_l10, tab_l15 = st.tabs(["L5 (Momentum)", "L10 (Padrao)", "L15 (Solido)"])
+    # --- ABAS DE NAVEGAÇÃO ---
+    tab_l5, tab_l10, tab_l15 = st.tabs(["🔥 L5 (Momentum)", "⚖️ L10 (Padrão)", "🏛️ L15 (Sólido)"])
     
     with tab_l5:
-        try:
-            members_l5 = engine.scan_market(window=5)
-            render_trinity_table(members_l5, "L5")
-        except: st.info("Sem dados L5 no momento.")
+        # window=5 -> Engine calcula piso dos últimos 5
+        members_l5 = engine.scan_market(window=5)
+        render_trinity_table(members_l5, "L5")
         
     with tab_l10:
-        try:
-            members_l10 = engine.scan_market(window=10)
-            render_trinity_table(members_l10, "L10")
-        except: st.info("Sem dados L10 no momento.")
+        # window=10 -> Engine calcula piso dos últimos 10
+        members_l10 = engine.scan_market(window=10)
+        render_trinity_table(members_l10, "L10")
         
     with tab_l15:
-        try:
-            members_l15 = engine.scan_market(window=15)
-            render_trinity_table(members_l15, "L15")
-        except: st.info("Sem dados L15 no momento.")
+        # window=15 -> Engine calcula piso dos últimos 15
+        members_l15 = engine.scan_market(window=15)
+        render_trinity_table(members_l15, "L15")
 
         
 # ============================================================================
@@ -1930,133 +2020,107 @@ class FiveSevenTenEngine:
         # Ordena: Superstars primeiro, depois Teto de Explosão
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
-# ============================================================================
-# PAGINA: STRATEGY 5/7/10 (VERSAO BLINDADA V3.1 - ASCII SAFE)
-# ============================================================================
 def show_5_7_10_page():
+    # --- 1. CONFIGURAÇÃO (CORRIGIDA) ---
     import json
     import os
 
-    # --- 1. CONFIGURACAO E CARREGAMENTO ---
     def local_load_json(filepath):
         if os.path.exists(filepath):
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except: return {}
+            except Exception as e:
+                # Opcional: print(f"Erro ao ler JSON: {e}")
+                return {}
         return {}
 
+    # CAMINHO CORRETO AGORA: pasta 'cache' + arquivo 'real_game_logs.json'
     cache_file = os.path.join("cache", "real_game_logs.json")
+
+    # Tenta carregar. Se não achar, avisa o usuário.
     full_cache = local_load_json(cache_file) or {}
     
-    # Fallback
+    # Se o cache estiver vazio, tenta o caminho da raiz por garantia
     if not full_cache:
         full_cache = local_load_json("real_game_logs.json") or {}
 
     # Executa a Engine
-    try:
-        # Verifica importacao
-        if 'FiveSevenTenEngine' not in globals():
-            from modules.new_modules.five_seven_ten import FiveSevenTenEngine
-        
-        engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
-        opportunities, diag = engine.analyze_market()
-    except Exception as e:
-        st.error(f"Erro ao inicializar Engine 5-7-10: {e}")
-        return
+    # (Certifique-se que a classe FiveSevenTenEngine está no código!)
+    engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
+    opportunities, diag = engine.analyze_market()
 
-    # --- 2. CABECALHO ---
-    # Icone de Alvo via HTML: &#127919;
-    st.markdown("## &#127919; Strategy 5 / 7 / 10")
-    st.caption("Scanner de Glue Guys & Estrelas: Da seguranca (5+) a explosao (10+). Base L25.")
+    st.header("🎯 Strategy 5 / 7 / 10")
+    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+). Base L25.")
 
-    # --- 3. DIAGNOSTICO ---
-    with st.expander("Diagnostico do Sistema"):
+    # --- ÁREA DE DIAGNÓSTICO ---
+    with st.expander("🛠️ Diagnóstico do Sistema"):
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Jogadores DB", diag.get("total_players", 0))
-        c2.metric("Jogando Hoje", diag.get("playing_today", 0))
-        c3.metric("Dados Insuf.", diag.get("insufficient_data", 0))
-        c4.metric("Reprovados", diag.get("failed_criteria", 0))
+        c1.metric("Jogadores no DB", diag["total_players"])
+        c2.metric("Jogando Hoje", diag["playing_today"])
+        c3.metric("Dados Insuf. (<10)", diag["insufficient_data"])
+        c4.metric("Reprovados", diag["failed_criteria"])
         
-        if diag.get("total_players", 0) == 0:
-            st.error(f"DB vazio. Verifique: {cache_file}")
-
+        if diag["total_players"] == 0:
+            st.error(f"❌ Não foi possível encontrar o arquivo de dados em: {cache_file}")
+            st.info("Verifique se o arquivo 'real_game_logs.json' está dentro da pasta 'cache'.")
+        elif diag["playing_today"] == 0:
+            st.warning("⚠️ O banco de dados foi carregado, mas nenhum jogador do DB está no Scoreboard de hoje. Atualize os jogos na aba Config.")
+    
     if not opportunities:
-        if diag.get("playing_today", 0) > 0:
-            st.info("Nenhum jogador atingiu os criterios (50% Safe / 8% Explosao) hoje.")
+        if diag["playing_today"] > 0:
+            st.info("Nenhum jogador atingiu os critérios (50% Safe / 8% Explosão) para os jogos de hoje.")
         return
 
-    # --- 4. RENDERIZACAO (ESTILOS INLINE PARA EVITAR ERROS DE SINTAXE) ---
-    
-    # Filtros
+    # --- 2. CSS ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
+        
+        .card-5710 {
+            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+            border-left: 5px solid #3b82f6; border-radius: 8px; padding: 10px; margin-bottom: 12px;
+            display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .player-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; }
+        .p-info { margin-left: 15px; width: 140px; }
+        .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1; }
+        .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .p-arch { font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; }
+        
+        .ladder-container { flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center; }
+        .step-box { text-align: center; width: 32%; }
+        .step-label { font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
+        .bar-bg { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; }
+        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px; }
+        
+        .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
+        .target { color: #facc15; } .bg-target { background: #facc15; }
+        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- 3. RENDER ---
     filter_stat = st.radio("Filtrar:", ["TODOS", "AST", "REB"], horizontal=True)
     f_opps = opportunities
     if filter_stat == "AST": f_opps = [x for x in opportunities if x['stat'] == 'AST']
     if filter_stat == "REB": f_opps = [x for x in opportunities if x['stat'] == 'REB']
 
-    # Definicao de Estilos (Strings Python Puras - ASCII Only)
-    s_card = "background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);"
-    s_img = "width: 55px; height: 55px; border-radius: 50%; object-fit: cover; background: #000;"
-    s_info = "margin-left: 15px; width: 140px;"
-    s_name = "font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1;"
-    s_team = "font-size: 10px; color: #94a3b8; font-weight: bold;"
-    s_arch = "font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1;"
-    
-    s_ladder = "flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center;"
-    s_step_box = "text-align: center; width: 32%;"
-    s_step_lbl = "font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px;"
-    s_bar_bg = "width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden;"
-    s_bar_fill = "height: 100%; border-radius: 3px;"
-    s_val = "font-family: sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px;"
-
     for item in f_opps:
-        # Logica de Cor
-        if "DYNAMITE" in item['archetype']:
-            border_c = "#f87171"
-        else:
-            border_c = "#3b82f6"
-            
-        # Cores das Barras
-        safe_pct = item['metrics']['Safe_5']
-        target_pct = item['metrics']['Target_7']
-        ceil_pct = item['metrics']['Ceiling_10']
-        
-        # HTML Montado
-        # SUBSTITUICAO CRITICA: O simbolo de ponto foi trocado por &bull;
+        border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
         html = f"""
-        <div style="{s_card} border-left: 5px solid {border_c};">
-            <img src="{item['photo']}" style="{s_img} border: 2px solid {border_c};">
-            
-            <div style="{s_info}">
-                <div style="{s_name}">{item['player']}</div>
-                <div style="{s_team}">{item['team']} vs {item['opp']} &bull; {item['stat']}</div>
-                <div style="{s_arch}">{item['archetype']}</div>
+        <div class="card-5710" style="border-left-color: {border_color};">
+            <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+            <div class="p-info">
+                <div class="p-name">{item['player']}</div>
+                <div class="p-team">{item['team']} vs {item['opp']} • {item['stat']}</div>
+                <div class="p-arch">{item['archetype']}</div>
             </div>
-            
-            <div style="{s_ladder}">
-                <div style="{s_step_box}">
-                    <div style="{s_step_lbl}">SAFE (5+)</div>
-                    <div style="{s_bar_bg}">
-                        <div style="{s_bar_fill} width: {safe_pct}%; background: #4ade80;"></div>
-                    </div>
-                    <div style="{s_val} color: #4ade80;">{safe_pct}%</div>
-                </div>
-
-                <div style="{s_step_box}">
-                    <div style="{s_step_lbl}">TARGET (7+)</div>
-                    <div style="{s_bar_bg}">
-                        <div style="{s_bar_fill} width: {target_pct}%; background: #facc15;"></div>
-                    </div>
-                    <div style="{s_val} color: #facc15;">{target_pct}%</div>
-                </div>
-
-                <div style="{s_step_box}">
-                    <div style="{s_step_lbl}">EXPLOSAO (10+)</div>
-                    <div style="{s_bar_bg}">
-                        <div style="{s_bar_fill} width: {ceil_pct}%; background: #f87171;"></div>
-                    </div>
-                    <div style="{s_val} color: #f87171;">{ceil_pct}%</div>
-                </div>
+            <div class="ladder-container">
+                <div class="step-box"><div class="step-label">SAFE (5+)</div><div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div><div class="step-val safe">{item['metrics']['Safe_5']}%</div></div>
+                <div class="step-box"><div class="step-label">TARGET (7+)</div><div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div><div class="step-val target">{item['metrics']['Target_7']}%</div></div>
+                <div class="step-box"><div class="step-label">EXPLOSÃO (10+)</div><div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div><div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div></div>
             </div>
         </div>
         """
@@ -2920,7 +2984,7 @@ def generate_sniper_data(cache_data, games):
     return sorted(snipers, key=lambda x: x['confidence'], reverse=True)
 
 # ==============================================================================
-# 6. VISUAL RENDERING (VERSAO SANITIZADA - SEM EMOJIS/UNICODE)
+# 6. VISUAL RENDERING
 # ==============================================================================
 
 def render_obsidian_matrix_card(player, team, items):
@@ -2929,29 +2993,21 @@ def render_obsidian_matrix_card(player, team, items):
         s_color = "#4ade80" if item['stat'] == 'PTS' else "#60a5fa"
         steps_html = ""
         for step in item['steps']:
-            # Uso de HTML puro sem caracteres especiais
             steps_html += f"""<div style='flex:1;text-align:center;background:#0f172a;border-top:2px solid #10b981;margin:0 2px;padding:6px 2px;'><div style='font-size:0.55rem;color:#94a3b8;font-weight:700;'>{step['label']}</div><div style='font-size:1.2rem;font-weight:900;color:#f8fafc;'>{step['line']}+</div></div>"""
-        
         rows_html += f"""<div style='display:flex;align-items:center;margin-bottom:8px;padding:4px;'><div style='width:50px;text-align:center;margin-right:6px;'><div style='font-weight:900;color:{s_color};font-size:0.8rem;'>{item['stat']}</div></div><div style='flex:1;display:flex;'>{steps_html}</div></div>"""
-    
-    # Renderiza card principal
     st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:4px;"><div style="display:flex;justify-content:space-between;margin-bottom:10px;"><div><span style="color:#f1f5f9;font-weight:800;font-size:1.1rem;">{player}</span> <span style="color:#64748b;font-size:0.8rem;">{team}</span></div></div><div>{rows_html}</div></div>""", unsafe_allow_html=True)
-    
     c1, c2, c3 = st.columns(3)
     def get_legs(lbl):
         return [{"player": player, "team": team, "stat": i['stat'], "line": [s['line'] for s in i['steps'] if s['label'] == lbl][0], "game_id": i['game_id'], "game_display": i['game_display']} for i in items]
-    
-    # Botoes limpos (Sem emojis para evitar erro de encoding)
     with c1: 
-        if st.button("SAFE", key=generate_stable_key("s", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SAFE')}); st.toast("Salvo!")
+        if st.button("🛡️ SAFE", key=generate_stable_key("s", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SAFE')}); st.toast("Salvo!")
     with c2: 
-        if st.button("TGT", key=generate_stable_key("t", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('TARGET')}); st.toast("Salvo!")
+        if st.button("🎯 TGT", key=generate_stable_key("t", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('TARGET')}); st.toast("Salvo!")
     with c3: 
-        if st.button("SKY", key=generate_stable_key("k", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SKY')}); st.toast("Salvo!")
+        if st.button("🚀 SKY", key=generate_stable_key("k", player)): safe_save_audit({'portfolio': 'STAIRWAY_COMBO', 'legs': get_legs('SKY')}); st.toast("Salvo!")
 
 def render_sniper_card(item, btn_key):
-    # Substituido caractere bullet por codigo HTML &bull;
-    st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-left:4px solid #06b6d4;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="color:#f1f5f9;font-weight:800;">{item['player']}</div><div style="color:#94a3b8;font-size:0.75rem;">{item['team']} &bull; {item['archetype']}</div></div><div style="color:#06b6d4;font-weight:900;font-size:1.4rem;">{item['line']}+ {item['stat']}</div></div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div style="background:#1e293b;border:1px solid #334155;border-left:4px solid #06b6d4;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="display:flex;justify-content:space-between;"><div><div style="color:#f1f5f9;font-weight:800;">{item['player']}</div><div style="color:#94a3b8;font-size:0.75rem;">{item['team']} • {item['archetype']}</div></div><div style="color:#06b6d4;font-weight:900;font-size:1.4rem;">{item['line']}+ {item['stat']}</div></div></div>""", unsafe_allow_html=True)
     if st.button("Adicionar", key=btn_key, use_container_width=True): safe_save_audit({'portfolio': 'SNIPER_GEM', 'legs': [item]}); st.toast("Salvo!")
 
 def render_tactical_card(title, subtitle, badge_text, items, btn_key, btn_label, payload, portfolio_type):
@@ -2971,21 +3027,13 @@ def render_matrix_card_html(ticket):
         role_style = "color:#f59e0b;border:1px solid #f59e0b;" if data['role'] == "ANCHOR" else "color:#22d3ee;border:1px solid #22d3ee;"
         stats_display = "".join([f"<span style='background:#020617;color:#f8fafc;padding:2px 6px;border-radius:4px;font-family:monospace;font-weight:bold;margin-right:4px;'>{s}</span>" for s in data['stats']])
         legs_html += f"""<div style="margin-bottom:8px;border-bottom:1px dashed #334155;padding-bottom:6px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><span style="color:#e2e8f0;font-weight:700;">{player}</span> <span style="color:#64748b;font-size:0.75rem;">{data['team']}</span></div><div style="font-size:0.6rem;padding:1px 4px;border-radius:3px;{role_style}">{data['role']}</div></div><div style="margin-top:4px;">{stats_display}</div></div>"""
-    
-    # Cores definidas via hex direto
-    bg_color = '#1e293b' if ticket['type'] == 'MAIN' else '#0f172a'
-    title_color = '#fbbf24' if ticket['type'] == 'MAIN' else '#94a3b8'
-    
-    st.markdown(f"""<div style="background:{bg_color};border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="font-size:1.1rem;font-weight:800;color:{title_color};margin-bottom:10px;border-bottom:2px solid #334155;padding-bottom:5px;">{ticket['title']}</div><div style="font-size:0.8rem;">{legs_html}</div></div>""", unsafe_allow_html=True)
-    
-    # Botao limpo
-    if st.button(f"Salvar", key=ticket['id'], use_container_width=True): safe_save_audit({"portfolio": "MATRIX_GOLD", "total_odd": 15.0, "legs": ticket['legs']}); st.toast("Salvo!")
+    st.markdown(f"""<div style="background:{'#1e293b' if ticket['type'] == 'MAIN' else '#0f172a'};border:1px solid #334155;border-radius:8px;padding:12px;margin-bottom:12px;"><div style="font-size:1.1rem;font-weight:800;color:{'#fbbf24' if ticket['type'] == 'MAIN' else '#94a3b8'};margin-bottom:10px;border-bottom:2px solid #334155;padding-bottom:5px;">{ticket['title']}</div><div style="font-size:0.8rem;">{legs_html}</div></div>""", unsafe_allow_html=True)
+    if st.button(f"💾 Salvar", key=ticket['id'], use_container_width=True): safe_save_audit({"portfolio": "MATRIX_GOLD", "total_odd": 15.0, "legs": ticket['legs']}); st.toast("Salvo!")
 
 def show_hit_prop_page():
-    # Removido bloco CSS complexo para evitar SyntaxError de decimal literal
-    
+    st.markdown("""<style>.stTabs [data-baseweb="tab-list"] { gap: 8px; background: transparent; } .stTabs [data-baseweb="tab"] { background: #0F172A; border: 1px solid #334155; color: #94A3B8; border-radius: 4px; padding: 6px 16px; font-size: 0.85rem; } .stTabs [aria-selected="true"] { background-color: #1E293B !important; color: #F8FAFC !important; border-color: #475569 !important; font-weight: 600; } .block-container { padding-top: 2rem; } div[data-testid="column"] > div > div > div > div > div { margin-bottom: 0px !important; }</style>""", unsafe_allow_html=True)
     st.markdown(f'<h1 style="color:#F8FAFC; margin-bottom:0;">Hit Prop <span style="color:#EF4444;">Hunter</span></h1>', unsafe_allow_html=True)
-    st.caption("v47.4 - Integral Version - Audit Fixed")
+    st.caption("v47.3 • Integral Version • All Engines Loaded • Audit Fixed")
 
     today = datetime.now().strftime('%Y-%m-%d')
     if 'last_update_date' not in st.session_state:
@@ -2994,18 +3042,16 @@ def show_hit_prop_page():
     if st.session_state['last_update_date'] != today:
         st.session_state['scoreboard'] = get_games_safe()
         st.session_state['last_update_date'] = today
-        st.toast(f"Jogos atualizados para: {today}")
+        st.toast(f"📅 Jogos atualizados para: {today}")
 
     if 'scoreboard' not in st.session_state:
         st.session_state['scoreboard'] = get_games_safe()
     games = st.session_state['scoreboard']
     
-    # Nomes das abas simplificados
-    tab_labels = ["MULTIPLA", "SNIPER", "STAIRWAY", "SGP LAB", "PROPS", "CONFIG"]
-    
     if not games:
-        st.error("Nenhum jogo encontrado para hoje.")
-        tabs = st.tabs(tab_labels)
+        st.error("⚠️ Nenhum jogo encontrado para hoje.")
+        # Criar abas mesmo sem dados
+        tabs = st.tabs(["🧬 MÚLTIPLA", "💎 SNIPER GEM", "🪜 STAIRWAY", "🧪 SGP LAB", "🔱 PROPS", "⚙️ CONFIG"])
         with tabs[0]:
             st.info("Aguardando dados de jogos...")
         return
@@ -3022,67 +3068,46 @@ def show_hit_prop_page():
     atomic_props = generate_atomic_props(cache_data, games) if cache_data else []
     sgp_data = organize_sgp_lab(atomic_props) if atomic_props else {}
     
-    # Inicializa Engines e Dados
     trident_engine = TridentEngine()
     tridents = trident_engine.find_tridents(cache_data, games) if cache_data else []
     
     stairway_raw = generate_stairway_data(cache_data, games) if cache_data else []
     sniper_data = generate_sniper_data(cache_data, games) if cache_data else []
 
-    # Renderiza Abas
-    tabs = st.tabs(tab_labels)
-    
-    # Lógica de Abas (Simplificada para caber no bloco, adicione o conteúdo das abas conforme seu código original)
-    # Exemplo para Sniper:
-    with tabs[1]: # SNIPER
-        if sniper_data:
-            for item in sniper_data[:10]: # Top 10
-                 render_sniper_card(item, generate_stable_key("sn", item['player']))
-        else:
-            st.info("Nenhuma oportunidade Sniper hoje.")
-            
-    # Certifique-se de preencher as outras abas com sua lógica original.
-
-# ============================================
-    # DEFINICAO DAS ABAS (ASCII PURO)
-    # ============================================
-    # Nomes das abas sem emojis e sem acentos para evitar erro de encoding
-    tabs = st.tabs(["MULTIPLA", "SNIPER", "STAIRWAY", "SGP LAB", "PROPS", "CONFIG"])
+    tabs = st.tabs(["🧬 MÚLTIPLA", "💎 SNIPER GEM", "🪜 STAIRWAY", "🧪 SGP LAB", "🔱 PROPS", "⚙️ CONFIG"])
 
     # ============================================
-    # ABA 0: MULTIPLA (DESDOBRAMENTOS)
+    # ABA MÚLTIPLA (DESDOBRAMENTOS INTELIGENTES)
     # ============================================
     with tabs[0]:
-        # HTML Entity para DNA: &#129468;
-        st.markdown("### &#129468; MULTIPLA (Desdobramentos Inteligentes)", unsafe_allow_html=True)
+        st.markdown("### 🧬 MÚLTIPLA (Desdobramentos Inteligentes)")
         
         # Verificar se temos dados suficientes
         if not cache_data:
-            st.error("ERRO: Dados de jogadores nao carregados.")
-            # HTML Entity para Engrenagem: &#9881;
+            st.error("❌ Dados de jogadores não carregados.")
             st.markdown("""
-            **Solucao:** Va para a aba **&#9881; CONFIG** e clique em:
-            1. **ATUALIZAR STATS (NBA)** - Para baixar dados dos jogadores
-            2. **ATUALIZAR ODDS DE MERCADO** - Para obter odds atualizadas
-            """, unsafe_allow_html=True)
+            **Solução:** Vá para a aba **⚙️ CONFIG** e clique em:
+            1. **🔄 ATUALIZAR STATS (NBA)** - Para baixar dados dos jogadores
+            2. **🏛️ ATUALIZAR ODDS DE MERCADO** - Para obter odds atualizadas
+            """)
         elif not games:
-            st.error("ERRO: Nenhum jogo encontrado para hoje.")
+            st.error("❌ Nenhum jogo encontrado para hoje.")
         elif not tridents:
-            st.warning("ALERTA: Nenhum Trident encontrado.")
+            st.warning("⚠️ Nenhum Trident encontrado.")
             st.markdown("""
-            **Possiveis causas:**
+            **Possíveis causas:**
             1. Thresholds muito altos nos Tridents
-            2. Jogadores sem historico suficiente
+            2. Jogadores sem histórico suficiente
             3. Necessidade de atualizar dados
             """)
         else:
             # GERAR MATRIX TICKETS
-            with st.spinner("Gerando multiplas inteligentes..."):
+            with st.spinner("🔄 Gerando múltiplas inteligentes..."):
                 try:
                     pool = matrix_engine.analyze_market_pool(cache_data, games, tridents)
                     
-                    # Diagnostico
-                    with st.expander("Diagnostico do Pool", expanded=False):
+                    # Diagnóstico
+                    with st.expander("📊 Diagnóstico do Pool", expanded=False):
                         st.write(f"**Anchors encontrados**: {len(pool.get('ANCHORS', []))}")
                         st.write(f"**Boosters encontrados**: {len(pool.get('BOOSTERS', []))}")
                         
@@ -3095,40 +3120,41 @@ def show_hit_prop_page():
                     matrix_tickets = matrix_engine.generate_smart_matrix(pool)
                     
                     if matrix_tickets:
-                        st.success(f"Sucesso: {len(matrix_tickets)} multiplas inteligentes geradas!")
+                        st.success(f"🎯 {len(matrix_tickets)} múltiplas inteligentes geradas!")
                         
                         # Separar por tipo
                         alpha_tickets = [t for t in matrix_tickets if t['type'] == 'ALPHA']
                         beta_tickets = [t for t in matrix_tickets if t['type'] == 'BETA']
                         
                         if alpha_tickets:
-                            st.markdown("#### ALPHA (Premium)")
+                            st.markdown("#### 🔥 MÚLTIPLAS ALPHA (Premium)")
                             for ticket in alpha_tickets:
                                 render_matrix_card_html(ticket)
                         
                         if beta_tickets:
-                            st.markdown("#### BETA (Alternativas)")
+                            st.markdown("#### ⚡ MÚLTIPLAS BETA (Alternativas)")
                             for ticket in beta_tickets:
                                 render_matrix_card_html(ticket)
                     else:
-                        st.info("Nenhuma multipla valida encontrada com os criterios atuais.")
+                        st.info("📭 Nenhuma múltipla válida encontrada com os critérios atuais.")
                         st.markdown("""
-                        **Solucoes possiveis:**
+                        **Soluções possíveis:**
                         1. Ajustar thresholds na classe MatrixEngine
                         2. Atualizar odds de mercado
-                        3. Aguardar mais jogadores com historico
+                        3. Aguardar mais jogadores com histórico
                         """)
                         
                 except Exception as e:
-                    st.error(f"Erro ao gerar multiplas: {str(e)}")
-                    # Removemos traceback complexo para evitar erros de string
+                    st.error(f"❌ Erro ao gerar múltiplas: {str(e)}")
+                    import traceback
+                    with st.expander("🔍 Ver detalhes do erro"):
+                        st.code(traceback.format_exc())
     
     # ============================================
-    # ABA 1: SNIPER GEM
+    # ABA SNIPER GEM
     # ============================================
     with tabs[1]:
-        # HTML Entity para Diamante: &#128142;
-        st.markdown("### &#128142; SNIPER GEM (Volume Shooters)", unsafe_allow_html=True)
+        st.markdown("### 💎 SNIPER GEM (Volume Shooters)")
         if not sniper_data:
             st.info("Nenhuma oportunidade detectada.")
         else:
@@ -3146,11 +3172,10 @@ def show_hit_prop_page():
                 st.divider()
     
     # ============================================
-    # ABA 2: STAIRWAY
+    # ABA STAIRWAY
     # ============================================
     with tabs[2]:
-        # HTML Entity para Escada: &#129692;
-        st.markdown("### &#129692; STAIRWAY (Matrix View)", unsafe_allow_html=True)
+        st.markdown("### 🪜 STAIRWAY (Matrix View)")
         if not stairway_raw:
             st.info("Nada hoje.")
         else:
@@ -3171,11 +3196,10 @@ def show_hit_prop_page():
                 st.divider()
     
     # ============================================
-    # ABA 3: SGP LAB
+    # ABA SGP LAB
     # ============================================
     with tabs[3]:
-        # HTML Entity para Tubo de Ensaio: &#12951ea;
-        st.markdown("### &#129514; SGP LAB", unsafe_allow_html=True)
+        st.markdown("### 🧪 SGP LAB")
         if not sgp_data:
             st.info("Nada.")
         else:
@@ -3188,16 +3212,14 @@ def show_hit_prop_page():
                     with cols[i % 3]:
                         items = [(prop['stat'], prop['line'], "") for prop in p_data['props']]
                         btn_key = generate_stable_key("sgp", p_data['player'], f"{p_data['team']}_{sgp_counter}")
-                        # Botao sem emoji
-                        render_tactical_card(p_data['player'], p_data['team'], "100%", items, btn_key, "Adicionar", p_data, "SGP_LAB")
+                        render_tactical_card(p_data['player'], p_data['team'], "100%", items, btn_key, "🧪 Adicionar", p_data, "SGP_LAB")
                 st.markdown("---")
     
     # ============================================
-    # ABA 4: PROPS
+    # ABA PROPS
     # ============================================
     with tabs[4]:
-        # HTML Entity para Tridente: &#128305;
-        st.markdown("### &#128305; PROPS", unsafe_allow_html=True)
+        st.markdown("### 🔱 PROPS")
         if not tridents:
             st.info("Nada.")
         else:
@@ -3212,36 +3234,33 @@ def show_hit_prop_page():
                     with cols[i % 3]:
                         items_c = [(s, l, "") for s, l in item['components']]
                         btn_key = generate_stable_key("tri", item['player'], f"{item['team']}_{i}")
-                        # Substituicao critica: Hifen no lugar de bullet point
-                        display_text = f"{item['team']} - {item['archetype']}"
-                        render_tactical_card(item['player'], display_text, f"{item['hit_rate']:.0%}", items_c, btn_key, "Salvar", item, "TRIDENT")
+                        render_tactical_card(item['player'], f"{item['team']} • {item['archetype']}", f"{item['hit_rate']:.0%}", items_c, btn_key, "🔱 Salvar", item, "TRIDENT")
                 st.markdown("---")
     
     # ============================================
-    # ABA 5: CONFIG
+    # ABA CONFIG
     # ============================================
     with tabs[5]:
-        st.markdown("### Configuracoes & Mercado")
+        st.markdown("### 🔧 Configurações & Mercado")
         
-        # Botoes sem emojis
-        if st.button("ATUALIZAR ODDS DE MERCADO (PINNACLE)", help="Consome cota de API."):
-            with st.spinner("Conectando a Pinnacle..."):
+        if st.button("🏛️ ATUALIZAR ODDS DE MERCADO (PINNACLE)", help="Consome cota de API."):
+            with st.spinner("Conectando à Pinnacle..."):
                 ok, msg = odds_manager.force_update()
                 if ok:
                     st.success(msg)
                 else:
                     st.error(msg)
         
-        st.caption("Ultima atualizacao: " + str(odds_manager.load_odds().get('updated_at', 'Nunca')))
+        st.caption("Última atualização: " + str(odds_manager.load_odds().get('updated_at', 'Nunca')))
         st.divider()
         
         c1, c2 = st.columns(2)
-        if c1.button("ATUALIZAR STATS (NBA)"):
+        if c1.button("🔄 ATUALIZAR STATS (NBA)"):
             st.session_state['scoreboard'] = get_games_safe()
             update_batch_cache(st.session_state['scoreboard'])
             st.rerun()
         
-        if c2.button("LIMPAR CACHE GERAL"):
+        if c2.button("🗑️ LIMPAR CACHE GERAL"):
             try:
                 os.remove("cache/real_game_logs.json")
                 st.success("Cache limpo!")
@@ -3258,7 +3277,7 @@ def show_hit_prop_page():
                 st.error(msg)
         
         st.divider()
-        with st.expander("Abrir Dados Brutos"):
+        with st.expander("📂 Abrir Dados Brutos"):
             if pd is not None and atomic_props:
                 st.dataframe(pd.DataFrame(atomic_props), use_container_width=True)
             else:
@@ -3582,11 +3601,13 @@ class FeatureStore:
         return result
 
 # ============================================================================
-# FUNCAO AUXILIAR: PROCESS ROSTER (VERSAO SANITIZADA)
+# FUNÇÃO AUXILIAR: PROCESS ROSTER (COMPLETA COM STATS)
 # ============================================================================
 def process_roster(roster_list, team_abbr, is_home):
-    # Processa o roster integrando L5, Stats Individuais e Archetypes.
-    # Retorna chaves essenciais para evitar KeyError.
+    """
+    Processa o roster integrando L5, Stats Individuais e Archetypes.
+    CORREÇÃO: Agora retorna PTS, REB, AST, STL, BLK, 3PM para evitar KeyError.
+    """
     processed = []
     df_l5 = st.session_state.get("df_l5")
     
@@ -3594,52 +3615,42 @@ def process_roster(roster_list, team_abbr, is_home):
         player = normalize_roster_entry(entry)
         player_name = player.get("PLAYER", "N/A")
         
-        # Overrides de posicao (Nomes sem acento para seguranca)
+        # Overrides de posição
         position_overrides = {
-            "LeBron James": "SF", "Nikola Jokic": "C", "Luka Doncic": "PG",
+            "LeBron James": "SF", "Nikola Jokić": "C", "Luka Dončić": "PG",
             "Giannis Antetokounmpo": "PF", "Jimmy Butler": "SF", "Stephen Curry": "PG",
             "Joel Embiid": "C", "Jayson Tatum": "SF", "Kevin Durant": "SF", 
             "Anthony Davis": "PF", "Bam Adebayo": "C", "Domantas Sabonis": "C"
         }
-        # Tenta pegar override, senao pega do player, senao vazio
-        pos_raw = player.get("POSITION", "")
-        # Remove caracteres nao-ascii do nome antes de buscar no dict
-        p_name_clean = player_name.encode('ascii', 'ignore').decode('ascii')
-        pos = position_overrides.get(p_name_clean, pos_raw.upper())
-        
+        pos = position_overrides.get(player_name, player.get("POSITION", "").upper())
         starter = player.get("STARTER", False)
         
         # Status
-        status_raw = str(player.get("STATUS", "")).lower()
+        status_raw = player.get("STATUS", "").lower()
         badge_color = "#9CA3AF"
         status_display = "ACTIVE"
-        
         if any(k in status_raw for k in ["out", "ir", "injur"]):
-            badge_color = "#EF4444"
-            status_display = "OUT"
+            badge_color = "#EF4444"; status_display = "OUT"
         elif "questionable" in status_raw or "doubt" in status_raw or "gtd" in status_raw:
-            badge_color = "#F59E0B"
-            status_display = "QUEST"
+            badge_color = "#F59E0B"; status_display = "QUEST"
         elif any(k in status_raw for k in ["active", "available", "probable"]):
-            badge_color = "#10B981"
-            status_display = "ACTIVE"
+            badge_color = "#10B981"; status_display = "ACTIVE"
             
         # Stats Iniciais (Zeros)
         stats = {
             "MIN_AVG": 0, "USG_PCT": 0, "PRA_AVG": 0,
             "PTS_AVG": 0, "REB_AVG": 0, "AST_AVG": 0,
-            "STL_AVG": 0, "BLK_AVG": 0, "THREEPA_AVG": 0
+            "STL_AVG": 0, "BLK_AVG": 0, "THREEPA_AVG": 0 # Usado como proxy de 3PM se não tiver
         }
         
         archetypes_clean_list = [] 
         
         if df_l5 is not None and not df_l5.empty:
-            # Busca insensivel a caixa
             matches = df_l5[df_l5["PLAYER"].str.contains(player_name, case=False, na=False)]
             if not matches.empty:
                 row = matches.iloc[0]
                 
-                # Extrair TODAS as stats necessarias com seguranca (.get)
+                # Extrair TODAS as stats necessárias
                 stats["MIN_AVG"] = row.get("MIN_AVG", 0)
                 stats["USG_PCT"] = row.get("USG_PCT", 0) if "USG_PCT" in df_l5.columns else 0
                 stats["PRA_AVG"] = row.get("PRA_AVG", 0)
@@ -3650,9 +3661,10 @@ def process_roster(roster_list, team_abbr, is_home):
                 stats["BLK_AVG"] = row.get("BLK_AVG", 0)
                 stats["THREEPA_AVG"] = row.get("THREEPA_AVG", 0) if "THREEPA_AVG" in df_l5.columns else 0
                 
-                # --- INTEGRACAO ARCHETYPE ENGINE ---
+                # --- INTEGRAÇÃO ARCHETYPE ENGINE ---
                 if "archetype_engine" in st.session_state:
                     try:
+                        # Monta payload para o engine
                         engine_stats = {
                             "REB_AVG": stats["REB_AVG"], "AST_AVG": stats["AST_AVG"],
                             "PTS_AVG": stats["PTS_AVG"], "USAGE_RATE": stats["USG_PCT"],
@@ -3673,7 +3685,7 @@ def process_roster(roster_list, team_abbr, is_home):
                     except Exception:
                         archetypes_clean_list = []
 
-        # Role Logic
+        # Role
         role = "deep_bench"
         if starter: role = "starter"
         elif stats["MIN_AVG"] >= 20: role = "rotation"
@@ -3681,43 +3693,75 @@ def process_roster(roster_list, team_abbr, is_home):
         
         profile_str = ", ".join(archetypes_clean_list[:2]) if archetypes_clean_list else "-"
 
-        # Retorno Completo (Mapeamento Explicito)
+        # Retorno Completo (Incluindo PTS, REB, AST para evitar KeyError)
         processed.append({
             "PLAYER": player_name,
             "POSITION": pos,
             "ROLE": role,
             "STATUS": status_display,
-            "STATUS_FULL": str(player.get("STATUS", "")),
+            "STATUS_FULL": player.get("STATUS", ""),
             "STATUS_BADGE": badge_color,
             "PROFILE": profile_str,
             "ARCHETYPES": archetypes_clean_list,
             
             # Stats Essenciais
-            "MIN_AVG": float(stats["MIN_AVG"]),
-            "USG_PCT": float(stats["USG_PCT"]),
-            "PRA_AVG": float(stats["PRA_AVG"]),
-            "PTS": float(stats["PTS_AVG"]),
-            "REB": float(stats["REB_AVG"]),
-            "AST": float(stats["AST_AVG"]),
-            "STL": float(stats["STL_AVG"]),
-            "BLK": float(stats["BLK_AVG"]),
-            "3PM": float(stats["THREEPA_AVG"])
+            "MIN_AVG": stats["MIN_AVG"],
+            "USG_PCT": stats["USG_PCT"],
+            "PRA_AVG": stats["PRA_AVG"],
+            "PTS": stats["PTS_AVG"],
+            "REB": stats["REB_AVG"],
+            "AST": stats["AST_AVG"],
+            "STL": stats["STL_AVG"],
+            "BLK": stats["BLK_AVG"],
+            "3PM": stats["THREEPA_AVG"] # Proxy
         })
     
     return processed
 
 def validate_pipeline_integrity(required_components=None):
-    # Valida se os dados necessarios para o pipeline estao disponiveis.
+    """
+    Valida se os dados necessários para o pipeline estão disponíveis.
+    """
     if required_components is None:
         required_components = ['l5', 'scoreboard']
     
     checks = {
-        'l5': {'name': 'Dados L5', 'critical': True, 'status': False, 'message': ''},
-        'scoreboard': {'name': 'Scoreboard', 'critical': True, 'status': False, 'message': ''},
-        'odds': {'name': 'Odds', 'critical': False, 'status': False, 'message': ''},
-        'dvp': {'name': 'Dados DvP', 'critical': False, 'status': False, 'message': ''},
-        'injuries': {'name': 'Lesoes', 'critical': False, 'status': False, 'message': ''},
-        'advanced_system': {'name': 'Sistema Avancado', 'critical': False, 'status': False, 'message': ''}
+        'l5': {
+            'name': 'Dados L5 (últimos 5 jogos)',
+            'critical': True,
+            'status': False,
+            'message': ''
+        },
+        'scoreboard': {
+            'name': 'Scoreboard do dia',
+            'critical': True,
+            'status': False,
+            'message': ''
+        },
+        'odds': {
+            'name': 'Odds das casas',
+            'critical': False,
+            'status': False,
+            'message': ''
+        },
+        'dvp': {
+            'name': 'Dados Defense vs Position',
+            'critical': False,
+            'status': False,
+            'message': ''
+        },
+        'injuries': {
+            'name': 'Dados de lesões',
+            'critical': False,
+            'status': False,
+            'message': ''
+        },
+        'advanced_system': {
+            'name': 'Sistema Avançado',
+            'critical': False,
+            'status': False,
+            'message': ''
+        }
     }
     
     # Validar L5
@@ -3725,47 +3769,47 @@ def validate_pipeline_integrity(required_components=None):
         df_l5 = st.session_state.get('df_l5')
         if df_l5 is not None and hasattr(df_l5, 'shape') and not df_l5.empty:
             checks['l5']['status'] = True
-            checks['l5']['message'] = f'OK ({len(df_l5)} players)'
+            checks['l5']['message'] = f'Carregados {len(df_l5)} jogadores'
         else:
-            checks['l5']['message'] = 'Indisponivel'
+            checks['l5']['message'] = 'Dados L5 não disponíveis'
     
     # Validar scoreboard
     if 'scoreboard' in required_components:
         scoreboard = st.session_state.get('scoreboard')
         if scoreboard and len(scoreboard) > 0:
             checks['scoreboard']['status'] = True
-            checks['scoreboard']['message'] = f'OK ({len(scoreboard)} games)'
+            checks['scoreboard']['message'] = f'{len(scoreboard)} jogos hoje'
         else:
-            checks['scoreboard']['message'] = 'Vazio'
+            checks['scoreboard']['message'] = 'Nenhum jogo encontrado para hoje'
     
     # Validar odds
     if 'odds' in required_components:
         odds = st.session_state.get('odds')
         if odds and len(odds) > 0:
             checks['odds']['status'] = True
-            checks['odds']['message'] = 'OK'
+            checks['odds']['message'] = f'{len(odds)} jogos com odds'
         else:
-            checks['odds']['message'] = 'Indisponivel'
+            checks['odds']['message'] = 'Odds não disponíveis'
     
     # Validar DvP
     if 'dvp' in required_components:
-        dvp = st.session_state.get('dvp_analyzer')
-        if dvp and hasattr(dvp, 'defense_data') and dvp.defense_data:
+        dvp_analyzer = st.session_state.get('dvp_analyzer')
+        if dvp_analyzer and hasattr(dvp_analyzer, 'defense_data') and dvp_analyzer.defense_data:
             checks['dvp']['status'] = True
-            checks['dvp']['message'] = 'OK'
+            checks['dvp']['message'] = f'Dados de {len(dvp_analyzer.defense_data)} times'
         else:
-            checks['dvp']['message'] = 'Indisponivel'
+            checks['dvp']['message'] = 'Dados DvP não disponíveis'
     
-    # Validar lesoes
+    # Validar lesões
     if 'injuries' in required_components:
-        inj = st.session_state.get('injuries_data')
-        if inj and len(inj) > 0:
+        injuries = st.session_state.get('injuries_data')
+        if injuries and len(injuries) > 0:
             checks['injuries']['status'] = True
-            checks['injuries']['message'] = 'OK'
+            checks['injuries']['message'] = f'Lesões carregadas'
         else:
-            checks['injuries']['message'] = 'Indisponivel'
+            checks['injuries']['message'] = 'Dados de lesões não disponíveis'
     
-    # Validar sistema avancado
+    # Validar sistema avançado
     if 'advanced_system' in required_components:
         if st.session_state.get("use_advanced_features", False):
             checks['advanced_system']['status'] = True
@@ -3773,6 +3817,7 @@ def validate_pipeline_integrity(required_components=None):
         else:
             checks['advanced_system']['message'] = 'Inativo'
     
+    # Determinar se todos os componentes críticos estão ok
     all_critical_ok = all(
         check['status'] for key, check in checks.items() 
         if key in required_components and check['critical']
@@ -3781,19 +3826,27 @@ def validate_pipeline_integrity(required_components=None):
     return all_critical_ok, checks
 
 # ============================================================================
-# DATA FETCHERS (SANITIZED & ROBUST)
+# DATA FETCHERS
 # ============================================================================
 def get_scoreboard_data():
+    """
+    Função Mestra do Scoreboard (Fuso Horário Brasil Forçado).
+    """
     from datetime import datetime, timedelta
     import pandas as pd
     import requests
-    
-    # Logica de Data Manual (Sem dependencia de pytz para evitar erros)
-    # UTC-3 para Brasil (Simples e eficaz)
-    now_utc = datetime.utcnow()
-    now_br = now_utc - timedelta(hours=3)
+    import pytz # Obrigatório para corrigir o erro de data
 
-    # Se for madrugada (antes das 4AM), conta como dia anterior
+    # --- 1. LÓGICA DE DATA (FUSO SÃO PAULO) ---
+    try:
+        tz_br = pytz.timezone('America/Sao_Paulo')
+        now_br = datetime.now(tz_br)
+    except:
+        # Fallback se pytz falhar
+        now_br = datetime.now()
+
+    # Se for antes das 04:00 da manhã (madrugada), consideramos que ainda é a "noite" do dia anterior
+    # Ex: 01:00 AM do dia 05 ainda é "jogo do dia 04"
     if now_br.hour < 4:
         target_date = now_br - timedelta(days=1)
     else:
@@ -3801,16 +3854,20 @@ def get_scoreboard_data():
     
     date_str = target_date.strftime("%Y%m%d")
     
-    # 1. TENTA LER DO SUPABASE/CACHE UNIVERSAL
+    # --- 2. TENTA LER DO SUPABASE ---
     try:
+        # Opcional: Adicionar lógica para verificar se o cache do supabase bate com a data de hoje
         cached = get_data_universal("scoreboard")
         if cached and isinstance(cached, list) and len(cached) > 0:
-            first_game_date = str(cached[0].get('date_str', ''))
+            # Verifica se o primeiro jogo do cache é da data correta
+            first_game_date = cached[0].get('date_str', '')
             if first_game_date == date_str:
                 return pd.DataFrame(cached)
+            else:
+                pass # Cache velho, busca novo
     except: pass
 
-    # 2. BAIXA DA ESPN API
+    # --- 3. BAIXA DA ESPN ---
     url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
     params = {"dates": date_str, "limit": 100}
     headers = {
@@ -3828,34 +3885,24 @@ def get_scoreboard_data():
         events = data.get("events", [])
         for evt in events:
             comp = evt["competitions"][0]
+            home = next((t for t in comp["competitors"] if t["homeAway"] == "home"), {})
+            away = next((t for t in comp["competitors"] if t["homeAway"] == "away"), {})
             
-            # Busca segura por Home/Away
-            home = {}
-            away = {}
-            for t in comp["competitors"]:
-                if t["homeAway"] == "home": home = t
-                elif t["homeAway"] == "away": away = t
-            
-            # Status e Odds
             status_text = evt["status"]["type"]["shortDetail"]
-            
-            odds_txt = ""
-            odds_total = ""
-            if "odds" in comp and comp["odds"]:
-                odds_txt = comp["odds"][0].get("details", "")
-                odds_total = comp["odds"][0].get("overUnder", "")
+            odds_txt = comp["odds"][0].get("details", "") if "odds" in comp and comp["odds"] else ""
+            odds_total = comp["odds"][0].get("overUnder", "") if "odds" in comp and comp["odds"] else ""
 
             game_dict = {
                 "gameId": evt["id"],
                 "date_str": date_str,
                 "startTimeUTC": comp.get("date"),
-                "home": home.get("team", {}).get("abbreviation", "UNK"),
-                "away": away.get("team", {}).get("abbreviation", "UNK"),
+                "home": home["team"]["abbreviation"],
+                "away": away["team"]["abbreviation"],
                 "status": status_text,
                 "odds_spread": odds_txt,
                 "odds_total": odds_total,
-                "home_logo": home.get("team", {}).get("logo", ""),
-                "away_logo": away.get("team", {}).get("logo", "")
+                "home_logo": home["team"].get("logo", ""),
+                "away_logo": away["team"].get("logo", "")
             }
             games_list.append(game_dict)
 
@@ -3865,33 +3912,30 @@ def get_scoreboard_data():
         return pd.DataFrame(games_list)
 
     except Exception as e:
-        # Erro silencioso ou log simples
+        print(f"⚠️ Erro no Scoreboard ESPN: {e}")
         return pd.DataFrame()
         
 def fetch_team_roster(team_abbr_or_id, progress_ui=True):
-    # Sanitizacao do caminho
-    safe_team_code = str(team_abbr_or_id).strip().upper()
-    cache_path = os.path.join(CACHE_DIR, f"roster_{safe_team_code}.json")
-    
+    cache_path = os.path.join(CACHE_DIR, f"roster_{team_abbr_or_id}.json")
     cached = load_json(cache_path)
     if cached:
         return cached
     
-    # Codigos ESPN fixos para garantir compatibilidade
-    espn_code = ESPN_TEAM_CODES.get(safe_team_code, safe_team_code.lower())
+    espn_code = ESPN_TEAM_CODES.get(team_abbr_or_id, team_abbr_or_id.lower())
     url = ESPN_TEAM_ROSTER_TEMPLATE.format(team=espn_code)
     
     try:
         if progress_ui:
-            st.info(f"Buscando roster: {safe_team_code}...")
+            st.info(f"Buscando roster para {team_abbr_or_id}...")
         
         r = requests.get(url, timeout=10, headers=HEADERS)
         r.raise_for_status()
         jr = r.json()
-        
         save_json(cache_path, jr)
         return jr
-    except Exception:
+    except Exception as e:
+        if progress_ui:
+            st.warning(f"Falha ao buscar roster para {team_abbr_or_id}: {e}")
         return {}
 
 # ============================================================================
@@ -4002,11 +4046,7 @@ def fetch_player_stats_safe(pid, name):
         info_df = commonplayerinfo.CommonPlayerInfo(player_id=pid).get_data_frames()[0]
         team = info_df["TEAM_ABBREVIATION"].iloc[0] if "TEAM_ABBREVIATION" in info_df.columns else None
         exp = int(info_df["SEASON_EXP"].iloc[0]) if "SEASON_EXP" in info_df.columns else 0
-        
-        # Define SEASON globalmente ou usa default
-        target_season = globals().get('SEASON', '2024-25')
-        logs = playergamelog.PlayerGameLog(player_id=pid, season=target_season).get_data_frames()[0]
-        
+        logs = playergamelog.PlayerGameLog(player_id=pid, season=SEASON).get_data_frames()[0]
         if logs is None or logs.empty: return None
         logs = logs.head(10)
         for c in ["PTS","REB","AST","MIN"]:
@@ -4047,8 +4087,8 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
 
 def get_players_l5(progress_ui=True):
     """
-    Baixa estatisticas L5 em PARALELO (Turbo Mode).
-    Usa 8 threads simultaneas para reduzir o tempo de horas para minutos.
+    Baixa estatísticas L5 em PARALELO (Turbo Mode 🚀).
+    Usa 8 threads simultâneas para reduzir o tempo de horas para minutos.
     """
     from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog
@@ -4057,15 +4097,13 @@ def get_players_l5(progress_ui=True):
     import json
     import pandas as pd
     
-    # --- CONFIGURACOES TURBO ---
+    # --- CONFIGURAÇÕES TURBO ---
     MAX_WORKERS = 8       # Baixa 8 jogadores ao mesmo tempo (Seguro para NBA.com)
     BATCH_SAVE_SIZE = 20  # Salva no Supabase a cada 20 jogadores prontos
-    target_season = globals().get('SEASON', '2024-25')
     
-    # 1. Carrega o que ja temos na Nuvem
+    # 1. Carrega o que já temos na Nuvem
     df_cached = pd.DataFrame()
-    key_l5 = globals().get('KEY_L5', 'real_game_logs')
-    cloud_data = get_data_universal(key_l5)
+    cloud_data = get_data_universal(KEY_L5) # Usa sua chave definida no inicio
     
     if cloud_data and "records" in cloud_data:
         try:
@@ -4087,26 +4125,26 @@ def get_players_l5(progress_ui=True):
     total_already = len(existing_ids)
     
     if total_needed == 0:
-        if progress_ui: st.success(f"Todos os {total_already} jogadores ja estao na nuvem!")
+        if progress_ui: st.success(f"✅ Todos os {total_already} jogadores já estão na nuvem!")
         return df_cached
 
     # 3. UI
     if progress_ui:
-        status_box = st.status(f"Iniciando Lote L5 TURBO (8x Rapido)...", expanded=True)
+        status_box = st.status(f"🚀 Iniciando Lote L5 TURBO (8x Rápido)...", expanded=True)
         p_bar = status_box.progress(0)
         metric_ph = status_box.empty()
     
-    # Funcao auxiliar para ser rodada em paralelo
+    # Função auxiliar para ser rodada em paralelo
     def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
             # Tenta baixar o log (Retry simples interno)
-            time.sleep(0.1) # Pequena pausa para nao tomar block
-            log = playergamelog.PlayerGameLog(player_id=pid, season=target_season, season_type_all_star="Regular Season", timeout=10)
+            time.sleep(0.1) # Pequena pausa para não tomar block
+            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON, season_type_all_star="Regular Season", timeout=10)
             df = log.get_data_frames()[0]
             if not df.empty:
-                # Pega so os ultimos 5 jogos
+                # Pega só os últimos 5 jogos
                 df_l5 = df.head(5).copy()
                 # Adiciona metadados
                 df_l5['PLAYER_NAME'] = pname
@@ -4137,14 +4175,14 @@ def get_players_l5(progress_ui=True):
             if progress_ui:
                 pct = (i + 1) / total_needed
                 p_bar.progress(min(pct, 1.0))
-                metric_ph.write(f"Processando: {results_count}/{total_needed} jogadores... (Coletados: {len(df_new_batch)})")
+                metric_ph.write(f"⚡ Processando: {results_count}/{total_needed} jogadores... (Coletados: {len(df_new_batch)})")
 
             # 5. CHECKPOINT DE SALVAMENTO (Incremental)
             if results_count % BATCH_SAVE_SIZE == 0:
                 # Junta o antigo (df_cached) com o novo (df_new_batch)
                 df_total_now = pd.concat([df_cached, df_new_batch], ignore_index=True)
                 
-                # Sanitizacao JSON
+                # Sanitização JSON (Aquela correção que fizemos antes)
                 records_sanitized = json.loads(df_total_now.to_json(orient="records", date_format="iso"))
                 
                 json_payload = {
@@ -4154,8 +4192,8 @@ def get_players_l5(progress_ui=True):
                 }
                 
                 # Salva sem bloquear a UI
-                if save_data_universal(key_l5, json_payload):
-                      if progress_ui: status_box.write(f"Checkpoint: {len(df_total_now)} salvos na nuvem.")
+                if save_data_universal(KEY_L5, json_payload):
+                     if progress_ui: status_box.write(f"💾 Checkpoint: {len(df_total_now)} salvos na nuvem.")
 
     # 6. Salvamento Final
     df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
@@ -4166,21 +4204,21 @@ def get_players_l5(progress_ui=True):
         "timestamp": datetime.now().isoformat(),
         "count": len(df_final)
     }
-    save_data_universal(key_l5, json_payload)
+    save_data_universal(KEY_L5, json_payload)
     
     if progress_ui:
-        status_box.update(label=f"Turbo Finalizado! Total: {len(df_final)} jogadores.", state="complete", expanded=False)
+        status_box.update(label=f"✅ Turbo Finalizado! Total: {len(df_final)} jogadores.", state="complete", expanded=False)
             
     return df_final
 
 # ============================================================================
-# FUNCAO PARA CALCULAR RISCO DE BLOWOUT
+# FUNÇÃO PARA CALCULAR RISCO DE BLOWOUT (ADICIONE ESTA FUNÇÃO)
 # ============================================================================
 
 def calculate_blowout_risk(spread_val, total_val=None):
     """Calcula o risco de blowout baseado no spread e total"""
     if spread_val is None:
-        return {"nivel": "DESCONHECIDO", "icon": "&#9898;", "desc": "Spread nao disponivel", "color": "#9CA3AF"}
+        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread não disponível", "color": "#9CA3AF"}
     
     try:
         spread = float(spread_val)
@@ -4189,60 +4227,60 @@ def calculate_blowout_risk(spread_val, total_val=None):
         if abs_spread >= 12:
             return {
                 "nivel": "ALTO",
-                "icon": "&#128308;", 
-                "desc": "Alto risco de blowout (>=12 pts)",
+                "icon": "🔴", 
+                "desc": "Alto risco de blowout (≥12 pts)",
                 "color": "#FF4F4F"
             }
         elif abs_spread >= 8:
             return {
-                "nivel": "MEDIO",
-                "icon": "&#128993;",
+                "nivel": "MÉDIO",
+                "icon": "🟡",
                 "desc": "Risco moderado de blowout (8-11 pts)",
                 "color": "#FFA500"
             }
         elif abs_spread >= 5:
             return {
                 "nivel": "BAIXO",
-                "icon": "&#128994;",
+                "icon": "🟢",
                 "desc": "Baixo risco de blowout (5-7 pts)",
                 "color": "#00FF9C"
             }
         else:
             return {
-                "nivel": "MINIMO",
-                "icon": "&#128309;",
+                "nivel": "MÍNIMO",
+                "icon": "🔵",
                 "desc": "Jogo equilibrado (<5 pts)",
                 "color": "#1E90FF"
             }
     except:
-        return {"nivel": "DESCONHECIDO", "icon": "&#9898;", "desc": "Spread invalido", "color": "#9CA3AF"}
+        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
 def display_strategic_category(formatted_narrative, category_name, game_ctx):
-    """Exibe uma categoria estrategica com formatacao aprimorada"""
+    """Exibe uma categoria estratégica com formatação aprimorada"""
     if not formatted_narrative.get("players"):
-        st.info(f"Nenhuma recomendacao disponivel para a categoria {category_name}.")
+        st.info(f"Nenhuma recomendação disponível para a categoria {category_name}.")
         return
     
-    # Exibir visao geral
+    # Exibir visão geral
     overview = formatted_narrative["overview"]
     st.markdown(overview["text"])
     
     # Exibir jogadores
-    st.subheader(f"Jogadores Recomendados ({category_name})")
+    st.subheader(f"🏀 Jogadores Recomendados ({category_name})")
     
     for i, player in enumerate(formatted_narrative["players"], 1):
-        with st.expander(f"{i}. {player['name']} ({player['position']} - {player['team']}) - Confianca: {player['confidence']:.1f}%"):
-            # Informacoes basicas
+        with st.expander(f"{i}. {player['name']} ({player['position']} - {player['team']}) - Confiança: {player['confidence']:.1f}%"):
+            # Informações básicas
             col1, col2 = st.columns([2, 1])
             with col1:
                 st.markdown(f"**{player['name']}** ({player['position']})")
-                st.caption(f"Time: {player['team']} | Confianca: {player['confidence']:.1f}%")
+                st.caption(f"Time: {player['team']} | Confiança: {player['confidence']:.1f}%")
                 st.markdown(player['narrative'])
                 
-                # Estatisticas principais
+                # Estatísticas principais
                 stats = player.get('stats', {})
                 if stats:
-                    stats_text = f"**Stats:** "
+                    stats_text = f"**Estatísticas:** "
                     stats_text += f"{stats.get('pts_avg', 0):.1f} PTS, "
                     stats_text += f"{stats.get('reb_avg', 0):.1f} REB, "
                     stats_text += f"{stats.get('ast_avg', 0):.1f} AST"
@@ -4262,24 +4300,21 @@ def display_strategic_category(formatted_narrative, category_name, game_ctx):
                 # Strategy tags
                 strategy_tags = player.get('raw_data', {}).get('strategy_tags', [])
                 if strategy_tags:
-                    st.write("**Estrategias identificadas:**")
-                    for tag in strategy_tags[:3]:  # Mostrar so as 3 principais
-                        st.caption(f"- {tag}")
+                    st.write("**Estratégias identificadas:**")
+                    for tag in strategy_tags[:3]:  # Mostrar só as 3 principais
+                        st.caption(f"• {tag}")
     
     # Tabela compacta
-    with st.expander("Tabela Compacta"):
-        try:
-            if "narrative_formatter" in st.session_state:
-                table_df = st.session_state.narrative_formatter.generate_compact_table(
-                    category_name.lower(), 
-                    formatted_narrative["players"]
-                )
-                if not table_df.empty:
-                    st.dataframe(table_df)
-        except: pass
+    with st.expander("📊 Tabela Compacta"):
+        table_df = st.session_state.narrative_formatter.generate_compact_table(
+            category_name.lower(), 
+            formatted_narrative["players"]
+        )
+        if not table_df.empty:
+            st.dataframe(table_df)
 
 # ============================================================================
-# MAPA ROTACOES (ASCII SAFE)
+# MAPA ROTAÇÕES
 # ============================================================================
 def show_mapa_rotacoes():
     import streamlit as st
@@ -4288,11 +4323,97 @@ def show_mapa_rotacoes():
     import json
     from datetime import datetime
 
-    # --- 1. CSS ---
-    # Removido bloco complexo para evitar erro de sintaxe em f-string.
-    # Usaremos st.markdown puro e divs inline onde necessario.
+    # --- 1. CSS PREMIUM (VISUAL LIMPO E FOCADO) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Roboto:wght@400;500&display=swap');
+        
+        .team-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.7);
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .team-header {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #F8FAFC;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #64748B;
+        }
+        
+        .team-logo {
+            width: 50px;
+            height: 50px;
+            margin-right: 16px;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        
+        .player-card {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            border-left: 6px solid #10B981; /* Verde para ganho de minutos */
+        }
+        
+        .player-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+        }
+        
+        .player-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #F8FAFC;
+            margin-bottom: 6px;
+        }
+        
+        .player-pos {
+            font-size: 14px;
+            color: #94A3B8;
+            background: rgba(255,255,255,0.08);
+            padding: 4px 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        
+        .delta-highlight {
+            font-size: 24px;
+            font-weight: bold;
+            color: #10B981;
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .metrics-row {
+            display: flex;
+            justify-content: space-around;
+            font-size: 14px;
+            color: #CBD5E1;
+        }
+        
+        .dna-caption {
+            font-size: 13px;
+            color: #94A3B8;
+            font-style: italic;
+            text-align: center;
+            margin-top: 8px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.header("MAPA DE ROTACOES - BLOWOUT HUNTERS")
+    st.header("🔄 MAPA DE ROTAÇÕES – BLOWOUT HUNTERS")
 
     # --- 2. CARREGAMENTO DO DNA CACHE ---
     cache_directory = globals().get('CACHE_DIR', 'cache')
@@ -4310,12 +4431,12 @@ def show_mapa_rotacoes():
 
     ROTATION_DNA = st.session_state['rotation_dna_cache']
 
-    # Painel de atualizacao
-    with st.expander("Atualizar Base de Rotacoes", expanded=False):
-        if st.button("Gerar DNA Completo (demora ~2min)"):
+    # Painel de atualização
+    with st.expander("🧬 Atualizar Base de Rotações", expanded=False):
+        if st.button("🔄 Gerar DNA Completo (demora ~2min)"):
             try:
                 from modules.rotation_forensics import RotationForensics
-                with st.spinner("Analisando rotacoes historicas..."):
+                with st.spinner("Analisando rotações históricas..."):
                     forensics = RotationForensics()
                     data = forensics.generate_dna_report()
                     with open(dna_path, 'w') as f:
@@ -4328,32 +4449,41 @@ def show_mapa_rotacoes():
                 st.error(f"Erro: {e}")
 
     if not ROTATION_DNA:
-        st.warning("DNA nao carregado. Clique no botao acima para gerar.")
+        st.warning("DNA não carregado. Clique no botão acima para gerar.")
         return
 
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
     if df_l5.empty:
-        st.warning("Dados L5 nao carregados. Atualize na aba principal.")
+        st.warning("Dados L5 não carregados. Atualize na aba principal.")
         return
 
     # --- 3. FILTROS ---
     st.markdown("### Filtros")
     col1, col2 = st.columns(2)
-    min_delta = col1.slider("Delta minimo de minutos em blowout", 2.0, 10.0, 3.0, 0.5)
-    show_all = col2.checkbox("Mostrar todos os jogadores (nao recomendado)", value=False)
+    min_delta = col1.slider("Delta mínimo de minutos em blowout", 2.0, 10.0, 3.0, 0.5)
+    show_all = col2.checkbox("Mostrar todos os jogadores (não recomendado)", value=False)
 
-    # --- 4. PROCESSAMENTO E EXIBICAO POR TIME ---
-    st.markdown("### Blowout Hunters por Time")
+    # --- 4. PROCESSAMENTO E EXIBIÇÃO POR TIME ---
+    st.markdown("### 🏀 Blowout Hunters por Time")
 
-    # Mapeamento de logos (URLs publicas da NBA)
+    # Mapeamento de logos (URLs públicas da NBA)
     logos = {
         "LAL": "https://cdn.nba.com/logos/nba/1610612747/primary/L/logo.svg",
         "GSW": "https://cdn.nba.com/logos/nba/1610612744/primary/L/logo.svg",
         "BOS": "https://cdn.nba.com/logos/nba/1610612738/primary/L/logo.svg",
-        # ... fallback
+        "MIL": "https://cdn.nba.com/logos/nba/1610612749/primary/L/logo.svg",
+        "DEN": "https://cdn.nba.com/logos/nba/1610612743/primary/L/logo.svg",
+        "PHX": "https://cdn.nba.com/logos/nba/1610612756/primary/L/logo.svg",
+        "NYK": "https://cdn.nba.com/logos/nba/1610612752/primary/L/logo.svg",
+        "MIA": "https://cdn.nba.com/logos/nba/1610612748/primary/L/logo.svg",
+        "CLE": "https://cdn.nba.com/logos/nba/1610612739/primary/L/logo.svg",
+        "OKC": "https://cdn.nba.com/logos/nba/1610612760/primary/L/logo.svg",
+        # Adicione mais se quiser – ou fallback genérico
     }
 
+    # Todos os times da liga (fixo, ou dinâmico do df_l5)
     all_teams = sorted(df_l5["TEAM"].unique())
+
     highlighted_teams = []
 
     for team in all_teams:
@@ -4392,6 +4522,7 @@ def show_mapa_rotacoes():
         if highlighted_players:
             highlighted_teams.append((team, highlighted_players))
 
+    # Ordena times por número de destacados
     highlighted_teams.sort(key=lambda x: len(x[1]), reverse=True)
 
     if not highlighted_teams:
@@ -4399,13 +4530,13 @@ def show_mapa_rotacoes():
         return
 
     for team, players in highlighted_teams:
-        logo_url = logos.get(team, "https://cdn.nba.com/logos/nba/default/primary/L/logo.svg")
+        logo_url = logos.get(team, "https://cdn.nba.com/logos/nba/default/primary/L/logo.svg")  # Fallback genérico
         
         st.markdown(f"""
-        <div style="background: rgba(15, 23, 42, 0.7); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-bottom: 3px solid #64748B;">
-            <div style="font-size: 20px; font-weight: bold; color: #fff; display: flex; align-items: center;">
-                <img src="{logo_url}" style="width: 40px; height: 40px; margin-right: 10px; border-radius: 50%;">
-                {team} - {len(players)} hunters
+        <div class="team-section">
+            <div class="team-header">
+                <img class="team-logo" src="{logo_url}" alt="{team}">
+                {team} — {len(players)} blowout hunter(s)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -4413,10 +4544,10 @@ def show_mapa_rotacoes():
         for p in players:
             delta_color = "#10B981" if p['delta'] > 0 else "#FF4F4F"
             st.markdown(f"""
-            <div style="background: #1e293b; border-left: 6px solid #10B981; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
-                <div style="font-size: 16px; font-weight: bold; color: #fff;">{p['name']} <span style="font-size: 12px; color: #94A3B8;">{p['pos']}</span></div>
-                <div style="font-size: 18px; font-weight: bold; color: {delta_color}; margin: 5px 0;">+{p['delta']:.1f} min em blowout</div>
-                <div style="display: flex; justify-content: space-around; font-size: 12px; color: #CBD5E1;">
+            <div class="player-card">
+                <div class="player-name">{p['name']} <span class="player-pos">{p['pos']}</span></div>
+                <div class="delta-highlight" style="color: {delta_color}">+{p['delta']:.1f} min em blowout</div>
+                <div class="metrics-row">
                     <div>L5: {p['l5_min']:.1f}m</div>
                     <div>Blowout: {p['blowout_min']:.1f}m</div>
                     <div>PTS Blowout: {p['blowout_pts']:.1f}</div>
@@ -4428,22 +4559,24 @@ def show_mapa_rotacoes():
 
     
 # ============================================================================
-# PAGINA: CONFIGURACOES 
+# PÁGINA: CONFIGURAÇÕES 
 # ============================================================================
 def show_config_page():
-    # --- ENFORCE: Forcar tudo ligado ---
+    # --- ENFORCE: Forçar tudo ligado ---
     st.session_state.use_advanced_features = True
     
+    # IMPORTA O CAMINHO DEFINIDO NO INJURIES.PY
     try:
         from injuries import INJURIES_CACHE_FILE
     except ImportError:
         INJURIES_CACHE_FILE = os.path.join(os.getcwd(), "cache", "injuries_cache_v44.json")
 
-    # Icone Engrenagem: :gear:
-    st.header(":gear: PAINEL DE CONTROLE")
+    st.header("⚙️ PAINEL DE CONTROLE")
     
+    # ==============================================================================
     # 1. STATUS DO SISTEMA
-    st.markdown("### Status dos Motores")
+    # ==============================================================================
+    st.markdown("### 📡 Status dos Motores")
     c1, c2, c3, c4 = st.columns(4)
     
     l5_ok = not st.session_state.get('df_l5', pd.DataFrame()).empty
@@ -4453,8 +4586,7 @@ def show_config_page():
     
     def render_mini_status(col, label, is_ok):
         color = "#00FF9C" if is_ok else "#FF4F4F"
-        # Icone Online/Offline via HTML
-        icon = "&#128994; ONLINE" if is_ok else "&#128308; OFFLINE"
+        icon = "🟢 ONLINE" if is_ok else "🔴 OFFLINE"
         col.markdown(f"""<div style="border:1px solid {color}40; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:center;"><div style="font-weight:bold; color:#E2E8F0; font-size:14px;">{label}</div><div style="color:{color}; font-size:11px; font-weight:bold; margin-top:5px;">{icon}</div></div>""", unsafe_allow_html=True)
 
     render_mini_status(c1, "Database L5", l5_ok)
@@ -4463,93 +4595,123 @@ def show_config_page():
     render_mini_status(c4, "Auditoria", audit_ok)
     st.markdown("---")
 
-    # 2. ACOES DE DADOS
-    st.subheader("Sincronizacao de Dados")
+    # ==============================================================================
+    # 2. AÇÕES DE DADOS
+    # ==============================================================================
+    st.subheader("🔄 Sincronização de Dados")
     col_act1, col_act2 = st.columns(2)
     
     with col_act1:
-        st.write("**1. Estatisticas & Jogadores**")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("**1. Estatísticas & Jogadores**")
         
-        if st.button("ATUALIZAR L5 COMPLETO", type="primary", use_container_width=True):
+        if st.button("🔁 ATUALIZAR L5 COMPLETO", type="primary", use_container_width=True):
             with st.spinner("Baixando dados..."):
                 try:
+                    # Supondo que get_players_l5 esteja definida globalmente
                     st.session_state.df_l5 = get_players_l5(progress_ui=True)
-                    st.success("Atualizado!")
+                    st.success("✅ Atualizado!")
                     time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"Erro L5: {e}")
         
+# --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
-        # Icone Ambulancia: :ambulance:
-        if st.button(":ambulance: ATUALIZAR LESOES (30 TIMES)", use_container_width=True):
-            with st.spinner("Conectando ao Depto. Medico (ESPN API)..."):
+        if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
+            with st.spinner("Conectando ao Depto. Médico (ESPN API)..."):
                 try:
+                    # 1. Instancia o Monitor
                     from injuries import InjuryMonitor
                     monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
                     
-                    ALL_TEAMS = ["ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
-                                 "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
-                                 "OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"]
+                    ALL_TEAMS = [
+                        "ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW",
+                        "HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK",
+                        "OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"
+                    ]
                     
+                    # 2. Varredura (Scraping)
                     p = st.progress(0)
                     for i, team in enumerate(ALL_TEAMS):
+                        # O Scraper roda e guarda na memória interna dele
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
                     
                     p.empty()
+                    
+                    # 3. EXTRAÇÃO E UPLOAD (AQUI É O PULO DO GATO 🐱)
+                    # Pegamos os dados da memória do monitor
                     fresh_data = monitor.get_all_injuries()
                     
                     if fresh_data:
+                        # Salva no Supabase usando a função universal do SuiteNAS
+                        # (Certifique-se que KEY_INJURIES está definido no topo do SuiteNAS)
                         save_data_universal("injuries", {"teams": fresh_data, "updated_at": datetime.now().isoformat()})
-                        monitor.save_cache()
-                        st.session_state.injuries_data = fresh_data 
-                        if 'injuries' in st.session_state: del st.session_state['injuries']
                         
-                        st.success(f"Sincronizado! {len(fresh_data)} times atualizados.")
-                        time.sleep(1); st.rerun()
+                        # Também salva local para backup (o monitor já faz isso, mas garantimos)
+                        monitor.save_cache()
+                        
+                        st.success(f"✅ Sincronizado com Supabase! {len(fresh_data)} times atualizados.")
+                        
+                        # Atualiza a sessão para ver o resultado na hora
+                        st.session_state.injuries_data = fresh_data 
+                        if 'injuries' in st.session_state: del st.session_state['injuries'] # Força reload visual
+                        
+                        time.sleep(1)
+                        st.rerun()
                     else:
-                        st.warning("Sem dados.")
+                        st.warning("⚠️ O scraper rodou mas não retornou dados. A ESPN pode ter bloqueado ou mudado o layout.")
+                        
                 except Exception as e:
-                    st.error(f"Erro critico: {e}")
+                    st.error(f"Erro crítico no processo: {e}")
+                    
 
     with col_act2:
-        st.write("**2. Contexto de Jogo & Pace**")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("**2. Contexto de Jogo & Pace**")
         c_a, c_b = st.columns(2)
         with c_a:
-            if st.button(":dart: ATUALIZAR ODDS", use_container_width=True):
+            if st.button("🎯 ATUALIZAR ODDS", use_container_width=True):
                 try: 
                     st.session_state.odds = fetch_odds_for_today()
-                    st.success("Odds Atualizadas!")
-                except: st.error("Erro Odds.")
+                    st.success("✅ Odds Atualizadas!")
+                except: st.error("Erro ao buscar Odds.")
         with c_b:
-            if st.button(":shield: ATUALIZAR DVP", use_container_width=True):
+            if st.button("🛡️ ATUALIZAR DVP", use_container_width=True):
                 try: 
                     from modules.new_modules.dvp_analyzer import DvPAnalyzer
                     st.session_state.dvp_analyzer = DvPAnalyzer()
-                    st.success("DvP Atualizado!")
-                except: st.error("Erro DvP.")
+                    st.success("✅ DvP Atualizado!")
+                except: st.error("Erro ao carregar DvP.")
         
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
         
-        if st.button("Sincronizar Pace (2025-26)"):
-            with st.spinner("Conectando..."):
-                try:
-                    new_stats = fetch_real_time_team_stats()
-                    if new_stats:
+        if st.button("🔄 Sincronizar Pace (Temporada 2025-26)"):
+            with st.spinner("Conectando à API da NBA..."):
+                new_stats = fetch_real_time_team_stats()
+                
+                if new_stats:
+                    try:
                         import importlib
-                        import sys
                         current_dir = os.getcwd() 
                         target_dir = os.path.join(current_dir, "modules", "new_modules")
-                        if target_dir not in sys.path: sys.path.append(target_dir)
+                        
+                        if target_dir not in sys.path:
+                            sys.path.append(target_dir)
+                        
                         import pace_adjuster
                         importlib.reload(pace_adjuster)
                         
                         st.session_state.pace_adjuster = pace_adjuster.PaceAdjuster(new_stats)
-                        st.success(f"Sucesso! Pace carregado.")
-                        time.sleep(1); st.rerun()
-                except Exception as e:
-                    st.error(f"Erro: {e}")
+                        st.success(f"✅ Sucesso! PaceAdjuster carregado.")
+                        time.sleep(1)
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Erro técnico: {e}")
 
-    # 3. DASHBOARD VOLUMETRIA
+    # ==============================================================================
+    # 3. DASHBOARD DE VOLUMETRIA
+    # ==============================================================================
     st.markdown("---")
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     games = st.session_state.get('scoreboard', [])
@@ -4568,45 +4730,2273 @@ def show_config_page():
         col_m3.metric("Lesionados", "N/A")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("LIMPAR CACHE DE LESOES", type="secondary", use_container_width=True):
+    if st.button("🗑️ LIMPAR CACHE DE LESÕES", type="secondary", use_container_width=True):
         if os.path.exists(INJURIES_CACHE_FILE):
             os.remove(INJURIES_CACHE_FILE)
-            st.success("Cache removido.")
-            time.sleep(1); st.rerun()
+            st.success("Cache removido. Re-sincronize os 30 times.")
+            time.sleep(1)
+            st.rerun()
 
 # ============================================================================
-# FUNCOES AUXILIARES DE CARGA (SANITIZADAS)
+# PÁGINA: ANALYTICS DASHBOARD (RANKING & ROI)
+# ============================================================================
+def show_analytics_page():
+    st.header("📊 ANALYTICS DASHBOARD")
+    st.markdown("### Inteligência de Performance & Ranking de Teses")
+    
+    # 1. Carregamento de Dados
+    if 'audit_system' not in st.session_state or not hasattr(st.session_state.audit_system, 'audit_data'):
+        from modules.audit_system import AuditSystem
+        st.session_state.audit_system = AuditSystem()
+    
+    audit = st.session_state.audit_system
+    # Agora o acesso abaixo será seguro
+    history = audit.audit_data
+    
+    if not history:
+        st.info("📭 Sem dados suficientes. Salve e valide alguns bilhetes para gerar inteligência.")
+        return
+
+    # 2. Processamento (Pandas)
+    # Transformamos o JSON em DataFrames para análise rápida
+    tickets_data = []
+    legs_data = []
+
+    for t in history:
+        # --- BLINDAGEM DE DADOS ---
+        # Usamos .get() para evitar KeyError se o campo não existir no JSON antigo
+        t_status = t.get('status', 'PENDING')
+        t_odd = float(t.get('total_odd', 0))
+        t_cat = t.get('category', 'UNK').upper()
+        t_id = t.get('id', 'N/A')
+        t_date = t.get('date', 'N/A')
+
+        # Cálculo de Profit
+        profit = 0.0
+        if t_status == 'WIN':
+            profit = t_odd - 1.0
+        elif t_status == 'LOSS':
+            profit = -1.0
+        
+        tickets_data.append({
+            "id": t_id,
+            "category": t_cat,
+            "status": t_status,
+            "profit": profit,
+            "odd": t_odd,
+            "date": t_date
+        })
+        
+        # Dados das Pernas (Legs)
+        for leg in t.get('legs', []):
+            leg_status = leg.get('status', 'PENDING')
+            hit = 1 if leg_status == 'WIN' else 0
+            
+            # Hook Analysis (Perdeu por pouco?)
+            hook = False
+            if leg_status == 'LOSS':
+                try:
+                    val = float(leg.get('actual_value', 0))
+                    line = float(leg.get('line', 0))
+                    diff = abs(val - line)
+                    
+                    # Hook se perdeu por 0.5 ou 1.0 e o jogador jogou (val > 0)
+                    if diff <= 1.0 and val > 0:
+                        hook = True
+                except (ValueError, TypeError):
+                    # Se houver erro de conversão, ignora o hook
+                    hook = False
+
+            legs_data.append({
+                "player": leg.get('name', leg.get('player_name', 'Unknown')),
+                "market": leg.get('market_type', 'UNK'),
+                "thesis": leg.get('thesis', 'General'),
+                "status": leg_status,
+                "hit": hit,
+                "hook": hook,
+                "odds": float(leg.get('odds', 0))
+            })
+
+    # Criação dos DataFrames
+    df_tickets = pd.DataFrame(tickets_data)
+    df_legs = pd.DataFrame(legs_data)
+
+    # 3. MACRO VISÃO (ROI & BANCA)
+    st.subheader("💰 Performance Financeira (ROI)")
+    
+    # KPIs Gerais
+    total_bets = len(df_tickets)
+    resolved_bets = df_tickets[df_tickets['status'].isin(['WIN', 'LOSS'])]
+    net_profit = resolved_bets['profit'].sum() if not resolved_bets.empty else 0.0
+    roi_percent = (net_profit / len(resolved_bets) * 100) if len(resolved_bets) > 0 else 0.0
+    
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Bilhetes Totais", total_bets)
+    k2.metric("Bilhetes Resolvidos", len(resolved_bets))
+    k3.metric("Lucro Líquido (u)", f"{net_profit:+.2f}u", delta_color="normal")
+    k4.metric("ROI Global", f"{roi_percent:+.1f}%")
+    
+    st.markdown("---")
+
+    # 4. ANÁLISE POR CATEGORIA (Gráfico)
+    c1, c2 = st.columns([2, 1])
+    
+    with c1:
+        st.markdown("#### 📈 Lucro/Prejuízo por Categoria")
+        if not resolved_bets.empty:
+            # Agrupa por categoria e soma o lucro
+            category_roi = resolved_bets.groupby('category')['profit'].sum().reset_index()
+            st.bar_chart(category_roi, x="category", y="profit", color="#00FF9C")
+        else:
+            st.caption("Valide bilhetes para ver o gráfico de lucro.")
+            
+    with c2:
+        st.markdown("#### 🍰 Distribuição de Volume")
+        if not df_tickets.empty:
+            cat_counts = df_tickets['category'].value_counts()
+            st.dataframe(cat_counts, use_container_width=True)
+
+    # 5. RANKING DE TESES (O OURO)
+    st.markdown("---")
+    st.subheader("🏆 Ranking de Teses & Mercados (Legs)")
+    st.caption("Quais estratégias individuais estão batendo mais?")
+
+    if not df_legs.empty:
+        # Filtra apenas legs resolvidas (WIN/LOSS)
+        resolved_legs = df_legs[df_legs['status'].isin(['WIN', 'LOSS'])]
+        
+        if not resolved_legs.empty:
+            t1, t2 = st.tabs(["🏛️ Por Tese (Estratégia)", "🏀 Por Mercado (Stat)"])
+            
+            with t1:
+                # Agrupa por Tese
+                thesis_stats = resolved_legs.groupby('thesis').agg(
+                    Tentativas=('hit', 'count'),
+                    Acertos=('hit', 'sum')
+                ).reset_index()
+                
+                thesis_stats['Win Rate %'] = (thesis_stats['Acertos'] / thesis_stats['Tentativas'] * 100).round(1)
+                thesis_stats = thesis_stats.sort_values(by='Win Rate %', ascending=False)
+                
+                # Formatação visual
+                st.dataframe(
+                    thesis_stats,
+                    column_config={
+                        "Win Rate %": st.column_config.ProgressColumn(
+                            "Win Rate",
+                            format="%.1f%%",
+                            min_value=0,
+                            max_value=100,
+                        )
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            
+            with t2:
+                # Agrupa por Mercado (PTS, REB, AST)
+                mkt_stats = resolved_legs.groupby('market').agg(
+                    Tentativas=('hit', 'count'),
+                    Acertos=('hit', 'sum')
+                ).reset_index()
+                
+                mkt_stats['Win Rate %'] = (mkt_stats['Acertos'] / mkt_stats['Tentativas'] * 100).round(1)
+                mkt_stats = mkt_stats.sort_values(by='Win Rate %', ascending=False)
+                
+                st.dataframe(
+                    mkt_stats,
+                    column_config={
+                        "Win Rate %": st.column_config.ProgressColumn(
+                            "Win Rate",
+                            format="%.1f%%",
+                            min_value=0,
+                            max_value=100,
+                        )
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+        else:
+            st.warning("Nenhuma perna (leg) validada ainda. Use a aba Auditoria para validar resultados.")
+    else:
+        st.warning("Nenhum dado de pernas encontrado.")
+
+    # 6. ZONA DE DOR (HOOK ANALYSIS)
+    st.markdown("---")
+    st.subheader("🪝 Análise de 'Hooks' (O Quase)")
+    st.caption("Apostas perdidas por margem mínima (0.5 ou 1.0). Indica que a leitura foi boa, mas faltou sorte.")
+    
+    if not df_legs.empty:
+        hooks = df_legs[df_legs['hook'] == True]
+        if not hooks.empty:
+            st.error(f"Detectamos {len(hooks)} 'Hooks' dolorosos.")
+            for i, row in hooks.iterrows():
+                st.markdown(f"- **{row['player']}** ({row['market']}): Perdeu por margem mínima (Tese: {row['thesis']})")
+        else:
+            st.success("Nenhum 'Hook' detectado recentemente. Ou Green ou Red claro.")
+# ============================================================================
+# ROSTER HELPERS (mantidas do original)
+# ============================================================================
+
+def _extract_str_field(val):
+    if not val: return ""
+    if isinstance(val, str): return val.strip()
+    if isinstance(val, dict):
+        for k in ("displayName","fullName","shortName","name"):
+            v = val.get(k)
+            if v and isinstance(v, str): return v.strip()
+    return str(val)
+
+def normalize_roster_entry(a):
+    if not a or not isinstance(a, dict):
+        return {"PLAYER":"", "POSITION":"", "STARTER":False, "STATUS":""}
+    candidate = a.get("athlete") if a.get("athlete") else a
+    player = _extract_str_field(candidate.get("displayName") or candidate.get("fullName") or candidate.get("name") or "")
+    pos_raw = candidate.get("position") or candidate.get("positionType") or candidate.get("positionName") or ""
+    position = _extract_str_field(pos_raw)
+    status_raw = a.get("status") or a.get("injuryStatus") or candidate.get("status") or candidate.get("injuryStatus") or ""
+    if isinstance(status_raw, dict):
+        status = status_raw.get("name") or status_raw.get("abbreviation") or json.dumps(status_raw, ensure_ascii=False)
+    else:
+        status = str(status_raw)
+    starter = a.get("starter")
+    if starter is None:
+        starter = a.get("isStarter") or candidate.get("starter") or candidate.get("isStarter") or False
+    starter_flag = bool(starter) if not isinstance(starter, str) else starter.lower() in ("true","1","yes")
+    return {"PLAYER": player, "POSITION": position, "STARTER": starter_flag, "STATUS": status or ""}
+
+def derive_availability_and_expected_minutes(roster_entry, df_l5_row, treat_unknown_as_available=True):
+    status = (roster_entry.get("STATUS") or "").lower()
+    starter = bool(roster_entry.get("STARTER"))
+    min_avg = float(df_l5_row.get("MIN_AVG", 0)) if df_l5_row is not None else 0.0
+    last_min = float(df_l5_row.get("LAST_MIN", 0)) if df_l5_row is not None else 0.0
+    availability = "unknown"; expected_minutes = min_avg
+    if any(k in status for k in ("out","ir","injur")):
+        availability = "out"; expected_minutes = 0.0
+    elif starter:
+        availability = "available"; expected_minutes = max(min_avg, last_min, 28.0)
+    elif status and any(k in status for k in ("active","available")):
+        availability = "available"; expected_minutes = max(min_avg*0.8, last_min*0.9)
+    else:
+        availability = "probable"; expected_minutes = max(min_avg*0.8, last_min*0.6) if treat_unknown_as_available else min_avg*0.6
+    expected_minutes = float(max(0.0, expected_minutes))
+    return {"availability": availability, "expected_minutes": expected_minutes}
+
+def extract_list(jr):
+    if not jr or not isinstance(jr, dict):
+        return []
+    
+    if "athletes" in jr and isinstance(jr["athletes"], list):
+        return jr["athletes"]
+    
+    if "roster" in jr and isinstance(jr["roster"], dict):
+        if "athletes" in jr["roster"] and isinstance(jr["roster"]["athletes"], list):
+            return jr["roster"]["athletes"]
+    
+    possible_paths = [
+        ["team", "roster", "athletes"],
+        ["team", "athletes"],
+        ["players"],
+        ["items"],
+        ["results", "athletes"],
+        ["data", "athletes"]
+    ]
+    
+    for path in possible_paths:
+        current = jr
+        found = True
+        
+        for key in path:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                found = False
+                break
+        
+        if found and isinstance(current, list):
+            return current
+    
+    def find_athletes_recursive(obj, depth=0, max_depth=3):
+        if depth > max_depth:
+            return None
+        
+        if isinstance(obj, list) and len(obj) > 0:
+            first_item = obj[0]
+            if isinstance(first_item, dict):
+                athlete_keys = ['athlete', 'player', 'displayName', 'fullName', 'firstName', 'lastName']
+                if any(key in first_item for key in athlete_keys):
+                    return obj
+                if 'athlete' in first_item and isinstance(first_item['athlete'], dict):
+                    return obj
+        
+        elif isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in ['athletes', 'players', 'roster']:
+                    result = find_athletes_recursive(value, depth + 1, max_depth)
+                    if result:
+                        return result
+                result = find_athletes_recursive(value, depth + 1, max_depth)
+                if result:
+                    return result
+        
+        return None
+    
+    athletes = find_athletes_recursive(jr)
+    if athletes:
+        return athletes
+    
+    return []
+
+def build_l5_indices(df_l5):
+    """Constrói índices para busca rápida de dados L5"""
+    l5_index = {}
+    l5_index_norm = {}
+    
+    if df_l5 is None or not isinstance(df_l5, pd.DataFrame) or df_l5.empty:
+        return l5_index, l5_index_norm  # Retornar índices vazios
+    
+    for _, r in df_l5.iterrows():
+        try:
+            rowd = r.to_dict()
+        except Exception:
+            rowd = dict(r)
+        
+        name = rowd.get("PLAYER") or rowd.get("player") or ""
+        if not name:
+            continue
+        
+        l5_index[name] = rowd
+        l5_index_norm[normalize_name(name)] = rowd
+    
+    return l5_index, l5_index_norm
+
+def resolve_l5_row(name_espn, l5_index, l5_index_norm, overrides):
+    name_norm = normalize_name(name_espn)
+    if name_norm in overrides:
+        target = overrides[name_norm]
+        row = l5_index.get(target)
+        if row is not None: return row, "override"
+    row = l5_index.get(name_espn)
+    if row is not None: return row, "exact"
+    row = l5_index_norm.get(name_norm)
+    if row is not None: return row, "normalized"
+    candidates = list(l5_index.keys())
+    match = difflib.get_close_matches(name_espn, candidates, n=1, cutoff=0.75)
+    if match: return l5_index.get(match[0]), "fuzzy"
+    candidates_norm = list(l5_index_norm.keys())
+    match2 = difflib.get_close_matches(name_norm, candidates_norm, n=1, cutoff=0.75)
+    if match2: return l5_index_norm.get(match2[0]), "fuzzy_norm"
+    return None, "none"
+
+# ============================================================================
+# GERAR TAGS ATUALIZADA (FASE 3.2)
+# ============================================================================
+def gerar_tags_para_jogador(player_ctx, game_ctx):
+    """
+    Gera tags estratégicas a partir das teses do ThesisEngine novo.
+    Retorna uma lista de nomes de teses ativas (tags).
+    """
+    try:
+        # Verificar se temos engine disponível
+        if "thesis_engine" not in st.session_state:
+            # Tentar criar uma instância se não existir
+            try:
+                from modules.new_modules.thesis_engine import ThesisEngine
+                st.session_state.thesis_engine = ThesisEngine()
+            except:
+                return []
+        
+        thesis_engine = st.session_state.thesis_engine
+        theses = thesis_engine.evaluate_player(player_ctx, game_ctx)
+        
+        if not theses:
+            return []
+            
+        tags = []
+        for t in theses:
+            name = t.get("name") or t.get("thesis_type")
+            if name:
+                tags.append(name)
+        
+        # Remover duplicatas preservando ordem
+        seen = set()
+        unique_tags = [x for x in tags if not (x in seen or seen.add(x))]
+        return unique_tags
+        
+    except Exception:
+        return []
+
+# ============================================================================
+# NOVAS FUNÇÕES DE EXIBIÇÃO ESTRATÉGICA
+# ============================================================================
+def display_player_theses(player_ctx, game_ctx, thesis_engine=None):
+    """
+    Retorna uma lista estruturada das teses do jogador para exibição na UI.
+    Não escreve na UI diretamente; entrega dados prontos para renderização.
+    """
+    engine = thesis_engine or st.session_state.get("thesis_engine") or ThesisEngine()
+    try:
+        theses = engine.generate_all_theses(player_ctx, game_ctx)
+        if not theses:
+            return []
+        out = []
+        for thesis in theses:
+            out.append({
+                "type": thesis.get("thesis_type"),
+                "market": thesis.get("market"),
+                "confidence": float(thesis.get("confidence", 0)),
+                "reason": thesis.get("reason"),
+                "evidences": thesis.get("evidences", []),
+                "suggested_line": thesis.get("suggested_line")
+            })
+        return out
+    except Exception:
+        return []
+
+# ============================================================================
+# GAME CONTEXT
+# ============================================================================
+
+def build_game_context(away_abbr, home_abbr, odds_map, team_advanced, team_opponent):
+    """
+    Constrói o contexto do jogo usando dados gratuitos da ESPN (via odds_map convertido).
+    """
+    away_full = TEAM_ABBR_TO_ODDS.get(away_abbr, away_abbr)
+    home_full = TEAM_ABBR_TO_ODDS.get(home_abbr, home_abbr)
+    
+    odds = {}
+    if odds_map:
+        # Tenta várias chaves para encontrar o jogo
+        possible_keys = [
+            f"{away_abbr}@{home_abbr}", 
+            f"{away_abbr} @ {home_abbr}",
+            f"{away_full}@{home_full}"
+        ]
+        for k in possible_keys:
+            if k in odds_map:
+                odds = odds_map[k]
+                break
+    
+    # Se não achou no map, tenta valores default ou zerados
+    spread = odds.get("spread", 0.0)
+    total = odds.get("total", 225.0)
+    
+    # Pace
+    adv_home = team_advanced.get(home_abbr, {}) if team_advanced else {}
+    adv_away = team_advanced.get(away_abbr, {}) if team_advanced else {}
+    
+    pace_home = adv_home.get("pace")
+    pace_away = adv_away.get("pace")
+    
+    # Se não tiver dados avançados, usa a constante TEAM_PACE_DATA (fallback seguro)
+    if not pace_home: pace_home = TEAM_PACE_DATA.get(home_abbr, 100.0)
+    if not pace_away: pace_away = TEAM_PACE_DATA.get(away_abbr, 100.0)
+    
+    pace_expected = (float(pace_home) + float(pace_away)) / 2.0
+    
+    # Flags Booleanas para o Motor Estratégico
+    is_high_pace = pace_expected >= 101.5
+    is_low_pace = pace_expected <= 98.5
+    is_blowout_risk = abs(float(spread)) >= 12.0
+    
+    ctx = {
+        "away_abbr": away_abbr, 
+        "home_abbr": home_abbr,
+        "spread": spread, 
+        "total": total, 
+        "pace_expected": pace_expected,
+        "is_high_pace": is_high_pace,
+        "is_low_pace": is_low_pace,
+        "is_blowout_risk": is_blowout_risk
+    }
+    return ctx
+
+# ============================================================================
+# FUNÇÕES DE SCORING ATUALIZADAS
+# ============================================================================
+def fetch_espn_boxscore(game_id):
+    """
+    Busca o boxscore de um jogo da ESPN.
+    
+    Args:
+        game_id: ID do jogo na ESPN
+    
+    Returns:
+        Dicionário com as estatísticas do jogo, ou None se não encontrado.
+    """
+    params = {"event": game_id}
+    
+    try:
+        response = requests.get(ESPN_BOXSCORE_URL, params=params, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Erro ao buscar boxscore da ESPN: {e}")
+        return None
+   
+    def __init__(self, cache_file=None):
+        self.cache_file = cache_file or AUDIT_CACHE_FILE
+        self.audit_data = self._load_audit_data()
+    
+    def _load_audit_data(self):
+        """Carrega dados de auditoria do cache"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+    
+    def _save_audit_data(self):
+        """Salva dados de auditoria no cache"""
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.audit_data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+    
+    def log_trixie(self, trixie, game_info, trixie_type, source="system"):
+        """
+        Registra uma trixie na auditoria.
+        
+        Args:
+            trixie: Dicionário da trixie
+            game_info: Informações do jogo
+            trixie_type: Tipo de trixie
+            source: Fonte da trixie
+        """
+        audit_entry = {
+            "id": f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(str(trixie))}",
+            "timestamp": datetime.now().isoformat(),
+            "date": TODAY,
+            "game": game_info,
+            "trixie_type": trixie_type,
+            "score": trixie.get("score", 0),
+            "enhanced": trixie.get("enhanced", False),
+            "source": source,
+            "players": []
+        }
+        
+        for p in trixie.get("players", []):
+            player_entry = {
+                "name": p.get("name"),
+                "team": p.get("team"),
+                "position": p.get("position"),
+                "mercado": p.get("mercado", {}),
+                "tese_efetiva": p.get("tese_efetiva", ""),  # Nova informação
+                "stats": {
+                    "min_L5": p.get("min_L5", 0),
+                    "pts_L5": p.get("pts_L5", 0),
+                    "reb_L5": p.get("reb_L5", 0),
+                    "ast_L5": p.get("ast_L5", 0),
+                    "pra_L5": p.get("pra_L5", 0),
+                    "stl_L5": p.get("stl_L5", 0) if "stl_L5" in p else 0,
+                    "blk_L5": p.get("blk_L5", 0) if "blk_L5" in p else 0,
+                    "3pm_L5": p.get("3pm_L5", 0) if "3pm_L5" in p else 0
+                },
+                "tags": p.get("tags", []),
+                "dvp_data": p.get("dvp_data", {})
+            }
+            audit_entry["players"].append(player_entry)
+        
+        self.audit_data.append(audit_entry)
+        
+        # Manter apenas os últimos 1000 registros
+        if len(self.audit_data) > 1000:
+            self.audit_data = self.audit_data[-1000:]
+        
+        self._save_audit_data()
+    
+    def validate_trixie_with_boxscore(self, audit_entry):
+        """
+        Valida uma trixie com base nos dados reais do jogo (boxscore).
+        
+        Args:
+            audit_entry: Entrada de auditoria
+        
+        Returns:
+            A mesma entrada com validação atualizada
+        """
+        game_info = audit_entry.get("game", {})
+        game_id = game_info.get("gameId")
+        
+        if not game_id:
+            return audit_entry
+        
+        # Buscar boxscore
+        boxscore = fetch_espn_boxscore(game_id)
+        if not boxscore:
+            return audit_entry
+        
+        # Inicializar estrutura de validação
+        validation = {
+            "validated": True,
+            "validation_date": datetime.now().isoformat(),
+            "game_id": game_id,
+            "players": [],
+            "overall": "UNKNOWN"
+        }
+        
+        all_green = True
+        any_red = False
+        
+        for player in audit_entry.get("players", []):
+            player_name = player.get("name")
+            player_team = player.get("team")
+            mercado = player.get("mercado", {})
+            
+            # Buscar estatísticas do jogador no boxscore
+            player_stats = self._extract_player_stats_from_boxscore(boxscore, player_name, player_team)
+            
+            if not player_stats:
+                # Jogador não encontrado no boxscore (não jogou?)
+                player_validation = {
+                    "name": player_name,
+                    "team": player_team,
+                    "found": False,
+                    "status": "NO_DATA",
+                    "target": mercado.get("base_valor", 0),
+                    "actual": 0
+                }
+                all_green = False
+            else:
+                # Verificar se a leg foi GREEN ou RED
+                leg_type = mercado.get("tipo")
+                target_value = mercado.get("base_valor", 0)
+                
+                # Mapear tipo de leg para estatística do boxscore
+                stat_mapping = {
+                    "PTS": "points",
+                    "REB": "rebounds", 
+                    "AST": "assists",
+                    "PRA": "pra",
+                    "STL": "steals",
+                    "BLK": "blocks",
+                    "3PM": "three_pointers"
+                }
+                
+                stat_key = stat_mapping.get(leg_type, "points")
+                actual_value = player_stats.get(stat_key, 0)
+                
+                if leg_type == "PRA":
+                    actual_value = player_stats.get("points", 0) + player_stats.get("rebounds", 0) + player_stats.get("assists", 0)
+                
+                # Determinar status
+                if actual_value >= target_value:
+                    status = "GREEN"
+                else:
+                    status = "RED"
+                    all_green = False
+                    any_red = True
+                
+                player_validation = {
+                    "name": player_name,
+                    "team": player_team,
+                    "found": True,
+                    "status": status,
+                    "target": target_value,
+                    "actual": actual_value,
+                    "stats": player_stats,
+                    "leg_type": leg_type
+                }
+            
+            validation["players"].append(player_validation)
+        
+        # Determinar status geral da trixie
+        if all_green:
+            validation["overall"] = "GREEN"
+        elif any_red:
+            validation["overall"] = "RED"
+        else:
+            validation["overall"] = "PARTIAL"
+        
+        audit_entry["validation"] = validation
+        return audit_entry
+    
+    def _extract_player_stats_from_boxscore(self, boxscore, player_name, team_abbr):
+        """
+        Extrai as estatísticas de um jogador do boxscore da ESPN.
+        
+        Args:
+            boxscore: Dicionário do boxscore da ESPN
+            player_name: Nome do jogador
+            team_abbr: Abreviação do time
+        
+        Returns:
+            Dicionário com as estatísticas ou None se não encontrado
+        """
+        try:
+            # A estrutura do boxscore da ESPN varia
+            # Vamos procurar em diferentes locais
+            players_data = []
+            
+            # Tentar obter jogadores do boxscore
+            if "boxscore" in boxscore:
+                teams = boxscore["boxscore"].get("teams", [])
+                for team in teams:
+                    team_players = team.get("statistics", [])
+                    for player in team_players:
+                        athlete = player.get("athlete", {})
+                        name = athlete.get("displayName", "")
+                        if normalize_name(name) == normalize_name(player_name):
+                            # Extrair estatísticas
+                            stats = {}
+                            for stat in player.get("stats", []):
+                                if "name" in stat and "value" in stat:
+                                    stats[stat["name"].lower()] = float(stat["value"])
+                            
+                            # Mapear nomes comuns
+                            mapped_stats = {
+                                "points": stats.get("points", 0),
+                                "rebounds": stats.get("rebounds", stats.get("reb", 0)),
+                                "assists": stats.get("assists", stats.get("ast", 0)),
+                                "minutes": stats.get("minutes", stats.get("min", 0)),
+                                "steals": stats.get("steals", stats.get("stl", 0)),
+                                "blocks": stats.get("blocks", stats.get("blk", 0)),
+                                "turnovers": stats.get("turnovers", stats.get("to", 0)),
+                                "three_pointers": stats.get("3pt", stats.get("three_pointers", 0))
+                            }
+                            return mapped_stats
+            
+            return None
+        except Exception:
+            return None
+    
+    def get_audit_data(self, date_filter=None, trixie_type_filter=None, team_filter=None, status_filter=None):
+        """
+        Obtém dados de auditoria filtrados.
+        
+        Args:
+            date_filter: Filtrar por data (YYYY-MM-DD)
+            trixie_type_filter: Filtrar por tipo de trixie
+            team_filter: Filtrar por time
+            status_filter: Filtrar por status ("GREEN", "RED", "PARTIAL")
+        
+        Returns:
+            Lista de entradas de auditoria filtradas
+        """
+        filtered = self.audit_data
+        
+        if date_filter:
+            filtered = [entry for entry in filtered if entry.get("date") == date_filter]
+        
+        if trixie_type_filter:
+            filtered = [entry for entry in filtered if entry.get("trixie_type") == trixie_type_filter]
+        
+        if team_filter:
+            filtered = [
+                entry for entry in filtered 
+                if any(p.get("team") == team_filter for p in entry.get("players", []))
+            ]
+        
+        if status_filter:
+            filtered_with_validation = []
+            for entry in filtered:
+                if "validation" in entry:
+                    if entry["validation"].get("overall") == status_filter:
+                        filtered_with_validation.append(entry)
+                elif status_filter == "UNKNOWN":
+                    filtered_with_validation.append(entry)
+            filtered = filtered_with_validation
+        
+        return filtered
+    
+    def get_validation_stats(self):
+        """
+        Retorna estatísticas de validação.
+        
+        Returns:
+            Dicionário com estatísticas
+        """
+        stats = {
+            "total": len(self.audit_data),
+            "validated": 0,
+            "green": 0,
+            "red": 0,
+            "partial": 0,
+            "unknown": 0
+        }
+        
+        for entry in self.audit_data:
+            if "validation" in entry:
+                stats["validated"] += 1
+                overall = entry["validation"].get("overall", "UNKNOWN")
+                if overall == "GREEN":
+                    stats["green"] += 1
+                elif overall == "RED":
+                    stats["red"] += 1
+                elif overall == "PARTIAL":
+                    stats["partial"] += 1
+                else:
+                    stats["unknown"] += 1
+            else:
+                stats["unknown"] += 1
+        
+        return stats
+
+# ============================================================================
+# PÁGINA: AUDITORIA COMMAND CENTER (V3.2 - BATCH VALIDATION)
+# ============================================================================
+def show_audit_page():
+    st.header("📋 AUDITORIA COMMAND CENTER")
+    
+    # 1. Carregar Sistema
+    if 'audit_system' not in st.session_state or not hasattr(st.session_state.audit_system, 'audit_data'):
+        try:
+            from modules.audit_system import AuditSystem
+            st.session_state.audit_system = AuditSystem()
+        except Exception as e:
+            st.error(f"Erro ao carregar AuditSystem: {e}")
+            return
+
+    audit = st.session_state.audit_system
+    
+    # Sincroniza
+    fresh_data = audit._load_data()
+    audit.audit_data = fresh_data 
+    history = audit.audit_data
+    
+    # --- KPI DASHBOARD ---
+    total = len(history)
+    if total == 0:
+        st.info("📭 O Cofre de Auditoria está vazio. Gere e salve novas SGPs/Trixies.")
+        return
+
+    wins = sum(1 for t in history if t.get('status') == 'WIN')
+    losses = sum(1 for t in history if t.get('status') == 'LOSS')
+    pending_list = [t for t in history if t.get('status', 'PENDING') == 'PENDING']
+    pending_count = len(pending_list)
+    
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Bilhetes Totais", total)
+    k2.metric("✅ Greens", wins)
+    k3.metric("❌ Reds", losses)
+    k4.metric("⏳ Pendentes", pending_count)
+    
+    st.markdown("---")
+
+    # --- ÁREA DE AÇÕES EM LOTE (NOVO) ---
+    if pending_count > 0:
+        with st.expander(f"⚡ Ações em Lote ({pending_count} Pendentes)", expanded=True):
+            c_batch_1, c_batch_info = st.columns([1, 3])
+            
+            if c_batch_1.button(f"🔄 VALIDAR TODOS ({pending_count})", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                updated_count = 0
+                errors = 0
+                
+                for i, ticket in enumerate(pending_list):
+                    t_id = ticket.get('id')
+                    # Atualiza UI
+                    pct = int(((i + 1) / pending_count) * 100)
+                    progress_bar.progress(pct)
+                    status_text.caption(f"Validando bilhete {i+1}/{pending_count}: {t_id}...")
+                    
+                    # Chama validação inteligente
+                    try:
+                        success, msg = audit.smart_validate_ticket(t_id)
+                        if success and "Atualizado" in msg:
+                            updated_count += 1
+                    except Exception as e:
+                        errors += 1
+                
+                progress_bar.progress(100)
+                status_text.empty()
+                
+                if updated_count > 0:
+                    st.success(f"✅ Processo finalizado! {updated_count} bilhetes tiveram status atualizado.")
+                else:
+                    st.info("Processo finalizado. Nenhum bilhete mudou de status (jogos ainda não começaram ou dados indisponíveis).")
+                
+                if errors > 0:
+                    st.warning(f"{errors} erros durante a validação.")
+                    
+                time.sleep(2)
+                st.rerun()
+            
+            with c_batch_info:
+                st.caption("ℹ️ Isso irá verificar o boxscore na ESPN para todos os bilhetes pendentes. Pode levar alguns segundos.")
+
+    # --- FILTRO DE DATA ---
+    all_dates = sorted(list(set([t.get('date', 'Unknown') for t in history])), reverse=True)
+    c_date, c_sel = st.columns([1, 2])
+    
+    with c_date:
+        selected_date = st.selectbox("📅 Filtrar por Data:", ["TODAS"] + all_dates)
+
+    # Aplica Filtro
+    filtered_history = history
+    if selected_date != "TODAS":
+        filtered_history = [t for t in history if t.get('date') == selected_date]
+
+    if not filtered_history:
+        st.warning("Nenhum bilhete encontrado nesta data.")
+        return
+
+    # --- SELETOR DE BILHETE ---
+    def get_label(t):
+        try:
+            g = t.get('game_info', {})
+            home = g.get('home','?')
+            away = g.get('away','?')
+            if home == "MIX": game_str = "SGP Mix / Múltipla"
+            else: game_str = f"{away} @ {home}"
+            
+            cat = t.get('sub_category', t.get('category', 'UNK')).upper()
+            status = t.get('status', 'PENDING')
+            
+            icon = "✅" if status == 'WIN' else "❌" if status == 'LOSS' else "⏳"
+            profit_loss = ""
+            if status == 'WIN':
+                pl = (float(t.get('total_odd', 0)) - 1)
+                profit_loss = f"(+{pl:.2f}u)"
+            
+            return f"{icon} {cat} | {game_str} {profit_loss}"
+        except: return f"⚠️ ID: {t.get('id')}"
+
+    reversed_history = filtered_history[::-1]
+    
+    with c_sel:
+        selected_id = st.selectbox(
+            "Selecione o bilhete para ver detalhes:", 
+            [t.get('id') for t in reversed_history], 
+            format_func=lambda x: get_label(next((t for t in filtered_history if t['id'] == x), {}))
+        )
+    
+    target = next((t for t in filtered_history if t['id'] == selected_id), None)
+    
+    if target:
+        # --- CABEÇALHO DO BILHETE ---
+        with st.container():
+            st.markdown(f"#### 🎫 Detalhes: {target.get('id')}")
+            
+            c1, c2, c3 = st.columns([2, 1, 1])
+            
+            cat = target.get('category', 'UNK').upper()
+            sub = target.get('sub_category', '').upper()
+            odd = float(target.get('total_odd', 0))
+            status = target.get('status', 'PENDING')
+            
+            c1.markdown(f"**Estratégia:** {cat} {f'({sub})' if sub else ''}")
+            c1.markdown(f"**Odd Total:** @{odd:.2f}")
+            
+            # Botão Individual (Mantido para correções pontuais)
+            if c2.button("🔄 Validar Este", key=f"val_{selected_id}"):
+                with st.spinner("Validando..."):
+                    success, msg = audit.smart_validate_ticket(selected_id)
+                    if success:
+                        st.success(msg)
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+            if c3.button("🗑️ Excluir", key=f"del_{selected_id}"):
+                audit.delete_ticket(selected_id)
+                st.success("Excluído.")
+                time.sleep(0.5)
+                st.rerun()
+
+        st.markdown("---")
+
+        # --- EXIBIÇÃO DAS PERNAS (LEGS) ---
+        legs = target.get('legs', [])
+        if not legs:
+            st.error("⚠️ ESTE BILHETE ESTÁ SEM PERNAS.")
+        else:
+            cols = st.columns(3)
+            
+            for i, leg in enumerate(legs):
+                with cols[i % 3]:
+                    l_status = leg.get('status', 'PENDING')
+                    
+                    border_color = "#475569"
+                    bg_color = "rgba(255,255,255,0.02)"
+                    status_icon = "⏳"
+                    
+                    if l_status == 'WIN': 
+                        border_color = "#00FF9C"
+                        bg_color = "rgba(0, 255, 156, 0.05)"
+                        status_icon = "✅"
+                    elif l_status == 'LOSS': 
+                        border_color = "#FF4F4F"
+                        bg_color = "rgba(255, 79, 79, 0.05)"
+                        status_icon = "❌"
+                    
+                    mkt_type = leg.get('market_type', 'UNK')
+                    p_name = leg.get('player_name', 'Unknown')
+                    mkt_display = leg.get('market_display', '-')
+                    line_val = leg.get('line', 0)
+                    actual_val = leg.get('actual_value', '-')
+                    if actual_val == 0 and l_status == 'PENDING': actual_val = "-"
+                    
+                    thesis = leg.get('thesis', 'N/A')
+
+                    st.markdown(f"""
+<div style="border: 1px solid {border_color}; border-radius: 6px; padding: 10px; background: {bg_color}; margin-bottom: 10px;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+        <span style="font-size: 10px; color: #94A3B8; font-weight: bold; background: #1e293b; padding: 2px 4px; border-radius: 3px;">{mkt_type}</span>
+        <span style="font-size: 14px;">{status_icon}</span>
+    </div>
+    <div style="font-size: 15px; font-weight: bold; color: #E2E8F0; line-height: 1.2;">{p_name}</div>
+    <div style="font-size: 14px; color: {border_color}; font-weight: bold; margin-bottom: 5px;">{mkt_display}</div>
+    <div style="background: rgba(0,0,0,0.2); padding: 5px; border-radius: 4px; display: flex; justify-content: space-between;">
+        <div style="font-size: 11px; color: #CBD5E1;">Meta: <b>{line_val}</b></div>
+        <div style="font-size: 11px; color: #CBD5E1;">Real: <b style="color: {border_color}">{actual_val}</b></div>
+    </div>
+    <div style="margin-top: 6px; font-size: 10px; color: #64748B; font-style: italic;">
+        Tese: {thesis[:40]}...
+    </div>
+</div>
+""", unsafe_allow_html=True)
+# ============================================================================
+# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (ATUALIZADA v2.0 - TIME & REAL DATA)
+# ============================================================================
+def render_game_card(away_team, home_team, game_data, odds_map=None):
+    import dateutil.parser
+    import pytz
+    
+    # Mapeamento de Logos
+    def get_logo(abbr):
+        return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr.lower()}.png"
+
+    # --- 1. HORÁRIO BRASIL ---
+    game_time = "HOJE"
+    try:
+        raw_time = game_data.get("startTimeUTC") or game_data.get("date")
+        if raw_time:
+            # Parseia UTC e converte para SP
+            dt_utc = dateutil.parser.parse(raw_time)
+            dt_br = dt_utc.astimezone(pytz.timezone('America/Sao_Paulo'))
+            game_time = dt_br.strftime("%H:%M")
+    except: pass
+
+    # Odds (Spread & Total)
+    spread_display = game_data.get("odds_spread", "N/A")
+    total_display = game_data.get("odds_total", "N/A")
+    spread_val = 0.0
+    try:
+        if spread_display and spread_display not in ["N/A", "EVEN"]:
+            spread_val = float(spread_display.split()[-1])
+    except: pass
+
+    status = game_data.get('status', 'Agendado')
+    if "Final" in status: status = "FIM"
+
+    # --- 2. PACE REAL ---
+    adv_stats = st.session_state.get('team_advanced', {})
+    def get_team_pace(abbr):
+        t_data = adv_stats.get(abbr, {})
+        if not t_data: return 100.0
+        return float(t_data.get('PACE') or t_data.get('pace') or 100.0)
+
+    pace_home = get_team_pace(home_team)
+    pace_away = get_team_pace(away_team)
+    avg_pace = (pace_home + pace_away) / 2
+    
+    # Classificação Visual do Pace
+    if avg_pace >= 101.5:
+        pace_color, pace_icon = "#00FF9C", "⚡"
+    elif avg_pace <= 98.5:
+        pace_color, pace_icon = "#FFA500", "🐌"
+    else:
+        pace_color, pace_icon = "#9CA3AF", "⚖️"
+
+    blowout = calculate_blowout_risk(spread_val)
+
+    # --- 3. HTML DO CARD (AJUSTADO) ---
+    # Mudanças: Fontes menores (-20%), Logo menor, Spread Dourado (#FFD700)
+    card_html = f"""
+    <div style="
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 12px;
+        border: 1px solid #334155;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        font-family: 'Inter', sans-serif;
+        position: relative;
+    ">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+        <div style="background: rgba(30, 144, 255, 0.1); color: #60A5FA; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;">
+            {status}
+        </div>
+        <div style="font-family: 'Oswald', sans-serif; font-size: 12px; color: #E2E8F0;">
+            🕒 {game_time} (BR)
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div style="text-align: center; width: 35%;">
+            <img src="{get_logo(away_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
+            <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_away)}</div>
+          </div>
+          
+          <div style="text-align: center; width: 30%;">
+            <div style="font-size: 9px; color: #64748B; font-weight: 600;">SPREAD</div>
+            <div style="font-size: 13px; color: #FFD700; font-weight: bold; font-family: 'Oswald'; margin-bottom: 4px; text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);">{spread_display}</div>
+            <div style="font-size: 9px; color: #64748B; font-weight: 600;">TOTAL</div>
+            <div style="font-size: 13px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
+          </div>
+          
+          <div style="text-align: center; width: 35%;">
+            <img src="{get_logo(home_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
+            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
+            <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_home)}</div>
+          </div>
+      </div>
+
+      <div style="background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 6px; display: flex; justify-content: space-around; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
+        <div style="text-align: center;">
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RITMO ({int(avg_pace)})</div>
+            <div style="color: {pace_color}; font-weight: bold; font-size: 10px;">{pace_icon}</div>
+        </div>
+        <div style="width: 1px; height: 15px; background: rgba(255,255,255,0.1);"></div>
+        <div style="text-align: center;">
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RISCO</div>
+            <div style="color: {blowout['color']}; font-weight: bold; font-size: 10px;" title="{blowout['desc']}">{blowout['icon']} {blowout['nivel']}</div>
+        </div>
+      </div>
+    </div>
+    """
+    components.html(card_html, height=210, scrolling=False)
+
+# ============================================================================
+# RENDERIZADORES VISUAIS 
+# ============================================================================
+def render_team_header(team_abbr, is_home):
+    """Cabeçalho do time com impacto visual forte"""
+    # Cores vibrantes
+    color = "#00E5FF" if is_home else "#FF4F4F" 
+    bg_gradient = f"linear-gradient(90deg, {color}40 0%, transparent 100%)"
+    icon = "🏠 HOME" if is_home else "✈️ AWAY"
+    
+    st.markdown(f"""
+    <div style="
+        background: {bg_gradient};
+        border-left: 6px solid {color};
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 0 8px 8px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    ">
+        <div style="font-family: 'Oswald', sans-serif; font-size: 32px; color: #FFF; font-weight: 700; line-height: 1;">
+            {team_abbr}
+        </div>
+        <div style="font-family: 'Inter', sans-serif; font-size: 12px; color: {color}; font-weight: 800; letter-spacing: 2px; margin-top: 5px;">
+            {icon}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_player_card_starter(player, injured_names=None):
+    """Card de Titular estilo 'Ficha Técnica' (Correção de HTML e Argumentos)"""
+    injured_names = injured_names or []
+    p_name = player['PLAYER']
+    
+    # Lógica de Status
+    status_raw = player.get('STATUS', '').lower()
+    is_injured = any(inj in p_name for inj in injured_names)
+    
+    if is_injured or 'out' in status_raw or 'inj' in status_raw:
+        s_color = "#FF4F4F"; opacity = "0.6"
+    elif 'gtd' in status_raw or 'quest' in status_raw:
+        s_color = "#FFA500"; opacity = "1.0"
+    else:
+        s_color = "#00FF9C"; opacity = "1.0"
+
+    pos = player['POSITION']
+    min_avg = player.get('MIN_AVG', 0)
+    pra_avg = player.get('PRA_AVG', 0)
+    
+    # Archetype
+    archs = player.get('ARCHETYPES', [])
+    arch_html = ""
+    if archs:
+        # Pega até 2
+        safe_archs = archs[:2]
+        for a in safe_archs:
+            val = a.get('name', '') if isinstance(a, dict) else str(a)
+            if val:
+                arch_html += f'<span style="background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px; font-size:9px; margin-right:4px; color:#A3B3BC;">{val}</span>'
+
+    # HTML Linear (Seguro contra erros de renderização)
+    html = f'<div style="background: #0F172A; border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid {s_color}; border-radius: 6px; padding: 12px; margin-bottom: 10px; position: relative; overflow: hidden; opacity: {opacity};">'
+    html += f'<div style="position: absolute; right: -10px; top: -10px; font-size: 60px; font-weight: 900; color: rgba(255,255,255,0.03); font-family: \'Oswald\';">{pos}</div>'
+    html += f'<div style="display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1;">'
+    html += f'<div><div style="font-family: \'Oswald\', sans-serif; font-size: 16px; color: #F1F5F9; font-weight: 600; text-transform: uppercase;">{p_name}</div>'
+    html += f'<div style="margin-top: 4px;">{arch_html}</div></div>'
+    html += f'<div style="text-align: right;"><div style="font-family: \'Inter\'; font-size: 11px; color: #94A3B8;">MIN / PRA</div>'
+    html += f'<div style="font-family: \'Oswald\'; font-size: 18px; color: {s_color};">{min_avg:.0f}<span style="font-size:12px; color:#64748B;">m</span> <span style="color:#334155;">|</span> {pra_avg:.0f}</div>'
+    html += f'</div></div></div>'
+
+    st.markdown(html, unsafe_allow_html=True)
+
+def render_stat_leader_card(player, stat_name, stat_value, rank, color="#00E5FF"):
+    """Renderiza um mini-card para líderes de estatísticas"""
+    trophy = ["🥇", "🥈", "🥉"][rank] if rank < 3 else f"#{rank+1}"
+    
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, {color}15 0%, rgba(15, 23, 42, 0.8) 100%);
+        border: 1px solid {color}40;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    ">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 20px;">{trophy}</div>
+            <div>
+                <div style="font-family: 'Oswald'; font-size: 14px; color: #F8FAFC; line-height: 1.1;">
+                    {player['PLAYER']}
+                </div>
+                <div style="font-size: 10px; color: #94A3B8;">
+                    {player['TEAM']} • {player.get('POSITION', '')}
+                </div>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-family: 'Oswald'; font-size: 18px; color: {color}; font-weight: bold;">
+                {stat_value:.1f}
+            </div>
+            <div style="font-size: 8px; color: {color}; text-transform: uppercase;">
+                {stat_name}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_minute_bar(player_name, position, minutes, role):
+    """Renderiza uma barra visual de minutos (Estilo Stamina)"""
+    # Cores baseadas na role
+    if role == "starter":
+        color = "#00FF9C" # Verde Neon
+        label = "TITULAR"
+    elif role == "rotation":
+        color = "#00E5FF" # Azul Cyan
+        label = "ROTAÇÃO"
+    else:
+        color = "#FFA500" # Laranja
+        label = "BANCO"
+        
+    # Cálculo da largura (Base 48 min)
+    width_pct = min((minutes / 48) * 100, 100)
+    
+    st.markdown(f"""
+    <div style="margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #E2E8F0; margin-bottom: 2px;">
+            <div><span style="color:{color}; font-weight:bold;">{position}</span> {player_name}</div>
+            <div style="font-family: monospace;">{minutes:.1f} min</div>
+        </div>
+        <div style="
+            width: 100%; 
+            height: 6px; 
+            background: rgba(255,255,255,0.1); 
+            border-radius: 3px; 
+            overflow: hidden;
+        ">
+            <div style="
+                width: {width_pct}%; 
+                height: 100%; 
+                background: linear-gradient(90deg, {color} 0%, {color}80 100%);
+                box-shadow: 0 0 8px {color}40;
+            "></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_projection_card(player_name, team, opp, proj_val, ceiling_val, volatility):
+    """Renderiza card de projeção com HTML linear para evitar erros de renderização"""
+    # Definição de cores baseada na volatilidade
+    if volatility < 0.4:
+        vol_color = "#00FF9C" # Verde (Seguro)
+    elif volatility < 0.7:
+        vol_color = "#FFA500" # Laranja (Médio)
+    else:
+        vol_color = "#FF4F4F" # Vermelho (Volátil)
+
+    # Construção Linear do HTML (Sem indentação para não quebrar o Streamlit)
+    html = '<div style="background: #0F172A; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; margin-bottom: 10px;">'
+    
+    # Cabeçalho
+    html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">'
+    html += f'<div><div style="font-family: \'Oswald\'; font-size: 16px; color: #F8FAFC;">{player_name}</div>'
+    html += f'<div style="font-size: 10px; color: #94A3B8;">{team} vs {opp}</div></div>'
+    html += f'<div style="text-align: right;"><div style="font-family: \'Oswald\'; font-size: 20px; color: #00E5FF;">{proj_val:.1f} <span style="font-size:12px; color:#64748B;">PRA</span></div></div>'
+    html += '</div>'
+    
+    # Labels
+    html += '<div style="display: flex; justify-content: space-between; font-size: 9px; color: #64748B; margin-bottom: 2px;">'
+    html += f'<span>BASE</span><span>TETO ({ceiling_val:.1f})</span>'
+    html += '</div>'
+    
+    # Barra Visual
+    html += '<div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; display: flex;">'
+    html += '<div style="width: 70%; background: #00E5FF; opacity: 0.7;"></div>' # Base
+    html += f'<div style="width: 30%; background: {vol_color}; opacity: 0.5;"></div>' # Upside
+    html += '</div>'
+    
+    html += '</div>'
+
+    st.markdown(html, unsafe_allow_html=True)
+      
+def show_estatisticas_jogador():
+    st.header("📈 DATA COMMAND CENTER")
+    
+    # 1. Carregamento de Dados
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    
+    if df_l5 is None or df_l5.empty:
+        st.warning("⚠️ Cache L5 vazio.")
+        if st.button("🔄 Inicializar Base de Dados (L5)", type="primary"):
+            with st.spinner("Conectando aos servidores da NBA..."):
+                df_l5 = get_players_l5(progress_ui=True)
+                st.session_state.df_l5 = df_l5
+                st.rerun()
+        return
+
+    # 2. Hall of Fame (Top Performers L5)
+    st.markdown('<div style="font-family: Oswald; color: #94A3B8; margin-bottom: 10px; letter-spacing: 1px;">🔥 LÍDERES RECENTES (ÚLTIMOS 5 JOGOS)</div>', unsafe_allow_html=True)
+    
+    col_pts, col_reb, col_ast, col_pra = st.columns(4)
+    
+    with col_pts:
+        st.caption("PONTUAÇÃO (PTS)")
+        top_pts = df_l5.nlargest(3, 'PTS_AVG')
+        for i, (_, p) in enumerate(top_pts.iterrows()):
+            render_stat_leader_card(p, "PTS", p['PTS_AVG'], i, "#FF4F4F") # Vermelho
+            
+    with col_reb:
+        st.caption("REBOTES (REB)")
+        top_reb = df_l5.nlargest(3, 'REB_AVG')
+        for i, (_, p) in enumerate(top_reb.iterrows()):
+            render_stat_leader_card(p, "REB", p['REB_AVG'], i, "#00E5FF") # Azul Cyan
+            
+    with col_ast:
+        st.caption("ASSISTÊNCIAS (AST)")
+        top_ast = df_l5.nlargest(3, 'AST_AVG')
+        for i, (_, p) in enumerate(top_ast.iterrows()):
+            render_stat_leader_card(p, "AST", p['AST_AVG'], i, "#FFA500") # Laranja
+            
+    with col_pra:
+        st.caption("COMBO (PRA)")
+        top_pra = df_l5.nlargest(3, 'PRA_AVG')
+        for i, (_, p) in enumerate(top_pra.iterrows()):
+            render_stat_leader_card(p, "PRA", p['PRA_AVG'], i, "#00FF9C") # Verde
+
+    st.markdown("---")
+
+    # 3. Painel de Controle (Filtros)
+    with st.expander("🎛️ Painel de Filtros e Busca", expanded=True):
+        col_f1, col_f2 = st.columns([1, 3])
+        
+        with col_f1:
+            teams = sorted(df_l5["TEAM"].dropna().unique().tolist())
+            teams.insert(0, "Todos")
+            sel_team = st.selectbox("Filtrar por Time", teams)
+            
+            player_search = st.text_input("Buscar Jogador", placeholder="Ex: LeBron...")
+            
+        with col_f2:
+            st.caption("Definir Mínimos (Filtro Rápido)")
+            c1, c2, c3, c4 = st.columns(4)
+            min_min = c1.slider("Minutos", 0, 40, 15)
+            min_pts = c2.slider("Pontos", 0, 35, 0)
+            min_reb = c3.slider("Rebotes", 0, 15, 0)
+            min_ast = c4.slider("Assists", 0, 12, 0)
+
+    # 4. Processamento da Tabela
+    df_view = df_l5.copy()
+    
+    # Aplicar Filtros
+    if sel_team != "Todos":
+        df_view = df_view[df_view["TEAM"] == sel_team]
+    
+    if player_search:
+        df_view = df_view[df_view["PLAYER"].str.contains(player_search, case=False, na=False)]
+        
+    df_view = df_view[
+        (df_view["MIN_AVG"] >= min_min) &
+        (df_view["PTS_AVG"] >= min_pts) &
+        (df_view["REB_AVG"] >= min_reb) &
+        (df_view["AST_AVG"] >= min_ast)
+    ]
+    
+    # Seleção e Renomeação de Colunas
+    cols_to_show = ["PLAYER", "TEAM", "MIN_AVG", "PTS_AVG", "REB_AVG", "AST_AVG", "PRA_AVG", "STL_AVG", "BLK_AVG", "3PM_AVG"]
+    # Garantir que colunas existem
+    cols_final = [c for c in cols_to_show if c in df_view.columns]
+    
+    df_display = df_view[cols_final].sort_values("PRA_AVG", ascending=False).reset_index(drop=True)
+    
+    # Formatação Visual (Heatmap)
+    st.markdown(f"### 📋 Banco de Dados ({len(df_display)} Jogadores)")
+    
+    if not df_display.empty:
+        # Configurar estilos do Pandas
+        formatted_df = df_display.style\
+            .format("{:.1f}", subset=[c for c in cols_final if c not in ["PLAYER", "TEAM"]])\
+            .background_gradient(cmap="Blues", subset=["MIN_AVG"])\
+            .background_gradient(cmap="Reds", subset=["PTS_AVG"])\
+            .background_gradient(cmap="Greens", subset=["AST_AVG"])\
+            .background_gradient(cmap="Purples", subset=["REB_AVG"])\
+            .background_gradient(cmap="Oranges", subset=["PRA_AVG"])
+            
+        st.dataframe(
+            formatted_df,
+            use_container_width=True,
+            height=600,
+            column_config={
+                "PLAYER": "Jogador",
+                "TEAM": "Time",
+                "MIN_AVG": st.column_config.NumberColumn("Minutos", help="Média de minutos L5"),
+                "PTS_AVG": st.column_config.NumberColumn("PTS", help="Pontos L5"),
+                "REB_AVG": st.column_config.NumberColumn("REB", help="Rebotes L5"),
+                "AST_AVG": st.column_config.NumberColumn("AST", help="Assistências L5"),
+                "PRA_AVG": st.column_config.NumberColumn("PRA", help="PTS + REB + AST"),
+                "STL_AVG": st.column_config.NumberColumn("STL", help="Roubos L5"),
+                "BLK_AVG": st.column_config.NumberColumn("BLK", help="Tocos L5"),
+                "3PM_AVG": st.column_config.NumberColumn("3PM", help="3 Pontos L5"),
+            }
+        )
+    else:
+        st.info("Nenhum jogador encontrado com os filtros atuais.")
+
+# ============================================================================
+# PÁGINA: DESDOBRAMENTOS INTELIGENTES
+# ============================================================================
+def show_desdobramentos_inteligentes():
+    """
+    Página de Desdobramentos Inteligentes - OTIMIZADA PARA BACKEND v3.4
+    Fix 1: Captura game_id numérico para validação de boxscore.
+    Fix 2: Captura a 'thesis' (motivo) real gerada pelo motor.
+    Fix 3: Ajuste de filtros visuais para não esconder resultados válidos.
+    """
+    import streamlit as st
+    
+    st.header("🎯 Desdobramentos Estratégicos (v3.0)")
+    st.info("""
+    **Sistema de Roadmap Estratégico:**
+    Gera trixies focando em diversificação de confrontos e narrativas (Vacuum, Pace, Matchup).
+    - **PISO:** Linhas de segurança (~90% da média).
+    - **MÉDIO:** Linhas justas (~100% da média).
+    - **TETO:** Linhas de alavancagem (>110% da média).
+    *Nota: As teses agora são salvas na auditoria para análise de causa.*
+    """)
+    
+    # Verificar dados
+    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
+        st.error("Scoreboard vazio. Vá em 'Config' e clique em Atualizar Dados.")
+        return
+    
+    games = st.session_state.scoreboard
+    game_options = [f"{g.get('away')} @ {g.get('home')}" for g in games]
+    
+    if not game_options:
+        st.warning("Nenhum jogo disponível hoje.")
+        return
+    
+    # --- CONFIGURAÇÕES ---
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        perfil = st.selectbox(
+            "Perfil de Risco",
+            ["CONSERVADOR", "BALANCEADO", "AGRESSIVO"],
+            index=1,
+            help="Conservador: Prioriza Piso. Balanceado: Mix. Agressivo: Busca Teto."
+        )
+    
+    with col2:
+        max_combinacoes = st.slider("Qtd. Combinações", 5, 50, 20)
+    
+    with col3:
+        selected_games = st.multiselect(
+            "Jogos para Analisar",
+            game_options,
+            default=game_options
+        )
+    
+    # --- GERAR CHAVE DE CACHE ---
+    config_key = f"desdob_{perfil}_{max_combinacoes}_{'_'.join(sorted(selected_games))}"
+    
+    if 'desdob_cache' not in st.session_state:
+        st.session_state.desdob_cache = {}
+    
+    has_cached_results = config_key in st.session_state.desdob_cache
+    cache_info = ""
+    
+    if has_cached_results:
+        cache_info = f"📊 {len(st.session_state.desdob_cache[config_key]['desdobramentos'])} combinações cacheadas"
+    
+    # --- BOTÃO DE AÇÃO ---
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        generate_button = st.button(
+            "🎲 Gerar Estratégia" if not has_cached_results else "🔄 Regenerar Estratégia",
+            type="primary" if not has_cached_results else "secondary",
+            use_container_width=True
+        )
+    
+    with col2:
+        if has_cached_results:
+            st.info(cache_info)
+    
+    # --- LIMPAR CACHE ---
+    with st.expander("⚙️ Opções Avançadas"):
+        if st.button("🧹 Limpar Cache de Desdobramentos", type="secondary"):
+            st.session_state.desdob_cache = {}
+            if 'desdobramentos_gerados' in st.session_state:
+                del st.session_state.desdobramentos_gerados
+            st.success("Cache limpo!")
+            st.rerun()
+    
+    # --- LÓGICA DE GERAÇÃO/CACHE ---
+    desdobramentos = []
+    
+    if has_cached_results and not generate_button:
+        cached = st.session_state.desdob_cache[config_key]
+        desdobramentos = cached['desdobramentos']
+        st.session_state.desdobramentos_gerados = desdobramentos
+        st.success(f"✅ Usando combinações cacheadas ({len(desdobramentos)} encontradas)")
+    
+    elif generate_button or (not has_cached_results and not desdobramentos):
+        with st.spinner("Aplicando Roadmap Estratégico v3.0..."):
+            try:
+                # Imports Seguros
+                try:
+                    from modules.new_modules.desdobrador_inteligente import DesdobradorInteligente
+                    from modules.new_modules.strategy_engine import StrategyEngine
+                except ImportError:
+                    st.error("Módulos não encontrados. Verifique a instalação.")
+                    return
+
+                # Inicializa Engine
+                if 'strategy_engine' in st.session_state:
+                    strat_engine = st.session_state.strategy_engine
+                else:
+                    strat_engine = StrategyEngine()
+                    st.session_state.strategy_engine = strat_engine
+                
+                # --- PREPARAÇÃO DE DADOS (COM GAME ID) ---
+                all_players_ctx = {}
+                game_objects = []
+                
+                # 1. Cria Mapa de Game IDs (CRUCIAL PARA VALIDAÇÃO)
+                game_id_map = {}
+                if st.session_state.scoreboard:
+                    for g in st.session_state.scoreboard:
+                        k = f"{g.get('away')} @ {g.get('home')}"
+                        gid = g.get('gameId') or g.get('game_id')
+                        if gid:
+                            game_id_map[k] = gid
+
+                # Funções helpers locais
+                def fetch_team_roster_safe(team):
+                    if 'fetch_team_roster' in globals(): return fetch_team_roster(team, False)
+                    return [] 
+                
+                def process_roster_safe(roster, team, is_home):
+                    if 'process_roster' in globals() and 'extract_list' in globals():
+                        return process_roster(extract_list(roster), team, is_home)
+                    return [] 
+
+                for game_str in selected_games:
+                    away, home = game_str.split(" @ ")
+                    gid = game_id_map.get(game_str, "UNK")
+                    
+                    r_away = fetch_team_roster_safe(away)
+                    r_home = fetch_team_roster_safe(home)
+                    p_away = process_roster_safe(r_away, away, False)
+                    p_home = process_roster_safe(r_home, home, True)
+                    
+                    if not p_away or not p_home: continue
+                        
+                    def prepare_for_backend(p_list, team_name):
+                        clean = []
+                        for p in p_list:
+                            name = p.get('PLAYER') or p.get('name') or p.get('player_name')
+                            if not name: continue
+                            p_obj = p.copy()
+                            p_obj['name'] = name
+                            p_obj['team'] = team_name
+                            clean.append(p_obj)
+                        return clean
+
+                    all_players_ctx[away] = prepare_for_backend(p_away, away)
+                    all_players_ctx[home] = prepare_for_backend(p_home, home)
+                    
+                    # Passa o game_id para o motor
+                    game_objects.append({"away": away, "home": home, "game_id": gid})
+                
+                # --- EXECUÇÃO ---
+                desdobrador = DesdobradorInteligente(strat_engine)
+                
+                desdobramentos = desdobrador.gerar_desdobramentos(
+                    players_ctx=all_players_ctx,
+                    games_ctx=game_objects,
+                    perfil=perfil,
+                    max_combinacoes=max_combinacoes
+                )
+                
+                # Compatibilidade de Score
+                for d in desdobramentos:
+                    d['score_qualidade'] = d.get('score_final', d.get('score_ajustado', 0))
+                
+                # Salvar no Cache
+                import time
+                st.session_state.desdob_cache[config_key] = {
+                    'desdobramentos': desdobramentos,
+                    'timestamp': time.time(),
+                    'config': {'perfil': perfil, 'max_combinacoes': max_combinacoes, 'num_games': len(selected_games)}
+                }
+                
+                st.session_state.desdobramentos_gerados = desdobramentos
+                
+                if desdobramentos:
+                    st.success(f"✅ Sucesso! {len(desdobramentos)} combinações geradas.")
+                else:
+                    st.warning("O algoritmo não encontrou combinações válidas.")
+
+            except Exception as e:
+                st.error(f"Erro Crítico no Motor: {str(e)}")
+    
+    # --- EXIBIÇÃO DOS RESULTADOS ---
+    if 'desdobramentos_gerados' in st.session_state and st.session_state.desdobramentos_gerados:
+        st.markdown("---")
+        desds = st.session_state.desdobramentos_gerados
+        
+        c1, c2 = st.columns(2)
+        # --- CORREÇÃO AQUI: Baixei o padrão de 3.0 para 1.5 e 5.0 para 4.0 ---
+        min_odd = c1.slider("Odd Mínima", 1.0, 10.0, 1.5) 
+        min_qualidade = c2.slider("Qualidade Mínima (Score)", 4.0, 10.0, 4.0)
+        
+        filtered = [
+            d for d in desds 
+            if d['total_odd'] >= min_odd 
+            and d.get('score_qualidade', 0) >= min_qualidade
+        ]
+        
+        if filtered:
+            st.caption(f"📈 Mostrando {len(filtered)} de {len(desds)} combinações.")
+        else:
+            st.info(f"Nenhuma combinação atende aos filtros visuais (Odd > {min_odd} e Score > {min_qualidade}). Tente diminuir os filtros.")
+            return
+
+        filtered.sort(key=lambda x: (-x.get('score_qualidade', 0), x['total_odd']))
+        
+        for i, d in enumerate(filtered):
+            color_map = {"CONSERVADOR": "#00C853", "BALANCEADO": "#FFD600", "AGRESSIVO": "#FF1744"}
+            b_color = color_map.get(d['perfil'], "#FFF")
+            score_valor = d.get('score_qualidade', 0)
+            
+            composicao = d.get('composicao', {})
+            mix_riscos = composicao.get('mix_riscos', {})
+            
+            with st.container():
+                st.markdown(f"""
+                <div style="border-left: 5px solid {b_color}; background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.1em; font-weight: bold;">Combinação #{i+1}</span>
+                            <span style="background: {b_color}33; color: {b_color}; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-left: 10px;">{d['perfil']}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.2em; font-weight: bold; color: #4FC3F7;">@{d['total_odd']:.2f}</div>
+                            <div style="font-size: 0.8em; color: #AAA;">Score: {score_valor:.2f}</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.8em; color: #888; margin-top: 5px;">
+                        🎲 {composicao.get('jogos_distintos', 0)} Jogos | 👥 {composicao.get('unique_players', 0)} Players
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                cols = st.columns(len(d['legs']))
+                for idx, leg in enumerate(d['legs']):
+                    risco = leg.get('risco', 'MEDIO')
+                    icon = "🟢" if risco == 'PISO' else "🟡" if risco == 'MEDIO' else "🔴"
+                    ratio_pct = int((leg['line'] / leg['avg']) * 100) if leg.get('avg') else 0
+                    
+                    with cols[idx]:
+                        st.markdown(f"""
+                        <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; text-align: center; height: 100%;">
+                            <div style="font-size: 0.8em; color: #CCC;">{leg['team']}</div>
+                            <div style="font-weight: bold; color: #FFF;">{leg['player_name'].split(' ')[0]}</div>
+                            <div style="font-size: 1.1em; color: #4FC3F7; font-weight: bold;">{leg['market_display']}</div>
+                            <div style="font-size: 0.75em; color: #AAA; border-top: 1px solid #444; margin-top: 5px;">
+                                {icon} {risco} ({ratio_pct}%)
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # --- BOTÃO SALVAR (AGORA CAPTURA A TESE REAL) ---
+                col_save, col_info = st.columns([1, 3])
+                with col_save:
+                    if st.button(f"💾 Salvar #{i+1}", key=f"save_desd_{i}"):
+                        if "audit_system" in st.session_state:
+                            audit_legs = []
+                            for l in d['legs']:
+                                # Game ID da perna (CRUCIAL)
+                                lid = l.get('game_id') or l.get('game_info', {}).get('game_id', 'UNK')
+                                
+                                # Market Type
+                                m_type = l.get('market_type')
+                                if not m_type and 'market_display' in l:
+                                    try: m_type = l['market_display'].split(' ')[-1]
+                                    except: m_type = "UNK"
+                                
+                                # Tese (AQUI ESTÁ A CORREÇÃO PRINCIPAL)
+                                # Tenta pegar a tese rica gerada pelo motor. Se não tiver, usa fallback.
+                                final_thesis = l.get('thesis')
+                                if not final_thesis:
+                                    final_thesis = f"{l.get('risco','')} | Avg:{l.get('avg',0)}"
+
+                                audit_legs.append({
+                                    "player_name": l['player_name'],
+                                    "team": l['team'],
+                                    "market_type": m_type,
+                                    "market_display": l['market_display'],
+                                    "line": float(l.get('line', 0)),
+                                    "odds": float(l.get('odds', 1.0)),
+                                    "game_id": lid,
+                                    "thesis": final_thesis # <--- AGORA SALVA CORRETAMENTE
+                                })
+                            
+                            game_info_mix = {"home": "MIX", "away": "MIX", "game_id": "MULTI"}
+                            
+                            st.session_state.audit_system.log_trixie(
+                                trixie_data={
+                                    "players": audit_legs,
+                                    "total_odd": d['total_odd'],
+                                    "category": "DESDOBRADOR",
+                                    "sub_category": d['perfil'],
+                                    "score": score_valor
+                                },
+                                game_info=game_info_mix,
+                                category="DESDOBRADOR",
+                                source="DesdobradorInteligente"
+                            )
+                            st.toast(f"Combinação #{i+1} salva na auditoria!", icon="✅")
+                        else:
+                            st.toast("Sistema de auditoria não carregado.", icon="⚠️")
+                
+                with col_info:
+                    if mix_riscos:
+                        risk_str = " | ".join([f"{k}:{v}" for k, v in mix_riscos.items()])
+                        st.caption(f"📊 Mix: {risk_str}")
+                
+                st.markdown("---")
+# ============================================================================
+# FUNÇÃO AUXILIAR: RENDERIZAÇÃO DO BANCO (ESCALAÇÕES)
+# ============================================================================
+def render_player_list_bench(players, injured_names):
+    """
+    Renderiza a lista visual de jogadores do banco de reservas.
+    Usa um design compacto para não poluir a tela.
+    """
+    if not players:
+        st.caption("🔍 Dados de banco indisponíveis.")
+        return
+
+    # Container scrollável para o banco (opcional, mas fica bonito)
+    with st.container():
+        for p in players:
+            # Normalização de nomes de chaves (Blinda contra variações da API)
+            name = p.get('PLAYER', p.get('name', 'Unknown'))
+            pos = p.get('POSITION', p.get('position', '-'))
+            
+            # Tenta pegar média de pontos para dar contexto
+            try:
+                pts = float(p.get('PTS_AVG', p.get('pts_L5', 0)))
+            except:
+                pts = 0.0
+
+            # Verifica se está machucado
+            is_injured = False
+            if injured_names and name in injured_names:
+                is_injured = True
+
+            # Definição de Estilo (Visual Dark/Neon)
+            bg_color = "rgba(255, 79, 79, 0.15)" if is_injured else "rgba(255, 255, 255, 0.03)"
+            border_color = "#FF4F4F" if is_injured else "#475569"
+            text_color = "#E2E8F0"
+            status_icon = "🚑" if is_injured else "⚡"
+            
+            # HTML do Card Compacto
+            st.markdown(f"""
+            <div style="
+                display: flex; 
+                align-items: center; 
+                justify-content: space-between;
+                background-color: {bg_color}; 
+                border-left: 3px solid {border_color}; 
+                padding: 6px 10px; 
+                margin-bottom: 4px; 
+                border-radius: 4px;">
+                
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 12px;">{status_icon}</span>
+                    <div style="line-height: 1.2;">
+                        <div style="font-size: 13px; font-weight: 500; color: {text_color};">{name}</div>
+                        <div style="font-size: 10px; color: #94A3B8;">{pos}</div>
+                    </div>
+                </div>
+                
+                <div style="text-align: right;">
+                    <span style="font-size: 11px; font-weight: bold; color: #64748B;">{pts:.1f} <span style="font-size: 9px;">PPG</span></span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# ============================================================================
+# MATCHUP CENTER 
+# ============================================================================
+def show_escalacoes():
+    import streamlit as st
+    import html
+    import textwrap
+
+    # --- 1. CSS ---
+    st.markdown(textwrap.dedent("""
+    <style>
+        .match-card { background: rgba(30, 41, 59, 0.5); border-radius: 8px; padding: 10px; margin-bottom: 8px; border-left: 4px solid #64748B; transition: transform 0.2s; }
+        .match-card:hover { transform: translateX(3px); background: rgba(255,255,255,0.05); }
+        .border-home { border-left-color: #00E5FF; }
+        .border-away { border-left-color: #FF4F4F; }
+        .match-header { display: flex; justify-content: space-between; align-items: center; }
+        .match-name { font-weight: bold; color: #F8FAFC; font-size: 14px; font-family: sans-serif; }
+        .match-pos { font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 3px; margin-left: 5px; }
+        .match-stats { font-family: 'Courier New', monospace; font-weight: bold; font-size: 13px; color: #CBD5E1; }
+        .match-sub { font-size: 10px; color: #64748B; margin-top: 4px; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px; }
+        .status-badge { font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 2px; }
+        .bg-official { background: #10B981; color: #fff; }
+        .bg-proj { background: #F59E0B; color: #000; }
+    </style>
+    """), unsafe_allow_html=True)
+
+    st.header("👥 MATCHUP CENTER")
+
+    # --- 2. SELEÇÃO ---
+    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
+        st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
+        return
+
+    games = st.session_state.scoreboard
+    opts = [f"{g.get('away')} @ {g.get('home')}" for g in games]
+    
+    idx = 0
+    if 'last_match_sel' in st.session_state and st.session_state.last_match_sel in opts:
+        idx = opts.index(st.session_state.last_match_sel)
+        
+    sel_game = st.selectbox("Confronto:", opts, index=idx)
+    st.session_state.last_match_sel = sel_game
+    if not sel_game: return
+    away_abbr, home_abbr = sel_game.split(" @ ")
+
+    # --- 3. CARREGAMENTO ---
+    with st.spinner(f"Analisando {away_abbr} vs {home_abbr}..."):
+        try:
+            if 'fetch_team_roster' not in globals():
+                st.error("Erro: fetch_team_roster não encontrada.")
+                return
+
+            roster_away = fetch_team_roster(away_abbr, progress_ui=False)
+            roster_home = fetch_team_roster(home_abbr, progress_ui=False)
+            
+            # Garante lista
+            def ensure_list(r): return r if isinstance(r, list) else (extract_list(r) if 'extract_list' in globals() else [])
+            l_away = ensure_list(roster_away)
+            l_home = ensure_list(roster_home)
+            
+            if 'process_roster' in globals():
+                p_home = process_roster(l_home, home_abbr, True)
+                p_away = process_roster(l_away, away_abbr, False)
+            else:
+                p_home, p_away = l_home, l_away
+            
+        except Exception as e:
+            st.error(f"Erro ao carregar elencos: {e}")
+            return
+
+    # --- 4. SEPARAÇÃO ---
+    def split_roster(players):
+        # Detecta titulares
+        starters = [p for p in players if str(p.get("ROLE",'')).lower() == 'starter' or p.get('STARTER') is True]
+        is_projected = False
+        
+        # Helper de minutos
+        def get_mins(p):
+            for k in ["MIN_AVG", "min_L5", "MIN", "mpg"]:
+                if p.get(k): return float(p[k])
+            return 0.0
+
+        # Se não tem oficial, projeta (excluindo os OUT)
+        if len(starters) < 5:
+            is_projected = True
+            valid = []
+            for p in players:
+                # Checagem simples de status para não projetar lesionado
+                stat = str(p.get("STATUS",'') or '').lower()
+                if "out" not in stat and "inj" not in stat:
+                    valid.append(p)
+            starters = sorted(valid, key=get_mins, reverse=True)[:5]
+            
+        s_names = [p.get("PLAYER") or p.get("name") for p in starters]
+        bench = [p for p in players if (p.get("PLAYER") or p.get("name")) not in s_names]
+        bench = sorted(bench, key=get_mins, reverse=True)
+        return starters, bench, is_projected
+
+    h_starters, h_bench, h_proj = split_roster(p_home)
+    a_starters, a_bench, a_proj = split_roster(p_away)
+
+    # --- 5. RENDERIZADOR ---
+    def render_player_card(player, team_type):
+        raw_name = str(player.get("PLAYER") or player.get("name") or "Unknown")
+        safe_name = html.escape(raw_name)
+        pos = html.escape(str(player.get("POSITION") or player.get("pos") or "-"))
+        
+        def get_stat(p, keys):
+            for k in keys:
+                if p.get(k) is not None: return float(p[k])
+            return 0.0
+
+        ppg = get_stat(player, ["PTS_AVG", "pts_L5", "PTS", "ppg"])
+        rpg = get_stat(player, ["REB_AVG", "reb_L5", "REB", "rpg"])
+        apg = get_stat(player, ["AST_AVG", "ast_L5", "AST", "apg"])
+        mins = get_stat(player, ["MIN_AVG", "min_L5", "MIN", "mpg"])
+        
+        css = "border-home" if team_type == "home" else "border-away"
+        col = "#00E5FF" if team_type == "home" else "#FF4F4F"
+        
+        st.markdown(f"""
+        <div class="match-card {css}">
+            <div class="match-header">
+                <div><span class="match-name">{safe_name}</span><span class="match-pos">{pos}</span></div>
+                <div class="match-stats" style="color:{col}">{ppg:.1f} <span style="font-size:10px; color:#64748B">PTS</span></div>
+            </div>
+            <div class="match-sub">
+                <span>Minutos: <b>{mins:.1f}</b></span>
+                <span>REB: {rpg:.1f} • AST: {apg:.1f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- 6. LAYOUT ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"<div style='font-family:Oswald; font-size:20px; color:#00E5FF; border-bottom:2px solid #00E5FF; margin-bottom:10px;'>🏠 {home_abbr}</div>", unsafe_allow_html=True)
+        lbl, bg = ("OFICIAL", "bg-official") if not h_proj else ("PROJETADO", "bg-proj")
+        st.markdown(f"<div style='margin-bottom:8px;'><span class='status-badge {bg}'>{lbl}</span> <span style='font-size:12px; font-weight:bold; color:#E2E8F0;'>TITULARES</span></div>", unsafe_allow_html=True)
+        for p in h_starters: render_player_card(p, "home")
+        with st.expander(f"🔄 Banco ({len(h_bench)})"):
+            for p in h_bench[:8]: render_player_card(p, "home")
+
+    with col2:
+        st.markdown(f"<div style='font-family:Oswald; font-size:20px; color:#FF4F4F; border-bottom:2px solid #FF4F4F; margin-bottom:10px;'>✈️ {away_abbr}</div>", unsafe_allow_html=True)
+        lbl, bg = ("OFICIAL", "bg-official") if not a_proj else ("PROJETADO", "bg-proj")
+        st.markdown(f"<div style='margin-bottom:8px;'><span class='status-badge {bg}'>{lbl}</span> <span style='font-size:12px; font-weight:bold; color:#E2E8F0;'>TITULARES</span></div>", unsafe_allow_html=True)
+        for p in a_starters: render_player_card(p, "away")
+        with st.expander(f"🔄 Banco ({len(a_bench)})"):
+            for p in a_bench[:8]: render_player_card(p, "away")
+
+    # --- 7. NOTAS TÁTICAS (INTEGRADA COM DEPT MÉDICO) ---
+    st.markdown("---")
+    if "rotation_analyzer" in st.session_state:
+        ra = st.session_state.rotation_analyzer
+        if ra:
+            # Prepara dados para análise em tempo real
+            def prep_data(roster):
+                mins, inj = {}, []
+                for p in roster:
+                    name = p.get("PLAYER") or p.get("name")
+                    if not name: continue
+                    # Minutos
+                    m = 0.0
+                    for k in ["MIN_AVG", "min_L5", "MIN"]:
+                        if p.get(k): m = float(p[k]); break
+                    mins[name] = m
+                    # Lesões (Roster Scan)
+                    stat = str(p.get("STATUS") or "").lower()
+                    if "out" in stat or "inj" in stat or "gtd" in stat: 
+                        inj.append(name)
+                return mins, inj
+
+            # 1. Analisa Home
+            hm, hi = prep_data(p_home)
+            ra.analyze_team_rotation(home_abbr, p_home, hi, hm)
+            
+            # 2. Analisa Away
+            am, ai = prep_data(p_away)
+            ra.analyze_team_rotation(away_abbr, p_away, ai, am)
+
+            # 3. Exibe
+            ctx = {"away_team": away_abbr, "home_team": home_abbr}
+            try:
+                info_h = str(ra.get_lineup_insights(home_abbr, ctx)).replace(home_abbr, "").strip()
+                info_a = str(ra.get_lineup_insights(away_abbr, ctx)).replace(away_abbr, "").strip()
+                
+                c1, c2 = st.columns(2)
+                with c1: 
+                    st.info(f"**Coach {home_abbr}:**\n\n{info_h}")
+                with c2: 
+                    st.warning(f"**Coach {away_abbr}:**\n\n{info_a}")
+            except Exception as e: 
+                st.error(f"Erro ao gerar insights: {e}")
+
+# ============================================================================
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V23.2 - FILE VERSION FIX)
+# ============================================================================
+def show_depto_medico():
+    import streamlit as st
+    import pandas as pd
+    import os
+    import json
+    from datetime import datetime
+
+    # --- 1. IMPORTAÇÕES E CAMINHOS ---
+    BASE_DIR = os.path.dirname(__file__) if '__file__' in globals() else os.getcwd()
+    
+    # CORREÇÃO CRÍTICA: Apontar para o mesmo arquivo que o injuries.py v45 gera
+    INJURIES_CACHE_FILE = os.path.join(BASE_DIR, "cache", "injuries_cache_v44.json")
+
+    # --- 2. CSS PREMIUM ---
+    st.markdown("""
+    <style>
+        .team-header {
+            font-size: 22px; font-weight: bold; color: #F8FAFC;
+            margin: 32px 0 16px 0; padding-bottom: 8px;
+            border-bottom: 3px solid rgba(255,255,255,0.2);
+            font-family: 'Orbitron', sans-serif;
+        }
+        .injury-card {
+            background: rgba(15, 23, 42, 0.95); border-radius: 16px;
+            padding: 18px; margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease; border: 1px solid #334155;
+        }
+        .injury-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6); border-color: #64748b; }
+        .injury-out { border-left: 6px solid #FF4F4F; }
+        .injury-quest { border-left: 6px solid #F59E0B; }
+        .injury-prob { border-left: 6px solid #10B981; }
+        .injury-name { font-size: 18px; font-weight: bold; color: #F8FAFC; margin-bottom: 8px; }
+        .injury-team { font-size: 14px; color: #94A3B8; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 8px; display: inline-block; margin-left: 10px; }
+        .injury-desc { font-size: 14px; color: #CBD5E1; margin: 10px 0; line-height: 1.5; }
+        .injury-meta { font-size: 13px; color: #94A3B8; display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1); }
+        .star-badge { background: #F59E0B; color: #000; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-left: 10px; }
+        .rot-badge { background: #3B82F6; color: #fff; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-left: 10px; }
+        .stButton button { width: 100%; border-radius: 8px; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    c_head, c_btn = st.columns([3, 1])
+    with c_head:
+        st.header("🚑 BIO-MONITOR (INJURY REPORT)")
+    with c_btn:
+        # Botão de Reload Limpa a Sessão para forçar leitura do arquivo novo
+        if st.button("🔄 Recarregar Dados"):
+            if "injuries" in st.session_state:
+                del st.session_state["injuries"]
+            st.rerun()
+
+    # --- 3. CARREGAMENTO E PARSING ---
+    if "injuries" not in st.session_state or not st.session_state["injuries"]:
+        if os.path.exists(INJURIES_CACHE_FILE):
+            try:
+                with open(INJURIES_CACHE_FILE, 'r', encoding='utf-8') as f:
+                    raw_data = json.load(f)
+                
+                final_list = []
+                teams_data = raw_data.get('teams', raw_data)
+                
+                if isinstance(teams_data, dict):
+                    for team_abbr, players in teams_data.items():
+                        if not isinstance(players, list): continue
+                        for p in players:
+                            status_lower = str(p.get('status','')).lower()
+                            if 'active' in status_lower and 'day' not in status_lower: continue
+                            p['team'] = team_abbr
+                            final_list.append(p)
+                elif isinstance(teams_data, list):
+                    final_list = [p for p in teams_data if 'active' not in str(p.get('status','')).lower()]
+
+                st.session_state["injuries"] = final_list
+            except Exception as e:
+                st.error(f"Erro ao ler cache v44: {e}")
+                return
+        else:
+            # Se o arquivo v45 não existe, avisa para rodar o update
+            st.warning(f"⚠️ Cache v44 não encontrado. Vá em CONFIG e clique em 'ATUALIZAR TUDO'.")
+            return
+    
+    injuries_list = st.session_state.get("injuries", [])
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+
+    # --- 4. PROCESSAMENTO ---
+    teams_injured = {}
+    critical_losses = []
+
+    for p in injuries_list:
+        name = str(p.get('player') or p.get('name') or 'Unknown')
+        team = str(p.get('team') or 'NB')
+        
+        p['impact'] = 0
+        try:
+            if not df_l5.empty:
+                match = df_l5[df_l5['PLAYER'].str.contains(name, case=False, na=False)]
+                if not match.empty:
+                    min_avg = match['MIN_AVG'].mean()
+                    if min_avg >= 28: p['impact'] = 2
+                    elif min_avg >= 18: p['impact'] = 1
+        except: pass
+
+        if team not in teams_injured: teams_injured[team] = []
+        teams_injured[team].append(p)
+
+        if p['impact'] == 2:
+            critical_losses.append(f"{name} ({team})")
+
+    # --- 5. DASHBOARD METRICS ---
+    st.markdown("""
+    <style>
+        .audit-card {
+            background: linear-gradient(145deg, #1e1e24, #2d2d35);
+            border: 1px solid #444; border-radius: 8px; padding: 10px;
+            text-align: center; height: 100%;
+        }
+        .audit-val { font-size: 20px; font-weight: 800; color: #f8fafc; }
+        .audit-lbl { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 600; }
+        .bd-blue { border-top: 3px solid #3b82f6; }
+        .bd-cyan { border-top: 3px solid #06b6d4; }
+        .bd-red { border-top: 3px solid #ef4444; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    ac1, ac2, ac3 = st.columns(3)
+    ac1.markdown(f'<div class="audit-card bd-blue"><div style="font-size:16px;">🏥</div><div class="audit-val">{len(injuries_list)}</div><div class="audit-lbl">Reportes</div></div>', unsafe_allow_html=True)
+    ac2.markdown(f'<div class="audit-card bd-cyan"><div style="font-size:16px;">👥</div><div class="audit-val">{len(teams_injured)}</div><div class="audit-lbl">Times</div></div>', unsafe_allow_html=True)
+    ac3.markdown(f'<div class="audit-card bd-red"><div style="font-size:16px;">⭐</div><div class="audit-val">{len(critical_losses)}</div><div class="audit-lbl">Estrelas Off</div></div>', unsafe_allow_html=True)
+
+    if critical_losses:
+        with st.expander(f"🚨 {len(critical_losses)} Jogadores de Impacto Fora/Dúvida", expanded=False):
+            st.write(", ".join(critical_losses))
+
+    # --- 6. FILTROS E EXIBIÇÃO ---
+    st.markdown("---")
+    c_filter, c_search = st.columns([1, 2])
+    
+    team_options = sorted(list(teams_injured.keys()))
+    sel_team = c_filter.selectbox("Filtrar Time:", ["TODOS"] + team_options)
+    sel_player = c_search.text_input("Buscar Jogador:", placeholder="Ex: LeBron...")
+
+    st.markdown("### 📋 Lista de Lesões")
+    
+    sorted_teams = sorted(teams_injured.items(), key=lambda x: len(x[1]), reverse=True)
+    found_any = False
+    
+    for team, players in sorted_teams:
+        if sel_team != "TODOS" and team != sel_team: continue
+        
+        filtered_players = players
+        if sel_player:
+            filtered_players = [p for p in players if sel_player.lower() in str(p.get('name','')).lower()]
+        
+        if not filtered_players: continue
+        found_any = True
+        
+        st.markdown(f'<div class="team-header">🏀 {team} <span style="font-size:14px; color:#94a3b8; font-weight:normal">({len(filtered_players)})</span></div>', unsafe_allow_html=True)
+        
+        filtered_players.sort(key=lambda x: (x.get('impact',0), 1 if 'out' in str(x.get('status','')).lower() else 0), reverse=True)
+        
+        for p in filtered_players:
+            name = p.get('name', 'Unknown')
+            status = str(p.get('status', '')).upper()
+            desc = p.get('details', '')
+            date = str(p.get('date', ''))[:10]
+            
+            card_class = ""
+            icon = "ℹ️"
+            if 'OUT' in status: 
+                card_class = "injury-out"; icon = "❌"
+            elif any(x in status for x in ['QUEST', 'DOUBT', 'DAY']): 
+                card_class = "injury-quest"; icon = "⚠️"
+            elif 'PROB' in status:
+                card_class = "injury-prob"; icon = "✅"
+            
+            badge = ""
+            if p.get('impact') == 2: badge = '<span class="star-badge">⭐ STAR</span>'
+            elif p.get('impact') == 1: badge = '<span class="rot-badge">🔄 ROTATION</span>'
+            
+            st.markdown(f"""
+            <div class="injury-card {card_class}">
+                <div class="injury-name">{icon} {name} {badge}</div>
+                <div style="color: #facc15; font-size: 13px; font-weight:bold; margin-bottom:4px;">{status}</div>
+                <div class="injury-desc">{desc}</div>
+                <div class="injury-meta">
+                    <span>📅 {date}</span>
+                    <span>{team}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if not found_any:
+        st.info("Nenhum jogador encontrado com os filtros atuais.")
+
+# ============================================================================
+# FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
 def process_espn_json_to_games(json_data):
-    """Converte o JSON bruto da ESPN na lista limpa de jogos."""
-    if not json_data: return []
+    """
+    Converte o JSON bruto da ESPN na lista limpa de jogos que o sistema espera.
+    """
+    if not json_data:
+        return []
+        
     events = json_data.get("events", []) if isinstance(json_data, dict) else json_data
-    if not isinstance(events, list): return []
+    if not isinstance(events, list):
+        return []
 
     processed_games = []
+    
     for ev in events:
         try:
+            # Pula se não for um dicionário válido
             if not isinstance(ev, dict): continue
+
             comp_list = ev.get("competitions", [])
             if not comp_list: continue
+            
             comp = comp_list[0]
             teams_comp = comp.get("competitors", [])
             if len(teams_comp) < 2: continue
             
+            # Extração segura dos times
             home_team = next((t for t in teams_comp if t.get("homeAway") == "home"), teams_comp[0])
             away_team = next((t for t in teams_comp if t.get("homeAway") == "away"), teams_comp[-1])
             
             home_abbr = home_team.get("team", {}).get("abbreviation")
             away_abbr = away_team.get("team", {}).get("abbreviation")
             
+            # Extração de Odds (Gratuito)
             odds_data = comp.get("odds", [])
             espn_spread_detail = "N/A"
             espn_total = None
+            
             if odds_data and isinstance(odds_data, list):
                 primary_odd = odds_data[0]
                 espn_spread_detail = primary_odd.get("details", "N/A")
                 espn_total = primary_odd.get("overUnder")
 
+            # Cria o objeto limpo que o DeepDeep espera
             game_obj = {
                 "gameId": ev.get("id"),
                 "away": away_abbr,
@@ -4619,33 +7009,61 @@ def process_espn_json_to_games(json_data):
                 "odds_total": espn_total,
                 "odds_source": "ESPN"
             }
+            
             processed_games.append(game_obj)
-        except Exception: continue
+            
+        except Exception:
+            continue
+            
     return processed_games
 
+# ============================================================================
+# FUNÇÃO DE CARREGAMENTO SEGURO (VERSÃO FINAL BLINDADA)
+# ============================================================================
 def safe_load_initial_data():
-    """Carrega dados e inicializa variaveis de sessao."""
+    """
+    Carrega dados e inicializa variáveis de sessão com prioridade na Nuvem (Supabase).
+    Evita AttributeErrors inicializando chaves vazias antes do uso.
+    """
     
-    # 1. INICIALIZACAO DE VARIAVEIS (Evita AttributeError)
+    # ------------------------------------------------------------------------
+    # 1. INICIALIZAÇÃO DE VARIÁVEIS (PREVINE ATTRIBUTE ERRORS)
+    # ------------------------------------------------------------------------
+    # Lista de chaves que PRECISAM existir no st.session_state
     keys_defaults = {
-        'scoreboard': [], 'df_l5': pd.DataFrame(), 'team_advanced': {}, 'odds': {}, 
-        'name_overrides': {}, 'player_ids': {},
-        'injuries_manager': None, 'pace_adjuster': None, 'vacuum_analyzer': None, 
-        'dvp_analyzer': None, 'feature_store': None, 'audit_system': None, 
-        'archetype_engine': None, 'rotation_analyzer': None, 'thesis_engine': None
+        'scoreboard': [], 
+        'df_l5': pd.DataFrame(), 
+        'team_advanced': {}, 
+        'odds': {}, 
+        'name_overrides': {}, 
+        'player_ids': {},
+        # Módulos (Iniciam como None)
+        'injuries_manager': None,
+        'pace_adjuster': None,
+        'vacuum_analyzer': None,
+        'dvp_analyzer': None,
+        'feature_store': None,
+        'audit_system': None,
+        'archetype_engine': None,
+        'rotation_analyzer': None,
+        'thesis_engine': None
     }
 
     for key, default_val in keys_defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_val
 
-    # 2. DADOS DINAMICOS (Auto-Healing)
-    # A. Scoreboard
+    # ------------------------------------------------------------------------
+    # 2. DADOS DINÂMICOS (AUTO-HEALING: NUVEM -> API -> SAVE)
+    # ------------------------------------------------------------------------
+
+    # A. Scoreboard (Jogos de Hoje)
     if not st.session_state.scoreboard:
         data = get_data_universal(KEY_SCOREBOARD)
         if data:
             st.session_state.scoreboard = data
         else:
+            # Falhou nuvem? Busca API e salva na nuvem
             try:
                 live_data = fetch_espn_scoreboard(progress_ui=False)
                 if live_data:
@@ -4653,7 +7071,7 @@ def safe_load_initial_data():
                     save_data_universal(KEY_SCOREBOARD, live_data)
             except: pass
 
-    # B. Stats Avancados
+    # B. Stats Avançados de Times
     if not st.session_state.team_advanced:
         data = get_data_universal(KEY_TEAM_ADV)
         if data:
@@ -4680,15 +7098,17 @@ def safe_load_initial_data():
                         save_data_universal(KEY_ODDS, live_data)
             except: pass
 
-    # D. Dados L5
+    # D. Dados L5 (Estatísticas de Jogadores) - CORREÇÃO DE LEITURA JSON
     if st.session_state.df_l5.empty:
+        # 1. Tenta Nuvem (Formato JSON Records)
         cloud_l5 = get_data_universal(KEY_L5)
         if cloud_l5 and "records" in cloud_l5:
             try:
                 st.session_state.df_l5 = pd.DataFrame.from_records(cloud_l5["records"])
-            except Exception: pass
+            except Exception as e:
+                print(f"⚠️ Erro convertendo L5 da nuvem: {e}")
         
-        # Fallback Local
+        # 2. Fallback: Tenta Pickle Local (Se nuvem falhar)
         if st.session_state.df_l5.empty and os.path.exists(L5_CACHE_FILE):
             try:
                 saved = load_pickle(L5_CACHE_FILE)
@@ -4696,7 +7116,10 @@ def safe_load_initial_data():
                     st.session_state.df_l5 = saved["df"]
             except: pass
 
-    # 3. DADOS ESTATICOS
+    # ------------------------------------------------------------------------
+    # 3. DADOS ESTÁTICOS (MIGRAÇÃO AUTOMÁTICA LOCAL -> NUVEM)
+    # ------------------------------------------------------------------------
+    # Se não existe na nuvem mas existe local, sobe automaticamente.
     static_files_map = {
         KEY_PLAYERS_MAP: "cache/nba_players_map.json",
         KEY_NAME_OVERRIDES: "cache/name_overrides.json",
@@ -4710,49 +7133,83 @@ def safe_load_initial_data():
                     with open(local_path, "r", encoding="utf-8") as f:
                         local_data = json.load(f)
                     if local_data:
+                        print(f"🚀 Migrando '{key_db}' do Local para Supabase...")
                         save_data_universal(key_db, local_data)
                 except: pass
 
-    # 4. MODULOS
+    # ------------------------------------------------------------------------
+    # 4. INICIALIZAÇÃO DE MÓDULOS (INSTANCIAÇÃO SEGURA)
+    # ------------------------------------------------------------------------
+    
+    # Pace Adjuster
     if st.session_state.pace_adjuster is None and PACE_ADJUSTER_AVAILABLE:
         st.session_state.pace_adjuster = PaceAdjuster()
+    
+    # Vacuum Matrix
     if st.session_state.vacuum_analyzer is None and VACUUM_MATRIX_AVAILABLE:
         st.session_state.vacuum_analyzer = VacuumMatrixAnalyzer()
+
+    # Injury Monitor
     if st.session_state.injuries_manager is None and INJURY_MONITOR_AVAILABLE:
         try:
+            # Instancia a classe InjuryMonitor e guarda na variável injuries_manager
             st.session_state.injuries_manager = InjuryMonitor()
-        except: pass
+        except Exception as e:
+            print(f"Erro ao iniciar InjuryMonitor: {e}")
+
+    # Dvp Analyzer
     if st.session_state.dvp_analyzer is None and DVP_ANALYZER_AVAILABLE:
         st.session_state.dvp_analyzer = DvpAnalyzer()
+
+    # Audit System
     if st.session_state.audit_system is None:
         try:
             if AuditSystem: st.session_state.audit_system = AuditSystem()
         except: pass
+
+    # Feature Store
     if st.session_state.feature_store is None:
         try: 
-            if 'FeatureStore' in globals(): st.session_state.feature_store = FeatureStore()
+            if 'FeatureStore' in globals():
+                st.session_state.feature_store = FeatureStore()
         except: pass
 
+
 def load_all_data():
+    """
+    Função chamada pelo botão de 'Update' manual.
+    Busca dados novos e SINCRONIZA COM O SUPABASE IMEDIATAMENTE.
+    """
     try:
-        with st.spinner("Buscando scoreboard..."):
+        # 1. Scoreboard
+        with st.spinner("📥 Buscando scoreboard..."):
             new_scoreboard = fetch_espn_scoreboard(progress_ui=True) or []
             st.session_state.scoreboard = new_scoreboard
+            # FORÇA O SALVAMENTO NA NUVEM
             save_data_universal("scoreboard", new_scoreboard, SCOREBOARD_JSON_FILE)
 
-        with st.spinner("Buscando dados L5..."):
+        # 2. Dados L5
+        with st.spinner("📊 Buscando dados L5..."):
             new_l5 = get_players_l5(progress_ui=True)
             if new_l5 is not None and not new_l5.empty:
                 st.session_state.df_l5 = new_l5
+                # O L5 geralmente é Pickle, mas vamos salvar o JSON dos logs brutos se possível
+                # Se get_players_l5 retornar o DF, assumimos que o 'real_game_logs.json' foi atualizado internamente.
+                # Para garantir, precisaríamos acessar o dict de logs brutos, mas vamos focar no que temos acesso.
+                
+                # Se você tiver a variável com o dict de logs brutos aqui, salve-a:
+                # save_data_universal("real_game_logs", logs_dict, LOGS_CACHE_FILE) 
             else:
                 st.session_state.df_l5 = pd.DataFrame()
 
-        with st.spinner("Buscando odds..."):
+        # 3. Odds
+        with st.spinner("🎰 Buscando odds..."):
             new_odds = fetch_odds_for_today() or {}
             st.session_state.odds = new_odds
             save_data_universal("pinnacle_odds", new_odds, ODDS_CACHE_FILE)
 
-        with st.spinner("Buscando estatisticas avancadas..."):
+        # 4. Dados de Time
+        with st.spinner("🏀 Buscando estatísticas avançadas..."):
             adv = fetch_team_advanced_stats() or {}
             opp = fetch_team_opponent_stats() or {}
             st.session_state.team_advanced = adv
@@ -4761,756 +7218,562 @@ def load_all_data():
             save_data_universal("team_advanced", adv, TEAM_ADVANCED_FILE)
             save_data_universal("team_opponent", opp, TEAM_OPPONENT_FILE)
 
+        # 5. Re-Inicializar Sistemas com os novos dados
         if "dvp_analyzer" not in st.session_state and DVP_ANALYZER_AVAILABLE:
             st.session_state.dvp_analyzer = DvpAnalyzer()
             
-        st.success("Dados atualizados e SINCRONIZADOS!")
+        st.success("✅ Dados atualizados e SINCRONIZADOS NA NUVEM!")
         return True
+
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"❌ Erro ao carregar dados: {e}")
+        print(f"Erro detalhado: {e}")
         return False
 
-# ============================================================================
-# PAGINA: DATA COMMAND CENTER (ESTATISTICAS JOGADOR)
-# ============================================================================
-def show_estatisticas_jogador():
-    st.header("DATA COMMAND CENTER")
+# --- FONTS & CSS GLOBAL (ATUALIZADO v5.0) ---
+FONT_LINKS = """
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+"""
+
+CUSTOM_CSS = """
+<style>
+    /* 1. FORÇAR FUNDO PRETO GLOBAL (FIM DO FUNDO BRANCO) */
+    .stApp {
+        background-color: #000000 !important;
+    }
     
-    # 1. Carregamento
+    /* 2. REMOVER PADDING DO TOPO (PRINCIPAL E SIDEBAR) */
+    header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
+    
+    .block-container {
+        padding-top: 0rem !important;
+        padding-bottom: 2rem !important;
+        margin-top: -60px !important;
+    }
+    
+    /* Padding da Sidebar - Ataque direto */
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 0rem !important;
+        margin-top: -40px !important;
+    }
+
+    /* 3. MENU LATERAL - FONTE ARREDONDADA (NUNITO) & BOOST VISUAL */
+    div[role="radiogroup"] label {
+        font-family: 'Nunito', sans-serif !important; /* Fonte Arredondada */
+        font-size: 1rem !important; /* Maior (Boost) */
+        font-weight: 600 !important;
+        padding: 8px 12px !important;
+        color: #94a3b8 !important;
+        border-radius: 8px !important;
+        transition: all 0.3s ease;
+    }
+    
+    /* Hover no Menu */
+    div[role="radiogroup"] label:hover {
+        background: rgba(34, 211, 238, 0.1) !important;
+        color: #ffffff !important;
+        padding-left: 18px !important;
+    }
+
+    /* Item Selecionado no Menu */
+    div[role="radiogroup"] label[data-checked="true"] {
+        background: linear-gradient(90deg, rgba(34, 211, 238, 0.2) 0%, transparent 100%) !important;
+        border-left: 4px solid #22d3ee !important;
+        color: #22d3ee !important;
+        font-weight: 800 !important; /* Extra Bold */
+        text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+    }
+
+    /* 4. DASHBOARD - PADRONIZAÇÃO OSWALD */
+    /* Força Oswald em headers e textos chave */
+    h1, h2, h3, .stMarkdown div, .stMarkdown p {
+        font-family: 'Oswald', sans-serif !important;
+    }
+    
+    /* Exceção: Textos muito pequenos podem usar Inter para leitura */
+    .small-text { font-family: 'Inter', sans-serif !important; }
+</style>
+"""
+# ============================================================================
+# PÁGINA: LAB DE NARRATIVAS (SCANNER GLOBAL AUTOMÁTICO)
+# ============================================================================
+def show_narrative_lab():
+    st.header("⚔️ NARRATIVE SCANNER (GLOBAL)")
+    st.markdown("Identificação automática de tendências H2H (Histórico de Confronto) para **TODOS** os jogos de hoje.")
+    
+    # 1. Carregar Engine
+    try:
+        from modules.new_modules.narrative_intelligence import NarrativeIntelligence
+        if "narrative_engine" not in st.session_state:
+            st.session_state.narrative_engine = NarrativeIntelligence()
+    except ImportError:
+        st.error("Módulo NarrativeIntelligence não encontrado.")
+        return
+
+    engine = st.session_state.narrative_engine
+
+    # 2. Verifica Jogos
+    games = st.session_state.get("scoreboard", [])
+    if not games:
+        st.warning("📭 Scoreboard vazio. Atualize dados na aba Config.")
+        return
+        
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    
-    if df_l5 is None or df_l5.empty:
-        st.warning("Cache L5 vazio.")
-        if st.button("Inicializar Base de Dados (L5)", type="primary"):
-            with st.spinner("Conectando..."):
-                df_l5 = get_players_l5(progress_ui=True)
-                st.session_state.df_l5 = df_l5
-                st.rerun()
+    if df_l5.empty:
+        st.error("❌ L5 Database vazio. Atualize na aba Config.")
         return
 
-    # 2. Top Performers
-    st.markdown("### LIDERES RECENTES (ULTIMOS 5 JOGOS)")
-    
-    col_pts, col_reb, col_ast, col_pra = st.columns(4)
-    
-    with col_pts:
-        st.caption("PONTUACAO (PTS)")
-        top_pts = df_l5.nlargest(3, 'PTS_AVG')
-        for i, (_, p) in enumerate(top_pts.iterrows()):
-            render_stat_leader_card(p, "PTS", p['PTS_AVG'], i, "#FF4F4F")
-            
-    with col_reb:
-        st.caption("REBOTES (REB)")
-        top_reb = df_l5.nlargest(3, 'REB_AVG')
-        for i, (_, p) in enumerate(top_reb.iterrows()):
-            render_stat_leader_card(p, "REB", p['REB_AVG'], i, "#00E5FF")
-            
-    with col_ast:
-        st.caption("ASSISTENCIAS (AST)")
-        top_ast = df_l5.nlargest(3, 'AST_AVG')
-        for i, (_, p) in enumerate(top_ast.iterrows()):
-            render_stat_leader_card(p, "AST", p['AST_AVG'], i, "#FFA500")
-            
-    with col_pra:
-        st.caption("COMBO (PRA)")
-        top_pra = df_l5.nlargest(3, 'PRA_AVG')
-        for i, (_, p) in enumerate(top_pra.iterrows()):
-            render_stat_leader_card(p, "PRA", p['PRA_AVG'], i, "#00FF9C")
+    # --- FUNÇÕES AUXILIARES (DEFINIDAS UMA VEZ PARA USO NO LOOP) ---
+    def get_top_players(team_abbr):
+        """Pega os Top 5 jogadores por média de pontos (Titulares)"""
+        roster = df_l5[df_l5['TEAM'] == team_abbr]
+        if roster.empty: return []
+        return roster.sort_values('PTS_AVG', ascending=False).head(5)
 
-    st.markdown("---")
-
-    # 3. Painel de Controle
-    with st.expander("Painel de Filtros e Busca", expanded=True):
-        col_f1, col_f2 = st.columns([1, 3])
+    def render_narrative_card(container, player_row, opponent_abbr):
+        """Renderiza o card estilizado"""
+        p_name = player_row['PLAYER']
+        p_id = player_row['PLAYER_ID']
         
-        with col_f1:
-            teams = sorted(df_l5["TEAM"].dropna().unique().tolist())
-            teams.insert(0, "Todos")
-            sel_team = st.selectbox("Filtrar por Time", teams)
-            player_search = st.text_input("Buscar Jogador", placeholder="Ex: LeBron...")
-            
-        with col_f2:
-            st.caption("Definir Minimos")
-            c1, c2, c3, c4 = st.columns(4)
-            min_min = c1.slider("Minutos", 0, 40, 15)
-            min_pts = c2.slider("Pontos", 0, 35, 0)
-            min_reb = c3.slider("Rebotes", 0, 15, 0)
-            min_ast = c4.slider("Assists", 0, 12, 0)
-
-    # 4. Tabela
-    df_view = df_l5.copy()
-    if sel_team != "Todos":
-        df_view = df_view[df_view["TEAM"] == sel_team]
-    if player_search:
-        df_view = df_view[df_view["PLAYER"].str.contains(player_search, case=False, na=False)]
+        # Chama a Engine
+        data = engine.get_player_matchup_history(p_id, p_name, opponent_abbr)
         
-    df_view = df_view[
-        (df_view["MIN_AVG"] >= min_min) &
-        (df_view["PTS_AVG"] >= min_pts) &
-        (df_view["REB_AVG"] >= min_reb) &
-        (df_view["AST_AVG"] >= min_ast)
-    ]
-    
-    cols_to_show = ["PLAYER", "TEAM", "MIN_AVG", "PTS_AVG", "REB_AVG", "AST_AVG", "PRA_AVG", "STL_AVG", "BLK_AVG", "3PM_AVG"]
-    cols_final = [c for c in cols_to_show if c in df_view.columns]
-    
-    df_display = df_view[cols_final].sort_values("PRA_AVG", ascending=False).reset_index(drop=True)
-    
-    st.markdown(f"### Banco de Dados ({len(df_display)} Jogadores)")
-    
-    if not df_display.empty:
-        st.dataframe(
-            df_display, use_container_width=True, height=600,
-            column_config={
-                "PLAYER": "Jogador", "TEAM": "Time",
-                "MIN_AVG": st.column_config.NumberColumn("Minutos"),
-                "PTS_AVG": st.column_config.NumberColumn("PTS"),
-                "REB_AVG": st.column_config.NumberColumn("REB"),
-                "AST_AVG": st.column_config.NumberColumn("AST"),
-                "PRA_AVG": st.column_config.NumberColumn("PRA"),
-            }
-        )
+        if not data or data.get('games_played', 0) == 0:
+            return 
+
+        badge = data.get('badge', '')
+        avg = data.get('avg_stats', {})
+        comp = data.get('comparison', {})
+        diff = comp.get('diff_pct', 0)
+
+        # Estilização
+        if "KILLER" in badge:
+            bg = "linear-gradient(90deg, rgba(255, 79, 79, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%)"
+            border = "#FF4F4F"
+            icon = "🔥"
+            text_color = "#FF4F4F"
+        elif "FRIA" in badge:
+            bg = "linear-gradient(90deg, rgba(0, 229, 255, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%)"
+            border = "#00E5FF"
+            icon = "❄️"
+            text_color = "#00E5FF"
+        else:
+            bg = "rgba(15, 23, 42, 0.4)"
+            border = "#475569"
+            icon = "😐"
+            text_color = "#94A3B8"
+
+        # HTML
+        html = f"""
+        <div style="background: {bg}; border-left: 4px solid {border}; border-radius: 6px; padding: 10px; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-family:'Oswald'; font-size:15px; color:#F1F5F9;">{p_name}</div>
+                    <div style="font-size:11px; color:{text_color}; font-weight:bold;">{icon} {badge if badge else "NEUTRO"}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-family:'Oswald'; font-size:16px; color:#F1F5F9;">{avg.get('PTS', 0)} <span style="font-size:10px; color:#64748B;">PTS</span></div>
+                    <div style="font-size:10px; color: {'#00FF9C' if diff > 0 else '#FF4F4F'};">
+                        {'+' if diff > 0 else ''}{diff}% vs Sea
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:5px; display:flex; gap:8px; font-size:9px; color:#94A3B8; border-top:1px solid rgba(255,255,255,0.05); padding-top:4px;">
+                <span>REB: {avg.get('REB')}</span>
+                <span>AST: {avg.get('AST')}</span>
+                <span>JOGOS: {data.get('games_played')}</span>
+            </div>
+        </div>
+        """
+        container.markdown(html, unsafe_allow_html=True)
+
+    # 3. INTERFACE DE CONTROLE
+    with st.container():
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        c_info, c_btn = st.columns([3, 1])
+        with c_info:
+            st.info(f"📅 Detectados **{len(games)} jogos** na rodada de hoje.")
+        with c_btn:
+            scan_all_btn = st.button("🚀 ESCANEAR TUDO", type="primary", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 4. LÓGICA DE SCAN GLOBAL (LOOP)
+    if scan_all_btn:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Mapeamento de Siglas
+        ESPN_TO_NBA_MAP = {
+            "SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA",
+            "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"
+        }
+
+        for i, game in enumerate(games):
+            # Atualiza progresso
+            pct = (i + 1) / len(games)
+            progress_bar.progress(pct)
+            
+            away_raw = game['away']
+            home_raw = game['home']
+            
+            status_text.text(f"Analisando: {away_raw} @ {home_raw}...")
+            
+            # Normalização
+            away_norm = ESPN_TO_NBA_MAP.get(away_raw, away_raw)
+            home_norm = ESPN_TO_NBA_MAP.get(home_raw, home_raw)
+
+            # Busca Elencos
+            away_stars = get_top_players(away_norm)
+            home_stars = get_top_players(home_norm)
+
+            # Cria o Expander do Jogo
+            with st.expander(f"🏀 {away_raw} @ {home_raw}", expanded=(i==0)): # Abre só o primeiro
+                
+                if len(away_stars) == 0 or len(home_stars) == 0:
+                    st.warning("Dados insuficientes para este confronto.")
+                    continue
+
+                # Layout de Batalha
+                h1, h2 = st.columns(2)
+                h1.markdown(f"<div style='border-bottom: 2px solid #FF4F4F; color:#E2E8F0; text-align:center;'>✈️ {away_raw}</div>", unsafe_allow_html=True)
+                h2.markdown(f"<div style='border-bottom: 2px solid #00E5FF; color:#E2E8F0; text-align:center;'>🏠 {home_raw}</div>", unsafe_allow_html=True)
+                
+                col_away, col_home = st.columns(2)
+                
+                # Renderiza Away
+                with col_away:
+                    for _, row in away_stars.iterrows():
+                        render_narrative_card(col_away, row, home_norm)
+                
+                # Renderiza Home
+                with col_home:
+                    for _, row in home_stars.iterrows():
+                        render_narrative_card(col_home, row, away_norm)
+
+        status_text.text("✅ Varredura Global Concluída!")
+        time.sleep(1.5)
+        status_text.empty()
+        
     else:
-        st.info("Nenhum jogador encontrado.")
-
-# ============================================================================
-# PAGINA: DESDOBRAMENTOS INTELIGENTES
-# ============================================================================
-def show_desdobramentos_inteligentes():
-    import streamlit as st
-    
-    # Icone Alvo: &#127919;
-    st.header("&#127919; Desdobramentos Estrategicos (v3.0)")
-    st.info("Sistema de Roadmap: Gera trixies focando em diversificacao (Vacuum, Pace, Matchup).")
-    
-    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.error("Scoreboard vazio. Va em 'Config' e Atualize.")
-        return
-    
-    games = st.session_state.scoreboard
-    game_options = [f"{g.get('away')} @ {g.get('home')}" for g in games]
-    
-    if not game_options:
-        st.warning("Nenhum jogo disponivel.")
-        return
-    
-    # Config
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        perfil = st.selectbox("Perfil de Risco", ["CONSERVADOR", "BALANCEADO", "AGRESSIVO"], index=1)
-    with col2:
-        max_combinacoes = st.slider("Qtd. Combinacoes", 5, 50, 20)
-    with col3:
-        selected_games = st.multiselect("Jogos para Analisar", game_options, default=game_options)
-    
-    config_key = f"desdob_{perfil}_{max_combinacoes}_{'_'.join(sorted(selected_games))}"
-    
-    if 'desdob_cache' not in st.session_state: st.session_state.desdob_cache = {}
-    has_cached = config_key in st.session_state.desdob_cache
-    
-    # Acao
-    col_btn, col_info = st.columns([3, 1])
-    with col_btn:
-        generate = st.button("Gerar Estrategia" if not has_cached else "Regenerar", type="primary" if not has_cached else "secondary", use_container_width=True)
-    with col_info:
-        if has_cached: st.info(f"{len(st.session_state.desdob_cache[config_key]['desdobramentos'])} cacheadas")
-
-    with st.expander("Opcoes Avancadas"):
-        if st.button("Limpar Cache Desdobramentos"):
-            st.session_state.desdob_cache = {}
-            if 'desdobramentos_gerados' in st.session_state: del st.session_state.desdobramentos_gerados
-            st.success("Limpo!"); st.rerun()
-
-    desdobramentos = []
-    if has_cached and not generate:
-        cached = st.session_state.desdob_cache[config_key]
-        desdobramentos = cached['desdobramentos']
-        st.session_state.desdobramentos_gerados = desdobramentos
-        st.success(f"Cache carregado: {len(desdobramentos)} combinacoes.")
-    elif generate or (not has_cached and not desdobramentos):
-        with st.spinner("Aplicando Roadmap v3.0..."):
-            try:
-                try:
-                    from modules.new_modules.desdobrador_inteligente import DesdobradorInteligente
-                    from modules.new_modules.strategy_engine import StrategyEngine
-                except ImportError:
-                    st.error("Modulos nao encontrados."); return
-
-                if 'strategy_engine' not in st.session_state:
-                    st.session_state.strategy_engine = StrategyEngine()
-                strat_engine = st.session_state.strategy_engine
-                
-                # Preparacao de Dados (Com ID)
-                all_players_ctx = {}
-                game_objects = []
-                game_id_map = {}
-                
-                if st.session_state.scoreboard:
-                    for g in st.session_state.scoreboard:
-                        k = f"{g.get('away')} @ {g.get('home')}"
-                        gid = g.get('gameId') or g.get('game_id')
-                        if gid: game_id_map[k] = gid
-
-                def fetch_safe(t): return fetch_team_roster(t, False) if 'fetch_team_roster' in globals() else []
-                def process_safe(r, t, h): return process_roster(extract_list(r), t, h) if 'process_roster' in globals() else []
-
-                for game_str in selected_games:
-                    away, home = game_str.split(" @ ")
-                    gid = game_id_map.get(game_str, "UNK")
-                    
-                    p_away = process_safe(fetch_safe(away), away, False)
-                    p_home = process_safe(fetch_safe(home), home, True)
-                    
-                    if not p_away or not p_home: continue
-                    
-                    def prep(lst, tm):
-                        cln = []
-                        for p in lst:
-                            nm = p.get('PLAYER') or p.get('name')
-                            if not nm: continue
-                            o = p.copy(); o['name'] = nm; o['team'] = tm
-                            cln.append(o)
-                        return cln
-                    
-                    all_players_ctx[away] = prep(p_away, away)
-                    all_players_ctx[home] = prep(p_home, home)
-                    game_objects.append({"away": away, "home": home, "game_id": gid})
-
-                # Execucao
-                desdobrador = DesdobradorInteligente(strat_engine)
-                desdobramentos = desdobrador.gerar_desdobramentos(all_players_ctx, game_objects, perfil, max_combinacoes)
-                
-                for d in desdobramentos:
-                    d['score_qualidade'] = d.get('score_final', d.get('score_ajustado', 0))
-                
-                import time
-                st.session_state.desdob_cache[config_key] = {
-                    'desdobramentos': desdobramentos,
-                    'timestamp': time.time(),
-                    'config': {'perfil': perfil, 'max': max_combinacoes}
-                }
-                st.session_state.desdobramentos_gerados = desdobramentos
-                
-                if desdobramentos: st.success(f"Geradas {len(desdobramentos)} combinacoes.")
-                else: st.warning("Sem combinacoes validas.")
-            
-            except Exception as e: st.error(f"Erro Motor: {e}")
-
-    # Exibicao
-    if 'desdobramentos_gerados' in st.session_state and st.session_state.desdobramentos_gerados:
+        # Tela de espera
         st.markdown("---")
-        desds = st.session_state.desdobramentos_gerados
-        
+        st.markdown("### 💡 Legenda do Scanner")
         c1, c2 = st.columns(2)
-        min_odd = c1.slider("Odd Minima", 1.0, 10.0, 1.5)
-        min_qual = c2.slider("Qualidade Minima", 4.0, 10.0, 4.0)
-        
-        filtered = [d for d in desds if d['total_odd'] >= min_odd and d.get('score_qualidade', 0) >= min_qual]
-        
-        if not filtered:
-            st.info("Nenhuma combinacao com os filtros atuais.")
-            return
+        with c1:
+            st.markdown("""
+            <div style="background: rgba(255, 79, 79, 0.1); border-left: 4px solid #FF4F4F; padding: 10px; border-radius: 4px;">
+                <strong>🔥 KILLER:</strong> Jogador com média +20% superior contra este oponente.
+            </div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.markdown("""
+            <div style="background: rgba(0, 229, 255, 0.1); border-left: 4px solid #00E5FF; padding: 10px; border-radius: 4px;">
+                <strong>❄️ FRIA:</strong> Jogador com média -20% inferior contra este oponente.
+            </div>
+            """, unsafe_allow_html=True)
 
-        filtered.sort(key=lambda x: (-x.get('score_qualidade', 0), x['total_odd']))
+# ============================================================================
+# FUNÇÃO PARA RENDERIZAR CARD DE JOGO (ATUALIZADA)
+# ============================================================================
+import streamlit as st
+import streamlit.components.v1 as components
+def calculate_blowout_risk(spread_val, total_val=None):
+    """Calcula o risco de blowout baseado no spread e total"""
+    if spread_val is None:
+        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread não disponível", "color": "#9CA3AF"}
+    
+    try:
+        spread = float(spread_val)
+        abs_spread = abs(spread)
         
-        for i, d in enumerate(filtered):
-            b_color = {"CONSERVADOR": "#00C853", "BALANCEADO": "#FFD600", "AGRESSIVO": "#FF1744"}.get(d['perfil'], "#FFF")
-            score = d.get('score_qualidade', 0)
+        if abs_spread >= 12:
+            return {
+                "nivel": "ALTO",
+                "icon": "🔴", 
+                "desc": "Alto risco de blowout (≥12 pts)",
+                "color": "#FF4F4F"
+            }
+        elif abs_spread >= 8:
+            return {
+                "nivel": "MÉDIO",
+                "icon": "🟡",
+                "desc": "Risco moderado de blowout (8-11 pts)",
+                "color": "#FFA500"
+            }
+        elif abs_spread >= 5:
+            return {
+                "nivel": "BAIXO",
+                "icon": "🟢",
+                "desc": "Baixo risco de blowout (5-7 pts)",
+                "color": "#00FF9C"
+            }
+        else:
+            return {
+                "nivel": "MÍNIMO",
+                "icon": "🔵",
+                "desc": "Jogo equilibrado (<5 pts)",
+                "color": "#1E90FF"
+            }
+    except:
+        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
+
+# ============================================================================
+# DASHBOARD (VISUAL ARENA V7.0 - STABLE & CLEAN)
+# ============================================================================
+def show_dashboard_page():
+    # Helper de Fontes e Cores
+    st.markdown("""
+    <style>
+        .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .gold-text { color: #D4AF37; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 1. Carrega Dados
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    games = get_scoreboard_data()
+    
+    if df_l5.empty:
+        st.warning("⚠️ Base de dados L5 vazia.")
+        return
+
+    # --- FILTRO: APENAS QUEM JOGA HOJE ---
+    teams_playing_today = []
+    if not games.empty:
+        teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
+    
+    if not teams_playing_today:
+        st.info("Nenhum jogo identificado para hoje.")
+        df_today = pd.DataFrame()
+    else:
+        df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
+
+    # ========================================================================
+    # 2. DESTAQUES DO DIA
+    # ========================================================================
+    st.markdown('<div class="dash-title gold-text">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
+    
+    def truncate_name(name, limit=16):
+        if not name: return ""
+        if len(name) <= limit: return name
+        parts = name.split()
+        if len(parts) > 1: return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
+        return name[:limit]
+
+    if df_today.empty:
+        st.warning("Nenhum jogador da base L5 joga hoje.")
+    else:
+        def get_top_n(df, col, n=3):
+            return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
+
+        top_pts = get_top_n(df_today, 'PTS_AVG')
+        top_ast = get_top_n(df_today, 'AST_AVG')
+        top_reb = get_top_n(df_today, 'REB_AVG')
+
+        def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
+            if df_top.empty: return
+            king = df_top.iloc[0]
+            p_id = king['PLAYER_ID']
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
+            val = king[df_top.columns[2]] 
             
-            # HTML Card Seguro (Sem f-strings complexas com CSS)
+            row2_html = ""
+            if len(df_top) > 1:
+                p2 = df_top.iloc[1]
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2['PLAYER'])}</span><span style="color:{color}">{p2[df_top.columns[2]]:.1f}</span></div>"""
+            
+            row3_html = ""
+            if len(df_top) > 2:
+                p3 = df_top.iloc[2]
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3['PLAYER'])}</span><span style="color:{color}">{p3[df_top.columns[2]]:.1f}</span></div>"""
+
             st.markdown(f"""
-            <div style="border-left: 5px solid {b_color}; background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-                <div style="display: flex; justify-content: space-between;">
-                    <div><b>Combinacao #{i+1}</b> <span style="color:{b_color}; font-size:0.8em;">{d['perfil']}</span></div>
-                    <div style="text-align: right; color: #4FC3F7; font-weight: bold;">@{d['total_odd']:.2f} (Score: {score:.2f})</div>
+            <div style="background: #0f172a; border: 1px solid {color}; border-radius: 12px; overflow: hidden; height: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                <div style="background: {color}20; padding: 6px; text-align: center; font-family: 'Oswald'; color: {color}; font-size: 13px; letter-spacing: 1px; border-bottom: 1px solid {color}40;">
+                    {icon} {title}
+                </div>
+                <div style="padding: 12px; display: flex; align-items: center;">
+                    <img src="{photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 12px;">
+                    <div style="overflow: hidden;">
+                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king['PLAYER'])}</div>
+                        <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald' !important;">{king['TEAM']}</div>
+                        <div style="color: {color}; font-size: 20px; font-family: 'Oswald' !important; font-weight: bold;">{val:.1f}</div>
+                    </div>
+                </div>
+                <div style="background: rgba(0,0,0,0.4); padding: 8px 12px;">
+                    {row2_html}
+                    {row3_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            cols = st.columns(len(d['legs']))
-            for idx, leg in enumerate(d['legs']):
-                icon = "OK" # Simplificado
-                with cols[idx]:
-                    st.info(f"{leg['player_name']}\n\n{leg['market_display']}\n\n{leg.get('risco','MEDIO')}")
 
-            # Botao Salvar
-            if st.button(f"Salvar #{i+1}", key=f"save_desd_{i}"):
-                if "audit_system" in st.session_state:
-                    audit_legs = []
-                    for l in d['legs']:
-                        lid = l.get('game_id') or "UNK"
-                        m_type = l.get('market_type') or "UNK"
-                        # Tese sanitizada
-                        ft = l.get('thesis') or f"{l.get('risco','')} | Avg:{l.get('avg',0)}"
-                        
-                        audit_legs.append({
-                            "player_name": l['player_name'], "team": l['team'],
-                            "market_type": m_type, "market_display": l['market_display'],
-                            "line": float(l.get('line', 0)), "odds": float(l.get('odds', 1.0)),
-                            "game_id": lid, "thesis": ft
-                        })
-                    
-                    st.session_state.audit_system.log_trixie(
-                        trixie_data={"players": audit_legs, "total_odd": d['total_odd'], "category": "DESDOBRADOR", "sub_category": d['perfil'], "score": score},
-                        game_info={"home": "MIX", "away": "MIX", "game_id": "MULTI"},
-                        category="DESDOBRADOR", source="Desdobrador"
-                    )
-                    st.toast("Salvo!", icon="✅")
+        c1, c2, c3 = st.columns(3)
+        with c1: render_golden_card("CESTINHAS", top_pts, "#FFD700", "🔥")
+        with c2: render_golden_card("GARÇONS", top_ast, "#00E5FF", "🧠")
+        with c3: render_golden_card("REBOTEIROS", top_reb, "#FF4F4F", "💪")
 
-# ============================================================================
-# PAGINA: DEPTO MEDICO (SANITIZADA)
-# ============================================================================
-def show_depto_medico():
-    import streamlit as st
-    import os
-    import json
-    
-    BASE_DIR = os.path.dirname(__file__) if '__file__' in globals() else os.getcwd()
-    INJURIES_CACHE_FILE = os.path.join(BASE_DIR, "cache", "injuries_cache_v44.json")
-    
-    st.header("BIO-MONITOR (INJURY REPORT)")
-    
-    if st.button("Recarregar Dados"):
-        if "injuries" in st.session_state: del st.session_state["injuries"]
-        st.rerun()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # Carga
-    if "injuries" not in st.session_state or not st.session_state["injuries"]:
-        if os.path.exists(INJURIES_CACHE_FILE):
-            try:
-                with open(INJURIES_CACHE_FILE, 'r') as f: raw = json.load(f)
-                final = []
-                # Suporte a formatos dict/list
-                t_data = raw.get('teams', raw)
-                if isinstance(t_data, dict):
-                    for tm, pl in t_data.items():
-                        if isinstance(pl, list):
-                            for p in pl:
-                                if 'active' not in str(p.get('status','')).lower():
-                                    p['team'] = tm; final.append(p)
-                st.session_state["injuries"] = final
-            except: pass
-        else:
-            st.warning("Cache nao encontrado. Atualize em Config.")
-            return
+    # ========================================================================
+    # 3. GAME GRID (MANTIDO)
+    # ========================================================================
+    st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
-    inj_list = st.session_state.get("injuries", [])
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    
-    # Processamento
-    teams_inj = {}
-    crit_losses = []
-    
-    for p in inj_list:
-        nm = str(p.get('player') or p.get('name') or 'Unknown')
-        tm = str(p.get('team') or 'NB')
-        p['impact'] = 0
-        try:
-            if not df_l5.empty:
-                m = df_l5[df_l5['PLAYER'].str.contains(nm, case=False, na=False)]
-                if not m.empty:
-                    ma = m['MIN_AVG'].mean()
-                    if ma >= 28: p['impact'] = 2
-                    elif ma >= 18: p['impact'] = 1
-        except: pass
-        
-        if tm not in teams_inj: teams_inj[tm] = []
-        teams_inj[tm].append(p)
-        if p['impact'] == 2: crit_losses.append(f"{nm} ({tm})")
-
-    # Metrics
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Reportes", len(inj_list))
-    c2.metric("Times Afetados", len(teams_inj))
-    c3.metric("Estrelas Fora", len(crit_losses))
-    
-    if crit_losses:
-        with st.expander("Estrelas Fora/Duvida"): st.write(", ".join(crit_losses))
-
-    # Lista
-    st.markdown("---")
-    tm_opts = sorted(list(teams_inj.keys()))
-    sel_tm = st.selectbox("Filtrar Time", ["TODOS"] + tm_opts)
-    
-    sorted_teams = sorted(teams_inj.items(), key=lambda x: len(x[1]), reverse=True)
-    
-    for team, players in sorted_teams:
-        if sel_tm != "TODOS" and team != sel_tm: continue
-        
-        st.subheader(f"{team} ({len(players)})")
-        players.sort(key=lambda x: (x.get('impact',0), 1 if 'out' in str(x.get('status','')).lower() else 0), reverse=True)
-        
-        for p in players:
-            name = p.get('name', 'Unknown')
-            status = str(p.get('status', '')).upper()
-            desc = p.get('details', '')
-            
-            icon = "ℹ️"
-            color = "#888"
-            if 'OUT' in status: icon = "❌"; color="#FF4F4F"
-            elif any(x in status for x in ['QUEST', 'DOUBT']): icon = "⚠️"; color="#F59E0B"
-            elif 'PROB' in status: icon = "✅"; color="#10B981"
-            
-            badge = ""
-            if p.get('impact') == 2: badge = "**[STAR]**"
-            elif p.get('impact') == 1: badge = "[ROTATION]"
-            
-            st.markdown(f"""
-            <div style="border-left: 4px solid {color}; background: #1e293b; padding: 10px; margin-bottom: 5px; border-radius: 5px;">
-                <div style="color: #fff; font-weight: bold;">{icon} {name} {badge}</div>
-                <div style="color: {color}; font-size: 12px; font-weight: bold;">{status}</div>
-                <div style="color: #ccc; font-size: 12px;">{desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-# ============================================================================
-# PAGINA: ESCALACOES / MATCHUP CENTER (SANITIZADA)
-# ============================================================================
-def show_escalacoes():
-    import html
-    st.header("MATCHUP CENTER")
-    
-    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.warning("Scoreboard vazio.")
-        return
-
-    games = st.session_state.scoreboard
-    opts = [f"{g.get('away')} @ {g.get('home')}" for g in games]
-    
-    idx = 0
-    if 'last_match_sel' in st.session_state and st.session_state.last_match_sel in opts:
-        idx = opts.index(st.session_state.last_match_sel)
-        
-    sel = st.selectbox("Confronto:", opts, index=idx)
-    st.session_state.last_match_sel = sel
-    if not sel: return
-    away_abbr, home_abbr = sel.split(" @ ")
-
-    with st.spinner("Analisando..."):
-        try:
-            if 'fetch_team_roster' not in globals(): return
-            
-            r_away = fetch_team_roster(away_abbr, False)
-            r_home = fetch_team_roster(home_abbr, False)
-            
-            # Helpers locais
-            def ext(r): return extract_list(r) if 'extract_list' in globals() else []
-            def proc(r, t, h): return process_roster(r, t, h) if 'process_roster' in globals() else r
-            
-            l_away = ext(r_away)
-            l_home = ext(r_home)
-            p_home = proc(l_home, home_abbr, True)
-            p_away = proc(l_away, away_abbr, False)
-        except Exception as e:
-            st.error(f"Erro: {e}"); return
-
-    # Separacao
-    def split(pl):
-        st = [p for p in pl if str(p.get("ROLE",'')).lower() == 'starter' or p.get('STARTER') is True]
-        proj = False
-        if len(st) < 5:
-            proj = True
-            # Logica simplificada para projecao
-            valid = [p for p in pl if "out" not in str(p.get("STATUS",'')).lower()]
-            # Ordena por MIN_AVG
-            def g_m(x): return float(x.get("MIN_AVG") or x.get("min_L5") or 0)
-            st = sorted(valid, key=g_m, reverse=True)[:5]
-        
-        s_names = [p.get("PLAYER") for p in st]
-        bn = [p for p in pl if p.get("PLAYER") not in s_names]
-        return st, bn, proj
-
-    h_s, h_b, h_p = split(p_home)
-    a_s, a_b, a_p = split(p_away)
-
-    # Render
-    def render_p(p, side):
-        nm = html.escape(str(p.get("PLAYER") or "UNK"))
-        pos = str(p.get("POSITION") or "-")
-        pts = float(p.get("PTS_AVG") or 0)
-        mins = float(p.get("MIN_AVG") or 0)
-        col = "#00E5FF" if side == "home" else "#FF4F4F"
-        
-        st.markdown(f"""
-        <div style="background: rgba(255,255,255,0.05); padding: 8px; margin-bottom: 5px; border-left: 3px solid {col}; border-radius: 4px;">
-            <div style="display:flex; justify-content:space-between;">
-                <div style="color: #fff; font-weight: bold;">{nm} <span style="color:#888; font-size:0.8em;">{pos}</span></div>
-                <div style="color: {col}; font-weight: bold;">{pts:.1f} PTS</div>
-            </div>
-            <div style="font-size: 0.8em; color: #aaa;">{mins:.1f} min</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader(f"HOME: {home_abbr}")
-        st.caption("OFICIAL" if not h_p else "PROJETADO")
-        for p in h_s: render_p(p, "home")
-        with st.expander("Banco"):
-            for p in h_b[:8]: render_p(p, "home")
-
-    with c2:
-        st.subheader(f"AWAY: {away_abbr}")
-        st.caption("OFICIAL" if not a_p else "PROJETADO")
-        for p in a_s: render_p(p, "away")
-        with st.expander("Banco"):
-            for p in a_b[:8]: render_p(p, "away")
-
-# ============================================================================
-# PAGINA: ANALYTICS DASHBOARD (SANITIZADA)
-# ============================================================================
-def show_analytics_page():
-    # Icone Grafico HTML: &#128202;
-    st.header("ANALYTICS DASHBOARD")
-    st.markdown("### Inteligencia de Performance & Ranking")
-    
-    # 1. Carregamento de Dados
-    if 'audit_system' not in st.session_state or not hasattr(st.session_state.audit_system, 'audit_data'):
-        try:
-            from modules.audit_system import AuditSystem
-            st.session_state.audit_system = AuditSystem()
-        except: return
-
-    audit = st.session_state.audit_system
-    history = audit.audit_data
-    
-    if not history:
-        st.info("Sem dados suficientes. Salve bilhetes para gerar inteligencia.")
-        return
-
-    # 2. Processamento
-    tickets_data = []
-    legs_data = []
-
-    for t in history:
-        t_status = t.get('status', 'PENDING')
-        t_odd = float(t.get('total_odd', 0))
-        t_cat = str(t.get('category', 'UNK')).upper()
-        t_id = t.get('id', 'N/A')
-        t_date = t.get('date', 'N/A')
-
-        profit = 0.0
-        if t_status == 'WIN': profit = t_odd - 1.0
-        elif t_status == 'LOSS': profit = -1.0
-        
-        tickets_data.append({
-            "id": t_id, "category": t_cat, "status": t_status,
-            "profit": profit, "odd": t_odd, "date": t_date
-        })
-        
-        for leg in t.get('legs', []):
-            leg_status = leg.get('status', 'PENDING')
-            hit = 1 if leg_status == 'WIN' else 0
-            
-            # Hook logic (perdeu por 0.5 ou 1.0)
-            hook = False
-            if leg_status == 'LOSS':
-                try:
-                    val = float(leg.get('actual_value', 0))
-                    line = float(leg.get('line', 0))
-                    if abs(val - line) <= 1.0 and val > 0: hook = True
-                except: pass
-
-            legs_data.append({
-                "player": leg.get('player_name') or leg.get('name'),
-                "market": leg.get('market_type'),
-                "thesis": leg.get('thesis'),
-                "status": leg_status, "hit": hit, "hook": hook
-            })
-
-    df_tickets = pd.DataFrame(tickets_data)
-    df_legs = pd.DataFrame(legs_data)
-
-    # 3. MACRO VISAO
-    st.subheader("Performance Financeira (ROI)")
-    
-    total_bets = len(df_tickets)
-    resolved_bets = df_tickets[df_tickets['status'].isin(['WIN', 'LOSS'])]
-    net_profit = resolved_bets['profit'].sum() if not resolved_bets.empty else 0.0
-    roi_percent = (net_profit / len(resolved_bets) * 100) if len(resolved_bets) > 0 else 0.0
-    
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Bilhetes", total_bets)
-    k2.metric("Resolvidos", len(resolved_bets))
-    k3.metric("Lucro (u)", f"{net_profit:+.2f}")
-    k4.metric("ROI", f"{roi_percent:+.1f}%")
-    
-    st.markdown("---")
-
-    # 4. ANALISE POR CATEGORIA
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.markdown("#### Lucro/Prejuizo por Categoria")
-        if not resolved_bets.empty:
-            cat_roi = resolved_bets.groupby('category')['profit'].sum().reset_index()
-            st.bar_chart(cat_roi, x="category", y="profit")
-        else:
-            st.caption("Valide bilhetes para ver o grafico.")
-            
-    with c2:
-        st.markdown("#### Volume")
-        if not df_tickets.empty:
-            st.dataframe(df_tickets['category'].value_counts(), use_container_width=True)
-
-    # 5. RANKING DE TESES
-    st.markdown("---")
-    st.subheader("Ranking de Estrategias")
-
-    if not df_legs.empty:
-        resolved_legs = df_legs[df_legs['status'].isin(['WIN', 'LOSS'])]
-        if not resolved_legs.empty:
-            t1, t2 = st.tabs(["Por Tese", "Por Mercado"])
-            
-            with t1:
-                thesis_stats = resolved_legs.groupby('thesis').agg(
-                    Tentativas=('hit', 'count'), Acertos=('hit', 'sum')
-                ).reset_index()
-                thesis_stats['WinRate'] = (thesis_stats['Acertos'] / thesis_stats['Tentativas'] * 100).round(1)
-                st.dataframe(thesis_stats.sort_values('WinRate', ascending=False), use_container_width=True, hide_index=True)
-            
-            with t2:
-                mkt_stats = resolved_legs.groupby('market').agg(
-                    Tentativas=('hit', 'count'), Acertos=('hit', 'sum')
-                ).reset_index()
-                mkt_stats['WinRate'] = (mkt_stats['Acertos'] / mkt_stats['Tentativas'] * 100).round(1)
-                st.dataframe(mkt_stats.sort_values('WinRate', ascending=False), use_container_width=True, hide_index=True)
-        else:
-            st.warning("Nenhuma perna validada ainda.")
+    if games.empty:
+        st.info("Nenhum jogo encontrado para hoje.")
     else:
-        st.warning("Nenhum dado de pernas encontrado.")
-
-    # 6. ZONA DE DOR
-    st.markdown("---")
-    st.subheader("Analise de Hooks")
-    
-    if not df_legs.empty:
-        hooks = df_legs[df_legs['hook'] == True]
-        if not hooks.empty:
-            st.error(f"Detectamos {len(hooks)} Hooks dolorosos.")
-            for i, row in hooks.iterrows():
-                st.write(f"- **{row['player']}** ({row['market']}): Perdeu por margem minima.")
-        else:
-            st.success("Nenhum Hook detectado.")
-
+        odds_cache = st.session_state.get("odds", {})
+        rows = st.columns(2)
+        for i, (index, game) in enumerate(games.iterrows()):
+            with rows[i % 2]:
+                render_game_card(
+                    away_team=game['away'],
+                    home_team=game['home'],
+                    game_data=game,
+                    odds_map=odds_cache
+                )
 # ============================================================================
-# MAIN (EXECUCAO PRINCIPAL - SANITIZADA)
+# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
-    # Config da pagina (Icone como string simples para nao quebrar)
-    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon=":basketball:")
+    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
-    # CSS Global Seguro (Sem imports complexos ou caracteres estranhos no bloco style)
+    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
     st.markdown("""
-    <style>
-        .stApp { background-color: #000000 !important; }
-        header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
-        .block-container { padding-top: 1rem !important; }
-        
-        section[data-testid="stSidebar"] { background-color: #050505 !important; border-right: 1px solid #333; }
-        div[role="radiogroup"] label {
-            background: transparent !important;
-            color: #ccc !important;
-            padding: 8px !important;
-            border-radius: 5px !important;
-        }
-        div[role="radiogroup"] label:hover {
-            background: #222 !important;
-            color: #fff !important;
-        }
-        div[role="radiogroup"] label[data-checked="true"] {
-            background: #1e3a8a !important;
-            color: #fff !important;
-            border-left: 3px solid #3b82f6 !important;
-        }
-    </style>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
+
+            /* 1. FORÇA FUNDO PRETO GLOBAL */
+            .stApp { background-color: #000000 !important; }
+            
+            /* 2. REMOVE CABEÇALHO PADRÃO */
+            header[data-testid="stHeader"] { visibility: hidden; height: 0px; }
+
+            /* 3. MARGEM NEGATIVA NO TOPO (PUXA TUDO PRA CIMA) */
+            .block-container {
+                padding-top: 0rem !important;
+                padding-bottom: 2rem !important;
+                margin-top: -60px !important;
+            }
+
+            /* 4. AJUSTE SIDEBAR */
+            section[data-testid="stSidebar"] .block-container {
+                padding-top: 2rem !important; 
+                margin-top: -20px !important;
+            }
+            section[data-testid="stSidebar"] {
+                background-color: #000000 !important;
+                border-right: 1px solid #1e293b;
+            }
+
+            /* 5. ESTILO MENU LATERAL (NUNITO) */
+            div[role="radiogroup"] label {
+                background: transparent !important;
+                border: none !important;
+                padding: 8px 12px !important;
+                margin-bottom: 2px !important;
+                font-family: 'Nunito', sans-serif !important;
+                font-size: 0.95rem !important;
+                color: #cbd5e1 !important;
+                border-radius: 8px !important;
+                transition: all 0.2s ease;
+            }
+            div[role="radiogroup"] label:hover {
+                background: rgba(34, 211, 238, 0.1) !important;
+                color: #ffffff !important;
+                padding-left: 18px !important;
+            }
+            div[role="radiogroup"] label[data-checked="true"] {
+                background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, transparent 100%) !important;
+                border-left: 4px solid #22d3ee !important;
+                color: #22d3ee !important;
+                font-weight: 700 !important;
+            }
+            div[role="radiogroup"] > label > div:first-child { display: none !important; }
+
+            /* 6. SEPARADORES DE MENU (CSS INDEXING) */
+            div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
+            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
+            div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
+            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+        </style>
     """, unsafe_allow_html=True)
     
-    # Carregamento Inicial (Chama a funcao definida na Parte 2)
-    if 'safe_load_initial_data' in globals():
-        safe_load_initial_data()
-    elif 'load_all_data' in globals():
-         pass # Fallback
+    safe_load_initial_data()
 
-    # Menu Lateral (Strings Puras para evitar erro de encoding)
+    # --- MENU LATERAL (DENTRO DO MAIN PARA FUNCIONAR) ---
     with st.sidebar:
-        st.markdown("<h2 style='text-align: center; color: #fff;'>DIGIBETS IA</h2>", unsafe_allow_html=True)
-        
-        # DEFINICAO DAS OPCOES DO MENU (TEXTO PURO)
-        # Removemos emojis literais. O Streamlit aceita, mas o arquivo .py pode corromper
-        
-        OPT_DASH = "Dashboard"
-        OPT_RANK = "Ranking Teses"
-        OPT_AUDIT = "Auditoria"
-        
-        OPT_NEXUS = "Sinergia"
-        OPT_NARRATIVE = "Lab Narrativas"
-        OPT_MOMENTUM = "Momentum"
-        OPT_LASVEGAS = "Las Vegas Sync"
-        OPT_BLOWOUT = "Blowout Hunter"
-        OPT_TRINITY = "Trinity Club"
-        
-        OPT_HOT = "Hot Streaks"
-        OPT_5710 = "Matriz 5-7-10"
-        OPT_DESDOBRA = "Desdobra Multipla"
-        
-        OPT_DVP = "DvP Confrontos"
-        OPT_MEDICO = "Depto Medico"
-        OPT_ROTACOES = "Mapa de Rotacoes"
-        OPT_ESCALA = "Escalacoes"
-        
-        OPT_CONFIG = "Config"
-        OPT_TESTE = "Diagnostico Cloud"
+        st.markdown(f"""
+            <div style="text-align: center; padding-bottom: 10px;">
+                <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150" style="margin-bottom: 5px;">
+                <div style="color: #94a3b8; font-family: 'Nunito'; font-size: 0.6rem; font-style: italic; opacity: 0.8;">
+                    O Poder da IA nas suas Apostas Esportivas
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
-        menu_options = [
-            OPT_DASH, OPT_RANK, OPT_AUDIT, 
-            OPT_NEXUS, OPT_NARRATIVE, OPT_MOMENTUM, OPT_LASVEGAS, OPT_BLOWOUT, OPT_TRINITY,
-            OPT_HOT, OPT_5710, OPT_DESDOBRA,
-            OPT_DVP, OPT_MEDICO, OPT_ROTACOES, OPT_ESCALA,
-            OPT_CONFIG, OPT_TESTE
+        MENU_ITEMS = [
+            "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
+            "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
+            "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
+            "🛡️ DvP Confrontos", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
+            "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
+        choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
         
-        choice = st.radio("Menu", menu_options, label_visibility="collapsed")
-        st.markdown("<div style='text-align:center; color:#555; font-size:10px;'>v2.4 STABLE</div>", unsafe_allow_html=True)
+        st.markdown("<br><div style='text-align: center; color: #334155; font-size: 0.6rem;'>● SYSTEM ONLINE v2.2</div>", unsafe_allow_html=True)
 
-    # Roteamento Seguro
-    # Verifica se as funcoes existem antes de chamar para nao quebrar se algo faltar
-    if choice == OPT_DASH and 'show_dashboard_page' in globals(): show_dashboard_page()
-    elif choice == OPT_RANK and 'show_analytics_page' in globals(): show_analytics_page()
-    elif choice == OPT_AUDIT and 'show_audit_page' in globals(): show_audit_page()
+    # --- ROTEAMENTO ---
+    if choice == "🏠 Dashboard": show_dashboard_page()
+    elif choice == "📊 Ranking Teses": show_analytics_page()
+    elif choice == "📋 Auditoria": show_audit_page()
     
-    elif choice == OPT_NEXUS and 'show_nexus_page' in globals(): show_nexus_page()
-    elif choice == OPT_NARRATIVE and 'show_narrative_lab' in globals(): show_narrative_lab()
-    elif choice == OPT_MOMENTUM and 'show_momentum_page' in globals(): show_momentum_page()
-    elif choice == OPT_LASVEGAS and 'show_props_odds_page' in globals(): show_props_odds_page()
-    elif choice == OPT_BLOWOUT and 'show_blowout_hunter_page' in globals(): show_blowout_hunter_page()
-    elif choice == OPT_TRINITY and 'show_trinity_club_page' in globals(): show_trinity_club_page()
+    elif choice == "🧬 Sinergia & Vácuo": show_nexus_page()
+    elif choice == "⚔️ Lab Narrativas": show_narrative_lab()
+    elif choice == "⚡ Momentum": show_momentum_page()
+    elif choice == "🔥 Las Vegas Sync": show_props_odds_page()
+    elif choice == "🌪️ Blowout Hunter": show_blowout_hunter_page()
+    elif choice == "🏆 Trinity Club": show_trinity_club_page()
     
-    # Suporte a versoes antigas/novas do nome da funcao
-    elif choice == OPT_HOT:
-        if 'show_hit_prop_hunter' in globals(): show_hit_prop_hunter()
-        elif 'show_hit_prop_page' in globals(): show_hit_prop_page()
-        
-    elif choice == OPT_5710 and 'show_5_7_10_page' in globals(): show_5_7_10_page()
-    elif choice == OPT_DESDOBRA and 'show_desdobramentos_inteligentes' in globals(): show_desdobramentos_inteligentes()
+    elif choice == "🔥 Hot Streaks": show_hit_prop_hunter()
+    elif choice == "📊 Matriz 5-7-10": show_5_7_10_page()
+    elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
     
-    elif choice == OPT_DVP and 'show_dvp_analysis' in globals(): show_dvp_analysis()
-    elif choice == OPT_MEDICO and 'show_depto_medico' in globals(): show_depto_medico()
-    elif choice == OPT_ROTACOES and 'show_mapa_rotacoes' in globals(): show_mapa_rotacoes()
-    elif choice == OPT_ESCALA and 'show_escalacoes' in globals(): show_escalacoes()
+    elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
+    elif choice == "🏥 Depto Médico": show_depto_medico()
+    elif choice == "🔄 Mapa de Rotações": show_mapa_rotacoes()
+    elif choice == "👥 Escalações": show_escalacoes()
     
-    elif choice == OPT_CONFIG and 'show_config_page' in globals(): show_config_page()
-    elif choice == OPT_TESTE and 'show_cloud_diagnostics' in globals(): show_cloud_diagnostics()
+    elif choice == "⚙️ Config": show_config_page()
+    elif choice == "🔍 Testar Conexão Supabase": show_cloud_diagnostics()
 
 if __name__ == "__main__":
     main()
 
 
-            
 
 
 
 
-    
+
+
+
+
+
+
+
+
+
+
 
 
 
