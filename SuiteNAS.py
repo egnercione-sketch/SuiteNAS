@@ -1930,107 +1930,132 @@ class FiveSevenTenEngine:
         # Ordena: Superstars primeiro, depois Teto de Explosão
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
+# ============================================================================
+# PÁGINA: STRATEGY 5/7/10 (VERSÃO BLINDADA V3.0 - INLINE STYLES)
+# ============================================================================
 def show_5_7_10_page():
-    # --- 1. CONFIGURAÇÃO (CORRIGIDA) ---
     import json
     import os
 
+    # --- 1. CONFIGURAÇÃO E CARREGAMENTO ---
     def local_load_json(filepath):
         if os.path.exists(filepath):
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception as e:
-                # Opcional: print(f"Erro ao ler JSON: {e}")
-                return {}
+            except: return {}
         return {}
 
-    # CAMINHO CORRETO AGORA: pasta 'cache' + arquivo 'real_game_logs.json'
     cache_file = os.path.join("cache", "real_game_logs.json")
-
-    # Tenta carregar. Se não achar, avisa o usuário.
     full_cache = local_load_json(cache_file) or {}
     
-    # Se o cache estiver vazio, tenta o caminho da raiz por garantia
+    # Fallback
     if not full_cache:
         full_cache = local_load_json("real_game_logs.json") or {}
 
     # Executa a Engine
-    # (Certifique-se que a classe FiveSevenTenEngine está no código!)
-    engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
-    opportunities, diag = engine.analyze_market()
-
-    st.header("🎯 Strategy 5 / 7 / 10")
-    st.caption("Scanner de Glue Guys & Estrelas: Da segurança (5+) à explosão (10+). Base L25.")
-
-    # --- ÁREA DE DIAGNÓSTICO ---
-    with st.expander("🛠️ Diagnóstico do Sistema"):
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Jogadores no DB", diag["total_players"])
-        c2.metric("Jogando Hoje", diag["playing_today"])
-        c3.metric("Dados Insuf. (<10)", diag["insufficient_data"])
-        c4.metric("Reprovados", diag["failed_criteria"])
+    # (Supondo que a classe FiveSevenTenEngine já está importada/definida)
+    try:
+        if 'FiveSevenTenEngine' not in globals():
+            from modules.new_modules.five_seven_ten import FiveSevenTenEngine # Ajuste se necessário
         
-        if diag["total_players"] == 0:
-            st.error(f"❌ Não foi possível encontrar o arquivo de dados em: {cache_file}")
-            st.info("Verifique se o arquivo 'real_game_logs.json' está dentro da pasta 'cache'.")
-        elif diag["playing_today"] == 0:
-            st.warning("⚠️ O banco de dados foi carregado, mas nenhum jogador do DB está no Scoreboard de hoje. Atualize os jogos na aba Config.")
-    
-    if not opportunities:
-        if diag["playing_today"] > 0:
-            st.info("Nenhum jogador atingiu os critérios (50% Safe / 8% Explosão) para os jogos de hoje.")
+        engine = FiveSevenTenEngine(full_cache, st.session_state.get('scoreboard', []))
+        opportunities, diag = engine.analyze_market()
+    except Exception as e:
+        st.error(f"Erro ao inicializar Engine 5-7-10: {e}")
         return
 
-    # --- 2. CSS ---
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Roboto+Condensed:wght@400;700&display=swap');
-        
-        .card-5710 {
-            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-left: 5px solid #3b82f6; border-radius: 8px; padding: 10px; margin-bottom: 12px;
-            display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .player-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #3b82f6; background: #000; }
-        .p-info { margin-left: 15px; width: 140px; }
-        .p-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1; }
-        .p-team { font-size: 10px; color: #94a3b8; font-weight: bold; }
-        .p-arch { font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1; }
-        
-        .ladder-container { flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center; }
-        .step-box { text-align: center; width: 32%; }
-        .step-label { font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px; }
-        .bar-bg { width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 3px; }
-        .step-val { font-family: 'Roboto Condensed', sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px; }
-        
-        .safe { color: #4ade80; } .bg-safe { background: #4ade80; }
-        .target { color: #facc15; } .bg-target { background: #facc15; }
-        .ceiling { color: #f87171; } .bg-ceiling { background: #f87171; }
-    </style>
-    """, unsafe_allow_html=True)
+    # --- 2. CABEÇALHO ---
+    st.markdown("## &#127919; Strategy 5 / 7 / 10")
+    st.caption("Scanner de Glue Guys & Estrelas: Da seguranca (5+) a explosao (10+). Base L25.")
 
-    # --- 3. RENDER ---
+    # --- 3. DIAGNÓSTICO ---
+    with st.expander("Diagnostico do Sistema"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Jogadores DB", diag.get("total_players", 0))
+        c2.metric("Jogando Hoje", diag.get("playing_today", 0))
+        c3.metric("Dados Insuf.", diag.get("insufficient_data", 0))
+        c4.metric("Reprovados", diag.get("failed_criteria", 0))
+        
+        if diag.get("total_players", 0) == 0:
+            st.error(f"DB vazio. Verifique: {cache_file}")
+
+    if not opportunities:
+        if diag.get("playing_today", 0) > 0:
+            st.info("Nenhum jogador atingiu os critérios (50% Safe / 8% Explosão) hoje.")
+        return
+
+    # --- 4. RENDERIZAÇÃO (ESTILOS INLINE PARA EVITAR ERROS DE SINTAXE) ---
+    
+    # Filtros
     filter_stat = st.radio("Filtrar:", ["TODOS", "AST", "REB"], horizontal=True)
     f_opps = opportunities
     if filter_stat == "AST": f_opps = [x for x in opportunities if x['stat'] == 'AST']
     if filter_stat == "REB": f_opps = [x for x in opportunities if x['stat'] == 'REB']
 
+    # Definição de Estilos (Strings Python Puras)
+    # Usamos strings normais aqui, sem f-string, para não confundir o parser
+    s_card = "background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; align-items: center; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.3);"
+    s_img = "width: 55px; height: 55px; border-radius: 50%; object-fit: cover; background: #000;"
+    s_info = "margin-left: 15px; width: 140px;"
+    s_name = "font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; line-height: 1.1;"
+    s_team = "font-size: 10px; color: #94a3b8; font-weight: bold;"
+    s_arch = "font-size: 9px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; color: #cbd5e1;"
+    
+    s_ladder = "flex-grow: 1; display: flex; gap: 8px; justify-content: space-around; align-items: center;"
+    s_step_box = "text-align: center; width: 32%;"
+    s_step_lbl = "font-size: 8px; color: #64748B; font-weight: bold; margin-bottom: 4px;"
+    s_bar_bg = "width: 100%; height: 5px; background: #334155; border-radius: 3px; overflow: hidden;"
+    s_bar_fill = "height: 100%; border-radius: 3px;"
+    s_val = "font-family: sans-serif; font-size: 13px; font-weight: bold; margin-top: 2px;"
+
     for item in f_opps:
-        border_color = "#f87171" if "DYNAMITE" in item['archetype'] else "#3b82f6"
+        # Lógica de Cor
+        if "DYNAMITE" in item['archetype']:
+            border_c = "#f87171"
+        else:
+            border_c = "#3b82f6"
+            
+        # Cores das Barras
+        safe_pct = item['metrics']['Safe_5']
+        target_pct = item['metrics']['Target_7']
+        ceil_pct = item['metrics']['Ceiling_10']
+        
+        # HTML Montado com F-String LIMPA (Apenas variáveis, sem CSS complexo dentro)
         html = f"""
-        <div class="card-5710" style="border-left-color: {border_color};">
-            <img src="{item['photo']}" class="player-img" style="border-color: {border_color};" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-            <div class="p-info">
-                <div class="p-name">{item['player']}</div>
-                <div class="p-team">{item['team']} vs {item['opp']} • {item['stat']}</div>
-                <div class="p-arch">{item['archetype']}</div>
+        <div style="{s_card} border-left: 5px solid {border_c};">
+            <img src="{item['photo']}" style="{s_img} border: 2px solid {border_c};">
+            
+            <div style="{s_info}">
+                <div style="{s_name}">{item['player']}</div>
+                <div style="{s_team}">{item['team']} vs {item['opp']} • {item['stat']}</div>
+                <div style="{s_arch}">{item['archetype']}</div>
             </div>
-            <div class="ladder-container">
-                <div class="step-box"><div class="step-label">SAFE (5+)</div><div class="bar-bg"><div class="bar-fill bg-safe" style="width: {item['metrics']['Safe_5']}%;"></div></div><div class="step-val safe">{item['metrics']['Safe_5']}%</div></div>
-                <div class="step-box"><div class="step-label">TARGET (7+)</div><div class="bar-bg"><div class="bar-fill bg-target" style="width: {item['metrics']['Target_7']}%;"></div></div><div class="step-val target">{item['metrics']['Target_7']}%</div></div>
-                <div class="step-box"><div class="step-label">EXPLOSÃO (10+)</div><div class="bar-bg"><div class="bar-fill bg-ceiling" style="width: {item['metrics']['Ceiling_10']}%;"></div></div><div class="step-val ceiling">{item['metrics']['Ceiling_10']}%</div></div>
+            
+            <div style="{s_ladder}">
+                <div style="{s_step_box}">
+                    <div style="{s_step_lbl}">SAFE (5+)</div>
+                    <div style="{s_bar_bg}">
+                        <div style="{s_bar_fill} width: {safe_pct}%; background: #4ade80;"></div>
+                    </div>
+                    <div style="{s_val} color: #4ade80;">{safe_pct}%</div>
+                </div>
+
+                <div style="{s_step_box}">
+                    <div style="{s_step_lbl}">TARGET (7+)</div>
+                    <div style="{s_bar_bg}">
+                        <div style="{s_bar_fill} width: {target_pct}%; background: #facc15;"></div>
+                    </div>
+                    <div style="{s_val} color: #facc15;">{target_pct}%</div>
+                </div>
+
+                <div style="{s_step_box}">
+                    <div style="{s_step_lbl}">EXPLOSAO (10+)</div>
+                    <div style="{s_bar_bg}">
+                        <div style="{s_bar_fill} width: {ceil_pct}%; background: #f87171;"></div>
+                    </div>
+                    <div style="{s_val} color: #f87171;">{ceil_pct}%</div>
+                </div>
             </div>
         </div>
         """
@@ -7599,6 +7624,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
