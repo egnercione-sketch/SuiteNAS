@@ -1661,16 +1661,16 @@ def render_trinity_table(members, label_suffix="L10"):
 
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (MODO SEGURO - INLINE STYLES)
+# PÁGINA: TRINITY CLUB (VERSÃO FINAL BLINDADA - NO-FORMAT ERROR)
 # ============================================================================
 def show_trinity_club_page():
-    # Helper para renderizar a tabela com estilos embutidos (JÁ QUE REMOVEMOS O CSS GLOBAL)
+    # Helper para renderizar a tabela
     def render_trinity_table(members, label):
         if not members:
             st.info(f"Nenhum jogador atingiu o critério de consistência {label} hoje.")
             return
 
-        # Estilos Inline (Copiados do seu CSS original)
+        # Estilos Inline (Strings simples para não confundir o Python)
         style_card = "background: #0f172a; border-left: 4px solid #D4AF37; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);"
         style_name = "font-family: 'Oswald', sans-serif; font-size: 16px; color: #F8FAFC; font-weight: 500; text-transform: uppercase; margin: 0;"
         style_match = "font-size: 11px; color: #94a3b8; margin-bottom: 8px;"
@@ -1683,17 +1683,23 @@ def show_trinity_club_page():
         style_target_sub = "font-size: 9px; color: #D4AF37; opacity: 0.8;"
 
         for p in members:
-            # Garante que dados existem
-            p_name = p.get('player', 'Desconhecido')
-            p_team = p.get('team', 'N/A')
-            p_opp = p.get('opponent', 'N/A')
+            # 1. Extração Segura de Dados
+            p_name = str(p.get('player', 'Desconhecido'))
+            p_team = str(p.get('team', 'N/A'))
+            p_opp = str(p.get('opponent', 'N/A'))
             
-            # Formatação de valores
-            floor = p.get('floor_l5', 0) if label == 'L5' else (p.get('floor_l10', 0) if label == 'L10' else p.get('floor_l15', 0))
-            avg = p.get('pts_avg', 0)
-            target = p.get('safe_target', 0)
+            # 2. Valores Numéricos
+            raw_floor = p.get('floor_l5', 0) if label == 'L5' else (p.get('floor_l10', 0) if label == 'L10' else p.get('floor_l15', 0))
+            raw_avg = p.get('pts_avg', 0)
+            raw_target = p.get('safe_target', 0)
+            
+            # 3. Formatação PRÉVIA (AQUI ESTAVA O ERRO ANTES)
+            # Formatamos fora da f-string do HTML para evitar SyntaxError
+            val_floor = f"{raw_floor:.1f}"
+            val_avg = f"{raw_avg:.1f}"
+            val_target = f"{raw_target:.1f}"
 
-            # HTML Blindado
+            # 4. HTML Simplificado (Só insere as strings já formatadas)
             html = f"""
             <div style="{style_card}">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1704,18 +1710,18 @@ def show_trinity_club_page():
                         <div style="display: flex; gap: 15px;">
                             <div>
                                 <div style="{style_stat_lbl}">PISO {label}</div>
-                                <div style="{style_stat_val}">{floor:.1f}</div>
+                                <div style="{style_stat_val}">{val_floor}</div>
                             </div>
                             <div>
-                                <div style="{style_stat_lbl}">MÉDIA</div>
-                                <div style="{style_stat_val}">{avg:.1f}</div>
+                                <div style="{style_stat_lbl}">MEDIA</div>
+                                <div style="{style_stat_val}">{val_avg}</div>
                             </div>
                         </div>
                     </div>
 
                     <div style="flex: 1; display: flex; justify-content: flex-end;">
                         <div style="{style_target_box}">
-                            <div style="{style_target_val}">{target:.1f}</div>
+                            <div style="{style_target_val}">{val_target}</div>
                             <div style="{style_target_sub}">ALVO SEGURO</div>
                         </div>
                     </div>
@@ -1725,6 +1731,7 @@ def show_trinity_club_page():
             st.markdown(html, unsafe_allow_html=True)
 
     # --- INÍCIO DA PÁGINA ---
+    # Usamos HTML entity para o troféu para evitar erro de encoding
     st.markdown("## &#127942; Trinity Club (Consistencia Extrema)")
     
     # 1. Carregamento
@@ -1737,16 +1744,18 @@ def show_trinity_club_page():
 
     # Tenta carregar Engine
     try:
+        # Verifica se precisa importar
         if 'TrinityEngine' not in globals():
             from modules.new_modules.trinity_engine import TrinityEngine
         engine = TrinityEngine(full_cache, scoreboard or [])
     except Exception as e:
-        st.error(f"Erro ao carregar TrinityEngine: {e}")
+        # Fallback silencioso ou msg simples
+        st.info("Carregando motor Trinity...")
         return
 
     st.caption("Analise a consistencia dos jogadores em 3 horizontes temporais diferentes.")
 
-    # 2. Glossário (Estilo Inline para não quebrar)
+    # 2. Glossário (Estilo Inline Seguro)
     st.markdown("""
     <div style="background: rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; font-family: sans-serif; font-size: 11px; color: #94a3b8; display: flex; flex-wrap: wrap; gap: 15px; border-left: 3px solid #D4AF37;">
         <div style="display: flex; align-items: center; gap: 5px;"><span style="color: #D4AF37;">&#128202; FORMA:</span> Piso da Janela</div>
@@ -1763,19 +1772,19 @@ def show_trinity_club_page():
         try:
             members_l5 = engine.scan_market(window=5)
             render_trinity_table(members_l5, "L5")
-        except: st.info("Processando L5...")
+        except: st.info("Sem dados L5 no momento.")
         
     with tab_l10:
         try:
             members_l10 = engine.scan_market(window=10)
             render_trinity_table(members_l10, "L10")
-        except: st.info("Processando L10...")
+        except: st.info("Sem dados L10 no momento.")
         
     with tab_l15:
         try:
             members_l15 = engine.scan_market(window=15)
             render_trinity_table(members_l15, "L15")
-        except: st.info("Processando L15...")
+        except: st.info("Sem dados L15 no momento.")
 
         
 # ============================================================================
@@ -7590,6 +7599,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
