@@ -734,155 +734,255 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT COMMANDER (V12.4 - ROBUST SPREAD & UTAH FIX)
+# PÁGINA: BLOWOUT RADAR (V2.0 - RISK & OPPORTUNITY)
 # ============================================================================
 def show_blowout_hunter_page():
-    import streamlit as st
-    import pandas as pd
-    import os
-    import json
     import re
-    import html
-
-    # --- 1. CONFIGURAÇÃO VISUAL ---
-    st.markdown("""<style>
-        .blowout-container { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        .vulture-card { background: #172554; border-left: 4px solid #3b82f6; padding: 10px; margin-bottom: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
-        .v-name { color: #f8fafc; font-weight: bold; font-size: 14px; }
-        .v-meta { color: #94a3b8; font-size: 11px; }
-        .v-proj { color: #4ade80; font-weight: bold; font-size: 16px; text-align: right; }
-        .tag-dna { background: #7c3aed; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-        .tag-math { background: #334155; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
-    </style>""", unsafe_allow_html=True)
-
-    st.header("🌪️ BLOWOUT HUNTER PRO (V13.8)")
-    show_debug = st.checkbox("🔍 Modo Auditoria (Filtro Universal de Injuries)", value=True)
-
-    # --- 2. CARREGAMENTO DE MAPAS E DNA ---
-    TEAM_VARS = globals().get('TEAM_NAME_VARIATIONS', {})
-    ABBR_MAP = globals().get('TEAM_ABBR_TO_ODDS', {})
-    normalize_func = globals().get('normalize_name')
     
-    dna_path = os.path.join("cache", "rotation_dna.json")
-    ROTATION_DNA = st.session_state.get('rotation_dna_cache', {})
-    if not ROTATION_DNA and os.path.exists(dna_path):
-        try:
-            with open(dna_path, 'r') as f: ROTATION_DNA = json.load(f)
-        except: ROTATION_DNA = {}
+    # --- 1. CSS VISUAL (WAR ROOM STYLE) ---
+    st.markdown("""
+    <style>
+        /* Header */
+        .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
+        .radar-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
+        
+        /* Game Card Container */
+        .risk-card {
+            background: #1e293b;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #334155;
+            overflow: hidden;
+        }
+        
+        /* Header do Card (Gradiente de Risco) */
+        .risk-header-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 100%); border-left: 5px solid #EF4444; padding: 10px; }
+        .risk-header-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 100%); border-left: 5px solid #F59E0B; padding: 10px; }
+        .risk-header-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 100%); border-left: 5px solid #10B981; padding: 10px; }
+        
+        .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; }
+        .game-spread { font-size: 12px; color: #cbd5e1; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; }
+        
+        /* Vulture (Jogador) Card */
+        .vulture-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #334155;
+            background: rgba(255,255,255,0.02);
+        }
+        .vulture-name { color: #e2e8f0; font-weight: 600; font-size: 13px; }
+        .vulture-meta { font-size: 10px; color: #94a3b8; }
+        .vulture-proj { font-family: 'Oswald'; font-size: 16px; color: #4ade80; font-weight: bold; }
+        
+        .tag-dna { background: #7c3aed; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 5px; }
+        .tag-math { background: #475569; color: #cbd5e1; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 5px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # --- 3. CARREGAMENTO DE LESÕES (PROTOCOLO FONTE ÚNICA) ---
+    # HTML Entity Tornado: &#127744;
+    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR & OPPORTUNITIES</div>', unsafe_allow_html=True)
+    st.markdown('<div class="radar-sub">Monitoramento de risco de "Garbage Time" e oportunidades de banco.</div>', unsafe_allow_html=True)
+
+    # --- 2. CARREGAMENTO DE DADOS ---
+    games = st.session_state.get('scoreboard', [])
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    
+    # Carrega DNA de Rotação (Se existir)
+    ROTATION_DNA = st.session_state.get('rotation_dna_cache', {})
+    
+    # Carrega Lesões (Blindado)
     banned_players = set()
     try:
-        from injuries import InjuryMonitor, INJURIES_CACHE_FILE
-        monitor = st.session_state.get('injuries_manager') or InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
-        raw_injuries = monitor.get_all_injuries()
-        
-        # Achatamento da lista (Flattening)
-        global_list = []
-        source = raw_injuries.get('teams', raw_injuries) if isinstance(raw_injuries, dict) else raw_injuries
-        if isinstance(source, dict):
-            for team_players in source.values():
-                if isinstance(team_players, list): global_list.extend(team_players)
-        elif isinstance(source, list):
-            global_list = source
+        raw_injuries = st.session_state.get('injuries_data', [])
+        # Achata a lista se vier separada por times
+        if isinstance(raw_injuries, dict):
+            flat_inj = []
+            for t in raw_injuries.values(): flat_inj.extend(t)
+            raw_injuries = flat_inj
+            
+        for inj in raw_injuries:
+            status = str(inj.get('status', '')).lower()
+            # Se estiver fora ou dúvida, adiciona ao banimento
+            if any(x in status for x in ['out', 'doubt', 'quest', 'injur']):
+                p_name = inj.get('player') or inj.get('name')
+                if p_name: banned_players.add(p_name.lower().strip())
+    except:
+        pass # Se falhar, segue sem filtro de lesão (melhor que travar)
 
-        # Identificar quem está fora
-        for inj in global_list:
-            status = str(inj.get('status') or inj.get('Status') or "").lower()
-            # Bloqueia se tiver status de lesão e NÃO estiver marcado como Ativo/Disponível
-            if any(x in status for x in ['out', 'doubt', 'quest', 'day', 'injur', 'ir']):
-                if not any(x in status for x in ['available', 'active']):
-                    p_name = inj.get('name') or inj.get('player')
-                    if p_name and normalize_func:
-                        banned_players.add(normalize_func(p_name))
-    except Exception as e:
-        st.error(f"Erro ao carregar sistema de lesões: {e}")
+    if not games:
+        st.warning("Scoreboard vazio. Atualize na aba Config.")
+        return
 
-    # --- 4. NORMALIZAÇÃO DE SIGLAS ---
-    def get_official_abbr(raw_name):
-        if not raw_name: return "UNK"
-        name_up = str(raw_name).upper().strip()
-        # 1. Busca via variações
-        for official_name, variants in TEAM_VARS.items():
-            if name_up == official_name.upper() or name_up in [v.upper() for v in variants]:
-                for abbr, full in ABBR_MAP.items():
-                    if full.upper() == official_name.upper(): return abbr
-        # 2. Correções manuais
-        manual = {"OKL": "OKC", "BRK": "BKN", "PHX": "PHO", "GOL": "GSW", "WSH": "WAS", "UTAH": "UTA", "NY": "NYK", "SA": "SAS"}
-        return manual.get(name_up, name_up[:3])
-
-    # --- 5. PROCESSAMENTO DE JOGOS ---
-    source_games = st.session_state.get('pinnacle_games') or st.session_state.get('scoreboard') or []
+    # --- 3. PROCESSAMENTO DOS JOGOS ---
+    processed_games = []
     
-    for g in source_games:
-        raw_spread = g.get('spread') or g.get('handicap') or 0
+    for g in games:
+        # Extrai Spread
+        raw_spread = g.get('odds_spread', '0')
         try:
-            spread_val = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1])) if raw_spread else 0
-        except: spread_val = 0
+            # Tenta pegar o número do spread (ex: "BOS -12.5" -> 12.5)
+            spread_val = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1]))
+        except:
+            spread_val = 0.0
 
-        if spread_val >= 9.0:
-            h_raw = g.get('home_team') or g.get('home')
-            a_raw = g.get('away_team') or g.get('away')
-            h = get_official_abbr(h_raw)
-            a = get_official_abbr(a_raw)
+        # Classifica Risco
+        risk_level = "LOW"
+        risk_color = "risk-header-low"
+        risk_text = "JOGO EQUILIBRADO"
+        
+        if spread_val >= 12.5:
+            risk_level = "HIGH"
+            risk_color = "risk-header-high"
+            risk_text = "ALTO RISCO DE BLOWOUT"
+        elif spread_val >= 8.5:
+            risk_level = "MED"
+            risk_color = "risk-header-med"
+            risk_text = "RISCO MODERADO"
             
-            st.markdown(f'<div class="blowout-container"><h4>{a} @ {h} <span style="color:#fca5a5;">(SPREAD {spread_val})</span></h4>', unsafe_allow_html=True)
-            cols = st.columns(2)
+        processed_games.append({
+            "game": g,
+            "spread": spread_val,
+            "risk": risk_level,
+            "css": risk_color,
+            "text": risk_text
+        })
+
+    # Ordena por Risco (Maior spread primeiro)
+    processed_games.sort(key=lambda x: x['spread'], reverse=True)
+
+    # --- 4. RENDERIZAÇÃO ---
+    
+    # Helper para encontrar Abutres (Vultures)
+    def find_vultures(team_abbr, risk_lvl):
+        if df_l5.empty: return []
+        
+        roster = df_l5[df_l5['TEAM'] == team_abbr]
+        candidates = []
+        
+        team_dna = ROTATION_DNA.get(team_abbr, [])
+        
+        for _, p in roster.iterrows():
+            name = p['PLAYER']
+            # Filtro de Lesão
+            if name.lower().strip() in banned_players: continue
             
-            for idx, team in enumerate([h, a]):
-                with cols[idx]:
-                    st.write(f"**Analisando {team}...**")
-                    candidates, logs = [], []
+            avg_min = float(p.get('MIN_AVG', 0))
+            avg_pts = float(p.get('PTS_AVG', 0))
+            
+            # Lógica de Seleção baseada no Risco
+            is_candidate = False
+            proj_pts = 0
+            source = "MATH"
+            
+            # Se temos DNA, confiamos nele
+            dna_match = next((d for d in team_dna if name.lower() in str(d.get('name','')).lower()), None)
+            
+            if dna_match:
+                # Se tem histórico de entrar em blowout
+                if risk_lvl == "HIGH" and dna_match.get('avg_min_blowout', 0) > 5:
+                    proj_pts = dna_match.get('avg_pts_blowout', 0)
+                    source = "DNA"
+                    is_candidate = True
+            
+            # Se não tem DNA, usamos heurística (Math)
+            elif risk_lvl == "HIGH":
+                # Procura fundão de banco (menos de 15 min de média) que pontua bem por minuto
+                if avg_min < 18 and avg_min > 0:
+                    ppm = avg_pts / avg_min
+                    if ppm > 0.4: # Jogador eficiente
+                        proj_pts = ppm * 12 # Projeta 12 min de garbage time
+                        is_candidate = True
+            
+            elif risk_lvl == "MED":
+                # Procura rotação (15 a 25 min) que pode ganhar mais tempo
+                if 15 <= avg_min <= 28:
+                    proj_pts = avg_pts * 1.2 # Boost de 20%
+                    is_candidate = True
+            
+            if is_candidate and proj_pts > 4.5: # Filtro mínimo de relevância
+                candidates.append({
+                    "name": name,
+                    "proj": proj_pts,
+                    "src": source,
+                    "min": avg_min
+                })
+        
+        return sorted(candidates, key=lambda x: x['proj'], reverse=True)[:4] # Top 4
 
-                    if 'df_l5' in st.session_state and not st.session_state.df_l5.empty:
-                        df_t = st.session_state.df_l5[st.session_state.df_l5['TEAM'] == team]
-                        
-                        for _, p in df_t.iterrows():
-                            name = p.get('PLAYER') or p.get('PLAYER_NAME')
-                            norm_pname = normalize_func(name) if normalize_func else str(name).lower()
-                            avg_min = float(p.get('MIN_AVG') or p.get('MIN') or 0)
-                            avg_pts = float(p.get('PTS_AVG') or p.get('PTS') or 0)
+    # Loop Principal de Renderização
+    for item in processed_games:
+        g = item['game']
+        h_team = g['home']
+        a_team = g['away']
+        
+        # Header do Card
+        # HTML Entity Warning: &#9888; / Fire: &#128293; / Shield: &#128737;
+        icon = "&#128293;" if item['risk'] == "HIGH" else "&#9888;" if item['risk'] == "MED" else "&#128737;"
+        
+        st.markdown(f"""
+        <div class="risk-card">
+            <div class="{item['css']}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="game-matchup">{a_team} @ {h_team}</div>
+                    <div style="text-align:right;">
+                        <div style="color:#fff; font-weight:bold; font-size:12px;">{icon} {item['text']}</div>
+                        <div class="game-spread">SPREAD: {item['spread']}</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Só mostra detalhes se houver risco Médio ou Alto
+        if item['risk'] != "LOW":
+            c1, c2 = st.columns(2)
+            
+            # Analisa Vultures de ambos os times (quem entra se o jogo acabar cedo)
+            vultures_a = find_vultures(a_team, item['risk'])
+            vultures_h = find_vultures(h_team, item['risk'])
+            
+            with c1:
+                st.markdown(f"<div style='padding:10px; color:#94a3b8; font-size:11px; text-transform:uppercase;'>Oportunidades {a_team}</div>", unsafe_allow_html=True)
+                if vultures_a:
+                    for v in vultures_a:
+                        tag_cls = "tag-dna" if v['src'] == "DNA" else "tag-math"
+                        st.markdown(f"""
+                        <div class="vulture-row">
+                            <div>
+                                <div class="vulture-name">{v['name']}</div>
+                                <div class="vulture-meta">Média: {v['min']:.1f}m <span class="{tag_cls}">{v['src']}</span></div>
+                            </div>
+                            <div class="vulture-proj">{v['proj']:.1f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.caption("Sem destaques no banco.")
 
-                            # --- 🚑 FILTRO DE INJURIES ATIVO ---
-                            if norm_pname in banned_players:
-                                logs.append(f"🚑 {name}: REMOVIDO (Injury Report)")
-                                continue
+            with c2:
+                st.markdown(f"<div style='padding:10px; color:#94a3b8; font-size:11px; text-transform:uppercase;'>Oportunidades {h_team}</div>", unsafe_allow_html=True)
+                if vultures_h:
+                    for v in vultures_h:
+                        tag_cls = "tag-dna" if v['src'] == "DNA" else "tag-math"
+                        st.markdown(f"""
+                        <div class="vulture-row">
+                            <div>
+                                <div class="vulture-name">{v['name']}</div>
+                                <div class="vulture-meta">Média: {v['min']:.1f}m <span class="{tag_cls}">{v['src']}</span></div>
+                            </div>
+                            <div class="vulture-proj">{v['proj']:.1f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.caption("Sem destaques no banco.")
+        
+        else:
+            # Se for risco baixo, mostra apenas mensagem simples
+            st.markdown("""
+            <div style="padding:15px; color:#94a3b8; font-size:12px; text-align:center;">
+                Jogo projetado como equilibrado. Foco total nos titulares.
+            </div>
+            """, unsafe_allow_html=True)
 
-                            # --- FILTROS DE ROTAÇÃO ---
-                            if not (2.0 <= avg_min <= 30.5):
-                                logs.append(f"❌ {name}: {avg_min}m (Fora da faixa)")
-                                continue
-
-                            # --- PROJEÇÃO DNA VS MATH ---
-                            team_dna = ROTATION_DNA.get(team, [])
-                            dna_hit = next((d for d in team_dna if norm_pname in (normalize_func(d['name']) if normalize_func else d['name'].lower())), None)
-                            
-                            if dna_hit:
-                                proj = dna_hit.get('avg_pts_blowout', 0)
-                                src = f"🧬 DNA ({dna_hit.get('frequency')})"
-                                if proj < avg_pts: proj = (proj + avg_pts) / 2
-                            else:
-                                boost = 2.2 if avg_min < 12 else 1.6
-                                proj = (avg_pts / max(avg_min, 1)) * (avg_min * boost)
-                                src = "📐 MATH"
-
-                            if proj >= 2.5:
-                                candidates.append({'name': name, 'proj': proj, 'min': avg_min, 'src': src})
-
-                    if not candidates:
-                        st.caption("Sem alvos.")
-                    else:
-                        for c in sorted(candidates, key=lambda x: x['proj'], reverse=True)[:5]:
-                            tag_cls = "tag-dna" if "DNA" in c['src'] else "tag-math"
-                            st.markdown(f"""<div class="vulture-card">
-                                <div><div class="v-name">{c['name']}</div>
-                                <div class="v-meta">{c['min']:.1f}m <span class="{tag_cls}">{c['src']}</span></div></div>
-                                <div class="v-proj">{c['proj']:.1f}</div></div>""", unsafe_allow_html=True)
-                    
-                    if show_debug and logs:
-                        with st.expander(f"🔍 Auditoria {team}"):
-                            for l in logs: st.text(l)
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
             
 
 # ============================================================================
@@ -7698,6 +7798,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
