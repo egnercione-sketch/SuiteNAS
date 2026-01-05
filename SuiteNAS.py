@@ -946,7 +946,7 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA: MOMENTUM (V4.0 - Z-SCORE REAL & FOTOS)
+# PÁGINA: MOMENTUM (V4.1 - LÓGICA CORRIGIDA & SEPARAÇÃO ESTRITA)
 # ============================================================================
 def show_momentum_page():
     # CSS para os Cards com Foto
@@ -958,12 +958,12 @@ def show_momentum_page():
         .mom-card {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
             border-radius: 12px;
-            padding: 0; /* Padding zero para a imagem encostar */
+            padding: 0; 
             margin-bottom: 15px;
             display: flex;
             align-items: center;
             border: 1px solid #334155;
-            overflow: hidden; /* Para a imagem não vazar */
+            overflow: hidden; 
             transition: transform 0.2s;
         }
         .mom-card:hover { transform: scale(1.02); border-color: #64748B; }
@@ -1002,7 +1002,7 @@ def show_momentum_page():
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
-    st.info("Ranking baseado na Dominância Relativa (Z-Score). Quem está produzindo muito acima ou abaixo da média da liga nos últimos 5 jogos.")
+    st.info("Ranking baseado na Dominância Relativa. Jogadores com performance muito acima ou muito abaixo da média da liga nos últimos 5 jogos.")
 
     # 1. DADOS
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
@@ -1011,14 +1011,13 @@ def show_momentum_page():
         return
 
     # 2. CÁLCULO ESTATÍSTICO (Z-SCORE)
-    # Filtro mínimo de minutos para evitar ruído
+    # Filtro mínimo de minutos para evitar ruído (ex: quem jogou 2 min e fez 2 pts)
     df_calc = df_l5[df_l5['MIN_AVG'] >= 15].copy()
     
     if df_calc.empty:
-        st.warning("Nenhum jogador com mais de 15 minutos de média.")
+        st.warning("Nenhum jogador com mais de 15 minutos de média carregado.")
         return
 
-    # Usaremos PRA (Points + Rebounds + Assists) para medir impacto geral
     # Se PRA não existir, calcula na hora
     if 'PRA_AVG' not in df_calc.columns:
         df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
@@ -1033,15 +1032,19 @@ def show_momentum_page():
     # Z-Score: Quantos desvios padrão acima/abaixo da média o jogador está?
     df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
 
-    # 3. SEPARAÇÃO HOT / COLD
-    # Hot: Os maiores Z-Scores (Dominantes)
-    top_hot = df_calc.nlargest(10, 'z_score')
+    # 3. SEPARAÇÃO RIGOROSA HOT / COLD
     
-    # Cold: Os menores Z-Scores, mas...
-    # IMPORTANTE: Para ser "Frio" relevante, o cara tem que jogar muito e produzir pouco.
-    # Filtramos quem joga > 20 min mas tem Z-Score negativo.
-    df_cold_candidates = df_calc[df_calc['MIN_AVG'] >= 24]
-    top_cold = df_cold_candidates.nsmallest(10, 'z_score')
+    # HOT: Z-Score Positivo (Acima da média), ordenado do maior para o menor
+    hot_candidates = df_calc[df_calc['z_score'] > 0].copy()
+    top_hot = hot_candidates.sort_values('z_score', ascending=False).head(10)
+    
+    # COLD: Z-Score Negativo (Abaixo da média), ordenado do menor (mais negativo) para o maior
+    # Filtro de minutos mais alto para COLD (24min) para pegar titulares jogando mal, não reservas.
+    cold_candidates = df_calc[
+        (df_calc['z_score'] < 0) & 
+        (df_calc['MIN_AVG'] >= 24)
+    ].copy()
+    top_cold = cold_candidates.sort_values('z_score', ascending=True).head(10)
 
     # 4. RENDERIZAÇÃO
     c1, c2 = st.columns(2)
@@ -1081,24 +1084,6 @@ def show_momentum_page():
                     </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # --- COLUNA HOT ---
-    with c1:
-        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
-        for _, row in top_hot.iterrows():
-            render_momentum_card(c1, row, "HOT")
-
-    # --- COLUNA COLD ---
-    with c2:
-        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
-        st.caption("Jogadores com +24min de quadra produzindo abaixo da média da liga.")
-        if top_cold.empty:
-            st.info("Nenhum jogador 'Frio' relevante detectado (todos os titulares estão produzindo o esperado).")
-        else:
-            for _, row in top_cold.iterrows():
-                render_momentum_card(c2, row, "COLD")
                 
 
 # ============================================================================
@@ -7669,6 +7654,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
