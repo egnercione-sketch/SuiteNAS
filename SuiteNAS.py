@@ -864,6 +864,134 @@ def show_blowout_hunter_page():
                                         "ast": float(b_ast),
                                         "count": len(opportunity_games)
                                     })
+                        
+                        # Ordena por pontos no blowout
+                        team_vultures.sort(key=lambda x: x['pts'], reverse=True)
+                        new_dna[team] = team_vultures[:5] # Top 5
+                    
+                    # 3. SALVA NA NUVEM
+                    save_data_universal(KEY_DNA, new_dna)
+                    DNA_DB = new_dna
+                    status.update(label="✅ DNA Salvo no Supabase!", state="complete", expanded=False)
+                else:
+                    st.error("Logs sem coluna 'TEAM_ABBREVIATION'. Verifique estrutura.")
+                    return
+                
+            except Exception as e:
+                st.error(f"Erro ao processar na nuvem: {e}")
+                return
+
+    # --- 4. EXIBIÇÃO (INTERFACE) ---
+    games = st.session_state.get('scoreboard', [])
+    if not games:
+        st.warning("Scoreboard vazio.")
+        return
+
+    # Simulador de Spread
+    with st.expander("🎛️ Simulador de Cenários", expanded=False):
+        c1, c2 = st.columns([3, 1])
+        c1.info("Se os spreads estiverem zerados, use o slider para revelar as oportunidades.")
+        force_spread = c2.slider("Simular Spread:", 0, 30, 0)
+
+    # Mapa de Tradução (ESPN -> NBA API)
+    TEAM_MAP = {
+        "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
+        "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "CHA": "CHA",
+        "NOR": "NOP", "LAL": "LAL", "LAC": "LAC", "GSW": "GSW", "NYK": "NYK"
+    }
+
+    def get_dna_data(raw_team):
+        # Tenta várias chaves
+        keys_to_try = [
+            raw_team,
+            TEAM_MAP.get(raw_team),
+            raw_team.replace("LA", "L.A.") if "LA" in raw_team else raw_team
+        ]
+        
+        # Busca direta
+        for k in keys_to_try:
+            if k and k in DNA_DB: return DNA_DB[k]
+        
+        # Busca parcial (útil para OKC / OKLAHOMA)
+        for k in DNA_DB.keys():
+            if raw_team in k: return DNA_DB[k]
+            
+        return []
+
+    processed_games = []
+    for g in games:
+        raw_spread = g.get('odds_spread', '0')
+        try: real_spread = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1]))
+        except: real_spread = 0.0
+        
+        final_spread = max(real_spread, force_spread)
+
+        if final_spread >= 12.5: risk, css, txt = "HIGH", "risk-header-high", "🔥 ALTO RISCO"
+        elif final_spread >= 8.5: risk, css, txt = "MED", "risk-header-med", "⚠ RISCO MODERADO"
+        else: risk, css, txt = "LOW", "risk-header-low", "🛡️ JOGO EQUILIBRADO"
+        
+        processed_games.append({"game": g, "spread": final_spread, "risk": risk, "css": css, "text": txt, "real": real_spread})
+
+    processed_games.sort(key=lambda x: x['spread'], reverse=True)
+
+    for item in processed_games:
+        g = item['game']
+        h_raw, a_raw = g['home'], g['away']
+        
+        spread_txt = f"{item['spread']}"
+        if item['real'] == 0 and force_spread > 0: spread_txt += " (Simulado)"
+
+        st.markdown(f"""
+        <div class="risk-card">
+            <div class="{item['css']}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="game-matchup">{a_raw} @ {h_raw}</div>
+                    <div style="text-align:right;">
+                        <div style="color:#fff; font-weight:bold; font-size:12px;">{item['text']}</div>
+                        <div class="game-spread">SPREAD: {spread_txt}</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        is_open = (item['risk'] != "LOW")
+        title = "Ver Histórico L25 de Reservas" if not is_open else "🎯 Destaques L25 (Quem Joga?)"
+        
+        with st.expander(title, expanded=is_open):
+            c1, c2 = st.columns(2)
+            
+            def render(col, team):
+                vultures = get_dna_data(team)
+                with col:
+                    st.markdown(f"<div style='margin-bottom:8px; color:#a3a3a3; font-size:11px; font-weight:bold;'>{team}</div>", unsafe_allow_html=True)
+                    if vultures:
+                        for v in vultures[:3]: # Top 3
+                            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{v['id']}.png"
+                            st.markdown(f"""
+                            <div class="vulture-row">
+                                <div style="display:flex; align-items:center;">
+                                    <img src="{photo}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                                    <div>
+                                        <div class="vulture-name">{v['name']} <span class="dna-badge">L25</span></div>
+                                        <div class="vulture-role">
+                                            Normal: {v['avg_min']:.0f}m ➝ <span style="color:#4ade80; font-weight:bold;">{v['blowout_min']:.0f}m</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="stat-box">
+                                    <div><div class="stat-val c-pts">{v['pts']:.1f}</div><div class="stat-lbl">PTS</div></div>
+                                    <div><div class="stat-val c-reb">{v['reb']:.1f}</div><div class="stat-lbl">REB</div></div>
+                                    <div><div class="stat-val c-ast">{v['ast']:.1f}</div><div class="stat-lbl">AST</div></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.caption("Sem dados L25 (Time não encontrado no DNA).")
+            
+            render(c1, a_raw)
+            render(c2, h_raw)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
@@ -7617,6 +7745,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
