@@ -6842,65 +6842,22 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V48.0 - TARGET 'INJURIES')
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V50.0 - DASHBOARD)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
     import pandas as pd
-    import json
     import unicodedata
 
-    # --- 1. CSS VISUAL (HOSPITAL THEME) ---
+    # --- 1. CABEÇALHO ---
     st.markdown("""
-    <style>
-        .bio-title { font-family: 'Oswald', sans-serif; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
-        .bio-sub { font-family: 'Nunito', sans-serif; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
-
-        .hospital-ward {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px;
-        }
-
-        .ward-card {
-            background: linear-gradient(145deg, #2b1111, #1a0b0b);
-            border: 1px solid #7f1d1d; border-left: 5px solid #ef4444; border-radius: 10px;
-            padding: 15px; display: flex; align-items: center; gap: 15px;
-            box-shadow: 0 4px 10px rgba(220, 38, 38, 0.1); position: relative; overflow: hidden;
-        }
-        
-        .pulse-alert {
-            position: absolute; top: 0; right: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, rgba(255,0,0,0.1) 0%, rgba(0,0,0,0) 70%);
-            animation: pulse 2s infinite; pointer-events: none;
-        }
-        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-
-        .w-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #ef4444; background: #000; z-index: 1; }
-        .w-info { z-index: 1; width: 100%; }
-        .w-name { font-family: 'Oswald', sans-serif; font-size: 18px; color: #fff; line-height: 1.1; }
-        .w-meta { font-size: 12px; color: #fca5a5; font-weight: bold; margin-top: 2px; }
-        .w-status { font-size: 11px; font-weight: bold; background: #7f1d1d; color: #fecaca; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 6px; border: 1px solid #ef4444; }
-
-        .roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
-        .injury-mini-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .inj-left { display: flex; align-items: center; gap: 10px; }
-        .inj-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #0f172a; border: 1px solid #475569; }
-        .inj-txt { display: flex; flex-direction: column; }
-        .inj-name { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; }
-        .inj-desc { font-size: 10px; color: #94a3b8; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        .inj-badge { font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; text-align: center; min-width: 60px; }
-        .st-out { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
-        .st-gtd { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid #f97316; }
-        .st-prob { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
-
-        .team-separator { font-family: 'Oswald'; font-size: 18px; color: #cbd5e1; border-bottom: 2px solid #334155; padding-bottom: 5px; margin: 25px 0 15px 0; display: flex; justify-content: space-between; align-items: center; }
-    </style>
+    <h2 style='margin-bottom: 5px; color: #ef4444;'>🚑 BIO-MONITOR</h2>
+    <p style='color: #94a3b8; font-size: 14px; margin-bottom: 25px;'>
+        Monitoramento de lesões em tempo real. Ordem de prioridade por impacto no time.
+    </p>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="bio-title">🚑 BIO-MONITOR</div>', unsafe_allow_html=True)
-    st.markdown('<div class="bio-sub">Conectando ao banco de dados Supabase...</div>', unsafe_allow_html=True)
-
-    # --- 2. CONFIGURAÇÃO DE MAPAS ---
+    # --- 2. CONFIGURAÇÃO E DADOS ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -6913,6 +6870,7 @@ def show_depto_medico():
     PLAYER_IMPACT_MAP = {}
     PLAYER_ID_MAP = {}
     
+    # Mapeamento robusto de IDs e Impacto
     if not df_l5.empty:
         try:
             cols = [c.upper() for c in df_l5.columns]
@@ -6922,91 +6880,84 @@ def show_depto_medico():
             c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
             
             for _, row in df_l5.iterrows():
-                nm = normalize_str(row.get(c_name, ''))
+                # Guarda nome completo e primeiro nome para fallback
+                full_name = normalize_str(row.get(c_name, ''))
+                try: pid = int(row.get(c_id, 0))
+                except: pid = 0
+                
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0
+                
                 impact = 0
-                if mins >= 30: impact = 2 
-                elif mins >= 20: impact = 1
-                PLAYER_IMPACT_MAP[nm] = impact
-                PLAYER_ID_MAP[nm] = row.get(c_id, 0)
+                if mins >= 28: impact = 2 # Estrela
+                elif mins >= 18: impact = 1 # Rotação
+                
+                if full_name:
+                    PLAYER_IMPACT_MAP[full_name] = impact
+                    PLAYER_ID_MAP[full_name] = pid
+                    
+                    # Hack para nomes curtos (ex: "NIC CLAXTON" vs "NICOLAS CLAXTON")
+                    # Se o nome tiver sobrenome, mapeia partes
+                    parts = full_name.split()
+                    if len(parts) >= 2:
+                        # Mapeia sobrenome se for único? Arriscado.
+                        # Mapeia "Primeiro Sobrenome"
+                        short_key = f"{parts[0]} {parts[-1]}"
+                        if short_key not in PLAYER_ID_MAP:
+                            PLAYER_ID_MAP[short_key] = pid
+                            PLAYER_IMPACT_MAP[short_key] = impact
         except: pass
 
-    # --- 3. FETCH E PARSING INTELIGENTE ---
+    # --- 3. FETCH AUTOMÁTICO ---
     injuries_list = []
-    data_source = "NONE"
-    
-    # === AQUI ESTÁ A CORREÇÃO: TENTAR A CHAVE 'INJURIES' PRIMEIRO ===
-    # Ordem de tentativa: 'injuries' (nova) -> 'injuries_cache_v44' (padrao antigo) -> 'injuries_data' (fallback)
-    
-    # 1. Tenta a chave pura 'injuries' (Como está no Table Editor)
-    raw_data = get_data_universal('injuries')
-    if raw_data: 
-        data_source = "KEY: INJURIES"
-    else:
-        # 2. Tenta a chave com versão
-        raw_data = get_data_universal('injuries_cache_v44')
-        if raw_data: 
-            data_source = "KEY: INJURIES_CACHE_V44"
-        else:
-            # 3. Último recurso
-            raw_data = get_data_universal('injuries_data')
-            if raw_data: data_source = "KEY: INJURIES_DATA"
+    raw_data = get_data_universal('injuries') # Tenta chave limpa
+    if not raw_data: raw_data = get_data_universal('injuries_cache_v44') # Tenta V44
+    if not raw_data: raw_data = get_data_universal('injuries_data') # Fallback
 
-    # PARSER UNIVERSAL (Extrai lista de qualquer formato)
     if raw_data:
         try:
-            # Se for Lista, perfeito
             if isinstance(raw_data, list):
                 injuries_list = raw_data
-            
-            # Se for Dicionário, precisamos escavar
             elif isinstance(raw_data, dict):
-                # Caso A: {'teams': {'LAL': [...]}}
+                # Tenta extrair de todas as formas possíveis
                 if 'teams' in raw_data and isinstance(raw_data['teams'], dict):
-                    for team, players in raw_data['teams'].items():
-                        if isinstance(players, list):
-                            for p in players:
-                                p['team_code'] = team
-                                injuries_list.append(p)
-
-                # Caso B: {'data': [...]} (Wrapper comum)
+                    target = raw_data['teams']
                 elif 'data' in raw_data and isinstance(raw_data['data'], list):
                     injuries_list = raw_data['data']
-                
-                # Caso C: As chaves SÃO os times (Dicionário plano)
+                    target = {}
                 else:
-                    # Varre todas as chaves. Se o valor for lista de dicts, assume que é time.
-                    for k, v in raw_data.items():
-                        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+                    target = raw_data
+                
+                if not injuries_list and target:
+                    for k, v in target.items():
+                        if isinstance(v, list):
                             for p in v:
-                                p['team_code'] = k
-                                injuries_list.append(p)
+                                if isinstance(p, dict):
+                                    p['team_code'] = k
+                                    injuries_list.append(p)
+        except: pass
 
-        except Exception as e:
-            st.error(f"Erro ao processar JSON: {e}")
-
-    # --- 4. TRATAMENTO DE ERRO (DEBUG) ---
     if not injuries_list:
-        st.warning(f"⚠️ Nenhuma informação de lesão encontrada.")
-        
-        with st.expander("🛠️ Debug de Conexão", expanded=True):
-            st.write(f"**Chave Usada:** {data_source}")
-            st.write(f"**Tipo do Retorno:** {type(raw_data)}")
-            if isinstance(raw_data, dict):
-                st.write(f"**Chaves Disponíveis:** {list(raw_data.keys())}")
-            st.info("Dica: Se o retorno é 'dict' mas as chaves não são 'teams' nem códigos de times, o parser não conseguiu identificar a lista.")
+        st.info("ℹ️ Sistema online, mas nenhuma lesão crítica detectada no momento.")
         return
 
-    # --- 5. ENRIQUECIMENTO ---
+    # --- 4. PROCESSAMENTO FINAL ---
     processed_injuries = []
-    
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
         norm_name = normalize_str(p_name)
         
-        impact = PLAYER_IMPACT_MAP.get(norm_name, 0)
+        # Tenta achar ID exato
         pid = PLAYER_ID_MAP.get(norm_name, 0)
+        impact = PLAYER_IMPACT_MAP.get(norm_name, 0)
+        
+        # Fallback de busca parcial para Foto
+        if pid == 0:
+            for k in PLAYER_ID_MAP:
+                if k in norm_name or norm_name in k: # Match parcial
+                    pid = PLAYER_ID_MAP[k]
+                    impact = PLAYER_IMPACT_MAP[k]
+                    break
         
         raw_status = str(p.get('status', '')).upper()
         status_code = "UNKNOWN"
@@ -7014,110 +6965,104 @@ def show_depto_medico():
         elif any(x in raw_status for x in ["QUEST", "DOUBT", "GTD", "DECISION"]): status_code = "GTD"
         elif "PROB" in raw_status: status_code = "PROB"
         
-        # Filtra ativos sem issues
         if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
         
         p['impact'] = impact
         p['pid'] = pid
         p['status_code'] = status_code
-        p['norm_name'] = norm_name
         p['display_name'] = p_name
         if 'team' not in p and 'team_code' in p: p['team'] = p['team_code']
         
         processed_injuries.append(p)
 
-    # --- 6. EXIBIÇÃO ---
-    
-    # A. HERO SECTION (ALA HOSPITALAR)
-    hospital_ward = [
+    # --- 5. VISUALIZAÇÃO DASHBOARD (SEM MENUS) ---
+
+    # A. ALA DE EMERGÊNCIA (Top Impacto)
+    ward_players = [
         p for p in processed_injuries 
         if (p['impact'] >= 2 and p['status_code'] in ['OUT', 'GTD']) 
         or (p['impact'] >= 1 and p['status_code'] == 'GTD')
     ]
-    
-    if hospital_ward:
-        st.markdown(f"### 🏥 Ala de Emergência ({len(hospital_ward)} Jogadores Críticos)")
-        html_cards = ""
-        for p in hospital_ward:
-            photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-            if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
-            
-            st_txt = "FORA" if p['status_code'] == "OUT" else "GTD"
-            tm = p.get('team', 'UNK')
-            
-            html_cards += f"""
-            <div class="ward-card">
-                <div class="pulse-alert"></div>
-                <img src="{photo}" class="w-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                <div class="w-info">
-                    <div class="w-name">{p['display_name']}</div>
-                    <div class="w-meta">{tm} • IMPACTO CRÍTICO</div>
-                    <div class="w-status">{st_txt}</div>
-                </div>
-            </div>
-            """
-        st.markdown(f'<div class="hospital-ward">{html_cards}</div>', unsafe_allow_html=True)
-    
-    # B. LISTA GERAL
-    st.markdown("---")
-    
+
+    if ward_players:
+        st.error(f"🚨 **HOSPITAL WARD ({len(ward_players)} Jogadores Chave)**")
+        
+        # Grid Nativo - 4 colunas para caber bem
+        cols = st.columns(4)
+        for i, p in enumerate(ward_players):
+            with cols[i % 4]:
+                with st.container(border=True):
+                    # Foto Grande
+                    photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                    if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
+                    
+                    c_img, c_txt = st.columns([1, 2])
+                    with c_img:
+                        st.image(photo, use_container_width=True)
+                    with c_txt:
+                        st.markdown(f"**{p['display_name'].split()[-1]}**") # Sobrenome
+                        if p['status_code'] == "OUT":
+                            st.markdown(":red[**OUT**]")
+                        else:
+                            st.markdown(":orange[**GTD**]")
+                        st.caption(f"{p.get('team', 'UNK')}")
+
+    # B. LISTA GERAL POR TIME (Ordenado por Impacto Total)
     teams_dict = {}
     for p in processed_injuries:
         tm = p.get('team', 'UNK')
         if tm not in teams_dict: teams_dict[tm] = []
         teams_dict[tm].append(p)
         
+    # Ordena: Times com mais estrelas fora aparecem primeiro
     sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
     
-    c_filter, c_vazio = st.columns([1, 2])
-    filter_tm = c_filter.selectbox("Filtrar Time:", ["TODOS"] + sorted([t for t in teams_dict.keys()]))
-
+    st.markdown("---")
+    
+    # Renderiza todos os times em sequência (Dashboard style)
     for tm, players in sorted_teams:
-        if filter_tm != "TODOS" and tm != filter_tm: continue
-        
         impact_score = sum(p['impact'] for p in players)
-        alert_color = "#ef4444" if impact_score >= 3 else "#cbd5e1"
         
-        st.markdown(f"""
-        <div class="team-separator" style="border-color: {alert_color}">
-            <span>{tm}</span>
-            <span style="font-size:12px; background:{alert_color}; color:#000; padding:2px 8px; border-radius:4px;">IMPACTO: {impact_score}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        cols = st.columns(3)
+        # Header do Time com Badge de Impacto
+        if impact_score >= 3:
+            st.markdown(f"#### 🔥 {tm} <span style='font-size:14px; background:#fecaca; color:#7f1d1d; padding:2px 8px; border-radius:4px;'>IMPACTO ALTO: {impact_score}</span>", unsafe_allow_html=True)
+        elif impact_score >= 1:
+            st.markdown(f"#### ⚠️ {tm} <span style='font-size:14px; background:#fef08a; color:#713f12; padding:2px 8px; border-radius:4px;'>IMPACTO MÉDIO</span>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"#### 🛡️ {tm} <span style='font-size:14px; color:#64748b;'>Rotação Fundo de Banco</span>", unsafe_allow_html=True)
+            
+        # Ordena jogadores do time
         players.sort(key=lambda x: (x['impact'], 1 if x['status_code']=='OUT' else 0), reverse=True)
         
-        html_grid = '<div class="roster-grid">'
-        for p in players:
-            photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-            if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
-            
-            s_code = p['status_code']
-            if s_code == 'OUT': badge_cls, badge_txt = "st-out", "OUT"
-            elif s_code == 'GTD': badge_cls, badge_txt = "st-gtd", "GTD"
-            else: badge_cls, badge_txt = "st-prob", "PROB"
-            
-            desc = p.get('description') or p.get('desc') or p.get('details') or "Sem detalhes."
-            if len(desc) > 60: desc = desc[:57] + "..."
-            
-            html_grid += f"""
-            <div class="injury-mini-card">
-                <div class="inj-left">
-                    <img src="{photo}" class="inj-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                    <div class="inj-txt">
-                        <div class="inj-name">{p['display_name']}</div>
-                        <div class="inj-desc">{desc}</div>
-                    </div>
-                </div>
-                <div class="inj-badge {badge_cls}">{badge_txt}</div>
-            </div>
-            """
-        html_grid += "</div>"
-        st.markdown(html_grid, unsafe_allow_html=True)
-
-    # Rodapé de Debug
-    st.caption(f"Fonte de Dados: {data_source} | Registros: {len(injuries_list)}")
+        # Grid de Cards Nativos
+        # Usa 3 colunas para PCs, no mobile o Streamlit empilha automaticamente
+        row_cols = st.columns(3)
+        for idx, p in enumerate(players):
+            with row_cols[idx % 3]:
+                # Borda colorida baseada no status
+                box_color = "red" if p['status_code'] == 'OUT' else "orange"
+                
+                with st.container(border=True):
+                    c_av, c_det = st.columns([1, 3])
+                    with c_av:
+                        photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                        if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
+                        st.image(photo, use_container_width=True)
+                    
+                    with c_det:
+                        st.markdown(f"**{p['display_name']}**")
+                        if p['status_code'] == "OUT":
+                            st.markdown(f":red[**OUT**]")
+                        elif p['status_code'] == "GTD":
+                            st.markdown(f":orange[**GTD**]")
+                        else:
+                            st.markdown(f":green[**{p['status_code']}**]")
+                        
+                        desc = p.get('description') or p.get('details') or ""
+                        if desc:
+                            st.caption(desc[:60] + "..." if len(desc) > 60 else desc)
+        
+        st.markdown("") # Espaçamento
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -7963,6 +7908,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
