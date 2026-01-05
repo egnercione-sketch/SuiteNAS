@@ -488,70 +488,251 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-#  MATCHUP RADAR
+# DVP SNIPER
 # ============================================================================
-def show_h2h_radar_page():
-    st.header("🎯 ROUND MATCHUP RADAR (PRO)")
-    
-    df_l5 = st.session_state.get("df_l5", pd.DataFrame())
+def show_dvp_analysis():
+    import streamlit as st
+    import pandas as pd
+    import textwrap
+    import html
+
+    # --- 1. CSS VISUAL ---
+    st.markdown(textwrap.dedent("""
+    <style>
+        .sniper-card {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #64748B;
+        }
+        .target-green { border-left-color: #00FF9C; background: linear-gradient(90deg, rgba(0,255,156,0.05) 0%, rgba(15,23,42,0.8) 100%); }
+        .avoid-red { border-left-color: #FF4F4F; opacity: 0.6; }
+        
+        .snip-name { font-weight: bold; color: #F8FAFC; font-size: 14px; font-family: sans-serif; }
+        .snip-team { font-size: 10px; color: #94A3B8; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+        .snip-reason { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+        .snip-rank { font-family: 'Courier New', monospace; font-weight: bold; font-size: 16px; }
+        
+        .gold-player-box {
+            background: linear-gradient(135deg, rgba(6, 78, 59, 0.8) 0%, rgba(0, 0, 0, 0.6) 100%);
+            border: 1px solid #00FF9C;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .gold-rank { color: #00FF9C; font-weight: bold; font-size: 12px; margin-bottom: 5px; }
+        .gold-name { color: #fff; font-weight: bold; font-size: 16px; margin-bottom: 2px; }
+        .gold-vs { color: #94A3B8; font-size: 11px; }
+    </style>
+    """), unsafe_allow_html=True)
+
+    st.header("🎯 DvP SNIPER")
+    st.caption("Alvos baseados em vulnerabilidade defensiva (Posições Inferidas).")
+
+    # --- 2. DADOS ---
+    dvp_analyzer = st.session_state.get("dvp_analyzer")
+    if not dvp_analyzer or not hasattr(dvp_analyzer, 'defense_data'):
+        try:
+            from modules.new_modules.dvp_analyzer import DvPAnalyzer
+            st.session_state.dvp_analyzer = DvPAnalyzer()
+            dvp_analyzer = st.session_state.dvp_analyzer
+        except:
+            st.error("Erro no DvP. Atualize em Config.")
+            return
+
     games = st.session_state.get("scoreboard", [])
-    
-    if df_l5.empty or not games:
-        st.warning("⚠️ Carregue o L5 e o Scoreboard primeiro.")
+    df_l5 = st.session_state.get("df_l5", pd.DataFrame())
+
+    if not games or df_l5.empty:
+        st.warning("⚠️ Dados insuficientes. Atualize Scoreboard e L5.")
         return
 
-    fetcher = MatchupHistoryFetcher()
-
-    # Verifica se já processamos a rodada nesta sessão para ser instantâneo
-    if 'global_h2h_data' not in st.session_state:
-        all_players_data = []
-        with st.status("🚀 Fazendo Varredura Global (Primeira execução)...", expanded=True) as status:
-            # Pegamos os jogadores mais relevantes (Top 60 por PRA) para não sobrecarregar
-            relevant_players = df_l5.sort_values("PRA_AVG", ascending=False).head(60)
-            
-            for _, p in relevant_players.iterrows():
-                # Encontra o oponente deste jogador no scoreboard de hoje
-                opp = None
-                p_team_norm = p['TEAM']
-                for g in games:
-                    h_norm = fetcher.espn_to_nba.get(g['home'], g['home'])
-                    a_norm = fetcher.espn_to_nba.get(g['away'], g['away'])
-                    if p_team_norm == h_norm: opp = g['away']
-                    elif p_team_norm == a_norm: opp = g['home']
-                
-                if opp:
-                    h2h = fetcher.get_h2h_stats(p['PLAYER_ID'], opp)
-                    if h2h:
-                        all_players_data.append({
-                            **h2h, "player_name": p['PLAYER'], "team": p['TEAM'], "opp": opp
-                        })
-            
-            st.session_state.global_h2h_data = sorted(all_players_data, key=lambda x: x['diff_pct'], reverse=True)
-            status.update(label="✅ Varredura Completa!", state="complete", expanded=False)
-
-    # Exibição (Usa os dados do session_state - Instantâneo)
-    col_hot, col_neu, col_cold = st.columns(3)
+    TEAM_MAP = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN"}
+    POSITIONS = ["PG", "SG", "SF", "PF", "C"]
     
-    col_hot.markdown("<h3 style='color:#00FF9C; font-family:Oswald; font-size:18px;'>🔥 HOT MATCHUPS</h3>", unsafe_allow_html=True)
-    col_neu.markdown("<h3 style='color:#94A3B8; font-family:Oswald; font-size:18px;'>⚖️ NEUTRAL</h3>", unsafe_allow_html=True)
-    col_cold.markdown("<h3 style='color:#FF4F4F; font-family:Oswald; font-size:18px;'>🧊 COLD MATCHUPS</h3>", unsafe_allow_html=True)
-
-    for data in st.session_state.global_h2h_data:
-        s, color = data['stats'], data['color']
-        diff_str = f"+{data['diff_pct']}%" if data['diff_pct'] > 0 else f"{data['diff_pct']}%"
+    # --- 3. LÓGICA DE INFERÊNCIA V34 (FILTRO DE EXCLUSÃO) ---
+    def infer_if_player_fits_pos(row, target_pos):
+        ast = float(row.get('AST_AVG', 0))
+        reb = float(row.get('REB_AVG', 0))
+        pts = float(row.get('PTS_AVG', 0))
+        blk = float(row.get('BLK_AVG', 0))
+        fg3 = float(row.get('FG3M_AVG', 0))
         
-        card_html = f"<div style='background:rgba(15,23,42,0.9);border-left:4px solid {color};border-radius:6px;padding:10px;margin-bottom:12px;height:120px;width:100%;border:1px solid rgba(255,255,255,0.05);overflow:hidden;box-sizing:border-box;'><div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'><div style='font-family:\"Oswald\",sans-serif;font-size:12px;color:#F8FAFC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:65%;'>{data['player_name'].upper()}</div><div style='font-family:\"Oswald\",sans-serif;font-size:12px;color:{color};font-weight:bold;'>{diff_str}</div></div><div style='display:grid;grid-template-columns:repeat(4,1fr);background:rgba(0,0,0,0.4);padding:6px 2px;border-radius:4px;margin-bottom:6px;'><div style='text-align:center;'><div style='font-size:7px;color:#64748B;'>PTS</div><div style='font-family:\"Oswald\";font-size:11px;color:#E2E8F0;'>{s['PTS']}</div></div><div style='text-align:center;'><div style='font-size:7px;color:#64748B;'>REB</div><div style='font-family:\"Oswald\";font-size:11px;color:#E2E8F0;'>{s['REB']}</div></div><div style='text-align:center;'><div style='font-size:7px;color:#64748B;'>AST</div><div style='font-family:\"Oswald\";font-size:11px;color:#E2E8F0;'>{s['AST']}</div></div><div style='text-align:center;'><div style='font-size:7px;color:#64748B;'>3PM</div><div style='font-family:\"Oswald\";font-size:11px;color:#00E5FF;'>{s['3PM']}</div></div></div><div style='display:flex;justify-content:space-between;font-size:9px;color:#475569;border-top:1px solid rgba(255,255,255,0.05);padding-top:4px;'><span>{data['team']} vs {data['opp']}</span><span style='font-weight:bold;'>{data['games_count']} GM</span></div></div>"
+        # 1. PIVÔ (C)
+        if target_pos == "C":
+            # Tem que pegar rebote E (dar toco OU não chutar muito de 3)
+            # Exclui alas que só pegam rebote
+            return (reb >= 8.0) or (reb >= 6.0 and blk >= 0.8)
+            
+        # 2. ARMADOR (PG)
+        elif target_pos == "PG":
+            # Tem que dar assistência E NÃO pode pegar muito rebote (pra excluir Jokic/Sabonis)
+            return (ast >= 4.5) and (reb < 7.5)
+            
+        # 3. ALA-PIVÔ (PF)
+        elif target_pos == "PF":
+            # Rebote sólido, mas menos assistências que um PG e menos rebote que um C puro
+            return (reb >= 5.0) and (reb < 10.0) and (ast < 4.5)
+            
+        # 4. ALA-ARMADOR (SG)
+        elif target_pos == "SG":
+            # Chuta de 3, mas NÃO é o armador principal (pouca ast) e NÃO é pivô (pouco rebote/toco)
+            return (fg3 >= 1.5) and (ast < 5.5) and (reb < 6.0) and (blk < 0.8)
+            
+        # 5. ALA (SF)
+        elif target_pos == "SF":
+            # O "Resto": Pontua, pega rebote médio, mas não domina nenhuma estatística extrema
+            return (reb >= 2.5) and (reb < 8.0) and (ast < 5.0) and (blk < 1.0)
+            
+        return False
 
-        if data['status'] == "HOT": col_hot.markdown(card_html, unsafe_allow_html=True)
-        elif data['status'] == "COLD": col_cold.markdown(card_html, unsafe_allow_html=True)
-        else: col_neu.markdown(card_html, unsafe_allow_html=True)
-
-    if st.button("🔄 Forçar Recarregamento da API"):
-        if 'global_h2h_data' in st.session_state:
-            del st.session_state.global_h2h_data
-        st.rerun()
+    def find_best_player_for_pos(team_abbr, pos_code, df_source):
+        norm_team = TEAM_MAP.get(team_abbr, team_abbr)
         
+        # Identificação de Colunas
+        cols = df_source.columns
+        team_col = next((c for c in cols if c.upper() in ['TEAM', 'TEAM_ABBREVIATION']), None)
+        if not team_col: return None, 0
+        
+        name_col = None
+        for cand in ['PLAYER_NAME', 'PLAYER', 'NAME', 'Player']:
+            if cand in cols: name_col = cand; break
+        if not name_col:
+            name_col = next((c for c in cols if 'PLAYER' in c.upper() and 'ID' not in c.upper()), None)
+        if not name_col: return None, 0
 
+        pos_col = next((c for c in cols if c.upper() in ['POSITION', 'POS', 'PLAYER_POSITION']), None)
+        min_col = next((c for c in cols if 'MIN' in c.upper()), 'MIN_AVG')
+
+        # Filtra Time
+        team_players = df_source[df_source[team_col] == norm_team].copy()
+        if team_players.empty: return None, 0
+        
+        candidates = pd.DataFrame()
+        
+        # Tenta Coluna Oficial
+        if pos_col:
+            try:
+                team_players['TEMP_POS'] = team_players[pos_col].astype(str).str.upper()
+                if pos_code == "PG": candidates = team_players[team_players['TEMP_POS'].str.contains("PG|POINT")]
+                elif pos_code == "SG": candidates = team_players[team_players['TEMP_POS'].str.contains("SG|SHOOTING")]
+                elif pos_code == "SF": candidates = team_players[team_players['TEMP_POS'].str.contains("SF|SMALL")]
+                elif pos_code == "PF": candidates = team_players[team_players['TEMP_POS'].str.contains("PF|POWER")]
+                elif pos_code == "C": candidates = team_players[team_players['TEMP_POS'].str.contains("C|CENTER")]
+            except: pass
+        
+        # Fallback: Inferência V34
+        if candidates.empty:
+            mask = team_players.apply(lambda r: infer_if_player_fits_pos(r, pos_code), axis=1)
+            candidates = team_players[mask]
+
+        if candidates.empty: return None, 0
+            
+        # Pega o Titular (Mais Minutos)
+        try:
+            candidates[min_col] = pd.to_numeric(candidates[min_col], errors='coerce').fillna(0)
+            best = candidates.sort_values(min_col, ascending=False).iloc[0]
+            return str(best[name_col]), best[min_col]
+        except:
+            return None, 0
+
+    # --- 4. PROCESSAMENTO ---
+    targets = []
+    matchups = []
+
+    for g in games:
+        home, away = g['home'], g['away']
+        home_key, away_key = TEAM_MAP.get(home, home), TEAM_MAP.get(away, away)
+        
+        g_targets, g_avoids = [], []
+        
+        for side, my_team, opp_team, opp_key in [('HOME', home, away, away_key), ('AWAY', away, home, home_key)]:
+            for pos in POSITIONS:
+                rank = dvp_analyzer.get_position_rank(opp_key, pos)
+                
+                if rank >= 25 or rank <= 5:
+                    p_name, p_min = find_best_player_for_pos(my_team, pos, df_l5)
+                    
+                    if p_name and p_min > 20:
+                        # Evita duplicatas do mesmo jogador no mesmo jogo
+                        # (Ex: Impedir que o mesmo cara seja listado como SG e SF)
+                        exists = any(t['player'] == p_name for t in g_targets + g_avoids)
+                        if exists: continue
+
+                        item = {
+                            'player': p_name, 'team': my_team, 'vs': opp_team, 'pos': pos, 
+                            'rank': rank, 'side': side, 'min': p_min
+                        }
+                        if rank >= 25: 
+                            targets.append(item); g_targets.append(item)
+                        else: 
+                            g_avoids.append(item)
+        
+        if g_targets or g_avoids:
+            matchups.append({'game': f"{away} @ {home}", 'targets': g_targets, 'avoids': g_avoids})
+
+    # --- 5. RENDERIZAÇÃO ---
+    targets.sort(key=lambda x: (x['rank'], x['min']), reverse=True)
+    st.subheader("🏆 Top 3 Melhores Matchups")
+    if targets:
+        c1, c2, c3 = st.columns(3)
+        for i, t in enumerate(targets[:3]):
+            with [c1, c2, c3][i]:
+                st.markdown(f"""
+                <div class="gold-player-box">
+                    <div class="gold-rank">🎯 ALVO RANK {t['rank']}</div>
+                    <div class="gold-name">{html.escape(t['player'])}</div>
+                    <div class="gold-vs">{t['team']} vs {t['vs']} ({t['pos']}*)</div>
+                </div>
+                """, unsafe_allow_html=True)
+        st.caption("* Posição estimada por stats. Verifique escalações se jogadores aparecerem em times trocados.")
+    else: st.info("Sem alvos perfeitos detectados.")
+
+    st.markdown("---")
+    st.subheader("⚔️ Análise por Jogo")
+
+    def render_card(item):
+        is_target = item['rank'] >= 25
+        css = "target-green" if is_target else "avoid-red"
+        color = "#00FF9C" if is_target else "#FF4F4F"
+        icon = "🔥" if is_target else "❄️"
+        txt = f"Defesa Fraca vs {item['pos']}" if is_target else f"Defesa Forte vs {item['pos']}"
+        
+        return f"""
+        <div class="sniper-card {css}">
+            <div>
+                <div style="display:flex; align-items:center;">
+                    <span style="font-size:16px; margin-right:8px;">{icon}</span>
+                    <span class="snip-name">{html.escape(item['player'])}</span>
+                    <span class="snip-team">{item['team']}</span>
+                </div>
+                <div class="snip-reason" style="color:{color}">{txt}</div>
+            </div>
+            <div class="snip-rank" style="color:{color}">#{item['rank']}</div>
+        </div>
+        """
+
+    for m in matchups:
+        st.markdown(f"<div style='text-align:center; font-family:Oswald; margin:20px 0; border-bottom:1px solid #334155;'>{m['game']}</div>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<div style='color:#00FF9C; font-weight:bold; font-size:12px;'>🚀 OVER (ALVOS)</div>", unsafe_allow_html=True)
+            if m['targets']:
+                h = "".join([render_card(t) for t in sorted(m['targets'], key=lambda x: x['rank'], reverse=True)])
+                st.markdown(h, unsafe_allow_html=True)
+            else: st.caption("---")
+        with c2:
+            st.markdown("<div style='color:#FF4F4F; font-weight:bold; font-size:12px;'>🛑 UNDER (EVITAR)</div>", unsafe_allow_html=True)
+            if m['avoids']:
+                h = "".join([render_card(a) for a in sorted(m['avoids'], key=lambda x: x['rank'])])
+                st.markdown(h, unsafe_allow_html=True)
+            else: st.caption("---")
+                
 # ============================================================================
 # PÁGINA: BLOWOUT COMMANDER (V12.4 - ROBUST SPREAD & UTAH FIX)
 # ============================================================================
@@ -769,11 +950,16 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA MOMENTUM (VISUAL WALL STREET v2.0)
+# PÁGINA MOMENTUM (VISUAL WALL STREET v2.2 - CORREÇÃO TYPE ERROR)
 # ============================================================================
 def show_momentum_page():
-    import plotly.express as px
-    
+    # Tenta importar a biblioteca gráfica. Se não tiver, avisa o usuário.
+    try:
+        import plotly.express as px
+    except ImportError:
+        st.error("⚠️ Biblioteca gráfica ausente. Por favor, adicione 'plotly' ao seu requirements.txt")
+        return
+
     # CSS Específico para esta página (Ticker e Cards)
     st.markdown("""
     <style>
@@ -822,12 +1008,12 @@ def show_momentum_page():
     # --- FILTROS INTELIGENTES ---
     col_search, col_pos = st.columns([2, 1])
     with col_search:
-        teams = sorted(df['TEAM'].unique().tolist())
+        # CORREÇÃO AQUI: dropna() remove vazios e astype(str) garante que é texto
+        teams = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
         teams.insert(0, "TODOS OS TIMES")
         sel_team = st.selectbox("Filtrar por Time", teams)
     
     with col_pos:
-        # Se sua base tiver coluna POS, ótimo. Se não, ignoramos.
         positions = ["TODAS", "G", "F", "C"]
         sel_pos = st.selectbox("Posição", positions)
 
@@ -836,7 +1022,6 @@ def show_momentum_page():
     if sel_team != "TODOS OS TIMES":
         df_filtered = df_filtered[df_filtered['TEAM'] == sel_team]
     
-    # (Lógica de filtro de posição se existir na base, senão ignora)
     if 'POS' in df_filtered.columns and sel_pos != "TODAS":
         df_filtered = df_filtered[df_filtered['POS'].str.contains(sel_pos, na=False)]
 
@@ -845,22 +1030,21 @@ def show_momentum_page():
     # --- 2. MATRIZ DE DISPERSÃO (O GRÁFICO BLOOMBERG) ---
     st.markdown('<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ DE OPORTUNIDADES</div>', unsafe_allow_html=True)
     
-    # Criando o Gráfico
+    # Criando o Gráfico (Protegido)
     try:
         fig = px.scatter(
             df_filtered, 
             x="MIN_AVG", 
             y="MOMENTUM_SCORE",
             color="MOMENTUM_SCORE",
-            color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], # Red -> Yellow -> Teal
-            size="PTS_AVG", # Tamanho da bolha = Pontos
+            color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
+            size="PTS_AVG",
             hover_name="PLAYER",
             hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
             template="plotly_dark",
             height=400
         )
         
-        # Customização Fina do Layout
         fig.update_layout(
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
@@ -870,44 +1054,38 @@ def show_momentum_page():
             margin=dict(l=0, r=0, t=0, b=0)
         )
         
-        # Linhas de Referência (Quadrantes)
         fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
         fig.add_vline(x=25, line_dash="dot", line_color="#334155")
         
         st.plotly_chart(fig, use_container_width=True)
-        
         st.caption("Eixo X: Minutos Jogados | Eixo Y: Score de Momentum | Tamanho: Média de Pontos")
+        
     except Exception as e:
-        st.error(f"Erro ao gerar gráfico: {e}")
+        # Fallback silencioso se o gráfico falhar
+        st.info("Visualização gráfica indisponível no momento.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- 3. LISTAS BULL & BEAR (CARDS TIPO AÇÃO) ---
     col_bull, col_bear = st.columns(2)
 
-    # Separação
     bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False)
     bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True)
 
-    # Helper de Renderização do Card de Mercado
     def render_market_card(player_row, type="bull"):
-        # Cores e Ícones
         if type == "bull":
-            color = "#00ff9c" # Verde Neon
+            color = "#00ff9c"
             bg_grad = "linear-gradient(90deg, rgba(0, 255, 156, 0.1) 0%, transparent 100%)"
-            icon = "📈"
             trend = "EM ALTA"
         else:
-            color = "#f87171" # Vermelho
+            color = "#f87171"
             bg_grad = "linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%)"
-            icon = "📉"
             trend = "EM BAIXA"
 
         p_id = int(player_row.get('PLAYER_ID', 0))
         photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
         score = player_row['MOMENTUM_SCORE']
         
-        # Nome truncado
         name = player_row['PLAYER']
         if len(name) > 18: name = name[:16] + "..."
 
@@ -923,12 +1101,10 @@ def show_momentum_page():
             background: {bg_grad};
         ">
             <img src="{photo}" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
-            
             <div style="flex-grow: 1;">
                 <div style="font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1;">{name}</div>
                 <div style="font-size: 10px; color: #94a3b8;">{player_row['TEAM']} • {trend}</div>
             </div>
-            
             <div style="text-align: right;">
                 <div style="font-family: 'Oswald'; font-size: 18px; color: {color}; font-weight: bold;">{score:.0f}</div>
                 <div style="font-size: 8px; color: {color};">SCORE</div>
@@ -951,7 +1127,6 @@ def show_momentum_page():
         else:
             for _, row in bears_list.head(10).iterrows():
                 render_market_card(row, "bear")
-
 # ============================================================================
 # PROPS ODDS - LAS VEGAS
 # ============================================================================
@@ -7549,7 +7724,7 @@ def main():
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
             "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
-            "🛡️ DvP Confrontos", "📡 Matchup Radar", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
+            "🛡️ DvP Confrontos", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
             "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
         choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
@@ -7572,8 +7747,7 @@ def main():
     elif choice == "📊 Matriz 5-7-10": show_5_7_10_page()
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
     
-    elif choice == "🛡️ DvP Confrontos": show_dvp_page()
-    elif choice == "📡 Matchup Radar": show_h2h_radar_page()()
+    elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
     elif choice == "🏥 Depto Médico": show_depto_medico()
     elif choice == "🔄 Mapa de Rotações": show_mapa_rotacoes()
     elif choice == "👥 Escalações": show_escalacoes()
@@ -7583,6 +7757,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
