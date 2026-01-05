@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V50.0 - DASHBOARD)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V51.0 - NEXT MAN UP)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6853,11 +6853,11 @@ def show_depto_medico():
     st.markdown("""
     <h2 style='margin-bottom: 5px; color: #ef4444;'>🚑 BIO-MONITOR</h2>
     <p style='color: #94a3b8; font-size: 14px; margin-bottom: 25px;'>
-        Monitoramento de lesões em tempo real. Ordem de prioridade por impacto no time.
+        Monitoramento de lesões e análise de impacto na rotação (Next Man Up).
     </p>
     """, unsafe_allow_html=True)
 
-    # --- 2. CONFIGURAÇÃO E DADOS ---
+    # --- 2. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -6866,11 +6866,26 @@ def show_depto_medico():
             return text.upper().strip()
         except: return ""
 
+    def get_clean_pos(raw):
+        """Padroniza posições para lógica de substituição."""
+        r = str(raw).upper()
+        if 'GUARD' in r or 'G' == r: return 'G'
+        if 'FORWARD' in r or 'F' == r: return 'F'
+        if 'CENTER' in r or 'C' == r: return 'C'
+        # Detalhado
+        if 'PG' in r: return 'G'
+        if 'SG' in r: return 'G'
+        if 'SF' in r: return 'F'
+        if 'PF' in r: return 'F'
+        return 'F' # Default
+
+    # --- 3. CONSTRUÇÃO DO DEPTH CHART (QUEM ASSUME?) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    PLAYER_IMPACT_MAP = {}
-    PLAYER_ID_MAP = {}
     
-    # Mapeamento robusto de IDs e Impacto
+    # Mapas para enriquecimento
+    PLAYER_META_MAP = {} # Nome -> {id, pos, min, team}
+    TEAM_DEPTH_CHART = {} # Team -> Pos -> [Lista ordenada por min]
+    
     if not df_l5.empty:
         try:
             cols = [c.upper() for c in df_l5.columns]
@@ -6878,191 +6893,213 @@ def show_depto_medico():
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_min = next((c for c in cols if 'MIN' in c), 'MIN')
             c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
+            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            c_pos = next((c for c in cols if 'POS' in c), 'POS')
             
             for _, row in df_l5.iterrows():
-                # Guarda nome completo e primeiro nome para fallback
                 full_name = normalize_str(row.get(c_name, ''))
-                try: pid = int(row.get(c_id, 0))
-                except: pid = 0
-                
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0
+                try: pid = int(row.get(c_id, 0))
+                except: pid = 0
+                team = str(row.get(c_team, 'UNK')).upper()
+                raw_pos = str(row.get(c_pos, 'SF'))
+                clean_p = get_clean_pos(raw_pos) # G, F ou C
                 
+                # Define Impacto
                 impact = 0
                 if mins >= 28: impact = 2 # Estrela
                 elif mins >= 18: impact = 1 # Rotação
                 
-                if full_name:
-                    PLAYER_IMPACT_MAP[full_name] = impact
-                    PLAYER_ID_MAP[full_name] = pid
-                    
-                    # Hack para nomes curtos (ex: "NIC CLAXTON" vs "NICOLAS CLAXTON")
-                    # Se o nome tiver sobrenome, mapeia partes
-                    parts = full_name.split()
-                    if len(parts) >= 2:
-                        # Mapeia sobrenome se for único? Arriscado.
-                        # Mapeia "Primeiro Sobrenome"
-                        short_key = f"{parts[0]} {parts[-1]}"
-                        if short_key not in PLAYER_ID_MAP:
-                            PLAYER_ID_MAP[short_key] = pid
-                            PLAYER_IMPACT_MAP[short_key] = impact
-        except: pass
-
-    # --- 3. FETCH AUTOMÁTICO ---
-    injuries_list = []
-    raw_data = get_data_universal('injuries') # Tenta chave limpa
-    if not raw_data: raw_data = get_data_universal('injuries_cache_v44') # Tenta V44
-    if not raw_data: raw_data = get_data_universal('injuries_data') # Fallback
-
-    if raw_data:
-        try:
-            if isinstance(raw_data, list):
-                injuries_list = raw_data
-            elif isinstance(raw_data, dict):
-                # Tenta extrair de todas as formas possíveis
-                if 'teams' in raw_data and isinstance(raw_data['teams'], dict):
-                    target = raw_data['teams']
-                elif 'data' in raw_data and isinstance(raw_data['data'], list):
-                    injuries_list = raw_data['data']
-                    target = {}
-                else:
-                    target = raw_data
+                # Salva Meta
+                meta = {
+                    "id": pid, "min": mins, "pos_group": clean_p, 
+                    "impact": impact, "team": team, "name": row.get(c_name, '')
+                }
                 
-                if not injuries_list and target:
-                    for k, v in target.items():
-                        if isinstance(v, list):
-                            for p in v:
-                                if isinstance(p, dict):
-                                    p['team_code'] = k
-                                    injuries_list.append(p)
+                PLAYER_META_MAP[full_name] = meta
+                
+                # Monta Depth Chart
+                if team not in TEAM_DEPTH_CHART: TEAM_DEPTH_CHART[team] = {'G':[], 'F':[], 'C':[]}
+                if clean_p in TEAM_DEPTH_CHART[team]:
+                    TEAM_DEPTH_CHART[team][clean_p].append(meta)
+                    
         except: pass
+
+    # Ordena Depth Chart
+    for tm in TEAM_DEPTH_CHART:
+        for pos in TEAM_DEPTH_CHART[tm]:
+            TEAM_DEPTH_CHART[tm][pos].sort(key=lambda x: x['min'], reverse=True)
+
+    # --- 4. FETCH INTELIGENTE ---
+    injuries_list = []
+    # Tenta todas as chaves possíveis
+    keys_to_try = ['injuries', 'injuries_cache_v44', 'injuries_data']
+    
+    raw_data = None
+    for k in keys_to_try:
+        raw_data = get_data_universal(k)
+        if raw_data: break
+    
+    if raw_data:
+        # Parser Universal (Lista ou Dict)
+        if isinstance(raw_data, list):
+            injuries_list = raw_data
+        elif isinstance(raw_data, dict):
+            # Procura listas dentro do dict
+            for k, v in raw_data.items():
+                if isinstance(v, list): # Assume que é lista de jogadores
+                    for p in v:
+                        if isinstance(p, dict):
+                            p['team_code'] = k if len(k) <= 3 else p.get('team') # Usa chave como time se for curta
+                            injuries_list.append(p)
+                elif k == 'data' and isinstance(v, list): # Formato {data: [...]}
+                    injuries_list = v
 
     if not injuries_list:
-        st.info("ℹ️ Sistema online, mas nenhuma lesão crítica detectada no momento.")
+        st.info("ℹ️ Nenhuma lesão reportada no banco de dados.")
         return
 
-    # --- 4. PROCESSAMENTO FINAL ---
+    # --- 5. PROCESSAMENTO E NEXT MAN UP ---
     processed_injuries = []
+    
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
         norm_name = normalize_str(p_name)
         
-        # Tenta achar ID exato
-        pid = PLAYER_ID_MAP.get(norm_name, 0)
-        impact = PLAYER_IMPACT_MAP.get(norm_name, 0)
+        # 1. Enriquecimento (Meta + Foto)
+        meta = PLAYER_META_MAP.get(norm_name)
         
-        # Fallback de busca parcial para Foto
-        if pid == 0:
-            for k in PLAYER_ID_MAP:
-                if k in norm_name or norm_name in k: # Match parcial
-                    pid = PLAYER_ID_MAP[k]
-                    impact = PLAYER_IMPACT_MAP[k]
-                    break
+        # Fallback de Foto (Sobrenome match) se não achou exato
+        if not meta:
+            parts = norm_name.split()
+            if len(parts) > 1:
+                lastname = parts[-1]
+                # Procura alguém do mesmo time com esse sobrenome
+                p_team = str(p.get('team_code') or p.get('team') or "").upper()
+                for k, v in PLAYER_META_MAP.items():
+                    if lastname in k and v['team'] == p_team:
+                        meta = v
+                        break
         
+        # Se ainda não achou, cria meta dummy
+        if not meta:
+            meta = {"id": 0, "min": 0, "pos_group": "F", "impact": 0, "team": "UNK"}
+
+        # 2. Status Inteligente (Sem 'Unknown')
         raw_status = str(p.get('status', '')).upper()
-        status_code = "UNKNOWN"
         if "OUT" in raw_status: status_code = "OUT"
-        elif any(x in raw_status for x in ["QUEST", "DOUBT", "GTD", "DECISION"]): status_code = "GTD"
+        elif any(x in raw_status for x in ["GTD", "QUEST", "DOUBT", "DECISION"]): status_code = "GTD"
         elif "PROB" in raw_status: status_code = "PROB"
-        
+        else: 
+            # Se não é padrão, usa o texto original (ex: "Day-To-Day", "Surgery")
+            status_code = raw_status[:12] if raw_status else "INFO"
+
         if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
-        
-        p['impact'] = impact
-        p['pid'] = pid
-        p['status_code'] = status_code
+
+        # 3. Lógica "Next Man Up" (Beneficiário)
+        replacement = None
+        if meta['impact'] >= 1 and status_code in ['OUT', 'GTD']: # Só procura substituto para rotação/star
+            team_roster = TEAM_DEPTH_CHART.get(meta.get('team', p.get('team_code')), {})
+            pos_group = team_roster.get(meta['pos_group'], [])
+            
+            # Pega o próximo da fila com menos minutos que o titular, mas que seja o maior dos reservas
+            # Como a lista já está ordenada por min desc, pegamos o próximo index
+            for cand in pos_group:
+                if cand['name'] != meta.get('name') and normalize_str(cand['name']) != norm_name:
+                    replacement = cand['name']
+                    break # Pega o primeiro (mais minutos) que não é ele mesmo
+
+        # Consolida
+        p['meta'] = meta
+        p['status_display'] = status_code
+        p['replacement'] = replacement
         p['display_name'] = p_name
-        if 'team' not in p and 'team_code' in p: p['team'] = p['team_code']
+        # Garante time
+        if 'team' not in p: p['team'] = meta.get('team') or p.get('team_code') or "UNK"
         
         processed_injuries.append(p)
 
-    # --- 5. VISUALIZAÇÃO DASHBOARD (SEM MENUS) ---
+    # --- 6. RENDERIZAÇÃO DASHBOARD ---
 
-    # A. ALA DE EMERGÊNCIA (Top Impacto)
+    # A. HOSPITAL WARD (Estrelas OUT/GTD)
     ward_players = [
         p for p in processed_injuries 
-        if (p['impact'] >= 2 and p['status_code'] in ['OUT', 'GTD']) 
-        or (p['impact'] >= 1 and p['status_code'] == 'GTD')
+        if (p['meta']['impact'] >= 2 and p['status_display'] in ['OUT', 'GTD']) 
+        or (p['meta']['impact'] >= 1 and p['status_display'] == 'GTD')
     ]
 
     if ward_players:
-        st.error(f"🚨 **HOSPITAL WARD ({len(ward_players)} Jogadores Chave)**")
+        st.error(f"🚨 **HOSPITAL WARD ({len(ward_players)} Peças Chave)**")
         
-        # Grid Nativo - 4 colunas para caber bem
         cols = st.columns(4)
         for i, p in enumerate(ward_players):
             with cols[i % 4]:
                 with st.container(border=True):
-                    # Foto Grande
-                    photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                    if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
-                    
-                    c_img, c_txt = st.columns([1, 2])
+                    # Header: Foto + Nome
+                    c_img, c_info = st.columns([1, 2])
                     with c_img:
+                        pid = p['meta']['id']
+                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                         st.image(photo, use_container_width=True)
-                    with c_txt:
-                        st.markdown(f"**{p['display_name'].split()[-1]}**") # Sobrenome
-                        if p['status_code'] == "OUT":
-                            st.markdown(":red[**OUT**]")
-                        else:
-                            st.markdown(":orange[**GTD**]")
-                        st.caption(f"{p.get('team', 'UNK')}")
+                    with c_info:
+                        # Nome curto
+                        nm_parts = p['display_name'].split()
+                        display = nm_parts[-1] if len(nm_parts) > 1 else p['display_name']
+                        st.markdown(f"**{display}**")
+                        st.caption(f"{p.get('team')} • {p['meta']['min']:.0f}m")
+                    
+                    # Status
+                    if p['status_display'] == "OUT":
+                        st.markdown(":red[**🔴 OUT**]")
+                    elif p['status_display'] == "GTD":
+                        st.markdown(":orange[**🟠 GTD**]")
+                    else:
+                        st.markdown(f"**{p['status_display']}**")
 
-    # B. LISTA GERAL POR TIME (Ordenado por Impacto Total)
+                    # NEXT MAN UP (A Cereja do Bolo)
+                    if p['replacement']:
+                        st.markdown("---")
+                        st.markdown(f"<span style='font-size:10px; color:#4ade80;'>📈 SOBE:</span> **{p['replacement'].split()[-1]}**", unsafe_allow_html=True)
+
+    # B. LISTA COMPLETA POR TIME
+    st.divider()
+    
+    # Agrupa
     teams_dict = {}
     for p in processed_injuries:
         tm = p.get('team', 'UNK')
         if tm not in teams_dict: teams_dict[tm] = []
         teams_dict[tm].append(p)
         
-    # Ordena: Times com mais estrelas fora aparecem primeiro
-    sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
-    
-    st.markdown("---")
-    
-    # Renderiza todos os times em sequência (Dashboard style)
+    sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['meta']['impact'] for p in x[1]), reverse=True)
+
     for tm, players in sorted_teams:
-        impact_score = sum(p['impact'] for p in players)
+        impact_total = sum(p['meta']['impact'] for p in players)
         
-        # Header do Time com Badge de Impacto
-        if impact_score >= 3:
-            st.markdown(f"#### 🔥 {tm} <span style='font-size:14px; background:#fecaca; color:#7f1d1d; padding:2px 8px; border-radius:4px;'>IMPACTO ALTO: {impact_score}</span>", unsafe_allow_html=True)
-        elif impact_score >= 1:
-            st.markdown(f"#### ⚠️ {tm} <span style='font-size:14px; background:#fef08a; color:#713f12; padding:2px 8px; border-radius:4px;'>IMPACTO MÉDIO</span>", unsafe_allow_html=True)
+        # Header do Time
+        if impact_total >= 3:
+            st.markdown(f"#### 🔥 {tm} <span style='font-size:12px; color:#f87171'>(Impacto Alto)</span>", unsafe_allow_html=True)
+        elif impact_total >= 1:
+            st.markdown(f"#### ⚠️ {tm} <span style='font-size:12px; color:#facc15'>(Impacto Médio)</span>", unsafe_allow_html=True)
         else:
-            st.markdown(f"#### 🛡️ {tm} <span style='font-size:14px; color:#64748b;'>Rotação Fundo de Banco</span>", unsafe_allow_html=True)
+            st.markdown(f"#### 🛡️ {tm} <span style='font-size:12px; color:#94a3b8'>(Rotação)</span>", unsafe_allow_html=True)
             
-        # Ordena jogadores do time
-        players.sort(key=lambda x: (x['impact'], 1 if x['status_code']=='OUT' else 0), reverse=True)
-        
-        # Grid de Cards Nativos
-        # Usa 3 colunas para PCs, no mobile o Streamlit empilha automaticamente
-        row_cols = st.columns(3)
+        # Grid do Time
+        row_cols = st.columns(4) # 4 por linha para ficar compacto
         for idx, p in enumerate(players):
-            with row_cols[idx % 3]:
-                # Borda colorida baseada no status
-                box_color = "red" if p['status_code'] == 'OUT' else "orange"
-                
+            with row_cols[idx % 4]:
                 with st.container(border=True):
-                    c_av, c_det = st.columns([1, 3])
-                    with c_av:
-                        photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                        if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
-                        st.image(photo, use_container_width=True)
+                    pid = p['meta']['id']
+                    photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                     
-                    with c_det:
+                    c1, c2 = st.columns([1, 3])
+                    with c1: st.image(photo, use_container_width=True)
+                    with c2:
                         st.markdown(f"**{p['display_name']}**")
-                        if p['status_code'] == "OUT":
-                            st.markdown(f":red[**OUT**]")
-                        elif p['status_code'] == "GTD":
-                            st.markdown(f":orange[**GTD**]")
-                        else:
-                            st.markdown(f":green[**{p['status_code']}**]")
-                        
-                        desc = p.get('description') or p.get('details') or ""
-                        if desc:
-                            st.caption(desc[:60] + "..." if len(desc) > 60 else desc)
-        
-        st.markdown("") # Espaçamento
+                        s = p['status_display']
+                        color = "red" if s == "OUT" else ("orange" if s == "GTD" else "grey")
+                        st.markdown(f":{color}[{s}]")
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -7908,6 +7945,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
