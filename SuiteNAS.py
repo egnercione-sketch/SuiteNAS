@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V18.0 - BULLETPROOF & FALLBACK)
+# PÁGINA: BLOWOUT RADAR (V19.0 - CORRUPTION RECOVERY MODE)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -750,7 +750,6 @@ def show_blowout_hunter_page():
         .radar-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
         
         .risk-card { background: #1e293b; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155; overflow: hidden; }
-        .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; }
         
         .vulture-row { 
             display: flex; justify-content: space-between; align-items: center; 
@@ -772,120 +771,147 @@ def show_blowout_hunter_page():
         
         .dna-badge { background: #6D28D9; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; }
         .fallback-badge { background: #F59E0B; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; }
-
+        
         .risk-high { border-left: 5px solid #EF4444; background: linear-gradient(90deg, #450a0a 0%, #1e293b 100%); }
         .risk-med { border-left: 5px solid #F59E0B; background: linear-gradient(90deg, #451a03 0%, #1e293b 100%); }
         .risk-low { border-left: 5px solid #10B981; background: linear-gradient(90deg, #064e3b 0%, #1e293b 100%); }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR (V18)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR (RECOVERY MODE)</div>', unsafe_allow_html=True)
 
     # --- 2. CONFIGURAÇÃO ---
     KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_v18"
+    KEY_DNA = "rotation_dna_v19"
 
-    with st.expander("⚙️ Diagnóstico & Controle"):
+    # Preparar Mapa de Times (do DF_L5) para correção de "UNK"
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    PLAYER_TEAM_MAP = {}
+    if not df_l5.empty:
+        # Cria dicionário { "LEBRON JAMES": "LAL", ... }
+        # Normaliza para maiúsculo para garantir match
+        try:
+            df_norm = df_l5.copy()
+            df_norm['PLAYER'] = df_norm['PLAYER'].str.upper().str.strip()
+            PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER'], df_norm['TEAM']))
+        except: pass
+
+    with st.expander("⚙️ Painel de Recuperação"):
         c1, c2 = st.columns([3, 1])
-        c1.info("Forçar recalculo irá baixar os logs novamente e tentar gerar a inteligência.")
-        force_regen = c2.button("🔄 Recalcular DNA Agora")
+        c1.info("Modo de Recuperação Ativo: Corrige dados corrompidos usando o DF_L5.")
+        force_regen = c2.button("🔄 Forçar Recalculo Total")
 
-    # --- 3. FUNÇÕES AUXILIARES DE SANITIZAÇÃO ---
+    # --- 3. HELPER CLEANER ---
     def clean_list(lst):
-        """Converte lista suja (com None ou string) para lista de floats limpa."""
         if not lst: return []
-        clean = []
-        for x in lst:
-            try:
-                val = float(x) if x is not None else 0.0
-                clean.append(val)
-            except:
-                clean.append(0.0)
-        return clean
+        return [float(x) if x is not None else 0.0 for x in lst]
 
-    # --- 4. ENGINE DE PROCESSAMENTO ---
-    if 'dna_session_v18' not in st.session_state or force_regen:
-        # Tenta carregar existente se não forçado
+    # --- 4. ENGINE (RECOVERY MODE) ---
+    if 'dna_session_v19' not in st.session_state or force_regen:
         if not force_regen:
-            st.session_state['dna_session_v18'] = get_data_universal(KEY_DNA) or {}
+            st.session_state['dna_session_v19'] = get_data_universal(KEY_DNA) or {}
 
-    DNA_DB = st.session_state['dna_session_v18']
+    DNA_DB = st.session_state['dna_session_v19']
     
-    # Se vazio ou forçado, GERA
     if not DNA_DB or force_regen:
-        with st.status("☁️ Baixando Logs e Processando...", expanded=True) as status:
+        with st.status("☁️ Reparando e Processando Dados...", expanded=True) as status:
             try:
                 raw_data = get_data_universal(KEY_LOGS)
-                
                 if not raw_data:
-                    st.error("❌ Logs não encontrados no Supabase.")
+                    st.error("❌ Logs não encontrados.")
                     return
                 
-                status.write(f"📊 Logs recebidos: {len(raw_data)} jogadores. Processando...")
+                status.write(f"📊 Logs Brutos: {len(raw_data)}. Iniciando reparo...")
                 
                 new_dna = {}
                 temp_team_data = {}
-                
-                # Contadores de Debug
-                stats_debug = {"total": 0, "reserves": 0, "qualified": 0, "errors": 0}
+                debug_recovered = 0
                 
                 for p_name, p_data in raw_data.items():
-                    stats_debug["total"] += 1
                     if not isinstance(p_data, dict): continue
                     
+                    # 1. RECUPERAÇÃO DE TIME (Fix UNK)
                     team = str(p_data.get('team', 'UNK')).upper().strip()
+                    if team == 'UNK' or team == 'None':
+                        # Tenta achar no mapa do DF_L5
+                        norm_name = str(p_name).upper().strip()
+                        if norm_name in PLAYER_TEAM_MAP:
+                            team = PLAYER_TEAM_MAP[norm_name]
+                            debug_recovered += 1
+                        else:
+                            continue # Se não achar time, impossível usar
+                    
                     logs = p_data.get('logs', {})
                     if not logs: continue
                     
                     try:
-                        # 1. Sanitização (CRÍTICO: Evita crash de soma)
-                        min_list = clean_list(logs.get('MIN', []))
+                        # Extração de Stats
                         pts_list = clean_list(logs.get('PTS', []))
+                        min_list = clean_list(logs.get('MIN', [])) # Pode estar vazia!
                         reb_list = clean_list(logs.get('REB', []))
                         ast_list = clean_list(logs.get('AST', []))
                         
-                        if not min_list: continue
+                        if not pts_list: continue # Sem pontos, sem jogo
 
-                        # 2. Média Geral
-                        avg_min = sum(min_list) / len(min_list)
+                        # 2. RECUPERAÇÃO DE MÉDIA DE MINUTOS
+                        # Se MIN_AVG do JSON for 0, tenta calcular da lista.
+                        # Se a lista for vazia, tenta pegar do DF_L5 se possível (não implementado aqui pra não pesar, usamos fallback)
+                        avg_min = p_data.get('logs', {}).get('MIN_AVG', 0)
+                        if avg_min == 0 and min_list:
+                            avg_min = sum(min_list) / len(min_list)
                         
-                        # FILTRO 1: É Reserva? (< 26 min)
+                        # FILTRO 1: APENAS RESERVAS (< 26 min)
+                        # Se avg_min for 0 (dado faltante), assumimos que é reserva para analisar
                         if avg_min > 26: continue
-                        stats_debug["reserves"] += 1
-                        
-                        # FILTRO 2: Teve Oportunidade?
-                        # Jogou mais de 12 min em pelo menos um jogo
-                        arr_min = np.array(min_list)
-                        mask = arr_min >= 12.0
-                        
+
+                        # 3. LÓGICA HÍBRIDA (SNIPER vs CEILING)
                         is_qualified = False
                         b_pts, b_reb, b_ast, b_min = 0,0,0,0
-                        
-                        if np.any(mask):
-                            # Modo Sniper: Tem jogos de destaque
-                            is_qualified = True
-                            arr_pts = np.array(pts_list)
-                            arr_reb = np.array(reb_list)
-                            arr_ast = np.array(ast_list)
+                        logic_type = "REGULAR"
+
+                        # Cenário A: Temos lista de minutos (Ideal)
+                        if min_list and len(min_list) == len(pts_list):
+                            arr_min = np.array(min_list)
+                            mask = arr_min >= 12.0
+                            if np.any(mask):
+                                is_qualified = True
+                                logic_type = "SNIPER"
+                                # Filtra
+                                arr_pts = np.array(pts_list)
+                                arr_reb = np.array(reb_list)
+                                arr_ast = np.array(ast_list)
+                                b_pts = np.mean(arr_pts[mask])
+                                b_reb = np.mean(arr_reb[mask])
+                                b_ast = np.mean(arr_ast[mask])
+                                b_min = np.mean(arr_min[mask])
+
+                        # Cenário B: SEM MINUTOS (Corrupção) -> CEILING LOGIC
+                        # Pega os Top 3 jogos de Fantasy Score como proxy de "Blowout Potential"
+                        if not is_qualified:
+                            # Calcula Fantasy Score pra cada jogo
+                            # Assume listas do mesmo tamanho (PTS é mandatório)
+                            # Se outras forem menores, completa com 0
+                            limit = len(pts_list)
+                            p = np.array(pts_list[:limit])
+                            r = np.array(reb_list[:limit]) if len(reb_list) >= limit else np.zeros(limit)
+                            a = np.array(ast_list[:limit]) if len(ast_list) >= limit else np.zeros(limit)
                             
-                            b_pts = np.mean(arr_pts[mask])
-                            b_reb = np.mean(arr_reb[mask])
-                            b_ast = np.mean(arr_ast[mask])
-                            b_min = np.mean(arr_min[mask])
-                        
-                        # MODO FALLBACK POR JOGADOR:
-                        # Se não teve jogo de destaque, mas é reserva regular (jogou pelo menos 10 min de média), 
-                        # consideramos ele como opção de fundo de banco, usando a média normal.
-                        elif avg_min > 8.0:
-                            is_qualified = True
-                            b_pts = sum(pts_list)/len(pts_list)
-                            b_reb = sum(reb_list)/len(reb_list)
-                            b_ast = sum(ast_list)/len(ast_list)
-                            b_min = avg_min
+                            scores = p + r*1.2 + a*1.5
+                            # Pega indices dos Top 3 jogos
+                            top_indices = np.argsort(scores)[-3:]
+                            
+                            b_pts = np.mean(p[top_indices])
+                            b_reb = np.mean(r[top_indices])
+                            b_ast = np.mean(a[top_indices])
+                            b_min = avg_min # Fallback visual
+                            logic_type = "CEILING"
+                            
+                            # Filtro Mínimo: Tem que fazer pelo menos 5 pontos de score nos melhores jogos
+                            if np.mean(scores[top_indices]) > 5.0:
+                                is_qualified = True
 
                         if is_qualified:
                             impact = b_pts + b_reb + b_ast
-                            # Salva
                             if team not in temp_team_data: temp_team_data[team] = []
                             
                             temp_team_data[team].append({
@@ -897,86 +923,65 @@ def show_blowout_hunter_page():
                                 "reb": float(b_reb),
                                 "ast": float(b_ast),
                                 "score": float(impact),
-                                "type": "SNIPER" if np.any(mask) else "REGULAR"
+                                "type": logic_type
                             })
-                            stats_debug["qualified"] += 1
-                            
-                    except Exception as e:
-                        stats_debug["errors"] += 1
-                        continue
 
-                # Salva Top 5 de cada time
+                    except: continue
+
+                # Salva
+                status.write(f"🔧 Times Recuperados via Mapa: {debug_recovered}")
                 for t, players in temp_team_data.items():
                     players.sort(key=lambda x: x['score'], reverse=True)
                     new_dna[t] = players[:5]
                 
-                # Se mesmo assim estiver vazio (muito improvável), criar fallback dummy
-                if not new_dna:
-                    st.warning("⚠️ Nenhum jogador passou nos filtros. Verifique os logs brutos.")
-                
                 save_data_universal(KEY_DNA, new_dna)
-                st.session_state['dna_session_v18'] = new_dna
+                st.session_state['dna_session_v19'] = new_dna
                 DNA_DB = new_dna
                 
-                status.write(f"📈 Resultado: {stats_debug}")
-                status.update(label="✅ Inteligência Gerada com Sucesso!", state="complete", expanded=False)
+                status.update(label="✅ Recuperação Concluída!", state="complete", expanded=False)
                 
             except Exception as e:
                 st.error(f"Erro Fatal: {e}")
                 return
 
-    # --- 5. VISUALIZAÇÃO ---
+    # --- 5. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Scoreboard vazio.")
         return
 
-    # Debug: Mostra uma amostra do dado bruto para verificação
-    with st.expander("🛠️ Verificador de Estrutura JSON (Debug)"):
-        st.write(f"Times Encontrados no DNA: {list(DNA_DB.keys())}")
-        if st.button("Ver Amostra de Logs Brutos"):
-            raw = get_data_universal(KEY_LOGS)
-            if raw:
-                # Mostra o primeiro item do dicionário
-                first_key = next(iter(raw))
-                st.write({first_key: raw[first_key]})
-            else:
-                st.write("Logs Brutos vazios.")
-
-    with st.expander("🎛️ Simulador de Cenários", expanded=False):
+    # Simulador
+    with st.expander("🎛️ Simulador", expanded=False):
         c1, c2 = st.columns([3, 1])
-        c1.info("Use o slider para simular Spread.")
+        c1.info("Simular Spread alto.")
         force_spread = c2.slider("Spread:", 0, 30, 0)
 
-    # MAPA DE ALIASES (GARANTIA DE MATCH)
+    # MAPA DE ALIASES (Reforçado)
     ALIAS_MAP = {
-        "GS": "GSW", "GSW": "GSW", "GOLDEN STATE": "GSW",
-        "NY": "NYK", "NYK": "NYK", "NEW YORK": "NYK",
+        "GS": "GSW", "GSW": "GSW",
+        "NY": "NYK", "NYK": "NYK",
         "NO": "NOP", "NOP": "NOP", "NOR": "NOP",
         "SA": "SAS", "SAS": "SAS",
         "UTAH": "UTA", "UTA": "UTA",
-        "PHO": "PHX", "PHX": "PHX", "PHOENIX": "PHX",
+        "PHO": "PHX", "PHX": "PHX",
         "WSH": "WAS", "WAS": "WAS",
-        "BRK": "BKN", "BKN": "BKN", "BROOKLYN": "BKN",
-        "CHO": "CHA", "CHA": "CHA", "CHARLOTTE": "CHA",
-        "LAL": "LAL", "LAC": "LAC", "DET": "DET", "DETROIT": "DET",
-        "OKC": "OKC", "OKLAHOMA": "OKC"
+        "BRK": "BKN", "BKN": "BKN",
+        "CHO": "CHA", "CHA": "CHA",
+        "LAL": "LAL", "LAC": "LAC", 
+        "DET": "DET", "OKC": "OKC"
     }
 
     def get_team_data(query):
         q = str(query).upper().strip()
-        # 1. Alias
         if q in ALIAS_MAP:
             target = ALIAS_MAP[q]
             if target in DNA_DB: return DNA_DB[target]
-        # 2. Direto
         if q in DNA_DB: return DNA_DB[q]
-        # 3. Fuzzy
         for k in DNA_DB.keys():
             if q in k or k in q: return DNA_DB[k]
         return []
 
-    # Loop de Jogos
+    # Loop Jogos
     for g in games:
         raw_s = g.get('odds_spread', '0')
         try: real_s = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_s))[-1]))
@@ -1010,19 +1015,22 @@ def show_blowout_hunter_page():
                     if data:
                         for p in data[:3]:
                             photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                            # Badge
+                            badge_cls = "dna-badge" if p.get('type') == 'SNIPER' else "fallback-badge"
+                            badge_txt = "SNIPER" if p.get('type') == 'SNIPER' else "TOP GAME"
                             
-                            # Badge Lógica
-                            badge_html = '<span class="dna-badge">SNIPER</span>' if p.get('type') == 'SNIPER' else '<span class="fallback-badge">REGULAR</span>'
+                            # Minutos display
+                            min_disp = f"{p['avg_min']:.0f}m"
+                            if p['blowout_min'] > 0:
+                                min_disp += f" <span style='color:#64748B;'>➝</span> <span style='color:#4ade80;'>{p['blowout_min']:.0f}m</span>"
                             
                             st.markdown(f"""
                             <div class="vulture-row">
                                 <div style="display:flex; align-items:center;">
                                     <img src="{photo}" class="vulture-img">
                                     <div>
-                                        <div class="vulture-name">{p['name']} {badge_html}</div>
-                                        <div class="vulture-role">
-                                            {p['avg_min']:.0f}m <span style="color:#64748B;">➝</span> <span style="color:#4ade80;">{p['blowout_min']:.0f}m</span>
-                                        </div>
+                                        <div class="vulture-name">{p['name']} <span class="{badge_cls}">{badge_txt}</span></div>
+                                        <div class="vulture-role">{min_disp}</div>
                                     </div>
                                 </div>
                                 <div class="stat-box">
@@ -1033,7 +1041,7 @@ def show_blowout_hunter_page():
                             </div>
                             """, unsafe_allow_html=True)
                     else:
-                        st.caption(f"Sem dados L25 para {t_name}")
+                        st.caption(f"Sem dados recuperados para {t_name}")
 
             render_col(c1, g['away'])
             render_col(c2, g['home'])
@@ -7792,6 +7800,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
