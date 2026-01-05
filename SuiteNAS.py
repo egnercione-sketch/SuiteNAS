@@ -488,7 +488,7 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-# PÁGINA: DVP TACTICAL BOARD (V40.0 - FINAL POLISH)
+# PÁGINA: DVP TACTICAL BOARD (V41.0 - ROBUST HTML ARCHITECTURE)
 # ============================================================================
 def show_dvp_analysis():
     import streamlit as st
@@ -496,100 +496,98 @@ def show_dvp_analysis():
     import numpy as np
     import unicodedata
 
-    # --- 1. CONFIGURAÇÃO VISUAL (HTML/CSS BLINDADO) ---
+    # --- 1. CSS BLINDADO (SINGLE BLOCK) ---
     st.markdown("""
     <style>
-        .board-title { font-family: 'Oswald', sans-serif; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
-        .board-sub { font-family: 'Nunito', sans-serif; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
+        .dvp-header-title { font-family: 'Oswald', sans-serif; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+        .dvp-header-sub { font-family: 'Nunito', sans-serif; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
 
-        /* CARD DO JOGO */
-        .game-card {
-            background: #1e293b;
+        /* ESTRUTURA DO CARD DE JOGO */
+        .dvp-game-card {
+            background-color: #1e293b;
             border: 1px solid #334155;
             border-radius: 8px;
             margin-bottom: 20px;
             overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
-        .game-header {
-            background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        .dvp-game-header {
+            background: linear-gradient(90deg, #0f172a 0%, #334155 50%, #0f172a 100%);
             padding: 10px;
             text-align: center;
             font-family: 'Oswald', sans-serif;
-            font-size: 18px;
-            color: #e2e8f0;
-            border-bottom: 1px solid #334155;
+            font-size: 18px; color: #f8fafc;
+            border-bottom: 1px solid #475569;
+            letter-spacing: 1px;
         }
 
-        /* GRID DE CONFRONTO (CSS GRID - NÃO QUEBRA) */
-        .matchup-grid {
+        /* GRID TÁTICO (CSS GRID PURO) */
+        .dvp-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             width: 100%;
         }
 
-        .team-col {
-            padding: 10px;
+        .dvp-col {
+            padding: 0;
         }
-        .team-col:first-child {
+        .dvp-col:first-child {
             border-right: 1px solid #334155;
         }
 
-        .col-title {
-            font-size: 11px; font-weight: bold; color: #94a3b8; 
-            text-transform: uppercase; text-align: center; 
-            margin-bottom: 10px; border-bottom: 2px solid #334155; 
-            padding-bottom: 5px;
+        .dvp-col-header {
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            text-align: center;
+            font-size: 11px; font-weight: bold; color: #94a3b8; text-transform: uppercase;
+            border-bottom: 1px solid #334155;
         }
 
         /* LINHA DO JOGADOR */
-        .p-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(255,255,255,0.03);
-            border-radius: 6px;
-            padding: 6px 8px;
-            margin-bottom: 6px;
-            border-left: 3px solid transparent;
+        .dvp-player-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: background 0.2s;
         }
+        .dvp-player-row:last-child { border-bottom: none; }
+        .dvp-player-row:hover { background: rgba(255,255,255,0.03); }
 
-        .p-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+        .dvp-p-left { display: flex; align-items: center; gap: 10px; }
         
-        .p-img {
-            width: 36px; height: 36px; border-radius: 50%;
+        .dvp-p-img {
+            width: 38px; height: 38px; border-radius: 50%;
             object-fit: cover; background: #000; border: 1px solid #475569;
-            flex-shrink: 0;
         }
 
-        .p-text { display: flex; flex-direction: column; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .p-name { font-family: 'Oswald', sans-serif; font-size: 13px; color: #e2e8f0; line-height: 1.1; }
-        .p-meta { font-size: 10px; color: #94a3b8; font-weight: bold; }
+        .dvp-p-info { display: flex; flex-direction: column; }
+        .dvp-p-name { font-family: 'Oswald', sans-serif; font-size: 14px; color: #e2e8f0; line-height: 1.1; }
+        .dvp-p-meta { font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
 
-        /* RANK BADGE */
-        .rk-badge {
+        /* BADGE DE RANK */
+        .dvp-rank-badge {
             font-family: 'Roboto Mono', monospace;
-            font-size: 12px; font-weight: bold;
-            padding: 2px 8px; border-radius: 4px;
-            min-width: 40px; text-align: center;
-            color: #000;
-            flex-shrink: 0;
+            font-size: 13px; font-weight: bold;
+            padding: 3px 8px; border-radius: 4px;
+            min-width: 42px; text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* CORES */
-        .rk-elite { background: #4ade80; color: #064e3b; box-shadow: 0 0 8px rgba(74, 222, 128, 0.3); } /* 25-30 */
-        .rk-good { background: #86efac; color: #064e3b; } /* 20-24 */
-        .rk-avg { background: #facc15; color: #422006; } /* 11-19 */
-        .rk-bad { background: #f87171; color: #450a0a; } /* 1-10 */
-        
-        .no-sig { text-align: center; font-size: 11px; color: #64748b; padding: 20px; font-style: italic; }
+        /* CORES (TIERS) */
+        .tier-s { background: #22c55e; color: #000; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); border-color: #22c55e; } /* 25-30 */
+        .tier-a { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: #22c55e; } /* 20-24 */
+        .tier-b { background: rgba(234, 179, 8, 0.15); color: #facc15; border-color: #eab308; } /* 11-19 */
+        .tier-c { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: #ef4444; } /* 1-10 */
+
+        .dvp-missing { padding: 20px; text-align: center; font-size: 11px; color: #64748b; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="board-title">🛡️ DvP TACTICAL BOARD</div>', unsafe_allow_html=True)
-    st.markdown('<div class="board-sub">Rank Defensivo do Oponente por Posição (30 = Pior Defesa/Melhor Alvo).</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dvp-header-title">🛡️ DvP TACTICAL BOARD</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dvp-header-sub">Rank defensivo do oponente por posição (30 = Pior Defesa/Melhor Alvo).</div>', unsafe_allow_html=True)
 
-    # --- 2. CARREGAMENTO DE MÓDULOS ---
+    # --- 2. CARREGAMENTO DE DADOS ---
     dvp_analyzer = st.session_state.get("dvp_analyzer")
     if not dvp_analyzer:
         try:
@@ -597,7 +595,7 @@ def show_dvp_analysis():
             st.session_state.dvp_analyzer = DvPAnalyzer()
             dvp_analyzer = st.session_state.dvp_analyzer
         except:
-            st.error("❌ Módulo DvP offline.")
+            st.error("Módulo DvP offline.")
             return
 
     games = st.session_state.get("scoreboard", [])
@@ -605,11 +603,10 @@ def show_dvp_analysis():
         st.warning("Aguardando jogos...")
         return
 
-    # Dados Híbridos
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
     real_logs = get_data_universal('real_game_logs') or {}
 
-    # --- 3. NORMALIZAÇÃO ---
+    # --- 3. MAPAS & NORMALIZAÇÃO ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -618,12 +615,19 @@ def show_dvp_analysis():
             return text.upper().strip()
         except: return ""
 
+    # Mapa expandido para pegar NY e DET
     TEAM_CORRECTION = {
         "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "PHO": "PHX",
-        "WSH": "WAS", "UTAH": "UTA", "BRK": "BKN", "CHO": "CHA", "BK": "BKN"
+        "WSH": "WAS", "UTAH": "UTA", "BRK": "BKN", "CHO": "CHA", "BK": "BKN",
+        "NEW YORK": "NYK", "KNICKS": "NYK", "N.Y.": "NYK",
+        "DETROIT": "DET", "PISTONS": "DET"
     }
 
-    # --- 4. FILTRO DE LESÃO (V44) ---
+    def clean_team_code(t):
+        raw = str(t).upper().strip()
+        return TEAM_CORRECTION.get(raw, raw)
+
+    # --- 4. FILTRO DE LESÕES ---
     banned_players = set()
     try:
         fresh_inj = get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
@@ -644,112 +648,121 @@ def show_dvp_analysis():
             elif isinstance(item, str):
                 p_name = item.split('-')[0]
                 status = str(item).upper()
-            
             if p_name and any(x in status for x in EXCLUSION):
                 banned_players.add(normalize_str(p_name))
     except: pass
 
-    # --- 5. ROSTER BUILDER INTELIGENTE ---
-    def get_clean_pos(raw_pos_str):
-        """Limpa a string de posição para PG, SG, SF, PF, C."""
+    # --- 5. ROSTER BUILDER ---
+    
+    def get_clean_pos(raw_pos_str, stats=None):
+        """Limpa e infere posição se necessário."""
         raw = str(raw_pos_str).upper()
-        # Mapeamento explícito
+        
+        # 1. Posições Explícitas
         if 'CENTER' in raw: return 'C'
         if 'POINT' in raw: return 'PG'
         if 'SHOOTING' in raw: return 'SG'
         if 'POWER' in raw: return 'PF'
         if 'SMALL' in raw: return 'SF'
         
-        # Mapeamento por letras
         clean = raw.replace('-', '/').replace('GUARD', 'G').replace('FORWARD', 'F')
         parts = clean.split('/')
         main = parts[0].strip()
         
-        if main == 'C': return 'C'
-        if main == 'PG': return 'PG'
-        if main == 'SG': return 'SG'
-        if main == 'PF': return 'PF'
-        if main == 'SF': return 'SF'
+        if main in ['PG', 'SG', 'SF', 'PF', 'C']: return main
         
-        # Fallback para genéricos
-        if 'G' in main: return 'PG'
-        if 'F' in main: return 'SF'
-        return 'SF' # Último caso
+        # 2. Inferência por Stats (se disponível)
+        if stats:
+            ast = stats.get('AST', 0)
+            reb = stats.get('REB', 0)
+            if 'G' in main: return 'PG' if ast > 5.0 else 'SG'
+            if 'F' in main: return 'PF' if reb > 7.0 else 'SF'
+            if 'C' in main: return 'C'
+            
+        # 3. Fallback Seguro
+        if main == 'G': return 'SG'
+        if main == 'F': return 'SF'
+        return 'SF'
 
     def get_team_roster(team_code):
         roster = []
         
-        # 1. Fonte L5
+        # Fonte 1: L5 (Dados Oficiais)
         if not df_l5.empty:
             try:
                 # Busca colunas dinamicamente
-                c_team = next((c for c in df_l5.columns if 'TEAM' in c and 'ID' not in c), 'TEAM')
-                c_min = next((c for c in df_l5.columns if 'MIN' in c), 'MIN')
-                c_name = next((c for c in df_l5.columns if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-                c_pos = next((c for c in df_l5.columns if 'POS' in c), 'POS')
-                c_id = next((c for c in df_l5.columns if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
+                cols = [c.upper() for c in df_l5.columns]
+                df_l5.columns = cols
+                c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+                c_min = next((c for c in cols if 'MIN' in c), 'MIN')
+                c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+                c_pos = next((c for c in cols if 'POS' in c), 'POS')
+                c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
 
-                mask = df_l5[c_team].astype(str).str.upper() == team_code
-                team_df = df_l5[mask]
-                
-                for _, row in team_df.iterrows():
-                    nm = normalize_str(row.get(c_name, ''))
-                    if nm in banned_players: continue
+                # Filtra (usando clean_team_code também no dataframe se necessário)
+                # Iterar é mais seguro para normalização
+                for _, row in df_l5.iterrows():
+                    row_team = clean_team_code(row.get(c_team, 'UNK'))
                     
-                    try: mins = float(row.get(c_min, 0))
-                    except: mins = 0
-                    
-                    if mins >= 15:
-                        raw_p = str(row.get(c_pos, 'SF'))
-                        roster.append({
-                            "name": nm, "min": mins, 
-                            "pos": get_clean_pos(raw_p), 
-                            "id": row.get(c_id, 0)
-                        })
+                    if row_team == team_code:
+                        nm = normalize_str(row.get(c_name, ''))
+                        if nm in banned_players: continue
+                        
+                        try: mins = float(row.get(c_min, 0))
+                        except: mins = 0
+                        
+                        if mins >= 15:
+                            pos = get_clean_pos(row.get(c_pos, 'SF'))
+                            roster.append({
+                                "name": nm, "min": mins, "pos": pos, 
+                                "id": row.get(c_id, 0)
+                            })
             except: pass
 
-        # 2. Fonte Logs (Fallback se L5 vazio ou incompleto)
-        if len(roster) < 5 and real_logs:
-            existing_names = {r['name'] for r in roster}
+        # Fonte 2: Logs (Fallback e Complemento)
+        if real_logs:
+            # Coleta nomes existentes para evitar duplicatas
+            existing = {r['name'] for r in roster}
+            
             for p_name, p_data in real_logs.items():
                 if not isinstance(p_data, dict): continue
-                t = str(p_data.get('team', '')).upper()
-                if t in TEAM_CORRECTION: t = TEAM_CORRECTION[t]
+                t = clean_team_code(p_data.get('team', ''))
                 
                 if t == team_code:
                     nm = normalize_str(p_name)
-                    if nm in existing_names or nm in banned_players: continue
+                    if nm in existing or nm in banned_players: continue
                     
                     logs = p_data.get('logs', {})
                     mins = logs.get('MIN_AVG', 0)
-                    if mins == 0 and logs.get('MIN'):
-                        clean = [float(x) for x in logs['MIN'] if x is not None]
-                        if clean: mins = sum(clean)/len(clean)
                     
-                    if mins >= 15:
-                        # Inferência de posição pelos stats
-                        # (Simplificada pois não temos POS no log)
-                        pos = "SF" 
-                        pts = sum([float(x) for x in logs.get('PTS', []) if x])/len(logs.get('PTS', [])) if logs.get('PTS') else 0
-                        ast = sum([float(x) for x in logs.get('AST', []) if x])/len(logs.get('AST', [])) if logs.get('AST') else 0
-                        reb = sum([float(x) for x in logs.get('REB', []) if x])/len(logs.get('REB', [])) if logs.get('REB', []) else 0
-                        
-                        if ast > 5: pos = "PG"
-                        elif reb > 8: pos = "C"
-                        
-                        roster.append({"name": nm, "min": mins, "pos": pos, "id": 0})
+                    # Calcula stats médios para inferência
+                    stats = {}
+                    for k in ['PTS', 'REB', 'AST', 'MIN']:
+                        vals = [float(x) for x in logs.get(k, []) if x is not None]
+                        stats[k] = sum(vals)/len(vals) if vals else 0
+                    
+                    if stats['MIN'] == 0: stats['MIN'] = mins
+                    
+                    if stats['MIN'] >= 15:
+                        # Tenta inferir posição
+                        pos = get_clean_pos("SF", stats) # Passa stats para desempate
+                        roster.append({"name": nm, "min": stats['MIN'], "pos": pos, "id": 0})
 
+        # Retorna Top 8 rotação
         return sorted(roster, key=lambda x: x['min'], reverse=True)[:8]
 
-    # --- 6. RENDERIZAÇÃO ---
-    def render_player(p, opp_code):
+    # --- 6. RENDER HTML (SINGLE BLOCK PER GAME) ---
+    # Isso evita o "HTML explodindo"
+    
+    def render_player_html(p, opp_code):
         rank = dvp_analyzer.get_position_rank(opp_code, p['pos'])
         if not rank: rank = 15
         
-        if rank >= 25: rk_cls = "rk-elite"
-        elif rank >= 20: rk_cls = "rk-good"
-        elif rank >= 11: rk_cls = "rk-avg"
-        else: rk_cls = "rk-bad"
+        # Cores
+        if rank >= 25: tier = "tier-s" # Verde Forte
+        elif rank >= 20: tier = "tier-a" # Verde
+        elif rank >= 11: tier = "tier-b" # Amarelo
+        else: tier = "tier-c" # Vermelho
         
         photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         if p.get('id'): photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png"
@@ -757,41 +770,40 @@ def show_dvp_analysis():
         name = p['name'].title()
         
         return f"""
-        <div class="p-row">
-            <div class="p-info">
-                <img src="{photo}" class="p-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                <div class="p-text">
-                    <span class="p-name">{name}</span>
-                    <span class="p-meta">{p['pos']} • {p['min']:.0f}m</span>
+        <div class="dvp-player-row">
+            <div class="dvp-p-left">
+                <img src="{photo}" class="dvp-p-img">
+                <div class="dvp-p-info">
+                    <div class="dvp-p-name">{name}</div>
+                    <div class="dvp-p-meta">{p['pos']} • {p['min']:.0f}m</div>
                 </div>
             </div>
-            <div class="rk-badge {rk_cls}">#{rank}</div>
+            <div class="dvp-rank-badge {tier}">#{rank}</div>
         </div>
         """
 
     for g in games:
-        h_raw = str(g['home']).upper()
-        a_raw = str(g['away']).upper()
+        home = clean_team_code(g['home'])
+        away = clean_team_code(g['away'])
         
-        home = TEAM_CORRECTION.get(h_raw, h_raw)
-        away = TEAM_CORRECTION.get(a_raw, a_raw)
+        r_away = get_team_roster(away)
+        r_home = get_team_roster(home)
         
-        roster_away = get_team_roster(away)
-        roster_home = get_team_roster(home)
+        # Constrói o HTML interno das colunas
+        html_away = "".join([render_player_html(p, home) for p in r_away]) if r_away else f'<div class="dvp-missing">Sinal perdido: {away}</div>'
+        html_home = "".join([render_player_html(p, away) for p in r_home]) if r_home else f'<div class="dvp-missing">Sinal perdido: {home}</div>'
         
-        html_away = "".join([render_player(p, home) for p in roster_away]) if roster_away else f'<div class="no-sig">Sinal perdido: {away}</div>'
-        html_home = "".join([render_player(p, away) for p in roster_home]) if roster_home else f'<div class="no-sig">Sinal perdido: {home}</div>'
-        
+        # Renderiza o Card Completo
         st.markdown(f"""
-        <div class="game-card">
-            <div class="game-header">{away} @ {home}</div>
-            <div class="matchup-grid">
-                <div class="team-col">
-                    <div class="col-title">ATAQUE {away} <span style="color:#64748b">vs {home}</span></div>
+        <div class="dvp-game-card">
+            <div class="dvp-game-header">{away} @ {home}</div>
+            <div class="dvp-grid">
+                <div class="dvp-col">
+                    <div class="dvp-col-header">ATAQUE {away} <span style="color:#64748b">vs {home}</span></div>
                     {html_away}
                 </div>
-                <div class="team-col">
-                    <div class="col-title">ATAQUE {home} <span style="color:#64748b">vs {away}</span></div>
+                <div class="dvp-col">
+                    <div class="dvp-col-header">ATAQUE {home} <span style="color:#64748b">vs {away}</span></div>
                     {html_home}
                 </div>
             </div>
@@ -7872,6 +7884,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
