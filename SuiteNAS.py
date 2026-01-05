@@ -734,14 +734,12 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V6.5 - DNA GENERATOR & PERSISTENCE)
+# PÁGINA: BLOWOUT RADAR (V7.0 - SUPABASE INTEGRATION)
 # ============================================================================
 def show_blowout_hunter_page():
-    import json
-    import os
-    import re
     import time
     import pandas as pd
+    import re
     
     # --- 1. CSS VISUAL ---
     st.markdown("""
@@ -781,9 +779,9 @@ def show_blowout_hunter_page():
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR & VULTURES</div>', unsafe_allow_html=True)
-    st.markdown('<div class="radar-sub">Identificação de reservas com alta eficiência por minuto (PPM) para cenários de Garbage Time.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="radar-sub">Identificação de reservas com alta eficiência (Supabase Cloud).</div>', unsafe_allow_html=True)
 
-    # --- 2. DADOS ESSENCIAIS ---
+    # --- 2. DADOS ---
     games = st.session_state.get('scoreboard', [])
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
@@ -794,20 +792,11 @@ def show_blowout_hunter_page():
         st.error("❌ Base L5 vazia.")
         return
 
-    # --- 3. ENGINE DE GERAÇÃO DE DNA (AUTO-RUN) ---
-    CACHE_FILE = "cache/rotation_dna_v4.json"
+    # --- 3. GERAÇÃO DE DNA (CLOUD NATIVE) ---
+    KEY_DNA = "rotation_dna_v5" # Chave no Supabase
     
-    # Verifica se precisa gerar o DNA (se não existir ou se for forçado)
-    need_generation = False
-    if not os.path.exists(CACHE_FILE):
-        need_generation = True
-    else:
-        # Verifica se o arquivo é muito antigo (> 12h)
-        import time
-        if (time.time() - os.path.getmtime(CACHE_FILE)) > 43200:
-            need_generation = True
-
     # Mapa de Tradução (ESPN -> NBA API)
+    # Adicionando explicitamente CHA, OKC, BKN para garantir
     TEAM_MAP = {
         "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
         "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "NOR": "NOP",
@@ -815,95 +804,95 @@ def show_blowout_hunter_page():
         "DEN": "DEN", "PHI": "PHI", "ATL": "ATL", "TOR": "TOR", "MIA": "MIA",
         "ORL": "ORL", "DET": "DET", "IND": "IND", "CLE": "CLE", "HOU": "HOU",
         "DAL": "DAL", "MIN": "MIN", "POR": "POR", "SAC": "SAC", "MEM": "MEM",
-        "MIL": "MIL"
+        "MIL": "MIL", "CHA": "CHA"
     }
 
+    # Tenta carregar do Cache Local (Session) ou da Nuvem
+    if 'dna_cache_local' not in st.session_state:
+        cloud_data = get_data_universal(KEY_DNA) # Função do SuiteNAS
+        if cloud_data:
+            st.session_state['dna_cache_local'] = cloud_data
+        else:
+            st.session_state['dna_cache_local'] = {}
+
+    DNA_DATA = st.session_state['dna_cache_local']
+    
+    # Se estiver vazio, força geração
+    need_generation = not bool(DNA_DATA)
+
+    # Botão para forçar atualização manual
+    with st.expander("⚙️ Painel de Controle de Inteligência"):
+        if st.button("🔄 Forçar Regeneração do DNA (Nuvem)"):
+            need_generation = True
+
     if need_generation:
-        with st.status("🧬 Gerando DNA de Rotação (Análise de Eficiência de Banco)...", expanded=True) as status:
+        with st.status("☁️ Gerando DNA na Nuvem...", expanded=True) as status:
             dna_database = {}
             
-            # 1. Carregar lista de lesionados para excluir
+            # Carrega lista de lesionados para excluir
             banned = set()
             try:
                 raw_inj = st.session_state.get('injuries_data', [])
+                flat_inj = []
                 if isinstance(raw_inj, dict):
-                    flat_inj = []
                     for t in raw_inj.values(): flat_inj.extend(t)
                     raw_inj = flat_inj
-                for i in raw_inj:
+                else:
+                    flat_inj = raw_inj if isinstance(raw_inj, list) else []
+                    
+                for i in flat_inj:
                     if any(x in str(i.get('status','')).lower() for x in ['out','doubt','injur']):
                         banned.add(str(i.get('player') or i.get('name')).lower().strip())
             except: pass
 
-            # 2. Processar cada time
             all_teams = df_l5['TEAM'].unique()
             
             for team in all_teams:
-                # Filtra elenco
+                # Lógica de Vulture: Eficiência por minuto para reservas
                 roster = df_l5[df_l5['TEAM'] == team].copy()
-                
-                # Filtra RESERVAS REAIS (8 a 26 minutos)
-                bench = roster[
-                    (roster['MIN_AVG'] >= 8) & 
-                    (roster['MIN_AVG'] <= 26)
-                ].copy()
+                bench = roster[(roster['MIN_AVG'] >= 8) & (roster['MIN_AVG'] <= 26)].copy()
                 
                 vultures = []
                 for _, p in bench.iterrows():
                     name = p['PLAYER']
                     if name.lower().strip() in banned: continue
                     
-                    # CÁLCULO DE POTENCIAL "VULTURE"
-                    # Efficiency Score = (PTS + REB + AST) / MIN
-                    # Se o cara produz muito em pouco tempo, ele explode no garbage time.
-                    
-                    min_avg = max(p['MIN_AVG'], 1.0) # Evita div zero
+                    min_avg = max(p['MIN_AVG'], 1.0)
                     pts = float(p.get('PTS_AVG', 0))
                     reb = float(p.get('REB_AVG', 0))
                     ast = float(p.get('AST_AVG', 0))
                     
-                    efficiency = (pts + reb + ast) / min_avg
+                    # Score de Eficiência
+                    efficiency = (pts + reb*1.2 + ast*1.5) / min_avg
                     
-                    # Projeção: Se jogar 24 min (Blowout scenario)
-                    proj_pts = efficiency * 10.0 # Base pts puro (score de eficiência)
-                    # Ajuste fino:
+                    # Projeção: Se jogar 24 min (Garbage Time Scenario)
+                    # Ajuste: Se o jogador joga pouco (ex: 10 min), a projeção para 24 é mais agressiva
                     mult = 24.0 / min_avg
                     
-                    # Só adiciona se tiver eficiência mínima
-                    if efficiency > 0.5:
+                    if efficiency > 0.4: # Filtro de qualidade mínima
                         vultures.append({
                             "id": int(p['PLAYER_ID']),
                             "name": name,
                             "min": min_avg,
-                            "pts_proj": pts * mult * 0.85, # Fator de cansaço/ajuste
+                            "pts_proj": pts * mult * 0.85, 
                             "reb_proj": reb * mult * 0.85,
                             "ast_proj": ast * mult * 0.85,
                             "efficiency": efficiency
                         })
                 
-                # Ordena por eficiência e pega top 5
                 vultures.sort(key=lambda x: x['efficiency'], reverse=True)
                 dna_database[team] = vultures[:5]
             
-            # 3. Salvar no Arquivo JSON
-            try:
-                os.makedirs("cache", exist_ok=True)
-                with open(CACHE_FILE, 'w') as f:
-                    json.dump(dna_database, f)
-            except: pass
+            # Salva na Nuvem
+            save_data_universal(KEY_DNA, dna_database)
+            st.session_state['dna_cache_local'] = dna_database
+            DNA_DATA = dna_database
             
-            status.update(label="✅ DNA Gerado e Salvo!", state="complete", expanded=False)
+            status.update(label="✅ DNA Sincronizado com Supabase!", state="complete", expanded=False)
             time.sleep(0.5)
             st.rerun()
 
-    # --- 4. LEITURA DO DNA ---
-    DNA_DATA = {}
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, 'r') as f: DNA_DATA = json.load(f)
-        except: pass
-
-    # --- 5. RENDERIZAÇÃO DOS JOGOS ---
+    # --- 4. RENDERIZAÇÃO DOS JOGOS ---
     processed_games = []
     for g in games:
         raw_spread = g.get('odds_spread', '0')
@@ -922,7 +911,7 @@ def show_blowout_hunter_page():
         g = item['game']
         h_raw, a_raw = g['home'], g['away']
         
-        # Traduz nomes para bater com o DNA gerado
+        # Traduz nomes usando o mapa robusto
         h_nba = TEAM_MAP.get(h_raw, h_raw)
         a_nba = TEAM_MAP.get(a_raw, a_raw)
         
@@ -943,13 +932,13 @@ def show_blowout_hunter_page():
             c1, c2 = st.columns(2)
             
             def render_list(col, team_key, display_name):
-                # Busca no JSON carregado
+                # Busca no JSON carregado (Cloud)
                 vultures = DNA_DATA.get(team_key, [])
                 
                 with col:
                     st.markdown(f"<div style='padding:8px; color:#94a3b8; font-size:10px; font-weight:bold; background:rgba(0,0,0,0.2);'>OPORTUNIDADES {display_name}</div>", unsafe_allow_html=True)
                     if vultures:
-                        for v in vultures[:3]: # Top 3
+                        for v in vultures[:3]: 
                             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{v['id']}.png"
                             st.markdown(f"""
                             <div class="vulture-row">
@@ -7729,6 +7718,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
