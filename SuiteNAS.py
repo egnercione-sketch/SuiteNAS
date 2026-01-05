@@ -946,16 +946,9 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA MOMENTUM (VISUAL WALL STREET v2.3 - SEM 'TODOS' & FIX CRASH)
+# PÁGINA MOMENTUM (VISUAL GLOBAL MARKET - SEM GRÁFICOS)
 # ============================================================================
 def show_momentum_page():
-    # Tenta importar plotly
-    try:
-        import plotly.express as px
-    except ImportError:
-        st.error("⚠️ Biblioteca plotly ausente.")
-        return
-
     # CSS Específico
     st.markdown("""
     <style>
@@ -971,10 +964,17 @@ def show_momentum_page():
         }
         .ticker-val { font-size: 18px; font-weight: bold; }
         .ticker-lbl { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+        .section-title {
+            font-family: 'Oswald'; 
+            font-size: 18px; 
+            margin-bottom: 15px; 
+            padding-bottom: 5px;
+            letter-spacing: 1px;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Carrega Dados
+    # 1. Dados
     df = get_momentum_data()
     
     if df.empty:
@@ -985,110 +985,82 @@ def show_momentum_page():
     c1, c2, c3, c4 = st.columns(4)
     
     avg_score = df['MOMENTUM_SCORE'].mean()
-    bulls = len(df[df['STATUS'] == "🔥 BULLISH"])
-    bears = len(df[df['STATUS'] == "🧊 BEARISH"])
+    bulls_count = len(df[df['STATUS'] == "🔥 BULLISH"])
+    bears_count = len(df[df['STATUS'] == "🧊 BEARISH"])
     vol = df['MIN_AVG'].mean()
 
     with c1: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#22d3ee">{avg_score:.1f}</div><div class="ticker-lbl">ÍNDICE GERAL</div></div>""", unsafe_allow_html=True)
-    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls}</div><div class="ticker-lbl">EM ALTA (BULLS)</div></div>""", unsafe_allow_html=True)
-    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears}</div><div class="ticker-lbl">EM BAIXA (BEARS)</div></div>""", unsafe_allow_html=True)
+    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls_count}</div><div class="ticker-lbl">MERCADO EM ALTA</div></div>""", unsafe_allow_html=True)
+    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears_count}</div><div class="ticker-lbl">MERCADO EM BAIXA</div></div>""", unsafe_allow_html=True)
     with c4: st.markdown(f"""<div class="ticker-box"><div class="ticker-val">{vol:.1f}m</div><div class="ticker-lbl">VOLUME MÉDIO</div></div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- FILTROS OBRIGATÓRIOS (SEM 'TODOS OS TIMES') ---
+    # --- FILTROS (MERCADO GLOBAL) ---
     col_search, col_pos = st.columns([2, 1])
     
     with col_search:
-        # Garante que é string, remove duplicatas e ordena
+        # Pega lista de times mas adiciona a opção GLOBAL
         teams_list = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
+        teams_list.insert(0, "MERCADO GLOBAL (TODOS OS TIMES)")
         
-        if not teams_list:
-            st.warning("Nenhum time encontrado na base.")
-            return
-
-        # Seleciona o primeiro time automaticamente
-        sel_team = st.selectbox("Selecione o Time (Mercado Específico)", teams_list, index=0)
+        sel_team = st.selectbox("Filtrar Mercado", teams_list)
     
     with col_pos:
         positions = ["TODAS", "G", "F", "C"]
         sel_pos = st.selectbox("Posição", positions)
 
-    # Aplica Filtros (Sempre filtra por time agora)
-    df_filtered = df[df['TEAM'] == sel_team].copy()
+    # Aplica Filtros
+    df_filtered = df.copy()
     
+    # Filtro de Time (Opcional)
+    if sel_team != "MERCADO GLOBAL (TODOS OS TIMES)":
+        df_filtered = df_filtered[df_filtered['TEAM'] == sel_team]
+    
+    # Filtro de Posição
     if 'POS' in df_filtered.columns and sel_pos != "TODAS":
         df_filtered = df_filtered[df_filtered['POS'].str.contains(sel_pos, na=False)]
 
     st.markdown("---")
 
-    # --- 2. MATRIZ DE DISPERSÃO (GRAFICO) ---
-    st.markdown(f'<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ: {sel_team}</div>', unsafe_allow_html=True)
-    
-    try:
-        if not df_filtered.empty:
-            fig = px.scatter(
-                df_filtered, 
-                x="MIN_AVG", 
-                y="MOMENTUM_SCORE",
-                color="MOMENTUM_SCORE",
-                color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
-                size="PTS_AVG",
-                hover_name="PLAYER",
-                hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
-                template="plotly_dark",
-                height=400
-            )
-            
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis_title="VOLUME (MINUTOS)",
-                yaxis_title="MOMENTUM SCORE",
-                font=dict(family="Inter"),
-                margin=dict(l=0, r=0, t=0, b=0)
-            )
-            
-            fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
-            fig.add_vline(x=25, line_dash="dot", line_color="#334155")
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Sem dados para exibir o gráfico.")
-            
-    except Exception as e:
-        st.info("Visualização gráfica indisponível.")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- 3. LISTAS BULL & BEAR ---
+    # --- 3. LISTAS BULL & BEAR (GLOBAL) ---
     col_bull, col_bear = st.columns(2)
 
-    bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False)
-    bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True)
+    # Ordenação Global
+    # Top 20 Maiores Scores
+    bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False).head(20)
+    # Top 20 Menores Scores
+    bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True).head(20)
 
-    # Helper de Renderização (BLINDADO CONTRA ERRO DE NOME)
+    # Helper de Renderização (BLINDADO)
     def render_market_card(player_row, type="bull"):
         if type == "bull":
             color = "#00ff9c"
             bg_grad = "linear-gradient(90deg, rgba(0, 255, 156, 0.1) 0%, transparent 100%)"
-            trend = "EM ALTA"
+            trend = "ALTA"
+            trend_icon = "🔥"
         else:
             color = "#f87171"
             bg_grad = "linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%)"
-            trend = "EM BAIXA"
+            trend = "BAIXA"
+            trend_icon = "🧊"
 
-        p_id = int(player_row.get('PLAYER_ID', 0))
-        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
-        score = player_row['MOMENTUM_SCORE']
-        
-        # --- CORREÇÃO DO ERRO TYPE ERROR ---
-        # Força conversão para string e trata nulos
-        raw_name = player_row.get('PLAYER', '')
-        name = str(raw_name) if raw_name else "Desconhecido"
-        
-        # Truncar nome seguro
-        if len(name) > 18: name = name[:16] + "..."
+        try:
+            p_id = int(player_row.get('PLAYER_ID', 0))
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
+            score = player_row['MOMENTUM_SCORE']
+            
+            # BLINDAGEM DE NOME (AQUI ESTAVA O ERRO)
+            raw_name = player_row.get('PLAYER', 'Desconhecido')
+            # Garante que é string, mesmo que seja NaN ou float
+            name = str(raw_name)
+            
+            # Truncar nome seguro
+            if len(name) > 20: name = name[:18] + "..."
+            
+            team = str(player_row.get('TEAM', 'N/A'))
+        except:
+            return # Se o dado estiver muito corrompido, pula o card
 
         st.markdown(f"""
         <div style="
@@ -1104,27 +1076,29 @@ def show_momentum_page():
             <img src="{photo}" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
             <div style="flex-grow: 1;">
                 <div style="font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1;">{name}</div>
-                <div style="font-size: 10px; color: #94a3b8;">{player_row['TEAM']} • {trend}</div>
+                <div style="font-size: 10px; color: #94a3b8;">{team} • {trend}</div>
             </div>
             <div style="text-align: right;">
                 <div style="font-family: 'Oswald'; font-size: 18px; color: {color}; font-weight: bold;">{score:.0f}</div>
-                <div style="font-size: 8px; color: {color};">SCORE</div>
+                <div style="font-size: 8px; color: {color};">{trend_icon}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+    # Renderiza Coluna de Alta
     with col_bull:
-        st.markdown(f'<div class="market-header" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 {sel_team} BULLS</div><br>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 TOP GAINERS (GLOBAL)</div>', unsafe_allow_html=True)
         if bulls_list.empty:
-            st.info(f"Nenhum jogador do {sel_team} em alta explosiva.")
+            st.info("Nenhum jogador em tendência de alta clara.")
         else:
             for _, row in bulls_list.iterrows():
                 render_market_card(row, "bull")
 
+    # Renderiza Coluna de Baixa
     with col_bear:
-        st.markdown(f'<div class="market-header" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 {sel_team} BEARS</div><br>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 TOP LOSERS (GLOBAL)</div>', unsafe_allow_html=True)
         if bears_list.empty:
-            st.info(f"Nenhum jogador do {sel_team} em baixa crítica.")
+            st.info("Nenhum jogador em tendência de baixa crítica.")
         else:
             for _, row in bears_list.iterrows():
                 render_market_card(row, "bear")
@@ -7758,6 +7732,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
