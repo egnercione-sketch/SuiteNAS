@@ -6777,6 +6777,9 @@ def calculate_blowout_risk(spread_val, total_val=None):
     except:
         return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
+# ============================================================================
+# DASHBOARD (VISUAL ARENA V6.1 - INDENTAÇÃO CORRIGIDA)
+# ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
     st.markdown("""
@@ -6886,12 +6889,12 @@ def show_dashboard_page():
                 if ops: nexus_op = ops[0]
         except: pass
 
-if nexus_op:
+    if nexus_op:
         op = nexus_op
         color = op['color']
         score = op['score']
         
-        # 1. Preparação de Dados (Strings Seguras e Curtas)
+        # Preparação de Dados (Strings Seguras)
         h_name = truncate_name(op['hero']['name'], 15)
         h_photo = op['hero']['photo']
         h_info = f"{op['hero']['target']} {op['hero']['stat']}"
@@ -6902,20 +6905,18 @@ if nexus_op:
         
         if 'partner' in op:
             p_info = f"{op['partner']['target']} {op['partner']['stat']}"
-            mid_icon = "🔗" # Link
+            mid_icon = "🔗"
         else:
             p_info = f"Alvo: {op['villain']['status']}"
-            mid_icon = "⚔️" # VS
+            mid_icon = "⚔️"
         
         impact = op.get('impact', 'Alta Sinergia')
 
         st.markdown('<div class="dash-title purple-text">🧬 MELHOR OPORTUNIDADE (NEXUS)</div>', unsafe_allow_html=True)
 
-        # 2. HTML BLINDADO (ESTRUTURA DE TABELA FIXA)
-        # O segredo aqui é 'table-layout: fixed' que impede a explosão
+        # HTML BLINDADO (TABELA)
         card_html = f"""
         <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-            
             <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-family: 'Oswald', sans-serif; color: #ffffff; font-size: 14px; letter-spacing: 1px;">{op['title']}</span>
                 <span style="background-color: {color}; color: #000000; font-weight: bold; font-family: 'Oswald', sans-serif; font-size: 11px; padding: 2px 6px; border-radius: 4px;">SCORE {score}</span>
@@ -6946,13 +6947,13 @@ if nexus_op:
             </div>
         </div>
         """
-        
         st.markdown(card_html, unsafe_allow_html=True)
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # ========================================================================
-    # 4. GAME GRID (ALINHAMENTO CORRIGIDO)
+    # 4. GAME GRID (ALINHAMENTO CORRIGIDO AQUI)
     # ========================================================================
-    # Esta linha deve ter exatamente 4 espaços de recuo (mesmo nível do 'if nexus_op')
     st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
@@ -6968,7 +6969,6 @@ if nexus_op:
                     game_data=game,
                     odds_map=odds_cache
                 )
-
 # ============================================================================
 # EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
@@ -7094,6 +7094,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
