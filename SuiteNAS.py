@@ -488,7 +488,7 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-# PÁGINA: DVP SNIPER (V31.0 - FULL SPECTRUM & VISUAL TIERS)
+# PÁGINA: DVP SNIPER (V32.0 - UNIVERSAL TEAM BRIDGE)
 # ============================================================================
 def show_dvp_analysis():
     import streamlit as st
@@ -506,7 +506,29 @@ def show_dvp_analysis():
             return text.upper().strip()
         except: return ""
 
-    # --- 2. CSS VISUAL (TIERS) ---
+    # MAPA UNIVERSAL DE TIMES
+    UNIVERSAL_MAP = {
+        "GS": "GSW", "GOLDEN STATE": "GSW", "WARRIORS": "GSW",
+        "NY": "NYK", "NEW YORK": "NYK", "KNICKS": "NYK",
+        "NO": "NOP", "NEW ORLEANS": "NOP", "PELICANS": "NOP",
+        "SA": "SAS", "SAN ANTONIO": "SAS", "SPURS": "SAS",
+        "PHO": "PHX", "PHOENIX": "PHX", "SUNS": "PHX",
+        "WSH": "WAS", "WASHINGTON": "WAS", "WIZARDS": "WAS",
+        "UTAH": "UTA", "JAZZ": "UTA",
+        "BRK": "BKN", "BROOKLYN": "BKN", "NETS": "BKN",
+        "CHO": "CHA", "CHARLOTTE": "CHA", "HORNETS": "CHA",
+        "LAL": "LAL", "LAKERS": "LAL",
+        "LAC": "LAC", "CLIPPERS": "LAC",
+        "DET": "DET", "DETROIT": "DET", "PISTONS": "DET",
+        "OKC": "OKC", "OKLAHOMA": "OKC", "THUNDER": "OKC"
+    }
+
+    def get_standard_team_code(raw_team):
+        """Converte qualquer variação de nome para o código oficial de 3 letras."""
+        raw = str(raw_team).upper().strip()
+        return UNIVERSAL_MAP.get(raw, raw) # Se não achar, retorna o original (esperando ser o padrão)
+
+    # --- 2. CSS VISUAL ---
     st.markdown("""
     <style>
         .dvp-title { font-family: 'Oswald'; font-size: 28px; color: #fff; margin-bottom: 5px; }
@@ -518,9 +540,7 @@ def show_dvp_analysis():
             padding: 8px 12px;
             margin-bottom: 8px;
             border: 1px solid #334155;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between;
             transition: transform 0.2s;
         }
         .sniper-card:hover { transform: translateX(3px); border-color: #64748b; }
@@ -528,26 +548,17 @@ def show_dvp_analysis():
         .player-box { display: flex; align-items: center; gap: 10px; width: 65%; }
         .s-img {
             width: 40px; height: 40px; border-radius: 50%;
-            object-fit: cover; background: #0f172a;
-            border: 2px solid #334155;
+            object-fit: cover; background: #0f172a; border: 2px solid #334155;
         }
         .s-info { display: flex; flex-direction: column; }
         .s-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; }
         .s-meta { font-size: 10px; color: #94a3b8; font-weight: bold; text-transform: uppercase; margin-top: 2px; }
         
-        .pos-badge { 
-            background: rgba(255,255,255,0.1); color: #cbd5e1; 
-            padding: 1px 4px; border-radius: 3px; font-size: 8px; margin-left: 4px; 
-        }
+        .pos-badge { background: rgba(255,255,255,0.1); color: #cbd5e1; padding: 1px 4px; border-radius: 3px; font-size: 8px; margin-left: 4px; }
 
         .rank-box { text-align: right; min-width: 70px; }
-        .rank-val { 
-            font-family: 'Oswald'; font-size: 18px; font-weight: bold; 
-            padding: 2px 8px; border-radius: 4px; display: inline-block;
-            min-width: 40px; text-align: center;
-        }
-        .rank-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: bold; }
-
+        .rank-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; padding: 2px 8px; border-radius: 4px; display: inline-block; min-width: 40px; text-align: center; }
+        
         /* Cores de Rank (Tiers) */
         .rank-elite { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; } /* 25-30 */
         .rank-good { background: rgba(34, 197, 94, 0.1); color: #86efac; border: 1px solid #4ade80; } /* 16-24 */
@@ -566,7 +577,7 @@ def show_dvp_analysis():
     st.markdown('<div class="dvp-title">🎯 DvP RADAR (FULL)</div>', unsafe_allow_html=True)
     st.markdown('<div class="dvp-sub">Análise completa de matchup por posição. Rank 30 = Defesa mais fraca (Melhor para atacar).</div>', unsafe_allow_html=True)
 
-    # --- 3. DADOS ---
+    # --- 3. DADOS E MÓDULOS ---
     dvp_analyzer = st.session_state.get("dvp_analyzer")
     if not dvp_analyzer:
         try:
@@ -574,40 +585,58 @@ def show_dvp_analysis():
             st.session_state.dvp_analyzer = DvPAnalyzer()
             dvp_analyzer = st.session_state.dvp_analyzer
         except:
-            st.error("Módulo DvP offline.")
+            st.error("❌ Módulo DvP offline.")
             return
 
     games = st.session_state.get("scoreboard", [])
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
 
     if not games:
-        st.warning("Scoreboard vazio.")
+        st.warning("⚠️ Scoreboard vazio. Atualize em Config.")
+        return
+        
+    if df_l5.empty:
+        st.warning("⚠️ Banco de dados de jogadores (L5) vazio.")
         return
 
-    # --- 4. MAPAS & FILTROS ---
+    # --- 4. MAPAS & FILTROS (THE BRIDGE) ---
     PLAYER_DATA_MAP = {}
+    teams_in_db = set() # Para diagnóstico
     
-    if not df_l5.empty:
-        try:
-            cols = [c.upper() for c in df_l5.columns]
-            df_l5.columns = cols
-            
-            col_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            col_team = next((c for c in cols if 'TEAM' in c), 'TEAM')
-            col_pos = next((c for c in cols if 'POS' in c), None)
-            col_min = next((c for c in cols if 'MIN' in c), 'MIN')
-            col_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
+    try:
+        # Normaliza colunas para evitar erros de Case
+        cols = [c.upper() for c in df_l5.columns]
+        df_l5.columns = cols
+        
+        # Identificação de Colunas Robusta
+        col_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+        
+        # Prioriza ABBREVIATION, depois TEAM
+        col_team = next((c for c in cols if 'TEAM_ABBREVIATION' in c), None)
+        if not col_team: col_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+        
+        col_pos = next((c for c in cols if 'POS' in c), None)
+        col_min = next((c for c in cols if 'MIN' in c), 'MIN')
+        col_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
 
-            for _, row in df_l5.iterrows():
-                p_name = normalize_str(row.get(col_name, ''))
-                if p_name:
-                    PLAYER_DATA_MAP[p_name] = {
-                        "id": row.get(col_id, 0),
-                        "team": str(row.get(col_team, 'UNK')).upper(),
-                        "pos": str(row.get(col_pos, 'UNK')).upper().replace('-', '/'),
-                        "min": float(row.get(col_min, 0))
-                    }
-        except: pass
+        for _, row in df_l5.iterrows():
+            p_name = normalize_str(row.get(col_name, ''))
+            
+            # NORMALIZAÇÃO DO TIME (O SEGREDO)
+            raw_t = str(row.get(col_team, 'UNK'))
+            std_team = get_standard_team_code(raw_t)
+            
+            teams_in_db.add(std_team) # Guarda para debug
+
+            if p_name:
+                PLAYER_DATA_MAP[p_name] = {
+                    "id": row.get(col_id, 0),
+                    "team": std_team, # Time Padronizado
+                    "pos": str(row.get(col_pos, 'UNK')).upper().replace('-', '/'),
+                    "min": float(row.get(col_min, 0))
+                }
+    except Exception as e:
+        st.error(f"Erro ao processar banco de jogadores: {e}")
 
     # Lesões
     banned_players = set()
@@ -646,7 +675,7 @@ def show_dvp_analysis():
         if p_name in banned_players: continue
         if data['min'] < 20: continue 
         
-        tm = data['team']
+        tm = data['team'] # Já está padronizado
         if tm not in TEAM_ROSTER: TEAM_ROSTER[tm] = {k: [] for k in POS_KEYS}
         
         raw_pos = data['pos']
@@ -657,43 +686,47 @@ def show_dvp_analysis():
                 assigned = True
         
         if not assigned:
-            if "G" in raw_pos: 
-                TEAM_ROSTER[tm]["PG"].append(data); TEAM_ROSTER[tm]["SG"].append(data)
-            elif "F" in raw_pos:
-                TEAM_ROSTER[tm]["SF"].append(data); TEAM_ROSTER[tm]["PF"].append(data)
-            elif "C" in raw_pos:
-                TEAM_ROSTER[tm]["C"].append(data)
+            if "G" in raw_pos: TEAM_ROSTER[tm]["PG"].append(data); TEAM_ROSTER[tm]["SG"].append(data)
+            elif "F" in raw_pos: TEAM_ROSTER[tm]["SF"].append(data); TEAM_ROSTER[tm]["PF"].append(data)
+            elif "C" in raw_pos: TEAM_ROSTER[tm]["C"].append(data)
 
     for tm in TEAM_ROSTER:
         for pos in TEAM_ROSTER[tm]:
             TEAM_ROSTER[tm][pos].sort(key=lambda x: x['min'], reverse=True)
 
-    # --- 6. PROCESSAMENTO ---
-    TEAM_MAP_API = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN"}
+    # --- 6. PROCESSAMENTO DOS JOGOS (USANDO A PONTE) ---
     matchups_data = []
+    
+    # Debug Lists
+    teams_requested = set()
 
     for g in games:
-        home, away = g['home'], g['away']
-        home_code = TEAM_MAP_API.get(home, home)
-        away_code = TEAM_MAP_API.get(away, away)
+        # Usa a mesma função de normalização do banco
+        home_code = get_standard_team_code(g['home'])
+        away_code = get_standard_team_code(g['away'])
         
-        # Targets = Rank > 15 (Defesa Fraca)
-        # Avoids = Rank <= 15 (Defesa Forte)
-        game_analysis = {"game": f"{away} @ {home}", "targets": [], "avoids": []}
+        teams_requested.add(home_code)
+        teams_requested.add(away_code)
+        
+        game_analysis = {"game": f"{away_code} @ {home_code}", "targets": [], "avoids": []}
         
         for side, attack_team, def_team_code in [('HOME', home_code, away_code), ('AWAY', away_code, home_code)]:
-            if attack_team not in TEAM_ROSTER: continue
+            # Verifica se o time atacante existe no Roster padronizado
+            if attack_team not in TEAM_ROSTER: 
+                # Opcional: print(f"DEBUG: Time {attack_team} não encontrado no Roster.")
+                continue
 
             for pos in POS_KEYS:
+                # Pega Rank Defensivo
                 rank = dvp_analyzer.get_position_rank(def_team_code, pos)
                 
-                # AQUI ESTÁ A MUDANÇA: Processa TODOS os ranks
-                # Antes tinha 'if rank >= 25 or rank <= 5'
+                # Se rank for inválido (None), pula ou assume médio
+                if not rank: rank = 15
                 
                 players = TEAM_ROSTER[attack_team].get(pos, [])
-                for p in players[:1]: # Pega o principal da posição
+                for p in players[:1]: # Top 1 da posição
                     
-                    is_target = rank > 15 # Se rank > 15, é um matchup favorável
+                    is_target = rank > 15 
                     lst = game_analysis["targets"] if is_target else game_analysis["avoids"]
                     
                     if not any(x['name'] == p['name'] for x in lst):
@@ -711,7 +744,21 @@ def show_dvp_analysis():
 
     # --- 7. RENDERIZAÇÃO ---
     if not matchups_data:
-        st.info("Nenhum dado de matchup encontrado.")
+        # DIAGNÓSTICO AUTOMÁTICO SE FALHAR
+        st.info("Nenhum dado de matchup encontrado. Abrindo diagnóstico...")
+        with st.expander("🛠️ Diagnóstico de Conexão (Debug)", expanded=True):
+            st.write("Isso acontece quando o nome do time no Placar não bate com o Banco de Dados.")
+            c1, c2 = st.columns(2)
+            c1.write("**Times no Placar (Normalizados):**")
+            c1.write(list(teams_requested))
+            c2.write(f"**Times no Banco de Dados ({len(teams_in_db)}):**")
+            c2.write(sorted(list(teams_in_db)))
+            
+            missing = teams_requested - teams_in_db
+            if missing:
+                st.error(f"❌ Times faltando no banco: {missing}")
+            else:
+                st.success("✅ Conexão de nomes parece OK. Verifique se há jogadores com >20min.")
         return
 
     def render_sniper_card(p, is_target):
@@ -720,12 +767,11 @@ def show_dvp_analysis():
         if p['id'] != 0:
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png"
         
-        # Lógica de Cores por Tier
         rank = p['rank']
-        if rank >= 25: rank_cls, rank_lbl = "rank-elite", "DEFESA PÉSSIMA"
-        elif rank >= 16: rank_cls, rank_lbl = "rank-good", "DEFESA FRACA"
-        elif rank >= 11: rank_cls, rank_lbl = "rank-avg", "DEFESA MÉDIA"
-        else: rank_cls, rank_lbl = "rank-bad", "DEFESA ELITE"
+        if rank >= 25: rank_cls = "rank-elite"
+        elif rank >= 16: rank_cls = "rank-good"
+        elif rank >= 11: rank_cls = "rank-avg"
+        else: rank_cls = "rank-bad"
         
         pos_icons = {"PG": "🏀", "SG": "🏹", "SF": "🗡️", "PF": "💪", "C": "🛡️"}
         icon = pos_icons.get(p['pos'], "👤")
@@ -4602,251 +4648,7 @@ def display_strategic_category(formatted_narrative, category_name, game_ctx):
         if not table_df.empty:
             st.dataframe(table_df)
 
-# ============================================================================
-# MAPA ROTAÇÕES
-# ============================================================================
-def show_mapa_rotacoes():
-    import streamlit as st
-    import pandas as pd
-    import os
-    import json
-    from datetime import datetime
-
-    # --- 1. CSS PREMIUM (VISUAL LIMPO E FOCADO) ---
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Roboto:wght@400;500&display=swap');
-        
-        .team-section {
-            margin-bottom: 40px;
-            padding: 20px;
-            background: rgba(15, 23, 42, 0.7);
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-        
-        .team-header {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 24px;
-            font-weight: 700;
-            color: #F8FAFC;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            padding-bottom: 10px;
-            border-bottom: 3px solid #64748B;
-        }
-        
-        .team-logo {
-            width: 50px;
-            height: 50px;
-            margin-right: 16px;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-        
-        .player-card {
-            background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 14px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            transition: all 0.3s ease;
-            border-left: 6px solid #10B981; /* Verde para ganho de minutos */
-        }
-        
-        .player-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
-        }
-        
-        .player-name {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-            color: #F8FAFC;
-            margin-bottom: 6px;
-        }
-        
-        .player-pos {
-            font-size: 14px;
-            color: #94A3B8;
-            background: rgba(255,255,255,0.08);
-            padding: 4px 10px;
-            border-radius: 8px;
-            display: inline-block;
-        }
-        
-        .delta-highlight {
-            font-size: 24px;
-            font-weight: bold;
-            color: #10B981;
-            text-align: center;
-            margin: 10px 0;
-        }
-        
-        .metrics-row {
-            display: flex;
-            justify-content: space-around;
-            font-size: 14px;
-            color: #CBD5E1;
-        }
-        
-        .dna-caption {
-            font-size: 13px;
-            color: #94A3B8;
-            font-style: italic;
-            text-align: center;
-            margin-top: 8px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.header("🔄 MAPA DE ROTAÇÕES – BLOWOUT HUNTERS")
-
-    # --- 2. CARREGAMENTO DO DNA CACHE ---
-    cache_directory = globals().get('CACHE_DIR', 'cache')
-    dna_path = os.path.join(cache_directory, "rotation_dna.json")
-
-    if 'rotation_dna_cache' not in st.session_state:
-        if os.path.exists(dna_path):
-            try:
-                with open(dna_path, 'r') as f:
-                    st.session_state['rotation_dna_cache'] = json.load(f)
-            except:
-                st.session_state['rotation_dna_cache'] = {}
-        else:
-            st.session_state['rotation_dna_cache'] = {}
-
-    ROTATION_DNA = st.session_state['rotation_dna_cache']
-
-    # Painel de atualização
-    with st.expander("🧬 Atualizar Base de Rotações", expanded=False):
-        if st.button("🔄 Gerar DNA Completo (demora ~2min)"):
-            try:
-                from modules.rotation_forensics import RotationForensics
-                with st.spinner("Analisando rotações históricas..."):
-                    forensics = RotationForensics()
-                    data = forensics.generate_dna_report()
-                    with open(dna_path, 'w') as f:
-                        json.dump(data, f)
-                    st.session_state['rotation_dna_cache'] = data
-                    ROTATION_DNA = data
-                st.success("DNA atualizado com sucesso!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-    if not ROTATION_DNA:
-        st.warning("DNA não carregado. Clique no botão acima para gerar.")
-        return
-
-    df_l5 = st.session_state.get("df_l5", pd.DataFrame())
-    if df_l5.empty:
-        st.warning("Dados L5 não carregados. Atualize na aba principal.")
-        return
-
-    # --- 3. FILTROS ---
-    st.markdown("### Filtros")
-    col1, col2 = st.columns(2)
-    min_delta = col1.slider("Delta mínimo de minutos em blowout", 2.0, 10.0, 3.0, 0.5)
-    show_all = col2.checkbox("Mostrar todos os jogadores (não recomendado)", value=False)
-
-    # --- 4. PROCESSAMENTO E EXIBIÇÃO POR TIME ---
-    st.markdown("### 🏀 Blowout Hunters por Time")
-
-    # Mapeamento de logos (URLs públicas da NBA)
-    logos = {
-        "LAL": "https://cdn.nba.com/logos/nba/1610612747/primary/L/logo.svg",
-        "GSW": "https://cdn.nba.com/logos/nba/1610612744/primary/L/logo.svg",
-        "BOS": "https://cdn.nba.com/logos/nba/1610612738/primary/L/logo.svg",
-        "MIL": "https://cdn.nba.com/logos/nba/1610612749/primary/L/logo.svg",
-        "DEN": "https://cdn.nba.com/logos/nba/1610612743/primary/L/logo.svg",
-        "PHX": "https://cdn.nba.com/logos/nba/1610612756/primary/L/logo.svg",
-        "NYK": "https://cdn.nba.com/logos/nba/1610612752/primary/L/logo.svg",
-        "MIA": "https://cdn.nba.com/logos/nba/1610612748/primary/L/logo.svg",
-        "CLE": "https://cdn.nba.com/logos/nba/1610612739/primary/L/logo.svg",
-        "OKC": "https://cdn.nba.com/logos/nba/1610612760/primary/L/logo.svg",
-        # Adicione mais se quiser – ou fallback genérico
-    }
-
-    # Todos os times da liga (fixo, ou dinâmico do df_l5)
-    all_teams = sorted(df_l5["TEAM"].unique())
-
-    highlighted_teams = []
-
-    for team in all_teams:
-        players = df_l5[df_l5["TEAM"] == team].sort_values("MIN_AVG", ascending=False)
-        dna = ROTATION_DNA.get(team, [])
-        
-        highlighted_players = []
-        
-        for _, row in players.iterrows():
-            name = row.get('PLAYER', 'Unknown')
-            l5_min = float(row.get('MIN_AVG', row.get('MIN', 0)))
-            
-            dna_match = None
-            if dna:
-                n_lower = str(name).lower()
-                for item in dna:
-                    if n_lower in str(item.get('name','')).lower():
-                        dna_match = item
-                        break
-            
-            if dna_match:
-                b_min = float(dna_match.get('avg_min_blowout', 0))
-                b_pts = float(dna_match.get('avg_pts_blowout', 0))
-                delta = b_min - l5_min
-                
-                if show_all or delta >= min_delta:
-                    highlighted_players.append({
-                        "name": name,
-                        "pos": row.get('POSITION', ''),
-                        "l5_min": l5_min,
-                        "blowout_min": b_min,
-                        "delta": delta,
-                        "blowout_pts": b_pts
-                    })
-        
-        if highlighted_players:
-            highlighted_teams.append((team, highlighted_players))
-
-    # Ordena times por número de destacados
-    highlighted_teams.sort(key=lambda x: len(x[1]), reverse=True)
-
-    if not highlighted_teams:
-        st.info("Nenhum jogador com ganho significativo em blowout com o filtro atual.")
-        return
-
-    for team, players in highlighted_teams:
-        logo_url = logos.get(team, "https://cdn.nba.com/logos/nba/default/primary/L/logo.svg")  # Fallback genérico
-        
-        st.markdown(f"""
-        <div class="team-section">
-            <div class="team-header">
-                <img class="team-logo" src="{logo_url}" alt="{team}">
-                {team} — {len(players)} blowout hunter(s)
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        for p in players:
-            delta_color = "#10B981" if p['delta'] > 0 else "#FF4F4F"
-            st.markdown(f"""
-            <div class="player-card">
-                <div class="player-name">{p['name']} <span class="player-pos">{p['pos']}</span></div>
-                <div class="delta-highlight" style="color: {delta_color}">+{p['delta']:.1f} min em blowout</div>
-                <div class="metrics-row">
-                    <div>L5: {p['l5_min']:.1f}m</div>
-                    <div>Blowout: {p['blowout_min']:.1f}m</div>
-                    <div>PTS Blowout: {p['blowout_pts']:.1f}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.caption(f"Mostrando jogadores com +{min_delta:.1f}min ou mais em blowout. Total times com hunters: {len(highlighted_teams)}")
-
-    
+   
 # ============================================================================
 # PÁGINA: CONFIGURAÇÕES 
 # ============================================================================
@@ -8053,7 +7855,7 @@ def main():
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
             "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
-            "🛡️ DvP Confrontos", "🏥 Depto Médico", "🔄 Mapa de Rotações", "👥 Escalações",
+            "🛡️ DvP Confrontos", "🏥 Depto Médico", "👥 Escalações",
             "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
         choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
@@ -8078,7 +7880,6 @@ def main():
     
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
     elif choice == "🏥 Depto Médico": show_depto_medico()
-    elif choice == "🔄 Mapa de Rotações": show_mapa_rotacoes()
     elif choice == "👥 Escalações": show_escalacoes()
     
     elif choice == "⚙️ Config": show_config_page()
@@ -8086,6 +7887,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
