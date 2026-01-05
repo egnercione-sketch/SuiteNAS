@@ -2072,18 +2072,17 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (STRATEGY 5/7/10) - CLOUD NATIVE
+# PÁGINA: MATRIZ 5-7-10 (ESCADINHA) - DIRECT VIEW
 # ============================================================================
-def show_5_7_10_page():
+def show_matriz_5_7_10_page():
     import json
     import pandas as pd
-    import re
     import numpy as np
     import unicodedata
+    import re
     
     # --- 1. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
-        """Limpa texto para comparação (Remove acentos, uppercase)."""
         if not text: return ""
         try:
             text = str(text)
@@ -2091,93 +2090,93 @@ def show_5_7_10_page():
             return text.upper().strip()
         except: return ""
 
-    def get_color(prob):
-        if prob >= 80: return "#4ade80" # Green (Safe)
-        if prob >= 50: return "#facc15" # Yellow (Medium)
-        if prob >= 20: return "#f87171" # Red (Risky/High Reward)
-        return "#475569" # Gray (Low)
+    def get_step_color(prob):
+        if prob >= 80: return "#22c55e" # Green
+        if prob >= 50: return "#eab308" # Yellow
+        if prob >= 20: return "#ef4444" # Red
+        return "#334155" # Grey
 
-    # --- 2. CSS VISUAL (TRINITY THEME) ---
+    # --- 2. CSS (LAYOUT ESCADINHA ROBUSTO) ---
     st.markdown("""
     <style>
-        .trinity-title { font-family: 'Oswald'; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
-        .trinity-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
+        .matriz-title { font-family: 'Oswald'; font-size: 32px; color: #fff; margin-bottom: 0px; letter-spacing: 1px; }
+        .matriz-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 30px; }
+        
+        .section-header { 
+            font-family: 'Oswald'; font-size: 20px; color: #e2e8f0; 
+            border-bottom: 2px solid #334155; padding-bottom: 8px; margin-top: 20px; margin-bottom: 15px; 
+            display: flex; align-items: center; gap: 10px;
+        }
 
-        .trinity-card {
-            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-            border-radius: 12px;
+        /* CARD PRINCIPAL - FLEXBOX SEGURO */
+        .ladder-card {
+            background-color: #1e293b;
+            border-radius: 10px;
             padding: 12px;
             margin-bottom: 12px;
             border: 1px solid #334155;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            flex-wrap: wrap; /* Evita explosão no mobile */
+            gap: 15px;
             transition: transform 0.2s;
         }
-        .trinity-card:hover { border-color: #6366f1; transform: translateY(-2px); }
+        .ladder-card:hover { border-color: #6366f1; transform: translateY(-2px); }
 
-        /* Esquerda: Foto e Nome */
-        .player-section { display: flex; align-items: center; width: 35%; }
-        .t-img {
-            width: 50px; height: 50px; border-radius: 50%;
-            border: 2px solid #6366f1; margin-right: 12px;
-            object-fit: cover; background: #000;
+        /* Coluna Esquerda: Jogador */
+        .player-box { display: flex; align-items: center; min-width: 200px; flex: 1; }
+        .p-img {
+            width: 55px; height: 55px; border-radius: 50%;
+            border: 3px solid #0f172a; margin-right: 12px;
+            object-fit: cover; background: #000; box-shadow: 0 0 0 2px #6366f1;
         }
-        .t-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.2; }
-        .t-team { font-size: 10px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
-        .arch-badge { 
-            font-size: 9px; padding: 2px 6px; border-radius: 4px; 
-            margin-top: 4px; display: inline-block; font-weight: bold;
+        .p-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
+        .p-meta { font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
+        
+        /* Coluna Direita: A Escadinha */
+        .steps-container { display: flex; gap: 8px; flex: 2; justify-content: flex-end; align-items: center; }
+        
+        .step-item {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            width: 70px; padding: 6px 0;
+            border: 1px solid rgba(255,255,255,0.05);
         }
-        .arch-glue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
-        .arch-dyna { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
-
-        /* Centro: Escada 5/7/10 */
-        .ladder-section { display: flex; gap: 8px; width: 45%; justify-content: center; }
-        .ladder-step { 
-            background: rgba(255,255,255,0.05); 
-            border-radius: 6px; 
-            padding: 4px 8px; 
-            text-align: center; 
-            min-width: 55px;
-        }
-        .step-lbl { font-size: 8px; color: #64748b; font-weight: bold; margin-bottom: 2px; }
-        .step-val { font-family: 'Roboto Mono'; font-size: 14px; font-weight: bold; }
-
-        /* Direita: Tendência */
-        .trend-section { width: 15%; text-align: right; border-left: 1px solid #334155; padding-left: 10px; }
-        .trend-lbl { font-size: 8px; color: #64748b; font-weight: bold; }
-        .trend-val { font-size: 14px; font-weight: bold; }
-        .trend-up { color: #4ade80; }
-        .trend-down { color: #f87171; }
-        .trend-flat { color: #94a3b8; }
+        .step-head { font-size: 10px; color: #cbd5e1; font-weight: bold; margin-bottom: 2px; }
+        .step-val { font-family: 'Roboto Mono', monospace; font-size: 16px; font-weight: bold; }
+        
+        .trend-icon { font-size: 18px; margin-left: 10px; }
+        
+        /* Badges */
+        .badge-glue { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #3b82f6; }
+        .badge-dyna { background: #450a0a; color: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #ef4444; }
 
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="trinity-title">💎 TRINITY CLUB</div>', unsafe_allow_html=True)
-    st.markdown('<div class="trinity-sub">Análise de consistência e explosão para Rebotes e Assistências (Escada 5-7-10).</div>', unsafe_allow_html=True)
+    st.markdown('<div class="matriz-title">🏗️ MATRIZ 5-7-10</div>', unsafe_allow_html=True)
+    st.markdown('<div class="matriz-sub">Análise de probabilidade em degraus ("Escadinha"). Base L25.</div>', unsafe_allow_html=True)
 
-    # --- 3. AUTO-RUN & PREPARAÇÃO ---
-    # Carrega Scoreboard para saber quem joga hoje
+    # --- 3. PREPARAÇÃO DE DADOS ---
+    
+    # A. Scoreboard (Quem joga hoje?)
     scoreboard = st.session_state.get('scoreboard', [])
     if not scoreboard:
         st.warning("⚠️ Scoreboard vazio. Atualize os jogos na aba Config.")
         return
 
-    # Extrai times jogando hoje para filtro rápido
     TEAMS_PLAYING_TODAY = set()
     for g in scoreboard:
         TEAMS_PLAYING_TODAY.add(g['home'].upper())
         TEAMS_PLAYING_TODAY.add(g['away'].upper())
-        # Adiciona Aliases comuns
+        # Aliases
         aliases = {"GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "PHO": "PHX", "WSH": "WAS", "CHO": "CHA", "UTAH": "UTA", "BRK": "BKN"}
         for k, v in aliases.items():
             if g['home'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
             if g['away'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
 
-    # Carrega Mapa de IDs (df_l5)
+    # B. Mapa de IDs e Times (L5)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
@@ -2189,17 +2188,12 @@ def show_5_7_10_page():
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 4. ENGINE TRINITY (COM FILTRO DE LESÃO INTEGRADO) ---
+    # --- 4. ENGINE DE PROCESSAMENTO ---
     
-    # Placeholder para processamento
-    container = st.container()
-    
-    # Verifica/Carrega Dados
-    with st.spinner("💎 Escaneando o mercado..."):
-        # 1. Lesões (V44)
+    with st.spinner("Construindo as escadinhas..."):
+        # 1. Lesões (Shield V27)
         banned_players = set()
         try:
-            # Tenta pegar cache fresco
             fresh_inj = get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
             if fresh_inj: st.session_state['injuries_data'] = fresh_inj
             
@@ -2226,167 +2220,149 @@ def show_5_7_10_page():
                     banned_players.add(normalize_str(p_name))
         except: pass
 
-        # 2. Logs L25
+        # 2. Logs
         raw_logs = get_data_universal('real_game_logs')
         if not raw_logs:
-            st.error("Logs L25 não encontrados.")
+            st.error("Logs L25 não disponíveis.")
             return
 
-        # 3. Processamento
-        trinity_data = []
-        
+        # Listas separadas para REB e AST
+        reb_ladder = []
+        ast_ladder = []
+
         for p_name, p_data in raw_logs.items():
             if not isinstance(p_data, dict): continue
             
-            # Normalização
             norm_name = normalize_str(p_name)
             
-            # FILTRO 1: LESÃO
+            # Filtro Lesão
             if norm_name in banned_players: continue
             
-            # FILTRO 2: JOGANDO HOJE?
-            # Tenta pegar time do JSON ou do Mapa L5
+            # Filtro Joga Hoje
             team = str(p_data.get('team', 'UNK')).upper().strip()
             if team in ['UNK', 'NONE']: team = PLAYER_TEAM_MAP.get(norm_name, 'UNK')
             
-            # Se o time não estiver jogando hoje, pula
-            # (Checagem simples, pode precisar de alias map reverso se falhar muito)
-            if team not in TEAMS_PLAYING_TODAY and team != "UNK": 
-                # Tenta match fuzzy se não achar direto
-                found = False
+            is_playing = False
+            if team in TEAMS_PLAYING_TODAY: is_playing = True
+            else:
                 for t in TEAMS_PLAYING_TODAY:
                     if t in team or team in t: 
-                        found = True
-                        break
-                if not found: continue
+                        is_playing = True; break
+            
+            if not is_playing: continue
 
-            # Extração de Stats
             logs = p_data.get('logs', {})
             if not logs: continue
             
-            # Processa REB e AST
-            for stat_type in ['REB', 'AST']:
-                vals = logs.get(stat_type, [])
-                if not vals: continue
-                
-                # Limpa dados
-                clean_vals = [float(x) if x is not None else 0.0 for x in vals]
-                if not clean_vals: continue
-                
-                arr = np.array(clean_vals)
-                n_games = len(arr)
-                if n_games < 10: continue # Amostra mínima
+            # --- PROCESSA REBOTES ---
+            vals_reb = logs.get('REB', [])
+            if vals_reb:
+                clean_reb = [float(x) for x in vals_reb if x is not None]
+                if len(clean_reb) >= 10:
+                    arr = np.array(clean_reb)
+                    n = len(arr)
+                    p5 = (np.sum(arr >= 5) / n) * 100
+                    p7 = (np.sum(arr >= 7) / n) * 100
+                    p10 = (np.sum(arr >= 10) / n) * 100
+                    
+                    # Critério Mínimo: Tem que ser seguro no 5+ OU explosivo no 10+
+                    if p5 >= 75 or p10 >= 20:
+                        l5 = np.mean(arr[:5]) if n >= 5 else np.mean(arr)
+                        l25 = np.mean(arr)
+                        p_id = PLAYER_ID_MAP.get(norm_name, 0)
+                        
+                        item = {
+                            "name": p_name, "id": int(p_id), "team": team,
+                            "p5": p5, "p7": p7, "p10": p10,
+                            "trend": l5 - l25,
+                            "type": "GLUE" if p5 >= 80 else "DYNAMITE"
+                        }
+                        reb_ladder.append(item)
 
-                # Cálculo 5/7/10
-                prob_5 = (np.sum(arr >= 5) / n_games) * 100
-                prob_7 = (np.sum(arr >= 7) / n_games) * 100
-                prob_10 = (np.sum(arr >= 10) / n_games) * 100
-                
-                # Cálculo Tendência (L5 vs L25)
-                l5_avg = np.mean(arr[:5]) if n_games >= 5 else np.mean(arr)
-                l25_avg = np.mean(arr)
-                trend_diff = l5_avg - l25_avg
-                
-                # Classificação (Arquétipos)
-                archetype = None
-                
-                # GLUE GUY: Consistente no base (5+)
-                if prob_5 >= 80:
-                    archetype = "GLUE GUY"
-                
-                # DYNAMITE: Explosivo no teto (10+)
-                # Relaxamos um pouco: se bate 10+ em 20% dos jogos, é explosivo
-                if prob_10 >= 20:
-                    archetype = "DYNAMITE" # Sobrescreve Glue Guy se tiver ambos (Upside > Safety aqui)
-                
-                if archetype:
-                    p_id = PLAYER_ID_MAP.get(norm_name, 0)
-                    trinity_data.append({
-                        "name": p_name,
-                        "id": int(p_id),
-                        "team": team,
-                        "stat": stat_type,
-                        "archetype": archetype,
-                        "p5": prob_5,
-                        "p7": prob_7,
-                        "p10": prob_10,
-                        "l5": l5_avg,
-                        "l25": l25_avg,
-                        "trend": trend_diff
-                    })
+            # --- PROCESSA ASSISTÊNCIAS ---
+            vals_ast = logs.get('AST', [])
+            if vals_ast:
+                clean_ast = [float(x) for x in vals_ast if x is not None]
+                if len(clean_ast) >= 10:
+                    arr = np.array(clean_ast)
+                    n = len(arr)
+                    p5 = (np.sum(arr >= 5) / n) * 100
+                    p7 = (np.sum(arr >= 7) / n) * 100
+                    p10 = (np.sum(arr >= 10) / n) * 100
+                    
+                    if p5 >= 75 or p10 >= 20:
+                        l5 = np.mean(arr[:5]) if n >= 5 else np.mean(arr)
+                        l25 = np.mean(arr)
+                        p_id = PLAYER_ID_MAP.get(norm_name, 0)
+                        
+                        item = {
+                            "name": p_name, "id": int(p_id), "team": team,
+                            "p5": p5, "p7": p7, "p10": p10,
+                            "trend": l5 - l25,
+                            "type": "GLUE" if p5 >= 80 else "DYNAMITE"
+                        }
+                        ast_ladder.append(item)
 
-    # --- 5. RENDERIZAÇÃO ---
-    if not trinity_data:
-        st.info("Nenhum jogador encontrado com os critérios do Trinity Club hoje.")
-        return
-
-    # Filtros de UI
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        f_stat = st.selectbox("Estatística:", ["REB", "AST"], index=0)
-    with col_f2:
-        f_arch = st.multiselect("Perfil:", ["GLUE GUY", "DYNAMITE"], default=["GLUE GUY", "DYNAMITE"])
-
-    filtered = [x for x in trinity_data if x['stat'] == f_stat and x['archetype'] in f_arch]
+    # --- 5. RENDERIZAÇÃO (SEM MENUS, TUDO À MOSTRA) ---
     
-    # Ordenação Inteligente: Dynamite pelo teto (10), Glue Guy pela base (5)
-    filtered.sort(key=lambda x: x['p10'] if x['archetype'] == 'DYNAMITE' else x['p5'], reverse=True)
+    # Ordenação: Dynamite pelo teto, Glue pela base
+    reb_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
+    ast_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
 
-    st.write(f"Encontrados: {len(filtered)} oportunidades")
-
-    for p in filtered:
-        # Foto
+    def render_ladder_card(p):
         photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         if p['id'] != 0:
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+            
+        c5 = get_step_color(p['p5'])
+        c7 = get_step_color(p['p7'])
+        c10 = get_step_color(p['p10'])
         
-        # Badge Arquétipo
-        arch_class = "arch-dyna" if p['archetype'] == "DYNAMITE" else "arch-glue"
-        arch_icon = "🧨" if p['archetype'] == "DYNAMITE" else "🧪"
-        
-        # Tendência
         trend_icon = "➡️"
-        trend_cls = "trend-flat"
-        if p['trend'] > 0.5: trend_icon, trend_cls = "📈", "trend-up"
-        elif p['trend'] < -0.5: trend_icon, trend_cls = "📉", "trend-down"
-
-        # Cores das Metas
-        c5 = get_color(p['p5'])
-        c7 = get_color(p['p7'])
-        c10 = get_color(p['p10'])
+        if p['trend'] > 0.5: trend_icon = "📈" # Subindo
+        elif p['trend'] < -0.5: trend_icon = "📉" # Caindo
+        
+        badge_html = f'<span class="badge-glue">🧪 GLUE</span>' if p['type'] == 'GLUE' else f'<span class="badge-dyna">🧨 BOOM</span>'
 
         st.markdown(f"""
-        <div class="trinity-card">
-            <div class="player-section">
-                <img src="{photo}" class="t-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+        <div class="ladder-card">
+            <div class="player-box">
+                <img src="{photo}" class="p-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
                 <div>
-                    <div class="t-name">{p['name']}</div>
-                    <div class="t-team">{p['team']} • {p['stat']}</div>
-                    <div class="arch-badge {arch_class}">{arch_icon} {p['archetype']}</div>
+                    <div class="p-name">{p['name']} {trend_icon}</div>
+                    <div class="p-meta">{p['team']} {badge_html}</div>
                 </div>
             </div>
-            
-            <div class="ladder-section">
-                <div class="ladder-step">
-                    <div class="step-lbl">SAFE 5+</div>
-                    <div class="step-val" style="color: {c5}">{p['p5']:.0f}%</div>
+            <div class="steps-container">
+                <div class="step-item">
+                    <div class="step-head">5+</div>
+                    <div class="step-val" style="color:{c5}">{p['p5']:.0f}%</div>
                 </div>
-                <div class="ladder-step">
-                    <div class="step-lbl">TARGET 7+</div>
-                    <div class="step-val" style="color: {c7}">{p['p7']:.0f}%</div>
+                <div class="step-item">
+                    <div class="step-head">7+</div>
+                    <div class="step-val" style="color:{c7}">{p['p7']:.0f}%</div>
                 </div>
-                <div class="ladder-step">
-                    <div class="step-lbl">BOOM 10+</div>
-                    <div class="step-val" style="color: {c10}">{p['p10']:.0f}%</div>
+                <div class="step-item">
+                    <div class="step-head">10+</div>
+                    <div class="step-val" style="color:{c10}">{p['p10']:.0f}%</div>
                 </div>
-            </div>
-
-            <div class="trend-section">
-                <div class="trend-lbl">MOMENTO (L5)</div>
-                <div class="trend-val {trend_cls}">{trend_icon} {p['l5']:.1f}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    # --- SEÇÃO REBOTES ---
+    st.markdown('<div class="section-header">🛡️ REBOTES <span style="font-size:12px; color:#64748b; margin-left:10px;">(Escada 5 / 7 / 10)</span></div>', unsafe_allow_html=True)
+    if reb_ladder:
+        for p in reb_ladder: render_ladder_card(p)
+    else:
+        st.info("Nenhum jogador de Rebotes atingiu os critérios hoje.")
+
+    # --- SEÇÃO ASSISTÊNCIAS ---
+    st.markdown('<div class="section-header">🎨 ASSISTÊNCIAS <span style="font-size:12px; color:#64748b; margin-left:10px;">(Escada 5 / 7 / 10)</span></div>', unsafe_allow_html=True)
+    if ast_ladder:
+        for p in ast_ladder: render_ladder_card(p)
+    else:
+        st.info("Nenhum jogador de Assistências atingiu os critérios hoje.")
         
         
         
@@ -8059,6 +8035,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
