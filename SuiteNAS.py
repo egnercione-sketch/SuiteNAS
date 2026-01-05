@@ -734,7 +734,7 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V25.0 - ACCENT REMOVAL & FUZZY MATCH)
+# PÁGINA: BLOWOUT RADAR (V27.0 - TARGETING V44 CACHE)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -744,130 +744,126 @@ def show_blowout_hunter_page():
     import numpy as np
     import unicodedata
     
-    # --- 1. FUNÇÃO DE NORMALIZAÇÃO DE TEXTO (A SALVAÇÃO) ---
+    # --- 1. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
-        """Remove acentos, força maiúsculo e remove espaços extras."""
+        """Limpa texto para comparação (Remove acentos, uppercase)."""
         if not text: return ""
-        # Normaliza Unicode (ex: 'č' vira 'c')
-        text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
-        return text.upper().strip()
+        try:
+            text = str(text)
+            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+            return text.upper().strip()
+        except: return ""
 
     # --- 2. ESTILO VISUAL ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
-        
-        .match-container {
-            background-color: #1e293b;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            border: 1px solid #334155;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
-
+        .match-container { background-color: #1e293b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
         .risk-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
         .risk-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 80%); border-left: 5px solid #EF4444; }
         .risk-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 80%); border-left: 5px solid #F59E0B; }
         .risk-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 80%); border-left: 5px solid #10B981; }
-
-        .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; letter-spacing: 0.5px; }
-        .game-meta { text-align: right; }
-        .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; margin-bottom: 2px; }
+        .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; }
+        .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
-        .team-label { color: #64748b; font-size: 10px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 2px; }
-
-        .vulture-row { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 8px; margin-bottom: 6px;
-            background: rgba(255,255,255,0.03); 
-            border-radius: 6px;
-            border: 1px solid transparent;
-            transition: all 0.2s;
-        }
-        .vulture-row:hover { border-color: #475569; background: rgba(255,255,255,0.05); }
-
-        .vulture-img {
-            width: 42px; height: 42px; border-radius: 50%;
-            border: 2px solid #a78bfa; margin-right: 12px;
-            object-fit: cover; background: #0f172a;
-        }
-        .vulture-info { display: flex; flex-direction: column; }
+        .team-label { color: #64748b; font-size: 10px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #334155; }
+        .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; }
+        .vulture-img { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #a78bfa; margin-right: 12px; object-fit: cover; background: #0f172a; }
         .vulture-name { color: #e2e8f0; font-weight: 700; font-size: 13px; line-height: 1.2; }
         .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
-        
         .stat-box { display: flex; gap: 12px; text-align: center; }
         .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; }
-        .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; letter-spacing: 0.5px; }
+        .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; }
         .c-pts { color: #4ade80; } .c-reb { color: #60a5fa; } .c-ast { color: #facc15; }
-        
-        .dna-badge { background: #6D28D9; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; vertical-align: middle; }
-        .fallback-badge { background: #F59E0B; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; vertical-align: middle; }
+        .dna-badge { background: #6D28D9; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
+        .fallback-badge { background: #F59E0B; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 3. ATUALIZAÇÃO E BUILD DA LISTA NEGRA (COM NORMALIZAÇÃO) ---
+    # --- 3. CORE: LEITURA DO ARQUIVO V44 ---
+    # Tenta carregar especificamente o arquivo v44
+    data_source = "CACHE"
     try:
-        fresh_injuries = get_data_universal('injuries_data')
-        if fresh_injuries:
-            st.session_state['injuries_data'] = fresh_injuries
+        # Tenta pelo nome exato do cache
+        fresh_inj = get_data_universal('injuries_cache_v44')
+        if not fresh_inj:
+             # Tenta fallback para nome sem 'cache'
+             fresh_inj = get_data_universal('injuries_v44')
+        
+        if fresh_inj: 
+            st.session_state['injuries_data'] = fresh_inj
+            data_source = "SUPABASE_V44"
+        else:
+            # Última tentativa: chave genérica
+            generic = get_data_universal('injuries_data')
+            if generic:
+                st.session_state['injuries_data'] = generic
+                data_source = "SUPABASE_GENERIC"
     except: pass
 
     banned_players = set()
-    debug_injuries_found = []
-    
+    raw_inj_debug = []
+
     try:
-        raw_inj = st.session_state.get('injuries_data', [])
+        raw_inj_source = st.session_state.get('injuries_data', [])
+        
+        # Flattening
         flat_inj = []
-        if isinstance(raw_inj, dict):
-            for t in raw_inj.values(): flat_inj.extend(t)
-        elif isinstance(raw_inj, list):
-            flat_inj = raw_inj
+        if isinstance(raw_inj_source, dict):
+            for t in raw_inj_source.values(): 
+                if isinstance(t, list): flat_inj.extend(t)
+        elif isinstance(raw_inj_source, list):
+            flat_inj = raw_inj_source
         
-        # Palavras-chave estendidas
-        EXCLUSION_KEYWORDS = ['out', 'doubt', 'surg', 'injur', 'protocol', 'day', 'dtd', 'quest', 'gtd']
+        raw_inj_debug = flat_inj[:3]
+
+        EXCLUSION_KEYWORDS = ['OUT', 'DOUBT', 'SURG', 'INJUR', 'PROTOCOL', 'DAY', 'DTD', 'QUEST', 'GTD']
         
-        for i in flat_inj:
-            status = str(i.get('status', '')).lower()
-            if any(x in status for x in EXCLUSION_KEYWORDS):
-                p_name = i.get('player') or i.get('name')
-                if p_name:
-                    clean_name = normalize_str(p_name)
-                    banned_players.add(clean_name)
-                    debug_injuries_found.append(f"{clean_name} ({status})")
+        for item in flat_inj:
+            p_name = ""
+            status = ""
+            
+            # Polimorfismo
+            if isinstance(item, dict):
+                p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
+                status = str(item.get('status', '')).upper()
+            elif isinstance(item, str):
+                parts = str(item).split('-')
+                p_name = parts[0]
+                status = str(item).upper()
+            
+            if p_name:
+                norm_name = normalize_str(p_name)
+                # Verifica status E se o nome não está vazio
+                if norm_name and any(x in status for x in EXCLUSION_KEYWORDS):
+                    banned_players.add(norm_name)
     except Exception as e:
-        print(f"Erro filtro lesão: {e}")
+        print(f"Erro processando v44: {e}")
 
-    # --- 4. CONFIGURAÇÃO E DADOS ---
+    # --- 4. CONFIGURAÇÃO ---
     KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_v25" # Nova chave V25
+    KEY_DNA = "rotation_dna_v27" # Cache novo
 
-    # Mapas L5
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
-    
     if not df_l5.empty:
         try:
             df_norm = df_l5.copy()
-            # Usa a mesma normalização aqui
             df_norm['PLAYER_NORM'] = df_norm['PLAYER'].apply(normalize_str)
             PLAYER_ID_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['PLAYER_ID']))
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
     # --- 5. ENGINE AUTO-RUN ---
-    if 'dna_final_v25' not in st.session_state:
-        with st.spinner("🤖 Gerando inteligência de rotação..."):
+    if 'dna_final_v27' not in st.session_state:
+        with st.spinner("🤖 Processando rotações com V44 Injury Data..."):
             try:
-                # Tenta cache
                 cloud_dna = get_data_universal(KEY_DNA)
                 
-                # Se não tiver cache, processa
                 if not cloud_dna:
                     raw_data = get_data_universal(KEY_LOGS)
                     if raw_data:
@@ -882,10 +878,6 @@ def show_blowout_hunter_page():
                             if not isinstance(p_data, dict): continue
                             
                             norm_name = normalize_str(p_name)
-                            
-                            # NOTA: O filtro de lesão acontece NA EXIBIÇÃO, não aqui.
-                            # Assim, se ele se curar, aparece sem precisar recalcular.
-                            
                             p_id = PLAYER_ID_MAP.get(norm_name, 0)
                             
                             team = str(p_data.get('team', 'UNK')).upper().strip()
@@ -912,7 +904,7 @@ def show_blowout_hunter_page():
                                 b_pts, b_reb, b_ast, b_min = 0,0,0,0
                                 logic_type = "REGULAR"
 
-                                # Lógica Sniper
+                                # Sniper
                                 if min_list and len(min_list) == len(pts_list):
                                     arr_min = np.array(min_list)
                                     mask = arr_min >= max(12.0, avg_min * 2.0)
@@ -927,7 +919,7 @@ def show_blowout_hunter_page():
                                         b_ast = np.mean(arr_ast[mask])
                                         b_min = np.mean(arr_min[mask])
 
-                                # Lógica Fallback
+                                # Fallback
                                 if not is_qualified and avg_min > 8.0:
                                     limit = len(pts_list)
                                     p = np.array(pts_list[:limit])
@@ -950,8 +942,8 @@ def show_blowout_hunter_page():
                                     
                                     temp_team_data[team].append({
                                         "id": int(p_id),
-                                        "name": p_name, # Nome original para display
-                                        "clean_name": norm_name, # Nome limpo para filtro
+                                        "name": p_name,
+                                        "clean_name": norm_name,
                                         "avg_min": float(avg_min),
                                         "blowout_min": float(b_min),
                                         "pts": float(b_pts),
@@ -967,15 +959,13 @@ def show_blowout_hunter_page():
                         new_dna[t] = players[:10]
                     
                     save_data_universal(KEY_DNA, new_dna)
-                    st.session_state['dna_final_v25'] = new_dna
+                    st.session_state['dna_final_v27'] = new_dna
                 else:
-                    st.session_state['dna_final_v25'] = cloud_dna if cloud_dna else {}
+                    st.session_state['dna_final_v27'] = cloud_dna if cloud_dna else {}
+            except:
+                 st.session_state['dna_final_v27'] = {}
 
-            except Exception as e:
-                st.error(f"Erro Auto-Run: {e}")
-                st.session_state['dna_final_v25'] = {}
-
-    DNA_DB = st.session_state.get('dna_final_v25', {})
+    DNA_DB = st.session_state.get('dna_final_v27', {})
 
     # --- 6. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
@@ -988,10 +978,9 @@ def show_blowout_hunter_page():
     with c_sim:
         force_spread = st.slider("🎛️ Simular Cenário de Blowout (Spread):", 0, 30, 0)
 
-    # Alias Map
     ALIAS_MAP = {
         "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
-        "NO": "NOP", "NOP": "NOP", "NOR": "NOP", "SA": "SAS", "SAS": "SAS",
+        "NO": "NOP", "NOP": "NOP", "SA": "SAS", "SAS": "SAS",
         "UTAH": "UTA", "UTA": "UTA", "PHO": "PHX", "PHX": "PHX",
         "WSH": "WAS", "WAS": "WAS", "BRK": "BKN", "BKN": "BKN",
         "CHO": "CHA", "CHA": "CHA", "LAL": "LAL", "LAC": "LAC",
@@ -1047,13 +1036,9 @@ def show_blowout_hunter_page():
                     """, unsafe_allow_html=True)
                     
                     if data:
-                        # --- FILTRO REAL-TIME COM NORMALIZAÇÃO ---
                         active_players = []
                         for p in data:
-                            # Tenta usar nome limpo já salvo, ou limpa na hora
                             p_clean = p.get('clean_name') or normalize_str(p['name'])
-                            
-                            # Verifica se está na lista negra (que já está normalizada)
                             if p_clean not in banned_players:
                                 active_players.append(p)
                         
@@ -1088,7 +1073,6 @@ def show_blowout_hunter_page():
                             st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Reservas listados estão lesionados.</div>", unsafe_allow_html=True)
                     else:
                         st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados.</div>", unsafe_allow_html=True)
-                    
                     st.markdown("</div>", unsafe_allow_html=True)
 
             render_team_col(c1, g['away'])
@@ -1102,17 +1086,15 @@ def show_blowout_hunter_page():
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- 7. VERIFICADOR DE BANIDOS (DEBUG FINAL) ---
-    with st.expander("🕵️ Ver Lista de Lesionados (Check)", expanded=False):
-        st.write(f"Total de jogadores banidos: {len(banned_players)}")
-        search_p = st.text_input("Testar Jogador:", "VALANCIUNAS")
-        if search_p:
-            clean_s = normalize_str(search_p)
-            is_banned = clean_s in banned_players
-            st.write(f"Nome Normalizado: {clean_s}")
-            st.write(f"Está Banido? {'✅ SIM' if is_banned else '❌ NÃO'}")
-            if is_banned: st.success("Filtro funcionando!")
-            else: st.error("Jogador não encontrado na lista de lesões.")
+    # --- 7. DEBUG FINAL (PARA VOCÊ TESTAR) ---
+    with st.expander(f"🔍 Debug V44 (Fonte: {data_source})", expanded=False):
+        st.write(f"Banidos Carregados: {len(banned_players)}")
+        st.write(f"Amostra de Lesão V44: {raw_inj_debug}")
+        
+        check = st.text_input("Testar:", "VALANCIUNAS")
+        if check:
+            nm = normalize_str(check)
+            st.write(f"Status '{nm}': {'⛔ BANIDO' if nm in banned_players else '✅ JOGANDO'}")
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
 # ============================================================================
@@ -7866,6 +7848,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
