@@ -490,6 +490,9 @@ def show_cloud_diagnostics():
 # ============================================================================
 # PÁGINA: DVP TACTICAL BOARD (V39.0 - RESTORATION EDITION)
 # ============================================================================
+# ============================================================================
+# PÁGINA: DVP TACTICAL BOARD (V39.1 - VARIABLE FIX)
+# ============================================================================
 def show_dvp_analysis():
     import streamlit as st
     import pandas as pd
@@ -568,8 +571,9 @@ def show_dvp_analysis():
             st.error("Módulo DvP offline.")
             return
 
-    scoreboard = st.session_state.get("scoreboard", [])
-    if not scoreboard:
+    # CORREÇÃO AQUI: Usando 'games' consistentemente
+    games = st.session_state.get("scoreboard", [])
+    if not games:
         st.warning("Aguardando jogos...")
         return
 
@@ -577,7 +581,7 @@ def show_dvp_analysis():
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
     real_logs = get_data_universal('real_game_logs') or {}
 
-    # --- 3. FILTRO DE LESÕES (ATUALIZADO) ---
+    # --- 3. FILTRO DE LESÕES (V44 INTEGRADO) ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -588,7 +592,6 @@ def show_dvp_analysis():
 
     banned_players = set()
     try:
-        # Tenta pegar cache V44 especificamente
         fresh_inj = get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
         raw_inj = fresh_inj or []
         flat_inj = []
@@ -612,15 +615,13 @@ def show_dvp_analysis():
                 banned_players.add(normalize_str(p_name))
     except: pass
 
-    # --- 4. PREPARAÇÃO DE MAPEAMENTO (CORRIGIDO) ---
-    # Mapa simples e direto para normalizar nomes de times do placar
+    # --- 4. PREPARAÇÃO DE MAPEAMENTO ---
     TEAM_CORRECTION = {
         "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "PHO": "PHX",
         "WSH": "WAS", "UTAH": "UTA", "BRK": "BKN", "CHO": "CHA", "BK": "BKN"
     }
 
     # Mapa de Posições do L5
-    # Cria um dicionário { "LEBRON JAMES": "SF", ... } para lookup rápido
     PLAYER_POS_MAP = {}
     PLAYER_ID_MAP = {}
     
@@ -674,15 +675,18 @@ def show_dvp_analysis():
                             "id": row.get('PLAYER_ID', 0)
                         })
                 
-                # Se achou gente, retorna sorted
                 if roster:
                     return sorted(roster, key=lambda x: x['min'], reverse=True)[:8]
 
-        # 2. Fallback: Real Game Logs (Se L5 falhar)
+        # 2. Fallback: Real Game Logs
         if real_logs and not roster:
             for p_name, p_data in real_logs.items():
                 if not isinstance(p_data, dict): continue
                 t = str(p_data.get('team', '')).upper()
+                
+                # Normaliza time do log se necessário
+                if t in TEAM_CORRECTION: t = TEAM_CORRECTION[t]
+                
                 if t == team_code:
                     nm = normalize_str(p_name)
                     if nm in banned_players: continue
@@ -690,13 +694,11 @@ def show_dvp_analysis():
                     logs = p_data.get('logs', {})
                     mins = logs.get('MIN_AVG', 0)
                     if mins == 0 and logs.get('MIN'):
-                        # Calc avg manual
                         clean = [float(x) for x in logs['MIN'] if x is not None]
                         if clean: mins = sum(clean)/len(clean)
                     
                     if mins >= 15:
-                        # Tenta recuperar posição do mapa ou infere
-                        pos = PLAYER_POS_MAP.get(nm, "SF")
+                        pos = PLAYER_POS_MAP.get(nm, "SF") # Tenta achar pos
                         roster.append({"name": nm, "min": mins, "pos": pos, "id": 0})
             
             return sorted(roster, key=lambda x: x['min'], reverse=True)[:8]
@@ -735,8 +737,8 @@ def show_dvp_analysis():
         """
 
     # --- LOOP DOS JOGOS ---
+    # Agora a variável 'games' está definida corretamente
     for g in games:
-        # Normaliza nomes dos times (ex: NY -> NYK)
         h_raw = str(g['home']).upper()
         a_raw = str(g['away']).upper()
         
@@ -745,11 +747,9 @@ def show_dvp_analysis():
         
         st.markdown(f'<div class="game-header">{away} @ {home}</div>', unsafe_allow_html=True)
         
-        # Busca Rosters
         roster_away = get_team_roster(away)
         roster_home = get_team_roster(home)
         
-        # Renderiza HTML
         html_away = ""
         if roster_away:
             html_away = "".join([render_player(p, home) for p in roster_away])
@@ -7849,6 +7849,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
