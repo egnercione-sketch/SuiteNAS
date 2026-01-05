@@ -734,11 +734,14 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V10.0 - UNLOCKED & SIMULATOR)
+# PÁGINA: BLOWOUT RADAR (V11.0 - L25 REAL LOGS ENGINE)
 # ============================================================================
 def show_blowout_hunter_page():
-    import re
+    import json
     import pandas as pd
+    import os
+    import re
+    import numpy as np
     
     # --- 1. CSS VISUAL ---
     st.markdown("""
@@ -763,159 +766,177 @@ def show_blowout_hunter_page():
             background: rgba(255,255,255,0.02); 
         }
         .vulture-img {
-            width: 38px; height: 38px; border-radius: 50%;
-            border: 2px solid #a78bfa; margin-right: 10px;
+            width: 42px; height: 42px; border-radius: 50%;
+            border: 2px solid #a78bfa; margin-right: 12px;
             object-fit: cover; background: #000;
         }
-        .vulture-name { color: #e2e8f0; font-weight: 600; font-size: 13px; }
-        .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
+        .vulture-name { color: #e2e8f0; font-weight: 600; font-size: 14px; }
+        .vulture-role { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
         
-        .stat-box { display: flex; gap: 10px; text-align: center; }
-        .stat-val { font-family: 'Oswald'; font-size: 13px; font-weight: bold; }
-        .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; }
+        .stat-box { display: flex; gap: 12px; text-align: center; }
+        .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; }
+        .stat-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
         .c-pts { color: #4ade80; } .c-reb { color: #60a5fa; } .c-ast { color: #facc15; }
+        
+        .dna-badge { background: #6D28D9; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
+    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR (L25 DATA)</div>', unsafe_allow_html=True)
+
+    # --- 2. CARREGAMENTO DO L25 (REAL GAME LOGS) ---
+    L25_FILE = "data/real_game_logs.json" # Caminho do arquivo
     
-    # --- 2. DADOS ---
+    # Tenta carregar o JSON
+    if 'l25_cache' not in st.session_state:
+        try:
+            if os.path.exists(L25_FILE):
+                with open(L25_FILE, 'r') as f:
+                    raw_data = json.load(f)
+                # Converte para DataFrame para análise rápida
+                st.session_state['l25_cache'] = pd.DataFrame(raw_data)
+            else:
+                st.error(f"⚠️ Arquivo {L25_FILE} não encontrado. Por favor, rode o atualizador de Logs.")
+                return
+        except Exception as e:
+            st.error(f"Erro ao ler L25: {e}")
+            return
+
+    df_l25 = st.session_state['l25_cache']
+    
+    if df_l25.empty:
+        st.warning("⚠️ O arquivo de logs L25 está vazio.")
+        return
+
+    # Garante que as colunas numéricas estão corretas
+    numeric_cols = ['PTS', 'REB', 'AST', 'MIN', 'PLUS_MINUS', 'Player_ID']
+    for col in numeric_cols:
+        if col in df_l25.columns:
+            df_l25[col] = pd.to_numeric(df_l25[col], errors='coerce').fillna(0)
+
+    # --- 3. ENGINE ANALÍTICA L25 (QUEM CRESCE NO BLOWOUT?) ---
+    # Cache do processamento pesado
+    if 'vulture_dna_l25' not in st.session_state:
+        with st.spinner("🕵️‍♂️ Analisando padrões de Blowout nos últimos 25 jogos..."):
+            
+            # Mapeamento de Times
+            dna_results = {}
+            all_teams = df_l25['TEAM_ABBREVIATION'].unique()
+            
+            for team in all_teams:
+                # Logs apenas deste time
+                team_logs = df_l25[df_l25['TEAM_ABBREVIATION'] == team]
+                
+                # IDENTIFICAÇÃO DE JOGOS BLOWOUT
+                # Como o log é por jogador, achamos os jogos onde a margem média do time foi alta
+                # Agrupamos por GAME_ID e pegamos a média do PLUS_MINUS (aprox) ou usamos jogos onde reservas jogaram muito
+                
+                # Estratégia: Pegar jogadores que são RESERVAS (Média < 20 min na temporada)
+                # e ver o desempenho deles nos jogos onde jogaram > 20 min.
+                
+                # 1. Média Geral do Jogador
+                player_stats = team_logs.groupby('PLAYER_NAME').agg({
+                    'MIN': 'mean',
+                    'PTS': 'mean',
+                    'REB': 'mean',
+                    'AST': 'mean',
+                    'Player_ID': 'first'
+                }).reset_index()
+                
+                # 2. Identificar "True Bench" (Média < 24 min)
+                bench_players = player_stats[player_stats['MIN'] < 24]['PLAYER_NAME'].tolist()
+                
+                vultures = []
+                for p_name in bench_players:
+                    p_logs = team_logs[team_logs['PLAYER_NAME'] == p_name]
+                    p_avg_min = player_stats[player_stats['PLAYER_NAME'] == p_name]['MIN'].values[0]
+                    
+                    # 3. Identificar "Outlier Games" (Blowout/Extended Run)
+                    # Jogos onde jogou 50% a mais que a média ou > 20 min
+                    blowout_logs = p_logs[p_logs['MIN'] > max(20, p_avg_min * 1.5)]
+                    
+                    if not blowout_logs.empty:
+                        # Calcula médias APENAS nesses jogos de oportunidade
+                        b_pts = blowout_logs['PTS'].mean()
+                        b_reb = blowout_logs['REB'].mean()
+                        b_ast = blowout_logs['AST'].mean()
+                        b_min = blowout_logs['MIN'].mean()
+                        pid = player_stats[player_stats['PLAYER_NAME'] == p_name]['Player_ID'].values[0]
+                        
+                        # Score de Relevância (para não mostrar bagre que fez 4 pts em 20 min)
+                        if b_pts + b_reb + b_ast > 10:
+                            vultures.append({
+                                "id": int(pid),
+                                "name": p_name,
+                                "avg_min": p_avg_min, # Média normal
+                                "blowout_min": b_min, # Média no blowout
+                                "pts": b_pts,
+                                "reb": b_reb,
+                                "ast": b_ast,
+                                "games_count": len(blowout_logs) # Quantas vezes isso aconteceu
+                            })
+                
+                # Ordena por pontos no blowout
+                vultures.sort(key=lambda x: x['pts'], reverse=True)
+                dna_results[team] = vultures[:4] # Top 4 por time
+            
+            st.session_state['vulture_dna_l25'] = dna_results
+
+    VULTURE_DB = st.session_state['vulture_dna_l25']
+
+    # --- 4. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-
     if not games:
-        st.warning("📭 Scoreboard vazio.")
-        return
-    if df_l5.empty:
-        st.error("❌ Base L5 vazia.")
+        st.warning("Scoreboard vazio.")
         return
 
-    # --- 3. CONTROLE DE SIMULAÇÃO (RESOLVE O PROBLEMA DO SPREAD ZERO) ---
-    with st.expander("🎛️ Simulador de Cenários (Ajuste Manual)", expanded=False):
+    # Simulador
+    with st.expander("🎛️ Simulador de Cenários", expanded=False):
         c1, c2 = st.columns([3, 1])
-        with c1:
-            st.info("Se os spreads estiverem zerados (dados indisponíveis), use o slider abaixo para simular um cenário de massacre e ver quem entraria.")
-        with c2:
-            force_spread = st.slider("Simular Spread Global:", 0, 30, 0)
+        c1.info("Se os spreads estiverem zerados, use o slider para revelar as oportunidades.")
+        force_spread = c2.slider("Simular Spread:", 0, 30, 0)
 
-    # --- 4. ENGINE DE "VULTURE" (COM BUSCA BRUTE FORCE) ---
-    
-    # Lista de Banidos (Lesões)
-    banned = set()
-    try:
-        raw_inj = st.session_state.get('injuries_data', [])
-        flat_inj = []
-        if isinstance(raw_inj, dict):
-            for t in raw_inj.values(): flat_inj.extend(t)
-        elif isinstance(raw_inj, list):
-            flat_inj = raw_inj
-        for i in flat_inj:
-            if any(x in str(i.get('status','')).lower() for x in ['out','doubt','injur']):
-                banned.add(str(i.get('player') or i.get('name')).lower().strip())
-    except: pass
-
-    # Mapa de Tradução Manual (Último Recurso)
+    # Mapeamento Robusto
     TEAM_MAP = {
         "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
         "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "CHA": "CHA",
         "NOR": "NOP", "LAL": "LAL", "LAC": "LAC", "GSW": "GSW", "NYK": "NYK"
     }
 
-    def get_vultures_brute_force(raw_team_name):
-        """Tenta encontrar o time de todas as formas possíveis."""
+    # Helper de Busca
+    def find_vultures_l25(raw_team):
+        # Tenta mapeamento direto
+        code = TEAM_MAP.get(raw_team, raw_team)
+        if code in VULTURE_DB: return VULTURE_DB[code]
         
-        # 1. Tenta nome exato
-        roster = df_l5[df_l5['TEAM'] == raw_team_name]
-        
-        # 2. Tenta mapa
-        if roster.empty:
-            mapped = TEAM_MAP.get(raw_team_name)
-            if mapped: roster = df_l5[df_l5['TEAM'] == mapped]
-            
-        # 3. Tenta contains (ex: 'GS' in 'GSW')
-        if roster.empty:
-            roster = df_l5[df_l5['TEAM'].str.contains(raw_team_name, case=False, na=False)]
-            
-        # 4. Tenta reverso (ex: 'GSW' contém 'GS')
-        if roster.empty:
-            # Pega todos os times do banco
-            all_db_teams = df_l5['TEAM'].unique()
-            for db_team in all_db_teams:
-                # Se o nome do banco contiver o nome da ESPN (ex: 'GSW' contém 'GS')
-                if raw_team_name in db_team: 
-                    roster = df_l5[df_l5['TEAM'] == db_team]
-                    break
+        # Tenta match parcial
+        for k in VULTURE_DB.keys():
+            if raw_team in k or k in raw_team: return VULTURE_DB[k]
+        return []
 
-        if roster.empty: return []
-
-        # Lógica Vulture: Reservas (6-26 min)
-        bench = roster[
-            (roster['MIN_AVG'] >= 6) & 
-            (roster['MIN_AVG'] <= 26)
-        ].copy()
-        
-        candidates = []
-        for _, p in bench.iterrows():
-            name = p['PLAYER']
-            if name.lower().strip() in banned: continue
-            
-            avg_min = max(p['MIN_AVG'], 1.0)
-            pts = float(p.get('PTS_AVG', 0))
-            reb = float(p.get('REB_AVG', 0))
-            ast = float(p.get('AST_AVG', 0))
-            
-            # Multiplicador de Garbage Time
-            mult = 2.0 if avg_min < 18 else 1.3
-            
-            # Score Simples
-            score = pts + reb + ast
-            
-            # Filtro bem permissivo (> 2.0 de score) para garantir que apareça alguém
-            if score > 2.0:
-                candidates.append({
-                    "id": int(p['PLAYER_ID']),
-                    "name": name,
-                    "min": avg_min,
-                    "pts_proj": pts * mult,
-                    "reb_proj": reb * mult,
-                    "ast_proj": ast * mult,
-                    "score": score
-                })
-        
-        return sorted(candidates, key=lambda x: x['score'], reverse=True)[:3]
-
-    # --- 5. PROCESSAMENTO E RENDERIZAÇÃO ---
     processed_games = []
-    
     for g in games:
-        # Tenta pegar spread real
         raw_spread = g.get('odds_spread', '0')
-        try: 
-            real_spread = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1]))
-        except: 
-            real_spread = 0.0
-            
-        # Aplica simulador se o usuário quiser (Force Spread)
+        try: real_spread = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1]))
+        except: real_spread = 0.0
+        
         final_spread = max(real_spread, force_spread)
 
         if final_spread >= 12.5: risk, css, txt = "HIGH", "risk-header-high", "🔥 ALTO RISCO"
         elif final_spread >= 8.5: risk, css, txt = "MED", "risk-header-med", "⚠ RISCO MODERADO"
         else: risk, css, txt = "LOW", "risk-header-low", "🛡️ JOGO EQUILIBRADO"
-            
-        processed_games.append({"game": g, "spread": final_spread, "risk": risk, "css": css, "text": txt, "real_spread": real_spread})
+        
+        processed_games.append({"game": g, "spread": final_spread, "risk": risk, "css": css, "text": txt, "real": real_spread})
 
-    # Ordena
     processed_games.sort(key=lambda x: x['spread'], reverse=True)
 
     for item in processed_games:
         g = item['game']
         h_raw, a_raw = g['home'], g['away']
         
-        # Se spread real for 0, avisa
-        spread_display = f"{item['spread']}"
-        if item['real_spread'] == 0 and force_spread > 0:
-            spread_display += " (Simulado)"
-        
+        spread_txt = f"{item['spread']}"
+        if item['real'] == 0 and force_spread > 0: spread_txt += " (Simulado)"
+
         st.markdown(f"""
         <div class="risk-card">
             <div class="{item['css']}">
@@ -923,24 +944,22 @@ def show_blowout_hunter_page():
                     <div class="game-matchup">{a_raw} @ {h_raw}</div>
                     <div style="text-align:right;">
                         <div style="color:#fff; font-weight:bold; font-size:12px;">{item['text']}</div>
-                        <div class="game-spread">SPREAD: {spread_display}</div>
+                        <div class="game-spread">SPREAD: {spread_txt}</div>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
+
+        is_open = (item['risk'] != "LOW")
+        title = "Ver Histórico L25 de Reservas" if not is_open else "🎯 Destaques L25 (Quem Joga?)"
         
-        # AQUI ESTÁ O TRUQUE: Expander sempre visível, mas abre sozinho se o risco for alto
-        is_expanded = (item['risk'] != "LOW")
-        expander_title = "Ver Reservas & Oportunidades" if item['risk'] == "LOW" else "🎯 Destaques do Banco (Vultures)"
-        
-        with st.expander(expander_title, expanded=is_expanded):
+        with st.expander(title, expanded=is_open):
             c1, c2 = st.columns(2)
             
-            def render_vulture_col(col, team_name):
-                vultures = get_vultures_brute_force(team_name)
-                
+            def render(col, team):
+                vultures = find_vultures_l25(team)
                 with col:
-                    st.markdown(f"<div style='margin-bottom:8px; color:#a3a3a3; font-size:11px; font-weight:bold;'>{team_name}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='margin-bottom:8px; color:#a3a3a3; font-size:11px; font-weight:bold;'>{team}</div>", unsafe_allow_html=True)
                     if vultures:
                         for v in vultures:
                             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{v['id']}.png"
@@ -949,22 +968,24 @@ def show_blowout_hunter_page():
                                 <div style="display:flex; align-items:center;">
                                     <img src="{photo}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
                                     <div>
-                                        <div class="vulture-name">{v['name']}</div>
-                                        <div class="vulture-role">AVG: {v['min']:.1f}m</div>
+                                        <div class="vulture-name">{v['name']} <span class="dna-badge">L25</span></div>
+                                        <div class="vulture-role">
+                                            Normal: {v['avg_min']:.0f}m ➝ <span style="color:#4ade80; font-weight:bold;">Blowout: {v['blowout_min']:.0f}m</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="stat-box">
-                                    <div><div class="stat-val c-pts">{v['pts_proj']:.1f}</div><div class="stat-lbl">PTS</div></div>
-                                    <div><div class="stat-val c-reb">{v['reb_proj']:.1f}</div><div class="stat-lbl">REB</div></div>
-                                    <div><div class="stat-val c-ast">{v['ast_proj']:.1f}</div><div class="stat-lbl">AST</div></div>
+                                    <div><div class="stat-val c-pts">{v['pts']:.1f}</div><div class="stat-lbl">PTS</div></div>
+                                    <div><div class="stat-val c-reb">{v['reb']:.1f}</div><div class="stat-lbl">REB</div></div>
+                                    <div><div class="stat-val c-ast">{v['ast']:.1f}</div><div class="stat-lbl">AST</div></div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
                     else:
-                        st.markdown(f"<div style='padding:10px; color:#64748B; font-size:10px;'>Nenhum reserva qualificado encontrado no banco de dados para {team_name}.</div>", unsafe_allow_html=True)
-
-            render_vulture_col(c1, a_raw)
-            render_vulture_col(c2, h_raw)
+                        st.caption("Sem dados relevantes no L25.")
+            
+            render(c1, a_raw)
+            render(c2, h_raw)
 
         st.markdown("</div>", unsafe_allow_html=True)
 # ============================================================================
@@ -7720,6 +7741,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
