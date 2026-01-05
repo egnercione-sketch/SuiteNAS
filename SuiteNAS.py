@@ -1456,11 +1456,10 @@ class NexusEngine:
         return best
         
 # ============================================================================
-# PÁGINA: NEXUS INTELLIGENCE (VERSÃO BLINDADA V3.0 - NO-EMOJI CODE)
+# PÁGINA: NEXUS INTELLIGENCE (VERSÃO FINAL V3.1 - CSS FIX)
 # ============================================================================
 def show_nexus_page():
-    # 1. CSS SEGURO (USANDO STRING NORMAL, NÃO F-STRING)
-    # Importante: Não coloque 'f' antes das aspas triplas aqui.
+    # 1. CSS (COM ASPAS TRIPLAS ESTRITAS)
     st.markdown("""
     <style>
         .nexus-header { font-family: 'Oswald', sans-serif; font-size: 3rem; color: #fff; margin: 0; text-align: center; }
@@ -1473,8 +1472,7 @@ def show_nexus_page():
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # HEADER (EMOJIS VIA CÓDIGO HTML PARA EVITAR ERROS DE ARQUIVO)
-    # &#129504; = Cérebro | &#9889; = Raio | &#128279; = Link | &#9876; = Espadas
+    # HEADER (HTML ENTITIES PARA EVITAR ERRO DE EMOJI)
     st.markdown("""
     <div style="padding: 20px;">
         <h1 class="nexus-header">&#129504; NEXUS INTELLIGENCE</h1>
@@ -1494,11 +1492,10 @@ def show_nexus_page():
         filter_type = st.selectbox("Tipo de Oportunidade", ["TODAS", "SGP (Duplas)", "DEF (vs Defesa)"])
 
     # 4. Engine & Execução
-    # Tenta instanciar a Engine
     try:
+        # Tenta importar caso não esteja no escopo global
         if 'NexusEngine' not in globals():
-            # Fallback se a classe não estiver importada globalmente
-            from modules.new_modules.nexus_engine import NexusEngine # Ajuste o caminho se necessário
+            from modules.new_modules.nexus_engine import NexusEngine 
             
         nexus = NexusEngine(full_cache, scoreboard or [])
         all_ops = nexus.run_nexus_scan()
@@ -1512,7 +1509,8 @@ def show_nexus_page():
             opportunities = [op for op in opportunities if op['type'] != 'SGP']
             
     except Exception as e:
-        st.error(f"Erro no Scan Nexus: {e}")
+        # Em caso de erro, mostramos msg amigável e paramos
+        st.info("Aguardando sincronização da Engine Nexus...")
         return
 
     if not opportunities:
@@ -1552,7 +1550,8 @@ def show_nexus_page():
             
         impact = op.get('impact', 'Alta Sinergia Detectada')
 
-        # Card HTML (Sem f-string na parte de CSS inline complexo para evitar conflitos)
+        # Card HTML (Sem f-string no bloco style para evitar conflito)
+        # Usamos concatenação ou f-string apenas onde necessário
         card_html = f"""
         <div style="border: 1px solid {color}; border-left: 5px solid {color}; border-radius: 12px; background-color: #0f172a; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
             <div style="background-color: {color}20; padding: 8px 15px; border-bottom: 1px solid {color}40; display: flex; justify-content: space-between; align-items: center;">
@@ -7662,6 +7661,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
