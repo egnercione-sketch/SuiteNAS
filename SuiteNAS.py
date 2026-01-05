@@ -6842,14 +6842,13 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V45.0 - HOSPITAL WARD)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V46.0 - AUTO-PILOT)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
     import pandas as pd
     import json
     import unicodedata
-    from datetime import datetime
 
     # --- 1. CSS VISUAL (HOSPITAL THEME) ---
     st.markdown("""
@@ -6877,7 +6876,7 @@ def show_depto_medico():
             overflow: hidden;
         }
         
-        /* Efeito de Sirene/Pulso para GTD/OUT importantes */
+        /* Efeito de Sirene */
         .pulse-alert {
             position: absolute; top: 0; right: 0; width: 100%; height: 100%;
             background: radial-gradient(circle, rgba(255,0,0,0.1) 0%, rgba(0,0,0,0) 70%);
@@ -6900,7 +6899,7 @@ def show_depto_medico():
             border: 1px solid #ef4444;
         }
 
-        /* LISTA GERAL: CARDS COMPACTOS */
+        /* LISTA GERAL */
         .roster-grid {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;
         }
@@ -6933,17 +6932,10 @@ def show_depto_medico():
     </style>
     """, unsafe_allow_html=True)
 
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.markdown('<div class="bio-title">🚑 BIO-MONITOR</div>', unsafe_allow_html=True)
-        st.markdown('<div class="bio-sub">Monitoramento de lesões em tempo real.</div>', unsafe_allow_html=True)
-    with c2:
-        if st.button("🔄 Atualizar"):
-            # Limpa sessão para forçar reload
-            if 'injuries_data' in st.session_state: del st.session_state['injuries_data']
-            st.rerun()
+    st.markdown('<div class="bio-title">🚑 BIO-MONITOR</div>', unsafe_allow_html=True)
+    st.markdown('<div class="bio-sub">Sincronização automática com Supabase Cloud.</div>', unsafe_allow_html=True)
 
-    # --- 2. CARREGAMENTO DE DADOS ---
+    # --- 2. CARREGAMENTO AUTOMÁTICO (AUTO-PILOT) ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -6952,7 +6944,7 @@ def show_depto_medico():
             return text.upper().strip()
         except: return ""
 
-    # Carrega L5 para identificar Estrelas (Impacto)
+    # Carrega L5 para Impacto
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_IMPACT_MAP = {}
     PLAYER_ID_MAP = {}
@@ -6970,7 +6962,6 @@ def show_depto_medico():
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0
                 
-                # Definição de Impacto (0, 1, 2)
                 impact = 0
                 if mins >= 30: impact = 2 # Estrela
                 elif mins >= 20: impact = 1 # Rotação
@@ -6979,32 +6970,45 @@ def show_depto_medico():
                 PLAYER_ID_MAP[nm] = row.get(c_id, 0)
         except: pass
 
-    # Carrega Lesões (Tenta V44, depois Genérico)
+    # --- 3. FETCH E TRATAMENTO DE DADOS ---
     injuries_list = []
-    raw_data = get_data_universal('injuries_cache_v44')
+    data_source = "NONE"
     
-    if not raw_data: # Fallback
+    # Tentativa 1: Cache v44 (Nome explícito do arquivo)
+    raw_data = get_data_universal('injuries_cache_v44')
+    if raw_data: 
+        data_source = "V44_CACHE"
+    else:
+        # Tentativa 2: Fallback Genérico
         raw_data = get_data_universal('injuries_data')
+        if raw_data: data_source = "GENERIC_DATA"
 
+    # Processamento do JSON (Polimorfismo)
     if raw_data:
-        # Flattening (Teams dict -> List)
         if isinstance(raw_data, dict):
-            # As vezes vem {'teams': {...}} ou direto {...}
+            # Formato A: {'teams': {'LAL': [players]}}
             root = raw_data.get('teams', raw_data)
             for team, players in root.items():
                 if isinstance(players, list):
                     for p in players:
                         p['team_code'] = team
                         injuries_list.append(p)
+                # Formato B: Lista direta dentro de chave
+                elif isinstance(players, dict): # Caso estranho
+                    pass
         elif isinstance(raw_data, list):
+            # Formato C: Lista direta [player1, player2]
             injuries_list = raw_data
 
+    # Se ainda estiver vazio
     if not injuries_list:
-        st.warning("⚠️ Nenhuma informação de lesão encontrada. Tente atualizar os dados.")
+        st.warning(f"⚠️ Nenhuma informação de lesão encontrada no Supabase.")
+        with st.expander("🛠️ Debug Técnico", expanded=False):
+            st.write(f"Tentativa de leitura: injuries_cache_v44")
+            st.write(f"Resultado Bruto: {type(raw_data)}")
         return
 
-    # --- 3. PROCESSAMENTO ---
-    # Adiciona metadados (Impacto, ID, Status Normalizado) aos jogadores
+    # --- 4. ENRIQUECIMENTO DOS DADOS ---
     processed_injuries = []
     
     for p in injuries_list:
@@ -7022,22 +7026,19 @@ def show_depto_medico():
         elif any(x in raw_status for x in ["QUEST", "DOUBT", "GTD", "DECISION"]): status_code = "GTD"
         elif "PROB" in raw_status: status_code = "PROB"
         
-        # Ignora "Active" ou saudáveis
+        # Ignora "Active" ou saudáveis sem notas
         if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
         
-        # Salva
         p['impact'] = impact
         p['pid'] = pid
         p['status_code'] = status_code
         p['norm_name'] = norm_name
         p['display_name'] = p_name
-        # Garante time
         if 'team' not in p and 'team_code' in p: p['team'] = p['team_code']
         
         processed_injuries.append(p)
 
-    # --- 4. ALA HOSPITALAR (HERO SECTION) ---
-    # Filtra: Impacto Alto (2) OU (Impacto Médio (1) E GTD/OUT)
+    # --- 5. ALA HOSPITALAR (HERO SECTION) ---
     hospital_ward = [
         p for p in processed_injuries 
         if (p['impact'] >= 2 and p['status_code'] in ['OUT', 'GTD']) 
@@ -7047,13 +7048,12 @@ def show_depto_medico():
     if hospital_ward:
         st.markdown(f"### 🏥 Ala de Emergência ({len(hospital_ward)} Estrelas/Titulares)")
         
-        # HTML generator for Hero Cards
         html_cards = ""
         for p in hospital_ward:
             photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
             
-            st_txt = "FORA" if p['status_code'] == "OUT" else "DECISÃO (GTD)"
+            st_txt = "FORA" if p['status_code'] == "OUT" else "GTD (Dúvida)"
             tm = p.get('team', 'UNK')
             
             html_cards += f"""
@@ -7070,28 +7070,25 @@ def show_depto_medico():
         
         st.markdown(f'<div class="hospital-ward">{html_cards}</div>', unsafe_allow_html=True)
     
-    # --- 5. LISTA GERAL POR TIME ---
+    # --- 6. LISTA GERAL ---
     st.markdown("---")
     
-    # Agrupa por time
     teams_dict = {}
     for p in processed_injuries:
         tm = p.get('team', 'UNK')
         if tm not in teams_dict: teams_dict[tm] = []
         teams_dict[tm].append(p)
         
-    # Ordena times pelo "Sofrimento" (Soma de impacto)
     sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
     
-    col_filter, _ = st.columns([1, 2])
-    filter_tm = col_filter.selectbox("Filtrar Time:", ["TODOS"] + sorted([t for t in teams_dict.keys()]))
+    c_filter, c_vazio = st.columns([1, 2])
+    filter_tm = c_filter.selectbox("Filtrar Time:", ["TODOS"] + sorted([t for t in teams_dict.keys()]))
 
     for tm, players in sorted_teams:
         if filter_tm != "TODOS" and tm != filter_tm: continue
         
-        # Cabeçalho do Time
         impact_score = sum(p['impact'] for p in players)
-        alert_color = "#ef4444" if impact_score >= 3 else "#cbd5e1" # Vermelho se tiver muito impacto
+        alert_color = "#ef4444" if impact_score >= 3 else "#cbd5e1"
         
         st.markdown(f"""
         <div class="team-separator" style="border-color: {alert_color}">
@@ -7100,13 +7097,9 @@ def show_depto_medico():
         </div>
         """, unsafe_allow_html=True)
         
-        # Grid de Jogadores
-        cols = st.columns(3) # Streamlit Columns funciona melhor que Grid CSS puro para responsividade interna aqui
-        
-        # Ordena jogadores: Impacto > Status
+        cols = st.columns(3)
         players.sort(key=lambda x: (x['impact'], 1 if x['status_code']=='OUT' else 0), reverse=True)
         
-        # Renderiza cards
         html_grid = '<div class="roster-grid">'
         for p in players:
             photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
@@ -7118,6 +7111,7 @@ def show_depto_medico():
             else: badge_cls, badge_txt = "st-prob", "PROB"
             
             desc = p.get('description') or p.get('desc') or p.get('details') or "Sem detalhes."
+            if len(desc) > 60: desc = desc[:57] + "..."
             
             html_grid += f"""
             <div class="injury-mini-card">
@@ -7133,6 +7127,9 @@ def show_depto_medico():
             """
         html_grid += "</div>"
         st.markdown(html_grid, unsafe_allow_html=True)
+
+    # Rodapé de Debug Discreto
+    st.caption(f"Fonte de Dados: {data_source} | Registros: {len(injuries_list)}")
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -7978,6 +7975,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
