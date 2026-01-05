@@ -734,16 +734,13 @@ def show_dvp_analysis():
             else: st.caption("---")
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V3.1 - FOTOS & TRIPLE BARREL STATS)
+# PÁGINA: BLOWOUT RADAR (V4.0 - AUTO-RUN & TRIPLE BARREL)
 # ============================================================================
 def show_blowout_hunter_page():
-    import time
-    import json
-    import os
-    import pandas as pd
     import re
+    import time
     
-    # --- 1. CSS VISUAL REFINADO ---
+    # --- 1. CSS VISUAL (Cards, Fotos e Stats) ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
@@ -751,6 +748,7 @@ def show_blowout_hunter_page():
         
         .risk-card { background: #1e293b; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155; overflow: hidden; }
         
+        /* Cabeçalhos de Risco */
         .risk-header-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 100%); border-left: 5px solid #EF4444; padding: 10px; }
         .risk-header-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 100%); border-left: 5px solid #F59E0B; padding: 10px; }
         .risk-header-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 100%); border-left: 5px solid #10B981; padding: 10px; }
@@ -758,7 +756,7 @@ def show_blowout_hunter_page():
         .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; }
         .game-spread { font-size: 12px; color: #cbd5e1; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; }
         
-        /* Vulture Row Layout Novo */
+        /* Linha do Jogador (Vulture) */
         .vulture-row { 
             display: flex; 
             justify-content: space-between; 
@@ -768,175 +766,192 @@ def show_blowout_hunter_page():
             background: rgba(255,255,255,0.02); 
         }
         .vulture-img {
-            width: 35px; height: 35px;
+            width: 38px; height: 38px;
             border-radius: 50%;
-            border: 2px solid #334155;
+            border: 2px solid #4ade80; /* Verde projeção */
             margin-right: 10px;
             object-fit: cover;
+            background: #000;
         }
+        .vulture-info { line-height: 1.2; }
         .vulture-name { color: #e2e8f0; font-weight: 600; font-size: 13px; }
-        .vulture-meta { font-size: 10px; color: #94a3b8; }
+        .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        /* Triple Barrel Stats */
-        .stat-box { display: flex; gap: 12px; text-align: center; }
+        /* Stats Box (Triple Barrel) */
+        .stat-box { display: flex; gap: 10px; text-align: center; }
+        .stat-col { min-width: 25px; }
         .stat-val { font-family: 'Oswald'; font-size: 14px; font-weight: bold; }
-        .stat-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; }
+        .stat-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
         
-        .tag-dna { background: #7c3aed; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: bold; }
+        .c-pts { color: #4ade80; }
+        .c-reb { color: #60a5fa; }
+        .c-ast { color: #facc15; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR PRO (L25)</div>', unsafe_allow_html=True)
-    st.markdown('<div class="radar-sub">Análise histórica de rotação em jogos decididos por +15 pontos.</div>', unsafe_allow_html=True)
+    # Header
+    st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR & VULTURES</div>', unsafe_allow_html=True)
+    st.markdown('<div class="radar-sub">Identificação automática de reservas com alto potencial estatístico em caso de "Garbage Time".</div>', unsafe_allow_html=True)
 
-    # --- 2. ENGINE & CACHE ---
-    cache_path = os.path.join("cache", "rotation_dna_v3.json") # Novo nome para forçar atualização
-    
-    with st.expander("🧬 Gerar Inteligência Artificial (L25)", expanded=False):
-        st.info("Analisa o histórico recente para identificar quem ganha minutos e stats quando o jogo acaba cedo.")
-        if st.button("🔄 Rodar Análise L25 & Triple Barrel", type="primary"):
-            # Simulação da Geração de Dados (Baseada na Hierarquia + Projeção Triple Barrel)
-            simulated_dna = {}
-            df_l5_source = st.session_state.get('df_l5', pd.DataFrame())
-            
-            if not df_l5_source.empty:
-                with st.spinner("Processando estatísticas de fundo de banco..."):
-                    teams_list = df_l5_source['TEAM'].unique()
-                    for t in teams_list:
-                        # Pega os últimos 6 jogadores da rotação (Deep Bench)
-                        roster = df_l5_source[df_l5_source['TEAM'] == t].sort_values('MIN_AVG', ascending=False).tail(6)
-                        vultures = []
-                        for _, p in roster.iterrows():
-                            # Simula projeção de garbage time (multiplicador x2.5 nas médias)
-                            # Em produção real, isso viria da análise dos boxscores L25
-                            proj_pts = float(p.get('PTS_AVG', 0)) * 2.5
-                            proj_reb = float(p.get('REB_AVG', 0)) * 2.5
-                            proj_ast = float(p.get('AST_AVG', 0)) * 2.5
-                            
-                            vultures.append({
-                                "id": int(p['PLAYER_ID']), # Importante para a foto
-                                "name": p['PLAYER'],
-                                "pts": proj_pts,
-                                "reb": proj_reb,
-                                "ast": proj_ast
-                            })
-                        simulated_dna[t] = vultures
-            
-            with open(cache_path, 'w') as f:
-                json.dump(simulated_dna, f)
-            
-            st.session_state['rotation_dna_cache_v3'] = simulated_dna
-            st.success("DNA Triple Barrel Atualizado!")
-            time.sleep(1)
-            st.rerun()
-
-    # Carrega DNA
-    ROTATION_DNA = st.session_state.get('rotation_dna_cache_v3', {})
-    if not ROTATION_DNA and os.path.exists(cache_path):
-        try:
-            with open(cache_path, 'r') as f: ROTATION_DNA = json.load(f)
-        except: pass
-
-    # --- 3. RENDERIZAÇÃO PRINCIPAL ---
+    # --- 2. DADOS E VALIDAÇÃO ---
     games = st.session_state.get('scoreboard', [])
-    
-    # Filtro de Lesões
-    banned_players = set()
-    try:
-        raw_injuries = st.session_state.get('injuries_data', [])
-        if isinstance(raw_injuries, dict):
-            flat_inj = []
-            for t in raw_injuries.values(): flat_inj.extend(t)
-            raw_injuries = flat_inj
-        for inj in raw_injuries:
-            if any(x in str(inj.get('status','')).lower() for x in ['out', 'doubt', 'injur']):
-                p_name = inj.get('player') or inj.get('name')
-                if p_name: banned_players.add(p_name.lower().strip())
-    except: pass
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
     if not games:
-        st.warning("Scoreboard vazio.")
+        st.warning("📭 Scoreboard vazio. Atualize na aba Config.")
+        return
+    
+    if df_l5.empty:
+        st.error("❌ Base de Dados L5 vazia. Impossível calcular projeções.")
         return
 
-    # Processa Jogos
+    # --- 3. AUTO-RUN: GERAÇÃO DE INTELIGÊNCIA (Sem Botão) ---
+    # Cache key baseada na hora/data para renovar durante o dia
+    cache_key = f"blowout_v4_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
+    
+    # Se não tiver dados cacheados, GERA AGORA
+    if cache_key not in st.session_state:
+        with st.spinner("🔄 Processando rotações de banco e normalizando times..."):
+            
+            # Mapa de Tradução (ESPN -> NBA API)
+            # Garante que 'GS' vire 'GSW', 'NY' vire 'NYK', etc.
+            ESPN_TO_NBA = {
+                "GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "UTAH": "UTA", 
+                "PHO": "PHX", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA", "NOR": "NOP"
+            }
+            
+            vulture_dna = {}
+            
+            # Lista única de times jogando hoje (normalizada)
+            teams_playing_raw = set([g['home'] for g in games] + [g['away'] for g in games])
+            
+            for raw_team in teams_playing_raw:
+                # Tenta encontrar o time no DF L5
+                nba_team = ESPN_TO_NBA.get(raw_team, raw_team)
+                
+                # Filtra elenco desse time
+                roster = df_l5[df_l5['TEAM'] == nba_team]
+                
+                # Se não achou, tenta sem normalização ou com match parcial
+                if roster.empty:
+                    roster = df_l5[df_l5['TEAM'].str.contains(raw_team, case=False, na=False)]
+                
+                if not roster.empty:
+                    # Lógica Vulture: Pega reservas (Min < 24) ordenados por PTS
+                    # Removemos quem joga muito pouco (< 5 min) para evitar "fantasmas"
+                    bench = roster[
+                        (roster['MIN_AVG'] < 24) & 
+                        (roster['MIN_AVG'] > 5)
+                    ].sort_values('PTS_AVG', ascending=False)
+                    
+                    team_vultures = []
+                    for _, p in bench.head(5).iterrows(): # Top 5 Reservas
+                        # Projeção Otimista (Garbage Time Boost x1.8 a x2.5 dependendo dos minutos)
+                        # Quem joga menos tem multiplicador maior pois ganha mais tempo proporcionalmente
+                        mult = 2.5 if p['MIN_AVG'] < 15 else 1.5
+                        
+                        team_vultures.append({
+                            "id": int(p['PLAYER_ID']),
+                            "name": p['PLAYER'],
+                            "min_avg": p['MIN_AVG'],
+                            "proj_pts": float(p.get('PTS_AVG', 0)) * mult,
+                            "proj_reb": float(p.get('REB_AVG', 0)) * mult,
+                            "proj_ast": float(p.get('AST_AVG', 0)) * mult
+                        })
+                    
+                    # Salva no dicionário usando a chave RAW (do Scoreboard) para facilitar o retrieve
+                    vulture_dna[raw_team] = team_vultures
+            
+            # Salva no cache
+            st.session_state[cache_key] = vulture_dna
+            
+            # Recarrega para exibir limpo
+            time.sleep(0.2)
+            st.rerun()
+
+    # Recupera dados do cache
+    VULTURE_DATA = st.session_state.get(cache_key, {})
+
+    # --- 4. RENDERIZAÇÃO DOS JOGOS ---
     processed_games = []
     for g in games:
         raw_spread = g.get('odds_spread', '0')
         try: spread_val = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_spread))[-1]))
         except: spread_val = 0.0
 
-        if spread_val >= 12.5: risk, css, txt = "HIGH", "risk-header-high", "ALTO RISCO"
-        elif spread_val >= 8.5: risk, css, txt = "MED", "risk-header-med", "RISCO MODERADO"
-        else: risk, css, txt = "LOW", "risk-header-low", "JOGO EQUILIBRADO"
+        if spread_val >= 12.5: risk, css, txt = "HIGH", "risk-header-high", "🔥 ALTO RISCO DE BLOWOUT"
+        elif spread_val >= 8.5: risk, css, txt = "MED", "risk-header-med", "⚠ RISCO MODERADO"
+        else: risk, css, txt = "LOW", "risk-header-low", "🛡️ JOGO EQUILIBRADO"
             
         processed_games.append({"game": g, "spread": spread_val, "risk": risk, "css": css, "text": txt})
 
+    # Ordena: Risco Alto primeiro
     processed_games.sort(key=lambda x: x['spread'], reverse=True)
 
-    # Renderiza Cards
     for item in processed_games:
         g = item['game']
         h_team, a_team = g['home'], g['away']
-        icon = "&#128293;" if item['risk'] == "HIGH" else "&#9888;" if item['risk'] == "MED" else "&#128737;"
         
+        # Header do Jogo
         st.markdown(f"""
         <div class="risk-card">
             <div class="{item['css']}">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="game-matchup">{a_team} @ {h_team}</div>
                     <div style="text-align:right;">
-                        <div style="color:#fff; font-weight:bold; font-size:12px;">{icon} {item['text']}</div>
+                        <div style="color:#fff; font-weight:bold; font-size:12px;">{item['text']}</div>
                         <div class="game-spread">SPREAD: {item['spread']}</div>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
+        # Se houver risco, mostra os Vultures
         if item['risk'] != "LOW":
             c1, c2 = st.columns(2)
             
-            def get_dna_vultures(team):
-                vultures = ROTATION_DNA.get(team, [])
-                # Filtra lesionados e ordena por maior projeção de pontos
-                valid = [v for v in vultures if v['name'].lower().strip() not in banned_players]
-                return sorted(valid, key=lambda x: x.get('pts', 0), reverse=True)[:3]
-
-            def render_vulture_list(col, team):
-                vultures = get_dna_vultures(team)
+            def render_vulture_list(col, team_name):
+                vultures = VULTURE_DATA.get(team_name, [])
+                # Pega Top 3 por projeção de pontos
+                top_vultures = sorted(vultures, key=lambda x: x['proj_pts'], reverse=True)[:3]
+                
                 with col:
-                    st.markdown(f"<div style='padding:8px; color:#94a3b8; font-size:10px; font-weight:bold;'>OPORTUNIDADES {team}</div>", unsafe_allow_html=True)
-                    if vultures:
-                        for v in vultures:
-                            # Garante que chaves existem (compatibilidade)
-                            pts = v.get('pts', 0)
-                            reb = v.get('reb', 0)
-                            ast = v.get('ast', 0)
-                            pid = v.get('id', 0)
-                            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-
+                    st.markdown(f"<div style='padding:8px; color:#94a3b8; font-size:10px; font-weight:bold; letter-spacing:1px; background:rgba(0,0,0,0.2);'>OPORTUNIDADES {team_name}</div>", unsafe_allow_html=True)
+                    
+                    if top_vultures:
+                        for v in top_vultures:
+                            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{v['id']}.png"
+                            
                             st.markdown(f"""
                             <div class="vulture-row">
                                 <div style="display:flex; align-items:center;">
                                     <img src="{photo}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                                    <div>
+                                    <div class="vulture-info">
                                         <div class="vulture-name">{v['name']}</div>
-                                        <div class="vulture-meta"><span class="tag-dna">PROJEÇÃO</span></div>
+                                        <div class="vulture-role">Média: {v['min_avg']:.1f} min</div>
                                     </div>
                                 </div>
                                 <div class="stat-box">
-                                    <div><div class="stat-val" style="color:#4ade80;">{pts:.1f}</div><div class="stat-lbl">PTS</div></div>
-                                    <div><div class="stat-val" style="color:#60a5fa;">{reb:.1f}</div><div class="stat-lbl">REB</div></div>
-                                    <div><div class="stat-val" style="color:#f59e0b;">{ast:.1f}</div><div class="stat-lbl">AST</div></div>
+                                    <div class="stat-col"><div class="stat-val c-pts">{v['proj_pts']:.1f}</div><div class="stat-lbl">PTS</div></div>
+                                    <div class="stat-col"><div class="stat-val c-reb">{v['proj_reb']:.1f}</div><div class="stat-lbl">REB</div></div>
+                                    <div class="stat-col"><div class="stat-val c-ast">{v['proj_ast']:.1f}</div><div class="stat-lbl">AST</div></div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
                     else:
-                        st.caption("Sem dados disponíveis.")
+                        # Fallback se não achar dados
+                        st.markdown("<div style='padding:10px; color:#64748B; font-size:11px; text-align:center;'>Sem dados de reservas.</div>", unsafe_allow_html=True)
 
             render_vulture_list(c1, a_team)
             render_vulture_list(c2, h_team)
+        
         else:
-            st.markdown("<div style='padding:15px; color:#94a3b8; font-size:12px; text-align:center;'>Foco nos titulares.</div>", unsafe_allow_html=True)
+            # Risco Baixo
+            st.markdown("""
+            <div style="padding:15px; color:#94a3b8; font-size:12px; text-align:center;">
+                Jogo projetado para ser parelho. Foco total nos titulares.
+            </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 # ============================================================================
@@ -7692,6 +7707,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
