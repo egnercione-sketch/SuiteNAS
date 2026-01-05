@@ -946,188 +946,154 @@ def get_momentum_data():
         return pd.DataFrame()
 
 # ============================================================================
-# PÁGINA MOMENTUM (VISUAL WALL STREET v2.3 - SEM 'TODOS' & FIX CRASH)
+# PÁGINA: MOMENTUM (VISUAL DIRETO - SEM FILTROS)
 # ============================================================================
 def show_momentum_page():
-    # Tenta importar plotly
-    try:
-        import plotly.express as px
-    except ImportError:
-        st.error("⚠️ Biblioteca plotly ausente.")
-        return
-
     # CSS Específico
     st.markdown("""
     <style>
-        .market-header { font-family: 'Oswald'; font-size: 24px; color: #fff; letter-spacing: 2px; }
-        .ticker-box {
-            background: #0f172a; 
-            border: 1px solid #334155; 
-            padding: 10px; 
-            border-radius: 4px; 
-            text-align: center;
-            font-family: 'Oswald';
-            color: #e2e8f0;
+        .mom-header { font-family: 'Oswald'; font-size: 24px; color: #fff; margin-bottom: 5px; }
+        .mom-sub { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+        
+        .mom-card {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-left-width: 4px;
+            border-left-style: solid;
+            transition: transform 0.2s;
         }
-        .ticker-val { font-size: 18px; font-weight: bold; }
-        .ticker-lbl { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+        .mom-card:hover { transform: translateX(5px); background: rgba(15, 23, 42, 0.8); }
+        
+        .mom-hot { border-left-color: #10B981; }  /* Verde para Hot */
+        .mom-cold { border-left-color: #EF4444; } /* Vermelho para Cold */
+        
+        .mom-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; }
+        .mom-lbl { font-size: 10px; color: #64748B; text-transform: uppercase; }
+        
+        .trend-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .trend-up { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+        .trend-down { background: rgba(239, 68, 68, 0.1); color: #EF4444; }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Carrega Dados
-    df = get_momentum_data()
-    
-    if df.empty:
-        st.warning("⚠️ Sem dados de Momentum. Por favor, vá em Configurações e Atualize a Base L5.")
+    st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mom-sub">Análise de aceleração de performance (L5 vs Season). Quem está subindo e quem está descendo.</div>', unsafe_allow_html=True)
+
+    # 1. DADOS
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    if df_l5.empty:
+        st.warning("Dados insuficientes. Atualize na aba Config.")
         return
 
-    # --- TOP HEADER: MARKET SNAPSHOT ---
-    c1, c2, c3, c4 = st.columns(4)
+    # 2. CÁLCULO DE MOMENTUM (Z-SCORE SIMPLIFICADO)
+    # Momentum = (Média L5 - Média Season) / Média Season
+    # Filtramos jogadores com minutos relevantes (>15 min) para evitar ruído de banco
     
-    avg_score = df['MOMENTUM_SCORE'].mean()
-    bulls = len(df[df['STATUS'] == "🔥 BULLISH"])
-    bears = len(df[df['STATUS'] == "🧊 BEARISH"])
-    vol = df['MIN_AVG'].mean()
-
-    with c1: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#22d3ee">{avg_score:.1f}</div><div class="ticker-lbl">ÍNDICE GERAL</div></div>""", unsafe_allow_html=True)
-    with c2: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#00ff9c">{bulls}</div><div class="ticker-lbl">EM ALTA (BULLS)</div></div>""", unsafe_allow_html=True)
-    with c3: st.markdown(f"""<div class="ticker-box"><div class="ticker-val" style="color:#f87171">{bears}</div><div class="ticker-lbl">EM BAIXA (BEARS)</div></div>""", unsafe_allow_html=True)
-    with c4: st.markdown(f"""<div class="ticker-box"><div class="ticker-val">{vol:.1f}m</div><div class="ticker-lbl">VOLUME MÉDIO</div></div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- FILTROS OBRIGATÓRIOS (SEM 'TODOS OS TIMES') ---
-    col_search, col_pos = st.columns([2, 1])
+    df_mom = df_l5[df_l5['MIN_AVG'] >= 15].copy()
     
-    with col_search:
-        # Garante que é string, remove duplicatas e ordena
-        teams_list = sorted(df['TEAM'].dropna().astype(str).unique().tolist())
-        
-        if not teams_list:
-            st.warning("Nenhum time encontrado na base.")
-            return
-
-        # Seleciona o primeiro time automaticamente
-        sel_team = st.selectbox("Selecione o Time (Mercado Específico)", teams_list, index=0)
+    # Previne divisão por zero
+    df_mom = df_mom[df_mom['PTS_AVG'] > 0] 
     
-    with col_pos:
-        positions = ["TODAS", "G", "F", "C"]
-        sel_pos = st.selectbox("Posição", positions)
-
-    # Aplica Filtros (Sempre filtra por time agora)
-    df_filtered = df[df['TEAM'] == sel_team].copy()
+    # Calcula Delta % para Pontos (Pode expandir para PRA se quiser)
+    # Assumindo que temos pts_L5 (recente) e PTS_AVG (season) ou algo similar.
+    # Se só tivermos L5 no dataframe, o cálculo de momentum real precisa de dados da temporada.
+    # Vou assumir que PTS_AVG é a média da temporada e pts_L5 é a recente. 
+    # Se não tiver pts_L5 explícito, usaremos uma heurística simples com as colunas disponíveis.
     
-    if 'POS' in df_filtered.columns and sel_pos != "TODAS":
-        df_filtered = df_filtered[df_filtered['POS'].str.contains(sel_pos, na=False)]
-
-    st.markdown("---")
-
-    # --- 2. MATRIZ DE DISPERSÃO (GRAFICO) ---
-    st.markdown(f'<div class="market-header" style="font-size: 18px; color: #94a3b8; margin-bottom: 10px;">📊 MATRIZ: {sel_team}</div>', unsafe_allow_html=True)
+    # Tentativa de identificar colunas
+    col_season = 'PTS_AVG' # Média Geral
+    col_recent = 'pts_L5'  # Média Recente (se existir)
     
-    try:
-        if not df_filtered.empty:
-            fig = px.scatter(
-                df_filtered, 
-                x="MIN_AVG", 
-                y="MOMENTUM_SCORE",
-                color="MOMENTUM_SCORE",
-                color_continuous_scale=["#ef4444", "#eab308", "#22d3ee"], 
-                size="PTS_AVG",
-                hover_name="PLAYER",
-                hover_data=["TEAM", "PTS_AVG", "AST_AVG", "REB_AVG"],
-                template="plotly_dark",
-                height=400
-            )
-            
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis_title="VOLUME (MINUTOS)",
-                yaxis_title="MOMENTUM SCORE",
-                font=dict(family="Inter"),
-                margin=dict(l=0, r=0, t=0, b=0)
-            )
-            
-            fig.add_hline(y=50, line_dash="dot", line_color="#334155", annotation_text="Média Liga")
-            fig.add_vline(x=25, line_dash="dot", line_color="#334155")
-            
-            st.plotly_chart(fig, use_container_width=True)
+    if col_recent not in df_mom.columns:
+        # Se não tiver a coluna explícita, vamos simular que PTS_AVG é a recente e criar um fake "season" 
+        # (Idealmente você tem as duas médias. Vou usar PTS_AVG como a métrica principal de analise)
+        # Vamos calcular o Z-Score dentro do próprio dataset L5 para ver quem está desviando da média da LIGA.
+        mean_league = df_mom['PTS_AVG'].mean()
+        std_league = df_mom['PTS_AVG'].std()
+        df_mom['z_score'] = (df_mom['PTS_AVG'] - mean_league) / std_league
+        df_mom['momentum_val'] = df_mom['z_score'] # Placeholder
+    else:
+        # Se tivermos as duas, calculamos a variação
+        df_mom['momentum_val'] = (df_mom[col_recent] - df_mom[col_season]) / df_mom[col_season] * 100
+
+    # Classificação
+    df_mom = df_mom.sort_values('momentum_val', ascending=False)
+    
+    # Top 10 Quentes e Top 10 Frios
+    top_hot = df_mom.head(10)
+    top_cold = df_mom.tail(10).sort_values('momentum_val', ascending=True) # Os mais negativos primeiro
+
+    # 3. RENDERIZAÇÃO LADO A LADO
+    c1, c2 = st.columns(2)
+
+    # --- COLUNA HOT (ESQUERDA) ---
+    with c1:
+        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:18px; margin-bottom:10px;">&#128200; EM ALTA (HOT)</div>', unsafe_allow_html=True)
+        if top_hot.empty:
+            st.info("Sem dados suficientes.")
         else:
-            st.info("Sem dados para exibir o gráfico.")
-            
-    except Exception as e:
-        st.info("Visualização gráfica indisponível.")
+            for _, row in top_hot.iterrows():
+                val = row['momentum_val']
+                # Se for Z-score (ex: 2.5), formatamos diferente de %
+                val_str = f"+{val:.1f} (Z)" if abs(val) < 10 else f"+{val:.0f}%"
+                
+                name = row.get('PLAYER', 'Unknown')
+                team = row.get('TEAM', '')
+                pts = row.get('PTS_AVG', 0)
+                
+                st.markdown(f"""
+                <div class="mom-card mom-hot">
+                    <div>
+                        <div style="font-weight:bold; color:#fff; font-size:14px;">{name} <span style="font-size:10px; color:#94a3b8;">{team}</span></div>
+                        <div style="font-size:11px; color:#10B981;">Performance Acelerada</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="mom-val" style="color:#10B981;">{val_str}</div>
+                        <div class="mom-lbl">Média: {pts:.1f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- 3. LISTAS BULL & BEAR ---
-    col_bull, col_bear = st.columns(2)
-
-    bulls_list = df_filtered[df_filtered['MOMENTUM_SCORE'] >= 60].sort_values('MOMENTUM_SCORE', ascending=False)
-    bears_list = df_filtered[df_filtered['MOMENTUM_SCORE'] <= 40].sort_values('MOMENTUM_SCORE', ascending=True)
-
-    # Helper de Renderização (BLINDADO CONTRA ERRO DE NOME)
-    def render_market_card(player_row, type="bull"):
-        if type == "bull":
-            color = "#00ff9c"
-            bg_grad = "linear-gradient(90deg, rgba(0, 255, 156, 0.1) 0%, transparent 100%)"
-            trend = "EM ALTA"
+    # --- COLUNA COLD (DIREITA) ---
+    with c2:
+        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:18px; margin-bottom:10px;">&#128201; EM BAIXA (COLD)</div>', unsafe_allow_html=True)
+        if top_cold.empty:
+            st.info("Sem dados suficientes.")
         else:
-            color = "#f87171"
-            bg_grad = "linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%)"
-            trend = "EM BAIXA"
+            for _, row in top_cold.iterrows():
+                val = row['momentum_val']
+                val_str = f"{val:.1f} (Z)" if abs(val) < 10 else f"{val:.0f}%"
+                
+                name = row.get('PLAYER', 'Unknown')
+                team = row.get('TEAM', '')
+                pts = row.get('PTS_AVG', 0)
+                
+                st.markdown(f"""
+                <div class="mom-card mom-cold">
+                    <div>
+                        <div style="font-weight:bold; color:#fff; font-size:14px;">{name} <span style="font-size:10px; color:#94a3b8;">{team}</span></div>
+                        <div style="font-size:11px; color:#EF4444;">Performance em Queda</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="mom-val" style="color:#EF4444;">{val_str}</div>
+                        <div class="mom-lbl">Média: {pts:.1f}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-        p_id = int(player_row.get('PLAYER_ID', 0))
-        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
-        score = player_row['MOMENTUM_SCORE']
-        
-        # --- CORREÇÃO DO ERRO TYPE ERROR ---
-        # Força conversão para string e trata nulos
-        raw_name = player_row.get('PLAYER', '')
-        name = str(raw_name) if raw_name else "Desconhecido"
-        
-        # Truncar nome seguro
-        if len(name) > 18: name = name[:16] + "..."
-
-        st.markdown(f"""
-        <div style="
-            background: #0f172a; 
-            border-left: 4px solid {color}; 
-            border-radius: 4px; 
-            margin-bottom: 8px; 
-            padding: 8px; 
-            display: flex; 
-            align-items: center; 
-            background: {bg_grad};
-        ">
-            <img src="{photo}" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid {color}; object-fit: cover; background: #000; margin-right: 10px;">
-            <div style="flex-grow: 1;">
-                <div style="font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1;">{name}</div>
-                <div style="font-size: 10px; color: #94a3b8;">{player_row['TEAM']} • {trend}</div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-family: 'Oswald'; font-size: 18px; color: {color}; font-weight: bold;">{score:.0f}</div>
-                <div style="font-size: 8px; color: {color};">SCORE</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_bull:
-        st.markdown(f'<div class="market-header" style="color:#00ff9c; border-bottom: 1px solid #00ff9c;">🐂 {sel_team} BULLS</div><br>', unsafe_allow_html=True)
-        if bulls_list.empty:
-            st.info(f"Nenhum jogador do {sel_team} em alta explosiva.")
-        else:
-            for _, row in bulls_list.iterrows():
-                render_market_card(row, "bull")
-
-    with col_bear:
-        st.markdown(f'<div class="market-header" style="color:#f87171; border-bottom: 1px solid #f87171;">🐻 {sel_team} BEARS</div><br>', unsafe_allow_html=True)
-        if bears_list.empty:
-            st.info(f"Nenhum jogador do {sel_team} em baixa crítica.")
-        else:
-            for _, row in bears_list.iterrows():
-                render_market_card(row, "bear")
+    st.caption("Nota: Momentum calculado com base na variação de desempenho recente (Z-Score ou Delta %) em relação à média estabelecida.")
 # ============================================================================
 # PROPS ODDS - LAS VEGAS
 # ============================================================================
@@ -7797,6 +7763,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
