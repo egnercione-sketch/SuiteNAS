@@ -488,7 +488,7 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
-# PÁGINA: DVP TACTICAL BOARD (V36.0 - OPEN DATA & DEBUGGER)
+# PÁGINA: DVP TACTICAL BOARD (V38.0 - INTEGRATED MAPS)
 # ============================================================================
 def show_dvp_analysis():
     import streamlit as st
@@ -497,7 +497,68 @@ def show_dvp_analysis():
     import unicodedata
     import html
 
-    # --- 1. FUNÇÕES AUXILIARES ---
+    # --- 1. INFRAESTRUTURA DE DADOS (FORNECIDA PELO USUÁRIO) ---
+    
+    # Mapas Oficiais do Sistema
+    TEAM_NAME_VARIATIONS = {
+        "Atlanta Hawks": ["ATL", "Atlanta", "Hawks"],
+        "Boston Celtics": ["BOS", "Boston", "Celtics"],
+        "Brooklyn Nets": ["BKN", "BRO", "Brooklyn", "Nets"],
+        "Charlotte Hornets": ["CHA", "Charlotte", "Hornets"],
+        "Chicago Bulls": ["CHI", "Chicago", "Bulls"],
+        "Cleveland Cavaliers": ["CLE", "Cleveland", "Cavaliers"],
+        "Dallas Mavericks": ["DAL", "Dallas", "Mavericks"],
+        "Denver Nuggets": ["DEN", "Denver", "Nuggets"],
+        "Detroit Pistons": ["DET", "Detroit", "Pistons"],
+        "Golden State Warriors": ["GSW", "GS", "Golden State", "Warriors"],
+        "Houston Rockets": ["HOU", "Houston", "Rockets"],
+        "Indiana Pacers": ["IND", "Indiana", "Pacers"],
+        "Los Angeles Clippers": ["LAC", "LA Clippers", "Clippers"],
+        "Los Angeles Lakers": ["LAL", "LA Lakers", "Lakers"],
+        "Memphis Grizzlies": ["MEM", "Memphis", "Grizzlies"],
+        "Miami Heat": ["MIA", "Miami", "Heat"],
+        "Milwaukee Bucks": ["MIL", "Milwaukee", "Bucks"],
+        "Minnesota Timberwolves": ["MIN", "Minnesota", "Timberwolves"],
+        "New Orleans Pelicans": ["NOP", "NO", "New Orleans", "Pelicans", "NOH"],
+        "New York Knicks": ["NYK", "NY", "New York", "Knicks"],
+        "Oklahoma City Thunder": ["OKC", "Oklahoma City", "Thunder"],
+        "Orlando Magic": ["ORL", "Orlando", "Magic"],
+        "Philadelphia 76ers": ["PHI", "Philadelphia", "76ers"],
+        "Phoenix Suns": ["PHX", "PHO", "Phoenix", "Suns"],
+        "Portland Trail Blazers": ["POR", "Portland", "Trail Blazers", "Blazers"],
+        "Sacramento Kings": ["SAC", "Sacramento", "Kings"],
+        "San Antonio Spurs": ["SAS", "SA", "San Antonio", "Spurs"],
+        "Toronto Raptors": ["TOR", "Toronto", "Raptors"],
+        "Utah Jazz": ["UTA", "UTAH", "Utah", "Jazz"],
+        "Washington Wizards": ["WAS", "WSH", "Washington", "Wizards"]
+    }
+
+    TEAM_NORMALIZATION_MAP = {
+        "PHO": "PHX", "GS": "GSW", "NY": "NYK", "NO": "NOP", "NOH": "NOP",
+        "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "BK": "BKN", "BRK": "BKN",
+        "LA": "LAL", "CHO": "CHA"
+    }
+
+    # Pré-processamento: Criar um "Mapa Reverso Mestre" para busca rápida
+    # Estrutura final: { "HAWKS": "ATL", "ATLANTA": "ATL", "GS": "GSW"... }
+    MASTER_TEAM_MAP = {}
+    
+    # 1. Adiciona Variações
+    for full_name, variations in TEAM_NAME_VARIATIONS.items():
+        # A chave primária (ex: "Atlanta Hawks") geralmente não é o código 3 letras.
+        # Precisamos extrair o código padrão da lista de variações (geralmente o primeiro ou identificado)
+        # Assumindo que a primeira variação de 3 letras é o código.
+        std_code = next((v for v in variations if len(v) == 3), variations[0]).upper()
+        
+        # Mapeia todas as variações para esse código
+        for v in variations:
+            MASTER_TEAM_MAP[v.upper()] = std_code
+            
+    # 2. Adiciona Normalizações Diretas (Sobrescreve se necessário)
+    for k, v in TEAM_NORMALIZATION_MAP.items():
+        MASTER_TEAM_MAP[k.upper()] = v.upper()
+
+    # --- 2. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
         if not text: return ""
         try:
@@ -506,71 +567,45 @@ def show_dvp_analysis():
             return text.upper().strip()
         except: return ""
 
-    # Mapeamento agressivo para garantir que todos falem a mesma língua
-    UNIVERSAL_MAP = {
-        "GS": "GSW", "GOLDEN STATE": "GSW", "WARRIORS": "GSW",
-        "NY": "NYK", "NEW YORK": "NYK", "KNICKS": "NYK",
-        "NO": "NOP", "NEW ORLEANS": "NOP", "PELICANS": "NOP", "NOR": "NOP",
-        "SA": "SAS", "SAN ANTONIO": "SAS", "SPURS": "SAS",
-        "PHO": "PHX", "PHOENIX": "PHX", "SUNS": "PHX",
-        "WSH": "WAS", "WASHINGTON": "WAS", "WIZARDS": "WAS",
-        "UTAH": "UTA", "JAZZ": "UTA", "UTA": "UTA",
-        "BRK": "BKN", "BROOKLYN": "BKN", "NETS": "BKN", "BKN": "BKN",
-        "CHO": "CHA", "CHARLOTTE": "CHA", "HORNETS": "CHA", "CHA": "CHA",
-        "LAL": "LAL", "LAKERS": "LAL",
-        "LAC": "LAC", "CLIPPERS": "LAC",
-        "DET": "DET", "DETROIT": "DET", "PISTONS": "DET",
-        "OKC": "OKC", "OKLAHOMA": "OKC", "THUNDER": "OKC",
-        "ATL": "ATL", "ATLANTA": "ATL",
-        "BOS": "BOS", "BOSTON": "BOS",
-        "CHI": "CHI", "CHICAGO": "CHI",
-        "CLE": "CLE", "CLEVELAND": "CLE",
-        "DAL": "DAL", "DALLAS": "DAL",
-        "DEN": "DEN", "DENVER": "DEN",
-        "HOU": "HOU", "HOUSTON": "HOU",
-        "IND": "IND", "INDIANA": "IND",
-        "MEM": "MEM", "MEMPHIS": "MEM",
-        "MIA": "MIA", "MIAMI": "MIA",
-        "MIL": "MIL", "MILWAUKEE": "MIL",
-        "MIN": "MIN", "MINNESOTA": "MIN",
-        "ORL": "ORL", "ORLANDO": "ORL",
-        "PHI": "PHI", "PHILADELPHIA": "PHI",
-        "POR": "POR", "PORTLAND": "POR",
-        "SAC": "SAC", "SACRAMENTO": "SAC",
-        "TOR": "TOR", "TORONTO": "TOR"
-    }
-
     def get_standard_team_code(raw_team):
-        raw = str(raw_team).upper().strip()
-        return UNIVERSAL_MAP.get(raw, raw)
+        """Usa o Mapa Mestre para encontrar o código oficial."""
+        if not raw_team: return "UNK"
+        clean = str(raw_team).upper().strip()
+        
+        # 1. Tenta direto no mapa mestre
+        if clean in MASTER_TEAM_MAP:
+            return MASTER_TEAM_MAP[clean]
+        
+        # 2. Tenta encontrar substring (ex: "LA CLIPPERS" -> "CLIPPERS" -> "LAC")
+        for key, val in MASTER_TEAM_MAP.items():
+            if key in clean: # Cuidado aqui para não pegar falsos positivos curtos
+                if len(key) > 3: # Só faz match parcial com nomes longos
+                    return val
+                    
+        return clean # Retorna o original se falhar (esperança)
 
-    # --- 2. CSS VISUAL (BOARD STYLE) ---
+    def find_col(columns, candidates):
+        for cand in candidates:
+            for col in columns:
+                if cand in col: return col
+        return candidates[0]
+
+    # --- 3. CSS VISUAL (TACTICAL BOARD) ---
     st.markdown("""
     <style>
         .board-title { font-family: 'Oswald'; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
         .board-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
 
-        /* HEADER DO JOGO */
         .game-header {
             background: linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-            border: 1px solid #334155;
-            border-bottom: none;
-            border-radius: 8px 8px 0 0;
-            padding: 8px;
-            text-align: center;
-            font-family: 'Oswald'; font-size: 16px; color: #e2e8f0;
-            margin-top: 15px;
+            border: 1px solid #334155; border-bottom: none; border-radius: 8px 8px 0 0;
+            padding: 8px; text-align: center; font-family: 'Oswald'; font-size: 16px; color: #e2e8f0; margin-top: 15px;
         }
 
-        /* CONTAINER DOS TIMES */
         .matchup-container {
-            display: flex; flex-direction: row;
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            overflow: hidden;
-            margin-bottom: 10px;
+            display: flex; flex-direction: row; background: #1e293b;
+            border: 1px solid #334155; border-top: none; border-radius: 0 0 8px 8px;
+            overflow: hidden; margin-bottom: 10px;
         }
 
         .team-column { flex: 1; padding: 5px; }
@@ -581,13 +616,10 @@ def show_dvp_analysis():
             margin-bottom: 6px; text-align: center; border-bottom: 1px solid #334155; padding-bottom: 2px;
         }
 
-        /* LINHA DO JOGADOR */
         .tactical-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 4px 6px; margin-bottom: 3px;
-            background: rgba(255,255,255,0.02);
-            border-radius: 4px;
-            border-left: 2px solid transparent;
+            padding: 4px 6px; margin-bottom: 3px; background: rgba(255,255,255,0.02);
+            border-radius: 4px; border-left: 2px solid transparent;
         }
         
         .p-left { display: flex; align-items: center; gap: 6px; }
@@ -596,30 +628,25 @@ def show_dvp_analysis():
         .p-nick { font-family: 'Oswald'; font-size: 12px; color: #e2e8f0; line-height: 1.1; }
         .p-pos { font-size: 8px; color: #94a3b8; font-weight: bold; }
 
-        /* RANK BADGE */
         .rank-badge {
-            font-family: 'Roboto Mono', monospace;
-            font-size: 11px; font-weight: bold;
-            padding: 1px 5px; border-radius: 3px;
-            min-width: 30px; text-align: center;
+            font-family: 'Roboto Mono', monospace; font-size: 11px; font-weight: bold;
+            padding: 1px 5px; border-radius: 3px; min-width: 30px; text-align: center;
             border: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* CORES DE RANK */
-        .rk-elite { background: #22c55e; color: #000; box-shadow: 0 0 5px rgba(34, 197, 94, 0.4); } /* 25-30 */
-        .rk-good { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: #22c55e; } /* 20-24 */
-        .rk-avg { background: rgba(234, 179, 8, 0.1); color: #facc15; border-color: #eab308; } /* 11-19 */
-        .rk-bad { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: #ef4444; } /* 1-10 */
+        .rk-elite { background: #22c55e; color: #000; box-shadow: 0 0 5px rgba(34, 197, 94, 0.4); }
+        .rk-good { background: rgba(34, 197, 94, 0.2); color: #4ade80; border-color: #22c55e; }
+        .rk-avg { background: rgba(234, 179, 8, 0.1); color: #facc15; border-color: #eab308; }
+        .rk-bad { background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: #ef4444; }
         
         .missing-data { text-align: center; font-size: 10px; color: #64748b; padding: 15px; font-style: italic; }
-
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="board-title">🛡️ DvP TACTICAL BOARD</div>', unsafe_allow_html=True)
-    st.markdown('<div class="board-sub">Rank defensivo do oponente por posição. (Rank 30 = Pior Defesa/Melhor Alvo).</div>', unsafe_allow_html=True)
+    st.markdown('<div class="board-sub">Análise tática de matchup (Rank 30 = Defesa Fraca / Rank 1 = Defesa Elite).</div>', unsafe_allow_html=True)
 
-    # --- 3. DADOS ---
+    # --- 4. DADOS ---
     dvp_analyzer = st.session_state.get("dvp_analyzer")
     if not dvp_analyzer:
         try:
@@ -635,12 +662,12 @@ def show_dvp_analysis():
         st.warning("Scoreboard vazio. Atualize em Config.")
         return
 
-    # --- 4. ENGINE DE DADOS (ABERTA) ---
+    # --- 5. ENGINE HÍBRIDA (ROSTER BUILDER) ---
     df_l5 = st.session_state.get("df_l5", pd.DataFrame())
     real_logs = get_data_universal('real_game_logs') or {}
     
-    # Debug: Times encontrados no banco
-    FOUND_TEAMS = set()
+    # Rastreamento para Diagnóstico
+    ROSTER_COUNTS = {} 
 
     # Filtro Lesão
     banned_players = set()
@@ -667,7 +694,7 @@ def show_dvp_analysis():
                 banned_players.add(normalize_str(p_name))
     except: pass
 
-    # Roster Builder - Carrega TUDO, sem filtrar por jogo
+    # Roster Builder
     TEAM_ROSTER = {}
 
     def infer_position_single(stats):
@@ -680,41 +707,45 @@ def show_dvp_analysis():
 
     processed_players = set()
 
-    # 1. Fonte Oficial (L5)
+    # 1. TENTATIVA OFICIAL (L5)
     if not df_l5.empty:
         try:
             cols = [c.upper() for c in df_l5.columns]
             df_l5.columns = cols
-            col_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            col_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
-            col_pos = next((c for c in cols if 'POS' in c), None)
-            col_min = next((c for c in cols if 'MIN' in c), 'MIN')
-            col_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
+            
+            # Busca de colunas robusta
+            col_name = find_col(cols, ['PLAYER_NAME', 'PLAYER'])
+            col_team = find_col(cols, ['TEAM_ABBREVIATION', 'TEAM'])
+            col_pos = find_col(cols, ['PLAYER_POSITION', 'POS', 'POSITION'])
+            col_min = find_col(cols, ['MIN', 'MINUTES', 'AVG_MIN', 'MP'])
+            col_id = find_col(cols, ['PLAYER_ID', 'ID'])
 
             for _, row in df_l5.iterrows():
                 p_name = normalize_str(row.get(col_name, ''))
                 if not p_name or p_name in banned_players: continue
                 
                 raw_team = str(row.get(col_team, 'UNK'))
-                team = get_standard_team_code(raw_team)
+                team = get_standard_team_code(raw_team) # USO DO MAPA UNIFICADO
                 
                 if team == 'UNK': continue
-                
                 if team not in TEAM_ROSTER: TEAM_ROSTER[team] = []
-                FOUND_TEAMS.add(team)
                 
                 raw_pos = str(row.get(col_pos, 'SF')).upper().replace('-', '/')
                 main_pos = raw_pos.split('/')[0]
                 if len(main_pos) > 2: main_pos = "SF"
                 
+                try: mins = float(row.get(col_min, 0))
+                except: mins = 0.0
+                
                 TEAM_ROSTER[team].append({
                     "name": p_name, "id": row.get(col_id, 0),
-                    "min": float(row.get(col_min, 0)), "pos": main_pos
+                    "min": mins, "pos": main_pos
                 })
                 processed_players.add(p_name)
-        except: pass
+        except Exception as e:
+            st.error(f"Erro L5: {e}")
 
-    # 2. Fonte Logs (Emergência)
+    # 2. TENTATIVA LOGS (COMPLEMENTO + EMERGÊNCIA)
     if real_logs:
         for p_name, p_data in real_logs.items():
             norm_name = normalize_str(p_name)
@@ -722,12 +753,10 @@ def show_dvp_analysis():
             if not isinstance(p_data, dict): continue
             
             raw_team = str(p_data.get('team', 'UNK'))
-            team = get_standard_team_code(raw_team)
-            
-            if team == 'UNK': continue # Se log não tem time, não tem como usar
+            team = get_standard_team_code(raw_team) # USO DO MAPA UNIFICADO
+            if team == 'UNK': continue 
             
             if team not in TEAM_ROSTER: TEAM_ROSTER[team] = []
-            FOUND_TEAMS.add(team)
             
             logs = p_data.get('logs', {})
             stats_avg = {}
@@ -740,7 +769,7 @@ def show_dvp_analysis():
                     valid = True
                 else: stats_avg[k] = 0
             
-            if not valid or stats_avg['MIN'] < 10: continue # Minimo 10 min
+            if not valid or stats_avg['MIN'] < 10: continue 
             
             inf_pos = infer_position_single(stats_avg)
             
@@ -749,11 +778,13 @@ def show_dvp_analysis():
                 "min": stats_avg['MIN'], "pos": inf_pos
             })
 
-    # Ordena Roster
+    # Atualiza contadores
     for tm in TEAM_ROSTER:
-        TEAM_ROSTER[tm].sort(key=lambda x: x['min'], reverse=True)
+        unique_roster = {p['name']: p for p in TEAM_ROSTER[tm]}.values()
+        TEAM_ROSTER[tm] = sorted(list(unique_roster), key=lambda x: x['min'], reverse=True)
+        ROSTER_COUNTS[tm] = len(TEAM_ROSTER[tm])
 
-    # --- 5. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO ---
     
     def render_player_row(p, opp_code):
         rank = dvp_analyzer.get_position_rank(opp_code, p['pos'])
@@ -786,6 +817,7 @@ def show_dvp_analysis():
     any_missing = False
 
     for g in games:
+        # USA A NOVA FUNÇÃO DE MAPA UNIFICADO
         home_code = get_standard_team_code(g['home'])
         away_code = get_standard_team_code(g['away'])
         
@@ -812,12 +844,17 @@ def show_dvp_analysis():
         </div>
         """, unsafe_allow_html=True)
 
-    # --- 6. DEBUGGER NO RODAPÉ (SÓ SE PRECISAR) ---
+    # --- 7. DEBUGGER INTELIGENTE ---
     if any_missing:
-        with st.expander("📡 Diagnóstico de Sinal (Debug)", expanded=False):
-            st.write("**Times Disponíveis na Memória:**")
-            st.write(sorted(list(FOUND_TEAMS)))
-            st.info("Se o time do jogo não estiver na lista acima, ele não foi encontrado nem no L5 nem nos Logs Brutos (ou está como UNK).")
+        with st.expander("🔍 Sherlock Debug (Contador de Elenco)", expanded=True):
+            st.info("Mostra quantos jogadores foram encontrados para cada time (deve ser > 8).")
+            cols = st.columns(5)
+            sorted_counts = sorted(ROSTER_COUNTS.items())
+            for i, (tm, count) in enumerate(sorted_counts):
+                color = "green" if count > 5 else "red"
+                cols[i % 5].markdown(f"**{tm}**: :{color}[{count}]")
+            st.write("---")
+            st.write("Se algum time tem (0), o nome no banco de dados não bateu com nenhuma variação conhecida.")
                 
 # ============================================================================
 # PÁGINA: BLOWOUT RADAR (V27.0 - TARGETING V44 CACHE)
@@ -7893,6 +7930,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
