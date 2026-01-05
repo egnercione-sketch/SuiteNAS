@@ -6842,203 +6842,297 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V23.2 - FILE VERSION FIX)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V45.0 - HOSPITAL WARD)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
     import pandas as pd
-    import os
     import json
+    import unicodedata
     from datetime import datetime
 
-    # --- 1. IMPORTAÇÕES E CAMINHOS ---
-    BASE_DIR = os.path.dirname(__file__) if '__file__' in globals() else os.getcwd()
-    
-    # CORREÇÃO CRÍTICA: Apontar para o mesmo arquivo que o injuries.py v45 gera
-    INJURIES_CACHE_FILE = os.path.join(BASE_DIR, "cache", "injuries_cache_v44.json")
-
-    # --- 2. CSS PREMIUM ---
+    # --- 1. CSS VISUAL (HOSPITAL THEME) ---
     st.markdown("""
     <style>
-        .team-header {
-            font-size: 22px; font-weight: bold; color: #F8FAFC;
-            margin: 32px 0 16px 0; padding-bottom: 8px;
-            border-bottom: 3px solid rgba(255,255,255,0.2);
-            font-family: 'Orbitron', sans-serif;
+        .bio-title { font-family: 'Oswald', sans-serif; font-size: 28px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+        .bio-sub { font-family: 'Nunito', sans-serif; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
+
+        /* HERO: ALA HOSPITALAR (ESTRELAS) */
+        .hospital-ward {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
         }
-        .injury-card {
-            background: rgba(15, 23, 42, 0.95); border-radius: 16px;
-            padding: 18px; margin-bottom: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            transition: all 0.3s ease; border: 1px solid #334155;
+
+        .ward-card {
+            background: linear-gradient(145deg, #2b1111, #1a0b0b);
+            border: 1px solid #7f1d1d;
+            border-left: 5px solid #ef4444;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex; align-items: center; gap: 15px;
+            box-shadow: 0 4px 10px rgba(220, 38, 38, 0.1);
+            position: relative;
+            overflow: hidden;
         }
-        .injury-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6); border-color: #64748b; }
-        .injury-out { border-left: 6px solid #FF4F4F; }
-        .injury-quest { border-left: 6px solid #F59E0B; }
-        .injury-prob { border-left: 6px solid #10B981; }
-        .injury-name { font-size: 18px; font-weight: bold; color: #F8FAFC; margin-bottom: 8px; }
-        .injury-team { font-size: 14px; color: #94A3B8; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 8px; display: inline-block; margin-left: 10px; }
-        .injury-desc { font-size: 14px; color: #CBD5E1; margin: 10px 0; line-height: 1.5; }
-        .injury-meta { font-size: 13px; color: #94A3B8; display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.1); }
-        .star-badge { background: #F59E0B; color: #000; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-left: 10px; }
-        .rot-badge { background: #3B82F6; color: #fff; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 12px; margin-left: 10px; }
-        .stButton button { width: 100%; border-radius: 8px; font-weight: bold; }
+        
+        /* Efeito de Sirene/Pulso para GTD/OUT importantes */
+        .pulse-alert {
+            position: absolute; top: 0; right: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(255,0,0,0.1) 0%, rgba(0,0,0,0) 70%);
+            animation: pulse 2s infinite;
+            pointer-events: none;
+        }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        .w-img {
+            width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+            border: 2px solid #ef4444; background: #000; z-index: 1;
+        }
+
+        .w-info { z-index: 1; width: 100%; }
+        .w-name { font-family: 'Oswald', sans-serif; font-size: 18px; color: #fff; line-height: 1.1; }
+        .w-meta { font-size: 12px; color: #fca5a5; font-weight: bold; margin-top: 2px; }
+        .w-status { 
+            font-size: 11px; font-weight: bold; background: #7f1d1d; color: #fecaca; 
+            padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 6px; 
+            border: 1px solid #ef4444;
+        }
+
+        /* LISTA GERAL: CARDS COMPACTOS */
+        .roster-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px;
+        }
+
+        .injury-mini-card {
+            background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+            padding: 10px; display: flex; align-items: center; justify-content: space-between;
+        }
+        
+        .inj-left { display: flex; align-items: center; gap: 10px; }
+        .inj-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #0f172a; border: 1px solid #475569; }
+        .inj-txt { display: flex; flex-direction: column; }
+        .inj-name { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; }
+        .inj-desc { font-size: 10px; color: #94a3b8; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .inj-badge { 
+            font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; 
+            text-align: center; min-width: 60px;
+        }
+        
+        .st-out { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+        .st-gtd { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid #f97316; }
+        .st-prob { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+
+        .team-separator {
+            font-family: 'Oswald'; font-size: 18px; color: #cbd5e1; 
+            border-bottom: 2px solid #334155; padding-bottom: 5px; margin: 25px 0 15px 0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-    c_head, c_btn = st.columns([3, 1])
-    with c_head:
-        st.header("🚑 BIO-MONITOR (INJURY REPORT)")
-    with c_btn:
-        # Botão de Reload Limpa a Sessão para forçar leitura do arquivo novo
-        if st.button("🔄 Recarregar Dados"):
-            if "injuries" in st.session_state:
-                del st.session_state["injuries"]
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.markdown('<div class="bio-title">🚑 BIO-MONITOR</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bio-sub">Monitoramento de lesões em tempo real.</div>', unsafe_allow_html=True)
+    with c2:
+        if st.button("🔄 Atualizar"):
+            # Limpa sessão para forçar reload
+            if 'injuries_data' in st.session_state: del st.session_state['injuries_data']
             st.rerun()
 
-    # --- 3. CARREGAMENTO E PARSING ---
-    if "injuries" not in st.session_state or not st.session_state["injuries"]:
-        if os.path.exists(INJURIES_CACHE_FILE):
-            try:
-                with open(INJURIES_CACHE_FILE, 'r', encoding='utf-8') as f:
-                    raw_data = json.load(f)
-                
-                final_list = []
-                teams_data = raw_data.get('teams', raw_data)
-                
-                if isinstance(teams_data, dict):
-                    for team_abbr, players in teams_data.items():
-                        if not isinstance(players, list): continue
-                        for p in players:
-                            status_lower = str(p.get('status','')).lower()
-                            if 'active' in status_lower and 'day' not in status_lower: continue
-                            p['team'] = team_abbr
-                            final_list.append(p)
-                elif isinstance(teams_data, list):
-                    final_list = [p for p in teams_data if 'active' not in str(p.get('status','')).lower()]
-
-                st.session_state["injuries"] = final_list
-            except Exception as e:
-                st.error(f"Erro ao ler cache v44: {e}")
-                return
-        else:
-            # Se o arquivo v45 não existe, avisa para rodar o update
-            st.warning(f"⚠️ Cache v44 não encontrado. Vá em CONFIG e clique em 'ATUALIZAR TUDO'.")
-            return
-    
-    injuries_list = st.session_state.get("injuries", [])
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-
-    # --- 4. PROCESSAMENTO ---
-    teams_injured = {}
-    critical_losses = []
-
-    for p in injuries_list:
-        name = str(p.get('player') or p.get('name') or 'Unknown')
-        team = str(p.get('team') or 'NB')
-        
-        p['impact'] = 0
+    # --- 2. CARREGAMENTO DE DADOS ---
+    def normalize_str(text):
+        if not text: return ""
         try:
-            if not df_l5.empty:
-                match = df_l5[df_l5['PLAYER'].str.contains(name, case=False, na=False)]
-                if not match.empty:
-                    min_avg = match['MIN_AVG'].mean()
-                    if min_avg >= 28: p['impact'] = 2
-                    elif min_avg >= 18: p['impact'] = 1
+            text = str(text)
+            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+            return text.upper().strip()
+        except: return ""
+
+    # Carrega L5 para identificar Estrelas (Impacto)
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    PLAYER_IMPACT_MAP = {}
+    PLAYER_ID_MAP = {}
+    
+    if not df_l5.empty:
+        try:
+            cols = [c.upper() for c in df_l5.columns]
+            df_l5.columns = cols
+            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_min = next((c for c in cols if 'MIN' in c), 'MIN')
+            c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
+            
+            for _, row in df_l5.iterrows():
+                nm = normalize_str(row.get(c_name, ''))
+                try: mins = float(row.get(c_min, 0))
+                except: mins = 0
+                
+                # Definição de Impacto (0, 1, 2)
+                impact = 0
+                if mins >= 30: impact = 2 # Estrela
+                elif mins >= 20: impact = 1 # Rotação
+                
+                PLAYER_IMPACT_MAP[nm] = impact
+                PLAYER_ID_MAP[nm] = row.get(c_id, 0)
         except: pass
 
-        if team not in teams_injured: teams_injured[team] = []
-        teams_injured[team].append(p)
-
-        if p['impact'] == 2:
-            critical_losses.append(f"{name} ({team})")
-
-    # --- 5. DASHBOARD METRICS ---
-    st.markdown("""
-    <style>
-        .audit-card {
-            background: linear-gradient(145deg, #1e1e24, #2d2d35);
-            border: 1px solid #444; border-radius: 8px; padding: 10px;
-            text-align: center; height: 100%;
-        }
-        .audit-val { font-size: 20px; font-weight: 800; color: #f8fafc; }
-        .audit-lbl { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 600; }
-        .bd-blue { border-top: 3px solid #3b82f6; }
-        .bd-cyan { border-top: 3px solid #06b6d4; }
-        .bd-red { border-top: 3px solid #ef4444; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    ac1, ac2, ac3 = st.columns(3)
-    ac1.markdown(f'<div class="audit-card bd-blue"><div style="font-size:16px;">🏥</div><div class="audit-val">{len(injuries_list)}</div><div class="audit-lbl">Reportes</div></div>', unsafe_allow_html=True)
-    ac2.markdown(f'<div class="audit-card bd-cyan"><div style="font-size:16px;">👥</div><div class="audit-val">{len(teams_injured)}</div><div class="audit-lbl">Times</div></div>', unsafe_allow_html=True)
-    ac3.markdown(f'<div class="audit-card bd-red"><div style="font-size:16px;">⭐</div><div class="audit-val">{len(critical_losses)}</div><div class="audit-lbl">Estrelas Off</div></div>', unsafe_allow_html=True)
-
-    if critical_losses:
-        with st.expander(f"🚨 {len(critical_losses)} Jogadores de Impacto Fora/Dúvida", expanded=False):
-            st.write(", ".join(critical_losses))
-
-    # --- 6. FILTROS E EXIBIÇÃO ---
-    st.markdown("---")
-    c_filter, c_search = st.columns([1, 2])
+    # Carrega Lesões (Tenta V44, depois Genérico)
+    injuries_list = []
+    raw_data = get_data_universal('injuries_cache_v44')
     
-    team_options = sorted(list(teams_injured.keys()))
-    sel_team = c_filter.selectbox("Filtrar Time:", ["TODOS"] + team_options)
-    sel_player = c_search.text_input("Buscar Jogador:", placeholder="Ex: LeBron...")
+    if not raw_data: # Fallback
+        raw_data = get_data_universal('injuries_data')
 
-    st.markdown("### 📋 Lista de Lesões")
+    if raw_data:
+        # Flattening (Teams dict -> List)
+        if isinstance(raw_data, dict):
+            # As vezes vem {'teams': {...}} ou direto {...}
+            root = raw_data.get('teams', raw_data)
+            for team, players in root.items():
+                if isinstance(players, list):
+                    for p in players:
+                        p['team_code'] = team
+                        injuries_list.append(p)
+        elif isinstance(raw_data, list):
+            injuries_list = raw_data
+
+    if not injuries_list:
+        st.warning("⚠️ Nenhuma informação de lesão encontrada. Tente atualizar os dados.")
+        return
+
+    # --- 3. PROCESSAMENTO ---
+    # Adiciona metadados (Impacto, ID, Status Normalizado) aos jogadores
+    processed_injuries = []
     
-    sorted_teams = sorted(teams_injured.items(), key=lambda x: len(x[1]), reverse=True)
-    found_any = False
+    for p in injuries_list:
+        p_name = p.get('player') or p.get('name') or "Unknown"
+        norm_name = normalize_str(p_name)
+        
+        # Recupera dados do L5
+        impact = PLAYER_IMPACT_MAP.get(norm_name, 0)
+        pid = PLAYER_ID_MAP.get(norm_name, 0)
+        
+        # Normaliza Status
+        raw_status = str(p.get('status', '')).upper()
+        status_code = "UNKNOWN"
+        if "OUT" in raw_status: status_code = "OUT"
+        elif any(x in raw_status for x in ["QUEST", "DOUBT", "GTD", "DECISION"]): status_code = "GTD"
+        elif "PROB" in raw_status: status_code = "PROB"
+        
+        # Ignora "Active" ou saudáveis
+        if "ACTIVE" in raw_status and "NOT" not in raw_status: continue
+        
+        # Salva
+        p['impact'] = impact
+        p['pid'] = pid
+        p['status_code'] = status_code
+        p['norm_name'] = norm_name
+        p['display_name'] = p_name
+        # Garante time
+        if 'team' not in p and 'team_code' in p: p['team'] = p['team_code']
+        
+        processed_injuries.append(p)
+
+    # --- 4. ALA HOSPITALAR (HERO SECTION) ---
+    # Filtra: Impacto Alto (2) OU (Impacto Médio (1) E GTD/OUT)
+    hospital_ward = [
+        p for p in processed_injuries 
+        if (p['impact'] >= 2 and p['status_code'] in ['OUT', 'GTD']) 
+        or (p['impact'] >= 1 and p['status_code'] == 'GTD')
+    ]
     
-    for team, players in sorted_teams:
-        if sel_team != "TODOS" and team != sel_team: continue
+    if hospital_ward:
+        st.markdown(f"### 🏥 Ala de Emergência ({len(hospital_ward)} Estrelas/Titulares)")
         
-        filtered_players = players
-        if sel_player:
-            filtered_players = [p for p in players if sel_player.lower() in str(p.get('name','')).lower()]
-        
-        if not filtered_players: continue
-        found_any = True
-        
-        st.markdown(f'<div class="team-header">🏀 {team} <span style="font-size:14px; color:#94a3b8; font-weight:normal">({len(filtered_players)})</span></div>', unsafe_allow_html=True)
-        
-        filtered_players.sort(key=lambda x: (x.get('impact',0), 1 if 'out' in str(x.get('status','')).lower() else 0), reverse=True)
-        
-        for p in filtered_players:
-            name = p.get('name', 'Unknown')
-            status = str(p.get('status', '')).upper()
-            desc = p.get('details', '')
-            date = str(p.get('date', ''))[:10]
+        # HTML generator for Hero Cards
+        html_cards = ""
+        for p in hospital_ward:
+            photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
             
-            card_class = ""
-            icon = "ℹ️"
-            if 'OUT' in status: 
-                card_class = "injury-out"; icon = "❌"
-            elif any(x in status for x in ['QUEST', 'DOUBT', 'DAY']): 
-                card_class = "injury-quest"; icon = "⚠️"
-            elif 'PROB' in status:
-                card_class = "injury-prob"; icon = "✅"
+            st_txt = "FORA" if p['status_code'] == "OUT" else "DECISÃO (GTD)"
+            tm = p.get('team', 'UNK')
             
-            badge = ""
-            if p.get('impact') == 2: badge = '<span class="star-badge">⭐ STAR</span>'
-            elif p.get('impact') == 1: badge = '<span class="rot-badge">🔄 ROTATION</span>'
-            
-            st.markdown(f"""
-            <div class="injury-card {card_class}">
-                <div class="injury-name">{icon} {name} {badge}</div>
-                <div style="color: #facc15; font-size: 13px; font-weight:bold; margin-bottom:4px;">{status}</div>
-                <div class="injury-desc">{desc}</div>
-                <div class="injury-meta">
-                    <span>📅 {date}</span>
-                    <span>{team}</span>
+            html_cards += f"""
+            <div class="ward-card">
+                <div class="pulse-alert"></div>
+                <img src="{photo}" class="w-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                <div class="w-info">
+                    <div class="w-name">{p['display_name']}</div>
+                    <div class="w-meta">{tm} • IMPACTO CRÍTICO</div>
+                    <div class="w-status">{st_txt}</div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """
+        
+        st.markdown(f'<div class="hospital-ward">{html_cards}</div>', unsafe_allow_html=True)
+    
+    # --- 5. LISTA GERAL POR TIME ---
+    st.markdown("---")
+    
+    # Agrupa por time
+    teams_dict = {}
+    for p in processed_injuries:
+        tm = p.get('team', 'UNK')
+        if tm not in teams_dict: teams_dict[tm] = []
+        teams_dict[tm].append(p)
+        
+    # Ordena times pelo "Sofrimento" (Soma de impacto)
+    sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
+    
+    col_filter, _ = st.columns([1, 2])
+    filter_tm = col_filter.selectbox("Filtrar Time:", ["TODOS"] + sorted([t for t in teams_dict.keys()]))
 
-    if not found_any:
-        st.info("Nenhum jogador encontrado com os filtros atuais.")
-
+    for tm, players in sorted_teams:
+        if filter_tm != "TODOS" and tm != filter_tm: continue
+        
+        # Cabeçalho do Time
+        impact_score = sum(p['impact'] for p in players)
+        alert_color = "#ef4444" if impact_score >= 3 else "#cbd5e1" # Vermelho se tiver muito impacto
+        
+        st.markdown(f"""
+        <div class="team-separator" style="border-color: {alert_color}">
+            <span>{tm}</span>
+            <span style="font-size:12px; background:{alert_color}; color:#000; padding:2px 8px; border-radius:4px;">IMPACTO: {impact_score}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Grid de Jogadores
+        cols = st.columns(3) # Streamlit Columns funciona melhor que Grid CSS puro para responsividade interna aqui
+        
+        # Ordena jogadores: Impacto > Status
+        players.sort(key=lambda x: (x['impact'], 1 if x['status_code']=='OUT' else 0), reverse=True)
+        
+        # Renderiza cards
+        html_grid = '<div class="roster-grid">'
+        for p in players:
+            photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            if p['pid'] != 0: photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['pid'])}.png"
+            
+            s_code = p['status_code']
+            if s_code == 'OUT': badge_cls, badge_txt = "st-out", "OUT"
+            elif s_code == 'GTD': badge_cls, badge_txt = "st-gtd", "GTD"
+            else: badge_cls, badge_txt = "st-prob", "PROB"
+            
+            desc = p.get('description') or p.get('desc') or p.get('details') or "Sem detalhes."
+            
+            html_grid += f"""
+            <div class="injury-mini-card">
+                <div class="inj-left">
+                    <img src="{photo}" class="inj-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                    <div class="inj-txt">
+                        <div class="inj-name">{p['display_name']}</div>
+                        <div class="inj-desc">{desc}</div>
+                    </div>
+                </div>
+                <div class="inj-badge {badge_cls}">{badge_txt}</div>
+            </div>
+            """
+        html_grid += "</div>"
+        st.markdown(html_grid, unsafe_allow_html=True)
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -7884,6 +7978,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
