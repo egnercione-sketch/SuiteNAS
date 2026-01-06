@@ -1939,10 +1939,6 @@ def show_trinity_club_page():
             meta = data['meta']
 
             # Logo após a linha: for p_name, data in players.items():
-    # Debug
-    print(f"Procurando: {p_name}")
-    if not df_l5.empty:
-        print(f"Exemplo no df_l5: {df_l5['PLAYER'].head(3).tolist()}")
             
             # --- BUSCA SIMPLES DA FOTO ---
             # 1. Busca pelo nome completo em maiúsculas
@@ -8094,6 +8090,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
