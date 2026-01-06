@@ -1459,6 +1459,92 @@ def show_momentum_page():
                 
 
 # ============================================================================
+# TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
+# ============================================================================
+
+class TrinityEngine:
+    def __init__(self, logs_cache, games):
+        self.logs = logs_cache
+        self.games_map = self._map_games(games)
+        
+    def _normalize_team(self, team_code):
+        mapping = {
+            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
+            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"
+        }
+        return mapping.get(team_code, team_code)
+
+    def _map_games(self, games):
+        mapping = {}
+        for g in games:
+            home = self._normalize_team(g.get('home'))
+            away = self._normalize_team(g.get('away'))
+            gid = g.get('game_id') or g.get('id') or "UNK"
+            if home and away:
+                mapping[home] = {"opp": away, "is_home": True, "game_str": f"{away} @ {home}", "game_id": gid}
+                mapping[away] = {"opp": home, "is_home": False, "game_str": f"{away} @ {home}", "game_id": gid}
+        return mapping
+
+    def scan_market(self, window=10):
+        """
+        Escaneia o mercado com uma janela temporal específica (L5, L10, L15).
+        """
+        candidates = []
+        if not self.logs: return []
+
+        for player_name, data in self.logs.items():
+            raw_team = data.get('team')
+            if not raw_team: continue
+            team = self._normalize_team(raw_team)
+            if team not in self.games_map: continue
+            
+            logs = data.get('logs', {})
+            if not logs: continue
+            ctx = self.games_map[team]
+            
+            for stat in ['PTS', 'REB', 'AST']:
+                values = logs.get(stat, [])
+                if len(values) < window: continue 
+                
+                # --- LÓGICA DE JANELA TEMPORAL ---
+                current_window_values = values[:window]
+                
+                # O Piso da Janela (Forma)
+                floor_form = min(current_window_values)
+                
+                # Proxies para Venue e H2H baseados na Janela Atual
+                # (Idealmente seriam filtrados, mas mantemos a heurística conservadora que funcionou)
+                floor_venue = floor_form 
+                floor_h2h = int(floor_form * 0.9)
+                
+                # Piso de Segurança Final
+                safe_floor = min(floor_form, floor_venue, floor_h2h)
+                
+                # Filtros Mínimos de Relevância
+                min_req = 10 if stat == 'PTS' else 4
+                
+                if safe_floor >= min_req:
+                    candidates.append({
+                        "player": player_name,
+                        "team": raw_team,
+                        "opp": ctx['opp'],
+                        "stat": stat,
+                        "line": safe_floor - 1, # Alvo Sugerido
+                        "floors": {
+                            "Form": floor_form,
+                            "Venue": floor_venue,
+                            "H2H": floor_h2h
+                        },
+                        "score": safe_floor,
+                        "game_str": ctx['game_str'],
+                        "game_id": ctx['game_id'],
+                        "window": f"L{window}"
+                    })
+                        
+        return sorted(candidates, key=lambda x: x['score'], reverse=True)
+
+
+# ============================================================================
 # CLASSE NEXUS ENGINE (v10.1 - SINTAXE CORRIGIDA & VARREDURA TOTAL)
 # ============================================================================
 import math
@@ -1734,313 +1820,262 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
-# ============================================================================
-
-class TrinityEngine:
-    def __init__(self, logs_cache, games):
-        self.logs = logs_cache
-        self.games_map = self._map_games(games)
-        
-    def _normalize_team(self, team_code):
-        mapping = {
-            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
-            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"
-        }
-        return mapping.get(team_code, team_code)
-
-    def _map_games(self, games):
-        mapping = {}
-        for g in games:
-            home = self._normalize_team(g.get('home'))
-            away = self._normalize_team(g.get('away'))
-            gid = g.get('game_id') or g.get('id') or "UNK"
-            if home and away:
-                mapping[home] = {"opp": away, "is_home": True, "game_str": f"{away} @ {home}", "game_id": gid}
-                mapping[away] = {"opp": home, "is_home": False, "game_str": f"{away} @ {home}", "game_id": gid}
-        return mapping
-
-    def scan_market(self, window=10):
-        """
-        Escaneia o mercado com uma janela temporal específica (L5, L10, L15).
-        """
-        candidates = []
-        if not self.logs: return []
-
-        for player_name, data in self.logs.items():
-            raw_team = data.get('team')
-            if not raw_team: continue
-            team = self._normalize_team(raw_team)
-            if team not in self.games_map: continue
-            
-            logs = data.get('logs', {})
-            if not logs: continue
-            ctx = self.games_map[team]
-            
-            for stat in ['PTS', 'REB', 'AST']:
-                values = logs.get(stat, [])
-                if len(values) < window: continue 
-                
-                # --- LÓGICA DE JANELA TEMPORAL ---
-                current_window_values = values[:window]
-                
-                # O Piso da Janela (Forma)
-                floor_form = min(current_window_values)
-                
-                # Proxies para Venue e H2H baseados na Janela Atual
-                # (Idealmente seriam filtrados, mas mantemos a heurística conservadora que funcionou)
-                floor_venue = floor_form 
-                floor_h2h = int(floor_form * 0.9)
-                
-                # Piso de Segurança Final
-                safe_floor = min(floor_form, floor_venue, floor_h2h)
-                
-                # Filtros Mínimos de Relevância
-                min_req = 10 if stat == 'PTS' else 4
-                
-                if safe_floor >= min_req:
-                    candidates.append({
-                        "player": player_name,
-                        "team": raw_team,
-                        "opp": ctx['opp'],
-                        "stat": stat,
-                        "line": safe_floor - 1, # Alvo Sugerido
-                        "floors": {
-                            "Form": floor_form,
-                            "Venue": floor_venue,
-                            "H2H": floor_h2h
-                        },
-                        "score": safe_floor,
-                        "game_str": ctx['game_str'],
-                        "game_id": ctx['game_id'],
-                        "window": f"L{window}"
-                    })
-                        
-        return sorted(candidates, key=lambda x: x['score'], reverse=True)
-
-
-
-# ============================================================================
-# FUNÇÃO DE RENDERIZAÇÃO (REUTILIZÁVEL & BLINDADA)
-# ============================================================================
-def render_trinity_table(members, label_suffix="L10"):
-    """Renderiza a tabela visual v7 com CSS forçado para estabilidade."""
-    if not members:
-        st.info(f"Nenhum jogador encontrado para o critério {label_suffix}.")
-        return
-
-    # Agrupamento por Jogador
-    grouped_members = {}
-    for m in members:
-        p_name = m['player']
-        if p_name not in grouped_members:
-            grouped_members[p_name] = { 'meta': m, 'stats': [] }
-        grouped_members[p_name]['stats'].append(m)
-
-    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
-    
-    # Loop de Jogadores
-    for p_name, data in grouped_members.items():
-        meta = data['meta']
-        stats_list = data['stats']
-        
-        team_code = meta['team'].lower()
-        # Correções de Logo
-        if team_code == "uta": team_code = "utah"
-        if team_code == "nop": team_code = "no"
-        if team_code == "phx": team_code = "pho"
-        if team_code == "was": team_code = "wsh"
-        logo_url = f"{logo_base}/{team_code}.png"
-
-        # Colunas Mestre (Identidade vs Dados)
-        col_id, col_content = st.columns([2.2, 7.8])
-        
-        # ESQUERDA: Identidade
-        with col_id:
-            st.markdown(f"""
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; padding-top:8px;">
-                <img src="{logo_url}" style="width:32px; height:32px; object-fit:contain; opacity: 0.9; margin-bottom:5px;">
-                <div class="trin-name">{p_name}</div>
-                <div class="trin-matchup">{meta['team']} vs {meta['opp']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # DIREITA: Dados
-        with col_content:
-            for idx, stat_item in enumerate(stats_list):
-                venue_txt = "CASA" if "vs" in stat_item['game_str'] else "FORA"
-                venue_icon = "🏠" if "vs" in stat_item['game_str'] else "✈️"
-                
-                # Colunas Internas (Layout Fixo)
-                # [Forma 2.2] [Local 2.2] [H2H 2.2] [ALVO 3.4]
-                c1, c2, c3, c4 = st.columns([2.2, 2.2, 2.2, 3.4])
-                
-                with c1:
-                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>FORMA {label_suffix}</span><span class='stat-val'>{int(stat_item['floors']['Form'])}</span></div>", unsafe_allow_html=True)
-                with c2:
-                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>{venue_icon} {venue_txt}</span><span class='stat-val'>{int(stat_item['floors']['Venue'])}</span></div>", unsafe_allow_html=True)
-                with c3:
-                    st.markdown(f"<div class='stat-group'><span class='stat-lbl'>H2H</span><span class='stat-val'>{int(stat_item['floors']['H2H'])}</span></div>", unsafe_allow_html=True)
-                
-                with c4:
-                    st.markdown(f"""
-                    <div style="text-align:center;">
-                        <div class="target-pill">
-                            <div class="target-val">{stat_item['line']}+</div>
-                            <div class="target-sub">{stat_item['stat']}</div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Separador sutil entre linhas do mesmo jogador
-                if idx < len(stats_list) - 1:
-                    st.markdown("<div class='thin-sep' style='opacity:0.3; margin: 5px 0;'></div>", unsafe_allow_html=True)
-
-        # Separador entre jogadores (Dourado sutil)
-        st.markdown("<div class='thin-sep' style='background: linear-gradient(90deg, transparent, #D4AF37, transparent); opacity:0.4;'></div>", unsafe_allow_html=True)
-
-
-# ============================================================================
-# PÁGINA PRINCIPAL (CSS CORRIGIDO COM !IMPORTANT)
+# PÁGINA: TRINITY CLUB (V13 - NEON EDITION & PHOTO FORCE)
 # ============================================================================
 def show_trinity_club_page():
-    st.markdown("## 🏆 Trinity Club (Consistência Extrema)")
-    
-    # --- CARREGAMENTO VIA SUPABASE ---
-    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
-    scoreboard = get_data_universal("scoreboard", os.path.join("cache", "scoreboard_today.json"))
+    import os
+    import pandas as pd
+    import streamlit as st
+    import re
+    import unicodedata
 
+    # --- 1. CSS VISUAL (NEON & COLORS) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
+        
+        /* Container Card */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid #334155 !important;
+            background-color: #0f172a !important; /* Fundo mais escuro para contraste */
+            border-radius: 12px !important;
+            padding: 12px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        /* Identidade Jogador */
+        .trin-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
+        .trin-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+        
+        /* HEADERS DE COLUNA (O BOOM QUE VOCÊ PEDIU) */
+        .col-header {
+            text-align: center; font-family: 'Oswald'; font-size: 12px; font-weight: bold;
+            padding: 4px; border-radius: 4px; margin-bottom: 8px; letter-spacing: 1px;
+        }
+        .head-l5 { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.2); }
+        .head-l10 { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid #eab308; box-shadow: 0 0 8px rgba(234, 179, 8, 0.2); }
+        .head-l15 { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6; box-shadow: 0 0 8px rgba(59, 130, 246, 0.2); }
+
+        /* STATS BOX COLORIDA */
+        .stat-box { 
+            text-align: center; 
+            background: rgba(30, 41, 59, 0.5); 
+            border-radius: 6px; 
+            padding: 5px; 
+            border: 1px solid #334155;
+            margin-bottom: 4px;
+        }
+        .stat-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; line-height: 1; }
+        .stat-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: 600; }
+        
+        /* Cores Específicas por Stat */
+        .color-pts { color: #fbbf24; text-shadow: 0 0 5px rgba(251, 191, 36, 0.3); } /* Ouro */
+        .color-reb { color: #f87171; text-shadow: 0 0 5px rgba(248, 113, 113, 0.3); } /* Vermelho */
+        .color-ast { color: #60a5fa; text-shadow: 0 0 5px rgba(96, 165, 250, 0.3); } /* Azul */
+        .color-def { color: #e2e8f0; } /* Padrão */
+
+        /* Footer Info */
+        .footer-info {
+            font-size: 10px; color: #64748b; margin-top: 8px; 
+            padding-top: 6px; border-top: 1px dashed #334155;
+            display: flex; gap: 12px; font-family: 'Inter';
+        }
+        .f-val { color: #10b981; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## 🏆 Trinity Club")
+    
+    # --- 2. CARREGAMENTO E FOTOS (LÓGICA BLINDADA) ---
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
+    
     if not full_cache:
         st.warning("Aguardando dados...")
         return
 
-    engine = TrinityEngine(full_cache, st.session_state.scoreboard)
-
-    st.header("🏆 Trinity Club")
-    st.caption("Analise a consistência dos jogadores em 3 horizontes temporais diferentes.")
-
-    # --- CSS GLOBAL (Blindado com !important) ---
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
-        
-        /* Glossário & Layout */
-        .glossary-box {
-            background: rgba(255, 255, 255, 0.03); border-radius: 6px; padding: 8px 15px; margin-bottom: 20px;
-            font-family: 'Inter', sans-serif; font-size: 10px; color: #64748B; display: flex; justify-content: space-between; border-left: 3px solid #D4AF37;
-        }
-        .glossary-item { display: flex; align-items: center; gap: 5px; }
-        .gloss-icon { color: #D4AF37; font-weight: 600; }
-        .thin-sep { height: 1px; background: rgba(255, 255, 255, 0.08); margin: 10px 0; }
-        
-        /* Identidade */
-        .trin-name { 
-            font-family: 'Oswald', sans-serif; 
-            font-size: 14px !important; /* Forçado */
-            color: #F8FAFC; font-weight: 500; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.5px; 
-        }
-        .trin-matchup { font-size: 10px !important; color: #64748B; margin-top: 2px; }
-        
-        /* ESTATÍSTICAS (Fonte Fixada) */
-        .stat-group { display: flex; flex-direction: column; }
-        .stat-lbl { 
-            font-family: 'Inter', sans-serif; 
-            font-size: 9px !important; 
-            color: #64748B; text-transform: uppercase; margin-bottom: 2px; 
-        }
-        .stat-val { 
-            font-family: 'Oswald', sans-serif; 
-            font-size: 16px !important; /* AQUI ESTAVA O PROBLEMA - Agora travado em 16px */
-            color: #10B981; 
-            font-weight: 500; 
-        }
-        
-        /* ALVO */
-        .target-pill { 
-            background: rgba(212, 175, 55, 0.1); border-radius: 6px; padding: 4px 12px; 
-            display: inline-block; text-align: center; border: 1px solid rgba(212, 175, 55, 0.15); 
-        }
-        .target-val { 
-            font-family: 'Oswald', sans-serif; 
-            font-size: 18px !important; /* Forçado */
-            color: #D4AF37; font-weight: 600; line-height: 1.1; 
-        }
-        .target-sub { 
-            font-size: 9px !important; 
-            color: #D4AF37; opacity: 0.8; font-weight: 600; 
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # MAPA DE FOTOS (O MESMO DA ABA MOMENTUM)
+    # Estrutura: { "JOSHGIDDEY": 12345, "GIDDEY_CHI": 12345 }
+    PHOTO_DB = {} 
     
-    st.markdown("""
-    <div class="glossary-box">
-        <div class="glossary-item"><span class="gloss-icon">📊 FORMA</span> Piso da Janela</div>
-        <div class="glossary-item"><span class="gloss-icon">🏠 LOCAL</span> Piso Casa/Fora</div>
-        <div class="glossary-item"><span class="gloss-icon">⚔️ H2H</span> Piso Vs Opp</div>
-        <div class="glossary-item"><span class="gloss-icon">🛡️ ALVO</span> Meta Segura</div>
-    </div>
-    """, unsafe_allow_html=True)
+    def clean_key(text):
+        """Limpa string para chave de dicionário (ex: JOSHGIDDEY)"""
+        if not text: return ""
+        try:
+            t = str(text).upper().strip()
+            # Remove acentos e caracteres especiais
+            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z]', '', t)
+        except: return ""
 
-    # --- ABAS DE NAVEGAÇÃO ---
-    tab_l5, tab_l10, tab_l15 = st.tabs(["🔥 L5 (Momentum)", "⚖️ L10 (Padrão)", "🏛️ L15 (Sólido)"])
+    if not df_l5.empty:
+        try:
+            # Normaliza colunas para evitar erro de Key
+            df_l5.columns = [c.upper().strip() for c in df_l5.columns]
+            cols = df_l5.columns
+            
+            # Encontra colunas cruciais
+            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
+            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+
+            for _, row in df_l5.iterrows():
+                try:
+                    # EXTRAÇÃO DE ID (CRÍTICO: int(float()))
+                    val_id = row.get(c_id, 0)
+                    pid = int(float(val_id)) 
+                    
+                    if pid > 0:
+                        raw_name = str(row.get(c_name, ''))
+                        key = clean_key(raw_name) # Ex: LEBRONJAMES
+                        team = str(row.get(c_team, 'UNK')).upper().strip()
+                        
+                        # Salva Chave Completa
+                        PHOTO_DB[key] = {'id': pid, 'team': team}
+                        
+                        # Salva Chave Sobrenome + Time (Ex: JAMES_LAL)
+                        parts = raw_name.split()
+                        if len(parts) > 1:
+                            lname = clean_key(parts[-1])
+                            key_sec = f"{lname}_{team}"
+                            if key_sec not in PHOTO_DB: PHOTO_DB[key_sec] = {'id': pid, 'team': team}
+                            
+                            # Salva só Sobrenome (Fallback perigoso mas útil)
+                            if lname not in PHOTO_DB: PHOTO_DB[lname] = {'id': pid, 'team': team}
+                            
+                except: continue
+        except: pass
+
+    # --- 3. ENGINE TRIPLE SCAN ---
+    engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
     
-    with tab_l5:
-        # window=5 -> Engine calcula piso dos últimos 5
-        members_l5 = engine.scan_market(window=5)
-        render_trinity_table(members_l5, "L5")
-        
-    with tab_l10:
-        # window=10 -> Engine calcula piso dos últimos 10
-        members_l10 = engine.scan_market(window=10)
-        render_trinity_table(members_l10, "L10")
-        
-    with tab_l15:
-        # window=15 -> Engine calcula piso dos últimos 15
-        members_l15 = engine.scan_market(window=15)
-        render_trinity_table(members_l15, "L15")
+    res_l5 = engine.scan_market(window=5)
+    res_l10 = engine.scan_market(window=10)
+    res_l15 = engine.scan_market(window=15)
 
-# ============================================================================
-# DATA LOADER HELPER (Assumed to exist)
-# ============================================================================
-def get_data_universal(key, filepath):
-    """Mock data loader - replace with your actual implementation"""
-    import json
-    try:
-        with open(filepath, 'r') as f:
-            return json.load(f)
-    except:
-        # Return sample data for demonstration
-        return [
-            {
-                'home_team': 'LAL',
-                'away_team': 'GSW',
-                'date': '2024-01-15',
-                'players': [
-                    {
-                        'name': 'LeBron James',
-                        'team': 'LAL',
-                        'position': 'SF',
-                        'points': 28,
-                        'rebounds': 12,
-                        'assists': 8,
-                        'steals': 2,
-                        'blocks': 1,
-                        'minutes': 36
-                    },
-                    {
-                        'name': 'Stephen Curry',
-                        'team': 'GSW',
-                        'position': 'PG',
-                        'points': 32,
-                        'rebounds': 5,
-                        'assists': 7,
-                        'steals': 1,
-                        'blocks': 0,
-                        'minutes': 34
-                    }
-                ]
-            }
-        ]
+    # Consolidação
+    games_dict = {}
+
+    def consolidate(results, label):
+        for r in results:
+            g_str = r['game_str']
+            p_name = r['player']
+            if g_str not in games_dict: games_dict[g_str] = {}
+            if p_name not in games_dict[g_str]: 
+                games_dict[g_str][p_name] = {'meta': r, 'L5': [], 'L10': [], 'L15': []}
+            games_dict[g_str][p_name][label].append(r)
+
+    consolidate(res_l5, 'L5')
+    consolidate(res_l10, 'L10')
+    consolidate(res_l15, 'L15')
+
+    if not games_dict:
+        st.info("Nenhum padrão encontrado hoje.")
+        return
+
+    # --- 4. RENDERIZAÇÃO (V13) ---
+    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+
+    for game_name, players in games_dict.items():
+        st.markdown(f"""
+        <div style="font-family:'Oswald'; font-size:18px; color:#F8FAFC; border-left:4px solid #D4AF37; padding-left:10px; margin-top:25px; margin-bottom:10px;">
+            🏀 {game_name}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        for p_name, data in players.items():
+            meta = data['meta']
+            
+            # --- CAÇA À FOTO ---
+            key_inj = clean_key(p_name)
+            tm_inj = str(meta['team']).upper()
+            
+            # 1. Match Exato
+            match = PHOTO_DB.get(key_inj)
+            
+            # 2. Match Sobrenome + Time
+            if not match:
+                parts = p_name.split()
+                if len(parts) > 1:
+                    lname = clean_key(parts[-1])
+                    key_sec = f"{lname}_{tm_inj}"
+                    match = PHOTO_DB.get(key_sec)
+            
+            # 3. Match Sobrenome (Desespero)
+            if not match and len(parts) > 1:
+                match = PHOTO_DB.get(clean_key(parts[-1]))
+
+            # Define ID e URL
+            pid = match['id'] if match else 0
+            # Se achou no DB, usa o time do DB, senão usa o da lesão
+            real_team = match['team'] if match else tm_inj
+            
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            
+            # Logo Time
+            tm_low = real_team.lower()
+            # Mapeamento ESPN
+            if tm_low == "uta": tm_low = "utah"
+            elif tm_low == "nop": tm_low = "no"
+            elif tm_low == "phx": tm_low = "pho"
+            elif tm_low == "was": tm_low = "wsh"
+            logo_url = f"{logo_base}/{tm_low}.png"
+
+            # === CONTAINER CARD ===
+            with st.container(border=True):
+                # Colunas: [Foto 1.5] [Info 2.5] [L5 2] [L10 2] [L15 2]
+                c1, c2, c3, c4, c5 = st.columns([1.3, 2.7, 2, 2, 2])
+                
+                # C1: Foto
+                with c1:
+                    st.image(photo_url, use_container_width=True)
+                
+                # C2: Identidade
+                with c2:
+                    st.markdown(f'<div class="trin-name">{p_name}</div>', unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div class="trin-meta">
+                        <img src="{logo_url}" width="18" style="vertical-align:middle; margin-right:4px;"> 
+                        <b>{real_team}</b> vs {meta['opp']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    floors = meta['floors']
+                    st.markdown(f"""
+                    <div class="footer-info">
+                        <span>Forma: <span class="f-val">{int(floors['Form'])}</span></span>
+                        <span>Local: <span class="f-val">{int(floors['Venue'])}</span></span>
+                        <span>H2H: <span class="f-val">{int(floors['H2H'])}</span></span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Função Helper para Stats Coloridos
+                def render_col(col, title, css_class, items):
+                    with col:
+                        st.markdown(f'<div class="col-header {css_class}">{title}</div>', unsafe_allow_html=True)
+                        if not items:
+                            st.markdown("<div style='text-align:center; color:#334155; font-size:20px;'>-</div>", unsafe_allow_html=True)
+                        else:
+                            for item in items:
+                                s_txt = item['stat']
+                                # Define cor baseada no stat
+                                if 'PTS' in s_txt: c_cls = "color-pts"
+                                elif 'REB' in s_txt: c_cls = "color-reb"
+                                elif 'AST' in s_txt: c_cls = "color-ast"
+                                else: c_cls = "color-def"
+                                
+                                st.markdown(f"""
+                                <div class="stat-box">
+                                    <div class="stat-val {c_cls}">{item['line']}+</div>
+                                    <div class="stat-lbl">{s_txt}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                # C3, C4, C5: Colunas Temporais (Com Badges Neon)
+                render_col(c3, "🔥 L5", "head-l5", data['L5'])
+                render_col(c4, "⚖️ L10", "head-l10", data['L10'])
+                render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
 # PÁGINA: NEXUS PAGE
@@ -8111,14 +8146,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
 
 
 
