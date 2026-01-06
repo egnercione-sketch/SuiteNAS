@@ -582,7 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V4 (MOMENTUM DNA + DIGIBETS BRANDING)
+# PÁGINA: ORÁCULO V5 (CORREÇÃO DE ERRO + HEADER COMPACTO)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -632,20 +632,15 @@ def show_oracle_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 2. HEADER BRANDING ---
-    # Logo DigiBets e Título
-    c_logo, c_title = st.columns([1, 4])
-    with c_logo:
-        st.image("https://i.ibb.co/TxfVPy49/Sem-t-tulo.png", width=120)
-    with c_title:
-        st.markdown("""
-        <div style="padding-top: 10px;">
-            <div style="font-family:'Oswald'; font-size:32px; color:#D4AF37; line-height:1.2;">ORACLE AI</div>
-            <div style="font-family:'Inter'; font-size:12px; color:#94a3b8;">PROJEÇÕES MATEMÁTICAS AVANÇADAS (V3.0)</div>
+    # --- 2. HEADER COMPACTO (LOGO PEQUENO + TÍTULO) ---
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+        <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" style="width: 40px; height: auto;">
+        <div style="font-family: 'Oswald'; font-size: 24px; color: #D4AF37; letter-spacing: 1px; font-weight: 500;">
+            PROJEÇÕES ORÁCULO
         </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
+    </div>
+    """, unsafe_allow_html=True)
 
     # --- 3. CARREGAMENTO DE DADOS ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
@@ -656,8 +651,7 @@ def show_oracle_page():
         st.warning("⚠️ Aguardando dados do Supabase...")
         return
 
-    # --- 4. CONSTRUÇÃO DO ÍNDICE DE IDENTIDADE (A LÓGICA MOMENTUM) ---
-    # Objetivo: Criar um dicionário perfeito: NOME_LIMPO -> {ID, TIME_REAL, FOTO}
+    # --- 4. CONSTRUÇÃO DO ÍNDICE DE IDENTIDADE (LÓGICA BLINDADA) ---
     IDENTITY_DB = {}
 
     def normalize_str(text):
@@ -665,7 +659,7 @@ def show_oracle_page():
         if not text: return ""
         try:
             text = str(text).upper().strip()
-            # Remove acentos (Unicode Normalization)
+            # Remove acentos
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
             # Remove espaços e pontuação
             return re.sub(r'[^A-Z]', '', text)
@@ -684,21 +678,21 @@ def show_oracle_page():
 
             for _, row in df_l5.iterrows():
                 try:
-                    # EXTRAÇÃO DE ID BLINDADA (IGUAL MOMENTUM)
+                    # EXTRAÇÃO DE ID (CRUCIAL PARA FOTO)
                     raw_id = row.get(c_id, 0)
                     pid = int(float(raw_id)) 
                     
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        clean_key = normalize_str(raw_name) # Chave Mestra
+                        clean_key = normalize_str(raw_name) 
                         team_real = str(row.get(c_team, 'UNK')).upper().strip()
                         
                         data = {'id': pid, 'team': team_real, 'clean_name': raw_name}
                         
-                        # 1. Indexa pelo Nome Completo Limpo (ex: NIKOLAJOKIC)
+                        # 1. Indexa Full Name
                         IDENTITY_DB[clean_key] = data
                         
-                        # 2. Indexa pelo Sobrenome (Fallback) (ex: JOKIC)
+                        # 2. Indexa Sobrenome (Fallback)
                         parts = raw_name.split()
                         if len(parts) > 1:
                             lname = normalize_str(parts[-1])
@@ -726,41 +720,41 @@ def show_oracle_page():
     """, unsafe_allow_html=True)
 
     for p in projections:
-        p_name = p['name'] # Ex: Nikola Jokić
+        p_name = p['name']
         
-        # --- CRUZAMENTO DE DADOS (A MÁGICA) ---
-        search_key = normalize_str(p_name) # Ex: NIKOLAJOKIC
-        
-        # Busca no DB
+        # --- BUSCA INTELIGENTE ---
+        search_key = normalize_str(p_name)
         match = IDENTITY_DB.get(search_key)
         
-        # Se não achou, tenta sobrenome
         if not match:
             parts = p_name.split()
             if len(parts) > 1:
                 match = IDENTITY_DB.get(normalize_str(parts[-1]))
         
-        # Define Valores Finais
+        # Define Valores
         if match:
             pid = match['id']
-            real_team = match['team'] # Usa o time do L5 (Correto), ignora UNK do log
-            display_name = match['clean_name'] # Usa o nome sem acento do L5 se quiser
+            real_team = match['team']
+            display_name = match['clean_name']
         else:
             pid = 0
-            real_team = str(p['team']).upper() # Fallback
+            real_team = str(p['team']).upper()
             if len(real_team) > 3: real_team = "UNK"
+            display_name = p_name
         
         # URLs de Imagem
         photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
-        tm_logo = real_team.lower()
-        if tm_logo == "uta": tm_logo = "utah"
+        # --- CORREÇÃO DO ERRO DO TIME ---
+        tm_low = real_team.lower()
+        if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
-        logo_url = f"{logo_base}/{tm_logo}.png"
+        
+        logo_url = f"{logo_base}/{tm_low}.png"
 
-        # --- O CARD VISUAL ---
+        # --- CARD ---
         with st.container(border=True):
             # Layout Grid: [Foto 1.2] [Info 3.5] [Stats...]
             c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1.2, 3.5, 1.3, 1.3, 1.3, 1.3])
@@ -769,12 +763,12 @@ def show_oracle_page():
                 st.image(photo_url, use_container_width=True)
             
             with c_info:
-                st.markdown(f'<div class="oracle-name">{p_name}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="oracle-name">{display_name}</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <div class="oracle-meta">
                     <img src="{logo_url}" width="18" style="vertical-align:middle;"> 
                     <span style="font-size:12px; color:#cbd5e1;">{real_team}</span>
-                    <span style="color:#D4AF37; margin-left:5px;">• Weighted Proj</span>
+                    <span style="color:#D4AF37; margin-left:5px;">• Projeção IA</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -787,8 +781,6 @@ def show_oracle_page():
                 st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-blue">{p['AST']:.1f}</div><div class="neon-lbl">AST</div></div>""", unsafe_allow_html=True)
             with c_3pm:
                 st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-green">{p['3PM']:.1f}</div><div class="neon-lbl">3PM</div></div>""", unsafe_allow_html=True)
-        
-
 # ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
@@ -8450,6 +8442,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
