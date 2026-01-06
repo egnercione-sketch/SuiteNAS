@@ -488,6 +488,274 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
+# ORACLE ENGINE (CÉREBRO MATEMÁTICO)
+# ============================================================================
+class OracleEngine:
+    def __init__(self, logs_cache, injuries_data):
+        self.logs = logs_cache
+        self.injuries_names = self._process_injuries(injuries_data)
+
+    def _process_injuries(self, raw_injuries):
+        """Cria uma 'Blocklist' de nomes normalizados de jogadores lesionados (OUT)."""
+        blacklist = set()
+        if not raw_injuries: return blacklist
+        
+        # Flattening da lista de lesões (Mesma lógica do Depto Médico)
+        flat_list = []
+        stack = [raw_injuries]
+        while stack:
+            curr = stack.pop()
+            if isinstance(curr, list):
+                if curr and isinstance(curr[0], dict) and ('player' in curr[0] or 'name' in curr[0]):
+                    flat_list.extend(curr)
+                else: stack.extend(curr)
+            elif isinstance(curr, dict):
+                for v in curr.values(): stack.append(v)
+        
+        for item in flat_list:
+            # Só bloqueia quem está OUT. GTD/Day-to-Day a gente projeta (com risco).
+            status = str(item.get('status', '')).upper()
+            if "OUT" in status:
+                name = item.get('player') or item.get('name')
+                if name:
+                    # Normaliza: "LeBron James" -> "LEBRONJAMES"
+                    clean = str(name).upper().replace(" ", "").replace(".", "").replace("'", "").strip()
+                    blacklist.add(clean)
+        return blacklist
+
+    def generate_projections(self, limit=10):
+        """
+        Gera as projeções matemáticas ponderadas (50% L5, 30% L10, 20% L25).
+        Retorna: Lista de dicionários ordenada pela maior projeção de Pontos (por enquanto).
+        """
+        projections = []
+        
+        for player_name, data in self.logs.items():
+            # 1. Filtro de Lesão
+            clean_name = str(player_name).upper().replace(" ", "").replace(".", "").replace("'", "").strip()
+            if clean_name in self.injuries_names:
+                continue # Pula jogador lesionado
+
+            # 2. Dados Básicos
+            team = data.get('team')
+            logs = data.get('logs', {})
+            pts_log = logs.get('PTS', [])
+            
+            # Filtro Mínimo: Precisa ter jogado pelo menos 5 jogos recentes
+            if len(pts_log) < 5: continue
+            
+            # 3. Matemática do Oráculo (Weighted Average)
+            def calculate_oracle_stat(values_list):
+                if not values_list: return 0.0
+                # Garante janelas
+                l5 = values_list[:5]
+                l10 = values_list[:10]
+                l25 = values_list[:25] # Pega tudo se tiver menos que 25
+                
+                avg_l5 = sum(l5) / len(l5)
+                avg_l10 = sum(l10) / len(l10)
+                avg_l25 = sum(l25) / len(l25)
+                
+                # Fórmula: 50% Forma + 30% Médio Prazo + 20% Histórico
+                weighted = (avg_l5 * 0.50) + (avg_l10 * 0.30) + (avg_l25 * 0.20)
+                return weighted
+
+            proj_pts = calculate_oracle_stat(logs.get('PTS', []))
+            proj_reb = calculate_oracle_stat(logs.get('REB', []))
+            proj_ast = calculate_oracle_stat(logs.get('AST', []))
+            proj_3pm = calculate_oracle_stat(logs.get('3PM', [])) # Supondo que tenhamos 3PM, senão zerar
+
+            # Só mostra jogadores relevantes (Projeção > 15 PTS)
+            if proj_pts < 15: continue
+
+            projections.append({
+                "name": player_name,
+                "team": team,
+                "PTS": proj_pts,
+                "REB": proj_reb,
+                "AST": proj_ast,
+                "3PM": proj_3pm
+            })
+
+        # Ordena pelos maiores pontuadores (Estrelas do Show)
+        # Futuramente podemos ordenar por "Value" se tivermos as lines das casas
+        return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
+
+# ============================================================================
+# PÁGINA: ORÁCULO (FRONTEND VISUAL)
+# ============================================================================
+def show_oracle_page():
+    import os
+    import pandas as pd
+    import streamlit as st
+    import re
+    import unicodedata
+
+    # --- 1. CONFIGURAÇÃO VISUAL (CSS DARK/NEON) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
+        
+        /* O Super Card Container */
+        .oracle-card {
+            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+            border: 1px solid #334155;
+            border-left: 5px solid #D4AF37; /* Borda Dourada DigiBets */
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        .oracle-card:hover { transform: translateX(5px); border-color: #64748b; }
+
+        /* Colunas de Dados */
+        .stat-col { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+        .oracle-val { 
+            font-family: 'Oswald'; font-size: 22px; font-weight: bold; line-height: 1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .oracle-lbl { font-family: 'Inter'; font-size: 9px; color: #94a3b8; font-weight: 600; letter-spacing: 1px; }
+
+        /* Cores Neon Específicas */
+        .neon-gold { color: #fbbf24; }
+        .neon-red { color: #f87171; }
+        .neon-blue { color: #60a5fa; }
+        .neon-green { color: #4ade80; }
+
+        /* Identidade */
+        .oracle-name { font-family: 'Oswald'; font-size: 18px; color: #fff; text-transform: uppercase; line-height: 1.1; }
+        .oracle-team { font-size: 11px; color: #64748b; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+
+        /* Header da Tabela */
+        .oracle-header {
+            display: flex; justify-content: flex-end; padding-right: 25px; margin-bottom: 10px; gap: 45px;
+            font-family: 'Oswald'; font-size: 12px; color: #64748b; text-transform: uppercase;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## 🔮 O Oráculo")
+    st.caption("Projeções matemáticas baseadas em média ponderada (L5/L10/L25). Jogadores lesionados (OUT) são filtrados automaticamente.")
+
+    # --- 2. CARREGAMENTO DE DADOS ---
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    injuries_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
+    
+    if not full_cache:
+        st.warning("⚠️ Aguardando dados de logs do Supabase...")
+        return
+
+    # --- 3. MAPA DE FOTOS (NOSSA LÓGICA V13 BLINDADA) ---
+    PHOTO_DB = {}
+    if not df_l5.empty:
+        try:
+            df_l5.columns = [c.upper().strip() for c in df_l5.columns]
+            cols = df_l5.columns
+            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
+            
+            for _, row in df_l5.iterrows():
+                try:
+                    pid = int(float(row.get(c_id, 0)))
+                    if pid > 0:
+                        raw_name = str(row.get(c_name, ''))
+                        key = raw_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
+                        PHOTO_DB[key] = pid
+                        # Fallback Sobrenome
+                        parts = raw_name.split()
+                        if len(parts) > 1:
+                            lname = parts[-1].upper().replace(".", "").strip()
+                            if lname not in PHOTO_DB: PHOTO_DB[lname] = pid
+                except: continue
+        except: pass
+
+    # --- 4. EXECUÇÃO DO ORÁCULO ---
+    engine = OracleEngine(full_cache, injuries_data)
+    projections = engine.generate_projections(limit=10) # Top 10
+
+    if not projections:
+        st.info("O Oráculo está calibrando... (Nenhum dado suficiente encontrado)")
+        return
+
+    # --- 5. RENDERIZAÇÃO (SUPER CARD) ---
+    
+    # Cabeçalho Fake para alinhar colunas visualmente
+    st.markdown("""
+    <div style="display:flex; justify-content:space-between; padding: 0 10px; color:#475569; font-size:10px; font-family:'Oswald'; margin-bottom:5px;">
+        <div style="width: 250px;">JOGADOR</div>
+        <div style="display:flex; gap: 30px; margin-right: 20px;">
+            <div style="width:50px; text-align:center;">PTS</div>
+            <div style="width:50px; text-align:center;">REB</div>
+            <div style="width:50px; text-align:center;">AST</div>
+            <div style="width:50px; text-align:center;">3PM</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+
+    for p in projections:
+        p_name = p['name']
+        team = p['team']
+        
+        # Foto & Logo Logic
+        clean_key = p_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
+        pid = PHOTO_DB.get(clean_key, 0)
+        if pid == 0:
+             parts = p_name.split()
+             if len(parts) > 1: pid = PHOTO_DB.get(parts[-1].upper().replace(".", "").strip(), 0)
+        
+        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        
+        tm_low = str(team).lower()
+        if tm_low == "uta": tm_low = "utah"
+        elif tm_low == "nop": tm_low = "no"
+        elif tm_low == "phx": tm_low = "pho"
+        elif tm_low == "was": tm_low = "wsh"
+        logo_url = f"{logo_base}/{tm_low}.png"
+
+        # HTML do Card
+        st.markdown(f"""
+        <div class="oracle-card">
+            <div style="display: flex; align-items: center; gap: 15px; flex-grow: 1;">
+                <div style="position: relative;">
+                    <img src="{photo_url}" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background:#000;">
+                    <img src="{logo_url}" style="position: absolute; bottom: 0; right: -5px; width: 20px; height: 20px; background: #0f172a; border-radius: 50%; padding: 2px; border: 1px solid #475569;">
+                </div>
+                <div>
+                    <div class="oracle-name">{p_name}</div>
+                    <div class="oracle-team">{team} • <span style="color:#D4AF37;">Proj. Weighted</span></div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 20px; padding-right: 10px;">
+                <div class="stat-col">
+                    <div class="oracle-val neon-gold">{p['PTS']:.2f}</div>
+                    <div class="oracle-lbl">PTS</div>
+                </div>
+                <div class="stat-col">
+                    <div class="oracle-val neon-red">{p['REB']:.2f}</div>
+                    <div class="oracle-lbl">REB</div>
+                </div>
+                <div class="stat-col">
+                    <div class="oracle-val neon-blue">{p['AST']:.2f}</div>
+                    <div class="oracle-lbl">AST</div>
+                </div>
+                <div class="stat-col">
+                    <div class="oracle-val neon-green">{p['3PM']:.2f}</div>
+                    <div class="oracle-lbl">3PM</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+
+# ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
 def show_props_odds_page():
@@ -8113,7 +8381,7 @@ def main():
         MENU_ITEMS = [
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
-            "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla",
+            "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla", "🔮 Oráculo",
             "🛡️ DvP Confrontos", "🏥 Depto Médico", "👥 Escalações",
             "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
@@ -8136,6 +8404,8 @@ def main():
     elif choice == "🔥 Hot Streaks": show_hit_prop_page()
     elif choice == "📊 Matriz 5-7-10": show_matriz_5_7_10_page()
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
+    elif choice == "🔮 Oráculo": show_oracle_page()
+    
     
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
     elif choice == "🏥 Depto Médico": show_depto_medico()
@@ -8146,6 +8416,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
