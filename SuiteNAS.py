@@ -488,6 +488,107 @@ def show_cloud_diagnostics():
             st.caption("Se 'l5_stats' estiver vermelho, ele não foi salvo.")
 
 # ============================================================================
+# PROPS ODDS PAGE (CORRIGIDA)
+# ============================================================================
+def show_props_odds_page():
+    st.header("🔥 Props & Odds Reais (Pinnacle)")
+
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔄 Atualizar Jogos do Dia (Spreads/Totais)"):
+            with st.spinner("Conectando à Pinnacle..."):
+                # --- LÓGICA RECRIADA AQUI (Substituindo update_pinnacle_data) ---
+                try:
+                    # Instancia o cliente importado (certifique-se que o import está no topo)
+                    client = PinnacleClient("13e1dd2e12msh72d0553fca0e8aap16eeacjsn9d69ddb0d2bb")
+                    
+                    # 1. Busca Jogos
+                    games = client.get_nba_games()
+                    
+                    if not games:
+                        st.warning("Nenhum jogo com odds abertas encontrado.")
+                    else:
+                        # 2. Salva no Session State
+                        st.session_state['pinnacle_games'] = games
+                        
+                        # Cria mapa rápido
+                        odds_map = {}
+                        for g in games:
+                            odds_map[g['home_team']] = g
+                            odds_map[g['away_team']] = g
+                        
+                        st.session_state['pinnacle_odds_map'] = odds_map
+                        st.success(f"✅ Odds Atualizadas! {len(games)} jogos carregados.")
+                        
+                except Exception as e:
+                    st.error(f"Erro ao conectar na Pinnacle: {e}")
+
+    with col2:
+        if st.button("🎯 Sincronizar Player Props"):
+            if 'pinnacle_games' not in st.session_state:
+                st.error("Primeiro atualize os jogos do dia (Botão da esquerda)!")
+            else:
+                games = st.session_state['pinnacle_games']
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                try:
+                    client = PinnacleClient("13e1dd2e12msh72d0553fca0e8aap16eeacjsn9d69ddb0d2bb")
+                    full_map = {}
+                    total = len(games)
+                    
+                    for i, game in enumerate(games):
+                        status_text.text(f"Processando {i+1}/{total}: {game['away_team']} @ {game['home_team']}")
+                        props = client.get_player_props(game['game_id'])
+                        for p in props:
+                            name = p['player']
+                            if name not in full_map:
+                                full_map[name] = {}
+                            
+                            # Salva a linha e a odd
+                            full_map[name][p['market']] = {
+                                "line": p['line'],
+                                "odds": p['odds']
+                            }
+                        progress_bar.progress((i + 1) / total)
+                    
+                    st.session_state['pinnacle_props_map'] = full_map
+                    progress_bar.empty()
+                    status_text.empty()
+                    
+                    total_props = sum(len(v) for v in full_map.values())
+                    st.success(f"✅ {len(full_map)} jogadores | {total_props} props sincronizados!")
+                    
+                except Exception as e:
+                    st.error(f"Erro ao buscar props: {e}")
+
+    # Mostrar status
+    st.divider()
+    if 'pinnacle_games' in st.session_state:
+        st.info(f"🟢 {len(st.session_state['pinnacle_games'])} jogos carregados")
+    if 'pinnacle_props_map' in st.session_state:
+        total_props = sum(len(v) for v in st.session_state.get('pinnacle_props_map', {}).values())
+        st.success(f"🎯 {len(st.session_state['pinnacle_props_map'])} jogadores | {total_props} props disponíveis")
+    
+    # Opcional: busca por jogador
+    if 'pinnacle_props_map' in st.session_state:
+        player_name = st.text_input("Buscar props de um jogador:")
+        if player_name:
+            matches = {k: v for k, v in st.session_state['pinnacle_props_map'].items() if player_name.lower() in k.lower()}
+            if matches:
+                for name, props in matches.items():
+                    st.write(f"**{name}**")
+                    for market, data in props.items():
+                        # Ajuste para ler dicionário ou valor direto
+                        line = data.get('line') if isinstance(data, dict) else data
+                        odd = data.get('odds') if isinstance(data, dict) else 1.90
+                        st.write(f"• {market}: {line} (@{odd})")
+            else:
+                st.info("Jogador não encontrado nas props do dia.")
+                
+
+# ============================================================================
 # PÁGINA: DVP TACTICAL BOARD (V41.0 - ROBUST HTML ARCHITECTURE)
 # ============================================================================
 def show_dvp_analysis():
@@ -7968,6 +8069,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
