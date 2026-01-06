@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V62.0 - DASHBOARD CLONE)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V63.0 - TRANSPLANT EDITION)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6875,6 +6875,7 @@ def show_depto_medico():
         .lr-left { display: flex; align-items: center; gap: 10px; } 
         .lr-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #475569; object-fit: cover; background: #000; }
         .lr-name { font-size: 13px; color: #e2e8f0; font-weight: 600; }
+        .lr-desc { font-size: 10px; color: #64748b; }
         .lr-badge { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; min-width: 50px; text-align: center; }
         
         .s-out { background: #ef4444; color: white; }
@@ -6884,82 +6885,80 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 BIO-MONITOR <span style="font-size:14px; color:#ef4444">LIVE</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 2. ENGINE DE ID (SIMPLIFICADA) ---
-    def clean_key(text):
-        """Transforma 'Josh Giddey' em 'JOSHGIDDEY'."""
+    # --- 2. ENGINE LÓGICA (BASEADA NA MOMENTUM PAGE) ---
+    
+    # Função simples de limpeza (igual usamos em outras partes)
+    def clean_name_key(text):
         if not text: return ""
-        try:
-            t = str(text).upper().strip()
-            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-            return re.sub(r'[^A-Z]', '', t)
-        except: return ""
+        # Remove espaços, pontos e deixa maiusculo
+        return str(text).upper().replace(" ", "").replace(".", "").replace("'", "").strip()
 
-    # Carrega DF_L5
+    # CARREGA DF_L5 (Igual Momentum)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # MAPA MESTRE: Chave -> ID (Inteiro)
-    # Ex: { "LEBRONJAMES": 2544 }
-    ID_MAP = {}
-    TEAM_MAP = {}
-    MIN_MAP = {}
+    # CACHE DE DADOS (Aqui está o segredo: Criar um dicionário confiável)
+    # Chave: NOME LIMPO -> Valor: {ID (int), TIME}
+    PLAYER_CACHE = {}
 
     if not df_l5.empty:
         try:
-            # Detecta colunas
+            # 1. Identifica colunas (Igual Momentum)
             cols = [c.upper() for c in df_l5.columns]
             df_l5.columns = cols
             
-            # Encontra colunas vitais
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            # Busca ID agressivamente (PLAYER_ID, ID, PERSON_ID)
-            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
-            if not c_id: c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
-            
+            c_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
             c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
             c_min = next((c for c in cols if 'MIN' in c), 'MIN')
 
             for _, row in df_l5.iterrows():
-                # 1. NOME
+                # Nome Limpo
                 raw_name = str(row.get(c_name, ''))
-                key = clean_key(raw_name)
-                if not key: continue
-
-                # 2. ID (A CORREÇÃO ESTÁ AQUI)
-                # Garante que vira INT puro, sem .0
+                key = clean_name_key(raw_name)
+                
+                # ID Inteiro (CRÍTICO: Igual Momentum)
                 try:
-                    val_id = row.get(c_id, 0)
-                    pid = int(float(val_id)) # float primeiro lida com '123.0', int remove o .0
-                except: 
+                    val = row.get(c_id, 0)
+                    pid = int(float(val)) # Converte 123.0 -> 123
+                except:
                     pid = 0
                 
-                # 3. Time e Minutos
+                # Time
                 team = str(row.get(c_team, 'UNK')).upper().strip()
+                
+                # Minutos
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0.0
-
-                # Popula Mapas
-                ID_MAP[key] = pid
-                TEAM_MAP[key] = team
-                MIN_MAP[key] = mins
                 
-                # Popula por Sobrenome também (para fallbacks)
-                parts = raw_name.split()
-                if len(parts) > 1:
-                    lname = clean_key(parts[-1])
-                    # Só substitui se for um jogador de mais minutos (titular)
-                    if lname not in ID_MAP or mins > MIN_MAP.get(lname, 0):
-                        ID_MAP[lname] = pid
-                        TEAM_MAP[lname] = team
-                        MIN_MAP[lname] = mins
+                if key and pid > 0:
+                    PLAYER_CACHE[key] = {
+                        "id": pid,
+                        "team": team,
+                        "min": mins,
+                        "real_name": raw_name
+                    }
+                    
+                    # Hack Sobrenome: Indexa também pelo sobrenome se for titular
+                    parts = key.replace(".", "").split() # Tenta splitar string original limpa? Nao, chave limpa nao tem espaco
+                    # Usa raw_name para split
+                    parts_raw = raw_name.split()
+                    if len(parts_raw) > 1:
+                        lname = clean_name_key(parts_raw[-1])
+                        # Se não existe ou esse tem mais minutos, salva
+                        if lname not in PLAYER_CACHE or mins > PLAYER_CACHE[lname]['min']:
+                            PLAYER_CACHE[lname] = {
+                                "id": pid, "team": team, "min": mins, "real_name": raw_name
+                            }
 
         except Exception as e:
-            st.error(f"Erro processando base de fotos: {e}")
+            st.error(f"Erro processando cache de fotos: {e}")
 
-    # --- 3. LEITURA DE LESÕES ---
-    raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
+    # --- 3. FETCH LESÕES ---
     injuries_list = []
+    raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
 
     if raw_data:
+        # Parser Achatado
         stack = [raw_data]
         while stack:
             curr = stack.pop()
@@ -6970,7 +6969,7 @@ def show_depto_medico():
                     stack.extend(curr)
             elif isinstance(curr, dict):
                 for k, v in curr.items():
-                    # Dica de time pela chave (LAL, BOS)
+                    # Dica de time na chave
                     hint = k if len(k) <= 3 and k.isupper() else None
                     if isinstance(v, list) and hint:
                         for item in v:
@@ -6981,40 +6980,38 @@ def show_depto_medico():
         st.info("ℹ️ Nenhuma lesão reportada.")
         return
 
-    # --- 4. CRUZAMENTO (SIMPLES E DIRETO) ---
+    # --- 4. CRUZAMENTO (USANDO O CACHE CONFIÁVEL) ---
     final_roster = []
     
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
-        inj_key = clean_key(p_name)
+        inj_key = clean_name_key(p_name)
         
-        # BUSCA ID (Tenta nome completo, se não der, tenta sobrenome)
-        pid = ID_MAP.get(inj_key, 0)
+        # 1. BUSCA NO CACHE (AQUI ESTÁ A FOTO)
+        match = PLAYER_CACHE.get(inj_key)
         
-        # Se falhou, tenta match parcial ("JoshGiddey" vs "Giddey")
-        if pid == 0:
-            for k, val_id in ID_MAP.items():
-                if k in inj_key or inj_key in k:
-                    pid = val_id
+        # 2. Se falhar, tenta achar "dentro" (Ex: Giddey em JoshGiddey)
+        if not match:
+            for k, v in PLAYER_CACHE.items():
+                if inj_key in k: # match parcial
+                    match = v
                     break
         
-        # Recupera dados se achou o ID
-        if pid > 0:
-            # Se achamos o ID, usamos o nome da chave inversa se possível, ou mantemos o original
-            # Mas pegamos o time do banco, que é confiável
-            # Como ID_MAP é Key->ID, precisamos re-olhar os mapas de Time e Min
-            # Truque: Usamos a mesma chave que achou o ID
-            found_key = next((k for k, v in ID_MAP.items() if v == pid), inj_key)
-            real_team = TEAM_MAP.get(found_key, "UNK")
-            real_min = MIN_MAP.get(found_key, 0.0)
+        # 3. Define Dados Finais
+        if match:
+            final_id = match['id'] # O ID INTEIRO QUE QUEREMOS
+            final_team = match['team']
+            final_name = match['real_name']
+            final_min = match['min']
         else:
-            real_team = str(p.get('_hint') or p.get('team') or "UNK").upper()
-            real_min = 0.0
-
-        if len(real_team) > 3: real_team = "UNK"
+            final_id = 0
+            final_team = str(p.get('_hint') or p.get('team') or "UNK").upper()
+            if len(final_team) > 3: final_team = "UNK"
+            final_name = p_name
+            final_min = 0.0
 
         # Impacto
-        impact = 2 if real_min >= 28 else (1 if real_min >= 18 else 0)
+        impact = 2 if final_min >= 28 else (1 if final_min >= 18 else 0)
 
         # Status
         raw_s = str(p.get('status', '')).upper()
@@ -7026,14 +7023,14 @@ def show_depto_medico():
         if "ACTIVE" in raw_s and "NOT" not in raw_s: continue
 
         final_roster.append({
-            "name": p_name, "team": real_team, "id": pid, 
-            "min": real_min, "impact": impact, "status": st_code,
+            "name": final_name, "team": final_team, "id": final_id, 
+            "min": final_min, "impact": impact, "status": st_code,
             "desc": p.get('description') or p.get('details') or ""
         })
 
     # --- 5. RENDERIZAÇÃO ---
     
-    # 1. HERO: ESTRELAS
+    # HERO: ESTRELAS
     ward = [p for p in final_roster if p['impact'] == 2 and p['status'] in ['OUT', 'GTD']]
     
     if ward:
@@ -7043,8 +7040,11 @@ def show_depto_medico():
             with cols[i % 4]:
                 color = "#ef4444" if p['status'] == "OUT" else "#f97316"
                 
-                # FOTO: Agora com ID Inteiro Garantido
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                # FOTO: URL Direta usando ID Inteiro (Igual Momentum)
+                if p['id'] > 0:
+                    photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+                else:
+                    photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
                 st.markdown(f"""
                 <div class="hosp-card" style="border-color:{color}">
@@ -7062,7 +7062,7 @@ def show_depto_medico():
 
     st.divider()
 
-    # 2. LISTA GERAL
+    # LISTA GERAL
     teams_map = {}
     for p in final_roster:
         t = p['team']
@@ -7089,7 +7089,11 @@ def show_depto_medico():
             players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
 
             for p in players:
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                # FOTO LISTA
+                if p['id'] > 0:
+                    photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+                else:
+                    photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
                 if p['status'] == "OUT": cls_badge = "s-out"
                 elif p['status'] == "GTD": cls_badge = "s-gtd"
@@ -7957,6 +7961,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
