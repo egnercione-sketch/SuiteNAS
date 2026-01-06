@@ -582,7 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V3 (NORMALIZAÇÃO TOTAL + VISUAL BOX)
+# PÁGINA: ORÁCULO V4 (MOMENTUM DNA + DIGIBETS BRANDING)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -591,137 +591,134 @@ def show_oracle_page():
     import re
     import unicodedata
 
-    # --- 1. CSS VISUAL (ESTILO TOAD SPORTS/LINEMATE) ---
+    # --- 1. CSS VISUAL (ESTILO LINEMATE/TOAD) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* CONTAINER PRINCIPAL (CARD JOGADOR) */
+        /* Container do Card */
         [data-testid="stVerticalBlockBorderWrapper"] {
             background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
-            border: 1px solid #475569 !important;
+            border: 1px solid #334155 !important;
             border-left: 5px solid #D4AF37 !important; /* Marca DigiBets */
-            border-radius: 8px !important;
-            padding: 10px !important;
+            border-radius: 12px !important;
+            padding: 12px !important;
             margin-bottom: 12px !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        /* LOGO DIGIBETS HEADER */
-        .db-header {
-            font-family: 'Oswald'; 
-            font-size: 24px; 
-            color: #D4AF37; 
-            text-transform: uppercase; 
-            letter-spacing: 2px;
-            margin-bottom: 5px;
-            border-bottom: 1px solid #334155;
-            padding-bottom: 10px;
-        }
-
-        /* IDENTIDADE JOGADOR */
-        .oracle-name { font-family: 'Oswald'; font-size: 20px; color: #fff; text-transform: uppercase; line-height: 1; margin-bottom: 4px; }
+        /* Identidade */
+        .oracle-name { font-family: 'Oswald'; font-size: 20px; color: #fff; text-transform: uppercase; line-height: 1.1; margin-bottom: 4px; }
         .oracle-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 
-        /* OS QUADRADINHOS DE STATS */
+        /* Stats Boxes */
         .stat-box-neon {
-            background-color: rgba(15, 23, 42, 0.8);
+            background-color: rgba(15, 23, 42, 0.6);
             border: 1px solid #334155;
             border-radius: 6px;
-            padding: 8px 4px;
+            padding: 6px 0;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-width: 65px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            min-width: 60px;
         }
-        
-        /* VALORES E LABELS */
         .neon-val { font-family: 'Oswald'; font-size: 22px; font-weight: bold; line-height: 1; }
         .neon-lbl { font-family: 'Inter'; font-size: 9px; color: #64748b; font-weight: 700; margin-top: 3px; letter-spacing: 1px; }
 
-        /* CORES ESPECÍFICAS */
-        .txt-gold { color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.2); }
-        .txt-red { color: #f87171; text-shadow: 0 0 8px rgba(248, 113, 113, 0.2); }
-        .txt-blue { color: #60a5fa; text-shadow: 0 0 8px rgba(96, 165, 250, 0.2); }
-        .txt-green { color: #4ade80; text-shadow: 0 0 8px rgba(74, 222, 128, 0.2); }
-
+        /* Cores */
+        .txt-gold { color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.3); }
+        .txt-red { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.3); }
+        .txt-blue { color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3); }
+        .txt-green { color: #4ade80; text-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- HEADER DO FLYER ---
-    c1, c2 = st.columns([8, 2])
-    with c1:
-        st.markdown('<div class="db-header">⚡ DIGIBETS <span style="color:#fff">ORACLE</span></div>', unsafe_allow_html=True)
-    with c2:
-        st.caption("PROJEÇÕES IA • V3.0")
+    # --- 2. HEADER BRANDING ---
+    # Logo DigiBets e Título
+    c_logo, c_title = st.columns([1, 4])
+    with c_logo:
+        st.image("https://i.ibb.co/TxfVPy49/Sem-t-tulo.png", width=120)
+    with c_title:
+        st.markdown("""
+        <div style="padding-top: 10px;">
+            <div style="font-family:'Oswald'; font-size:32px; color:#D4AF37; line-height:1.2;">ORACLE AI</div>
+            <div style="font-family:'Inter'; font-size:12px; color:#94a3b8;">PROJEÇÕES MATEMÁTICAS AVANÇADAS (V3.0)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
 
-    # --- 2. CARREGAMENTO ---
+    # --- 3. CARREGAMENTO DE DADOS ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     injuries_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
     if not full_cache:
-        st.warning("⚠️ Aguardando dados...")
+        st.warning("⚠️ Aguardando dados do Supabase...")
         return
 
-    # --- 3. MAPA DE FOTOS INTELIGENTE (NORMALIZAÇÃO TOTAL) ---
-    PHOTO_DB = {}
-    
+    # --- 4. CONSTRUÇÃO DO ÍNDICE DE IDENTIDADE (A LÓGICA MOMENTUM) ---
+    # Objetivo: Criar um dicionário perfeito: NOME_LIMPO -> {ID, TIME_REAL, FOTO}
+    IDENTITY_DB = {}
+
     def normalize_str(text):
-        """Remove acentos, espaços e deixa tudo maiúsculo para match perfeito."""
+        """Transforma 'Luka Dončić' em 'LUKADONCIC'."""
         if not text: return ""
         try:
-            # Normaliza Unicode (Jokić -> Jokic)
-            t = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
-            # Remove tudo que não for letra (Espaços, pontos, hifens)
-            return re.sub(r'[^A-Z]', '', t.upper())
+            text = str(text).upper().strip()
+            # Remove acentos (Unicode Normalization)
+            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+            # Remove espaços e pontuação
+            return re.sub(r'[^A-Z]', '', text)
         except: return ""
 
     if not df_l5.empty:
         try:
-            # Prepara colunas do DF_L5
+            # Normaliza colunas do L5
             df_l5.columns = [c.upper().strip() for c in df_l5.columns]
             cols = df_l5.columns
+            
+            # Localiza colunas
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
             c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
 
             for _, row in df_l5.iterrows():
                 try:
-                    pid = int(float(row.get(c_id, 0)))
+                    # EXTRAÇÃO DE ID BLINDADA (IGUAL MOMENTUM)
+                    raw_id = row.get(c_id, 0)
+                    pid = int(float(raw_id)) 
+                    
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        clean_key = normalize_str(raw_name) # Ex: NIKOLAJOKIC
-                        team = str(row.get(c_team, 'UNK')).upper().strip()
+                        clean_key = normalize_str(raw_name) # Chave Mestra
+                        team_real = str(row.get(c_team, 'UNK')).upper().strip()
                         
-                        data = {'id': pid, 'team': team, 'real_name': raw_name}
+                        data = {'id': pid, 'team': team_real, 'clean_name': raw_name}
                         
-                        # Indexa Nome Completo
-                        PHOTO_DB[clean_key] = data
+                        # 1. Indexa pelo Nome Completo Limpo (ex: NIKOLAJOKIC)
+                        IDENTITY_DB[clean_key] = data
                         
-                        # Indexa Sobrenome (Fallback)
+                        # 2. Indexa pelo Sobrenome (Fallback) (ex: JOKIC)
                         parts = raw_name.split()
                         if len(parts) > 1:
                             lname = normalize_str(parts[-1])
-                            # Só salva sobrenome se não existir (evita colisão, prioriza o primeiro que aparecer)
-                            if lname not in PHOTO_DB: PHOTO_DB[lname] = data
+                            if lname not in IDENTITY_DB: IDENTITY_DB[lname] = data
                 except: continue
-        except: pass
+        except Exception as e:
+            st.error(f"Erro ao criar índice de identidade: {e}")
 
-    # --- 4. ENGINE DE PROJEÇÃO ---
+    # --- 5. EXECUÇÃO DO MOTOR ORÁCULO ---
     engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=10)
+    projections = engine.generate_projections(limit=12)
 
     if not projections:
-        st.info("O Oráculo está calculando as probabilidades...")
+        st.info("O Oráculo está calculando probabilidades...")
         return
 
-    # --- 5. RENDERIZAÇÃO DOS SUPER CARDS ---
+    # --- 6. RENDERIZAÇÃO DOS SUPER CARDS ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
 
-    # Cabeçalho da Tabela Visual
+    # Header da Tabela Visual
     st.markdown("""
     <div style="display:flex; justify-content:flex-end; padding-right:15px; margin-bottom:5px; font-family:'Oswald'; font-size:10px; color:#64748b; gap:50px;">
         <span>PTS</span> <span>REB</span> <span>AST</span> <span>3PM</span>
@@ -729,85 +726,67 @@ def show_oracle_page():
     """, unsafe_allow_html=True)
 
     for p in projections:
-        p_name = p['name']
+        p_name = p['name'] # Ex: Nikola Jokić
         
-        # --- BUSCA INTELIGENTE DE FOTO & TIME ---
-        clean_key = normalize_str(p_name) # Ex: NIKOLAJOKIC (vinda do log)
+        # --- CRUZAMENTO DE DADOS (A MÁGICA) ---
+        search_key = normalize_str(p_name) # Ex: NIKOLAJOKIC
         
-        match = PHOTO_DB.get(clean_key)
+        # Busca no DB
+        match = IDENTITY_DB.get(search_key)
         
-        # Se não achou exato, tenta conter (Ex: LUKADONCIC match em LUKADONCIC)
+        # Se não achou, tenta sobrenome
         if not match:
-            # Tenta sobrenome
             parts = p_name.split()
-            if len(parts) > 1: match = PHOTO_DB.get(normalize_str(parts[-1]))
+            if len(parts) > 1:
+                match = IDENTITY_DB.get(normalize_str(parts[-1]))
         
-        pid = match['id'] if match else 0
-        real_team = match['team'] if match else str(p['team']).upper()
-        clean_display_name = match['real_name'] if match else p_name # Usa nome bonito do DB se tiver
+        # Define Valores Finais
+        if match:
+            pid = match['id']
+            real_team = match['team'] # Usa o time do L5 (Correto), ignora UNK do log
+            display_name = match['clean_name'] # Usa o nome sem acento do L5 se quiser
+        else:
+            pid = 0
+            real_team = str(p['team']).upper() # Fallback
+            if len(real_team) > 3: real_team = "UNK"
         
-        if len(real_team) > 3: real_team = "UNK"
-
-        # URLs
+        # URLs de Imagem
         photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
-        tm_low = real_team.lower()
-        # Mapeamento ESPN
-        if tm_low == "uta": tm_low = "utah"
+        tm_logo = real_team.lower()
+        if tm_logo == "uta": tm_logo = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
-        logo_url = f"{logo_base}/{tm_low}.png"
+        logo_url = f"{logo_base}/{tm_logo}.png"
 
-        # --- CARD ---
+        # --- O CARD VISUAL ---
         with st.container(border=True):
-            # Layout: [Foto 1.2] [Nome 3.3] [Pts 1.3] [Reb 1.3] [Ast 1.3] [3pm 1.3]
-            c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1.2, 3.3, 1.3, 1.3, 1.3, 1.3])
+            # Layout Grid: [Foto 1.2] [Info 3.5] [Stats...]
+            c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1.2, 3.5, 1.3, 1.3, 1.3, 1.3])
             
             with c_img:
                 st.image(photo_url, use_container_width=True)
             
             with c_info:
-                st.markdown(f'<div class="oracle-name">{clean_display_name}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="oracle-name">{p_name}</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <div class="oracle-meta">
                     <img src="{logo_url}" width="18" style="vertical-align:middle;"> 
                     <span style="font-size:12px; color:#cbd5e1;">{real_team}</span>
+                    <span style="color:#D4AF37; margin-left:5px;">• Weighted Proj</span>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # QUADRADINHOS DE STATS
+            # QUADRADINHOS NEON
             with c_pts:
-                st.markdown(f"""
-                <div class="stat-box-neon">
-                    <div class="neon-val txt-gold">{p['PTS']:.1f}</div>
-                    <div class="neon-lbl">PTS</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
+                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-gold">{p['PTS']:.1f}</div><div class="neon-lbl">PTS</div></div>""", unsafe_allow_html=True)
             with c_reb:
-                st.markdown(f"""
-                <div class="stat-box-neon">
-                    <div class="neon-val txt-red">{p['REB']:.1f}</div>
-                    <div class="neon-lbl">REB</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
+                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-red">{p['REB']:.1f}</div><div class="neon-lbl">REB</div></div>""", unsafe_allow_html=True)
             with c_ast:
-                st.markdown(f"""
-                <div class="stat-box-neon">
-                    <div class="neon-val txt-blue">{p['AST']:.1f}</div>
-                    <div class="neon-lbl">AST</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
+                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-blue">{p['AST']:.1f}</div><div class="neon-lbl">AST</div></div>""", unsafe_allow_html=True)
             with c_3pm:
-                st.markdown(f"""
-                <div class="stat-box-neon">
-                    <div class="neon-val txt-green">{p['3PM']:.1f}</div>
-                    <div class="neon-lbl">3PM</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-green">{p['3PM']:.1f}</div><div class="neon-lbl">3PM</div></div>""", unsafe_allow_html=True)
         
 
 # ============================================================================
@@ -8471,6 +8450,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
