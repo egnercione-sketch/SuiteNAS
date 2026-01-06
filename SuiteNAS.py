@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V58.0 - ARCHITECT EDITION)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V59.0 - DNA CONNECTOR)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6850,247 +6850,192 @@ def show_depto_medico():
     import unicodedata
     import re
 
-    # --- 1. DESIGN SYSTEM ---
+    # --- 1. VISUAL REFINADO ---
     st.markdown("""
     <style>
-        .bio-title { font-family: 'Oswald'; font-size: 24px; color: #E2E8F0; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
-        .bio-sub { color: #94a3b8; font-size: 13px; margin-bottom: 20px; font-family: 'Nunito'; }
+        .bio-header { border-bottom: 1px solid #334155; margin-bottom: 20px; padding-bottom: 10px; }
+        .bio-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin: 0; letter-spacing: 1px; }
         
-        /* CARD HOSPITALAR (Hero) */
         .hosp-card {
             background: #0f172a; border-radius: 8px; overflow: hidden; height: 100%;
-            border: 1px solid #334155; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex; flex-direction: column;
+            border: 1px solid #334155; display: flex; flex-direction: column;
         }
-        .hc-header { padding: 8px; text-align: center; font-size: 12px; font-weight: bold; font-family:'Oswald'; color: #000; }
-        .hc-body { padding: 10px; display: flex; align-items: center; gap: 10px; flex-grow: 1; }
-        .hc-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background: #000; }
+        .hc-header { padding: 6px; text-align: center; font-size: 11px; font-weight: bold; font-family:'Oswald'; color: #000; }
+        .hc-body { padding: 10px; display: flex; align-items: center; gap: 10px; }
+        .hc-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #334155; background: #000; object-fit: cover; }
         .hc-info { overflow: hidden; }
         .hc-name { color: #fff; font-weight: bold; font-size: 13px; font-family:'Oswald'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .hc-meta { color: #94a3b8; font-size: 11px; }
 
-        /* LISTA COMPACTA (Tabela) */
         .list-row {
             display: flex; align-items: center; justify-content: space-between;
             background: rgba(30, 41, 59, 0.4); border-bottom: 1px solid #334155;
             padding: 6px 10px; margin-bottom: 2px; border-radius: 4px;
         }
-        .list-row:hover { background: rgba(30, 41, 59, 0.8); }
         .lr-left { display: flex; align-items: center; gap: 8px; }
-        .lr-img { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #475569; }
-        .lr-name { font-size: 12px; color: #e2e8f0; font-weight: 600; }
-        .lr-desc { font-size: 10px; color: #64748b; }
+        .lr-img { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #475569; object-fit: cover; }
+        .lr-name { font-size: 13px; color: #e2e8f0; font-weight: 600; }
         .lr-badge { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; min-width: 50px; text-align: center; }
         
-        /* CORES DE STATUS */
         .s-out { background: #ef4444; color: white; }
         .s-gtd { background: #f97316; color: white; }
-        .s-day { background: #eab308; color: black; }
-        .s-txt-out { color: #ef4444; } .s-bg-out { background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; }
-        .s-txt-gtd { color: #f97316; } .s-bg-gtd { background: rgba(249, 115, 22, 0.1); border-left: 3px solid #f97316; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="bio-title">🚑 BIO-MONITOR <span style="color:#ef4444">(OFFICIAL)</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="bio-sub">Cruzamento de dados L5 + Injury Report Oficial.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 BIO-MONITOR <span style="font-size:14px; color:#ef4444">LIVE</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 2. UTILITÁRIOS DE DADOS ---
-    def clean_key(text):
-        """Transforma 'Josh Giddey' em 'JOSHGIDDEY' para matching infalível."""
+    # --- 2. PREPARAÇÃO DO DATABASE (O SEGREDO) ---
+    def normalize_key(text):
         if not text: return ""
-        try:
-            # Remove acentos e força uppercase
-            t = str(text).upper()
-            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-            # Remove tudo que não é letra ou número (espaços, pontos, hífens)
-            return re.sub(r'[^A-Z0-9]', '', t)
-        except: return ""
+        t = str(text).upper().strip()
+        t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+        return re.sub(r'[^A-Z0-9]', '', t)
 
-    def find_col(columns, candidates):
-        """Encontra o nome real da coluna baseado em candidatos."""
-        upper_cols = [c.upper() for c in columns]
-        for cand in candidates:
-            if cand in upper_cols:
-                return columns[upper_cols.index(cand)]
-            # Tenta contains
-            for c in upper_cols:
-                if cand in c: return columns[upper_cols.index(c)]
-        return None
-
-    # --- 3. INGESTÃO DO MASTER DB (L5) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    MASTER_DB = {} # Chave Limpa -> Dados Oficiais
     
+    # Dicionário de DNA: Chave Normalizada -> {ID, Time, Min}
+    DNA_DB = {}
+
     if df_l5.empty:
-        st.error("❌ Base de Dados L5 Vazia. Vá em Configurações e Atualize.")
-        return
+        st.warning("⚠️ Base L5 vazia. Impossível recuperar fotos.")
     else:
-        # Mapeamento Dinâmico de Colunas
-        cols = df_l5.columns
-        c_name = find_col(cols, ['PLAYER', 'NAME', 'PLAYER_NAME'])
-        c_team = find_col(cols, ['TEAM', 'TEAM_ABBREVIATION'])
-        c_min = find_col(cols, ['MIN', 'MINUTES', 'AVG_MIN'])
-        c_id = find_col(cols, ['PLAYER_ID', 'ID'])
+        # Mapeamento Dinâmico de Colunas (O CORRETOR)
+        cols = [c.upper() for c in df_l5.columns]
+        df_l5.columns = cols
+        
+        # Procura colunas com regex para garantir acerto
+        c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER_NAME')
+        # Tenta pegar TEAM_ABBREVIATION primeiro, depois TEAM_NAME, depois TEAM
+        c_team = next((c for c in cols if 'ABBREVIATION' in c), None)
+        if not c_team: c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+        
+        c_id = next((c for c in cols if 'PLAYER' in c and 'ID' in c), 'PLAYER_ID')
+        c_min = next((c for c in cols if 'MIN' in c), 'MIN')
 
-        if not c_name or not c_team:
-            st.error(f"❌ Colunas críticas não encontradas no L5. Detalhes: {list(cols)}")
-            return
-
-        count_loaded = 0
         for _, row in df_l5.iterrows():
             try:
-                raw_name = str(row[c_name])
-                key = clean_key(raw_name)
+                raw_name = str(row.get(c_name, ''))
+                key = normalize_key(raw_name)
                 
-                # Validação de ID e Minutos
-                pid = row[c_id] if c_id else 0
-                try: pid = int(pid)
-                except: pid = 0
+                # Tratamento rigoroso do ID (DNA)
+                raw_id = row.get(c_id, 0)
+                pid = int(float(raw_id)) if raw_id else 0
                 
-                mins = row[c_min] if c_min else 0
-                try: mins = float(mins)
-                except: mins = 0.0
-
-                team = str(row[c_team]).upper().strip()
+                # Tratamento do Time
+                team = str(row.get(c_team, 'UNK')).upper().strip()
+                
+                mins = float(row.get(c_min, 0))
                 
                 if key:
-                    MASTER_DB[key] = {
+                    DNA_DB[key] = {
                         "name": raw_name,
                         "team": team,
                         "id": pid,
                         "min": mins,
                         "impact": 2 if mins >= 28 else (1 if mins >= 18 else 0)
                     }
-                    count_loaded += 1
             except: continue
-        
-        # st.caption(f"Debug: {count_loaded} jogadores carregados no Master DB.")
 
-    # --- 4. PARSER RECURSIVO (INJURIES) ---
+    # --- 3. LEITURA DE LESÕES ---
     injuries_list = []
-    # Tenta chaves comuns do Supabase
+    # Tenta chaves comuns
     raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
     
     if raw_data:
-        # Função recursiva para achar listas de jogadores em qualquer estrutura JSON
-        def extract_players(data):
-            found = []
-            if isinstance(data, list):
-                # Se for lista de dicts com 'player' ou 'name'
-                if data and isinstance(data[0], dict) and ('player' in data[0] or 'name' in data[0]):
-                    return data
-                # Se não, entra em cada item
-                for item in data: found.extend(extract_players(item))
-            elif isinstance(data, dict):
-                # Se tiver chave 'teams', prioriza
-                if 'teams' in data and isinstance(data['teams'], dict):
-                    for t, pl in data['teams'].items():
-                        if isinstance(pl, list):
-                            for p in pl: 
-                                p['_hint_team'] = t # Guarda a chave como dica de time
-                                found.append(p)
-                # Se não, varre valores
+        # Parser Genérico
+        stack = [raw_data]
+        while stack:
+            curr = stack.pop()
+            if isinstance(curr, list):
+                # Se achou lista de objetos com 'player', é isso
+                if curr and isinstance(curr[0], dict) and ('player' in curr[0] or 'name' in curr[0]):
+                    injuries_list.extend(curr)
                 else:
-                    for k, v in data.items():
-                        # Se a chave parece um time (3 letras), usa como dica
-                        is_team_key = len(k) <= 3 and k.isupper()
-                        res = extract_players(v)
-                        if res and is_team_key:
-                            for p in res: p['_hint_team'] = k
-                        found.extend(res)
-            return found
-
-        injuries_list = extract_players(raw_data)
+                    for x in curr: stack.append(x)
+            elif isinstance(curr, dict):
+                for k, v in curr.items():
+                    # Se chave é time (LAL), propaga
+                    if isinstance(v, list) and len(k) <= 3:
+                        for p in v: 
+                            if isinstance(p, dict): p['_src_tm'] = k
+                    stack.append(v)
 
     if not injuries_list:
-        st.info("ℹ️ Nenhuma lesão reportada ou falha na leitura do Supabase.")
+        st.info("ℹ️ Nenhuma lesão reportada.")
         return
 
-    # --- 5. MOTOR DE RECONCILIAÇÃO (MATCHING) ---
+    # --- 4. O GRANDE ENCONTRO (MATCHING) ---
     final_roster = []
     
     for p in injuries_list:
-        # Pega nome cru
         p_name = p.get('player') or p.get('name') or "Unknown"
-        key_inj = clean_key(p_name)
+        key_inj = normalize_key(p_name)
         
-        # Pega dica de time
-        hint_team = str(p.get('_hint_team') or p.get('team') or p.get('team_code') or "").upper()
+        src_team = str(p.get('_src_tm') or p.get('team') or p.get('team_code') or "UNK").upper()
+        if len(src_team) > 3: src_team = "UNK"
+
+        # Tenta Match no DNA_DB
+        match = DNA_DB.get(key_inj)
         
-        # 1. TENTA MATCH EXATO NO DB (PREFERIDO)
-        # Se 'JoshGiddey' está no DB, usamos os dados do DB (Time, ID, Foto)
-        match = MASTER_DB.get(key_inj)
-        
-        # 2. SE FALHAR, TENTA MATCH PARCIAL (LAST RESORT)
-        if not match:
-            # Tenta encontrar sobrenome no DB
-            for k, v in MASTER_DB.items():
-                if key_inj in k and (not hint_team or v['team'] == hint_team):
+        # Se falhar, tenta match por sobrenome dentro do mesmo time
+        if not match and src_team != "UNK":
+            parts = key_inj.replace(src_team, "").strip() # Remove time do nome se tiver
+            for k, v in DNA_DB.items():
+                if parts in k and v['team'] == src_team:
                     match = v
                     break
 
-        # 3. CONSOLIDAÇÃO
         if match:
-            # Dados Oficiais (Sobrescrevem o JSON de lesão que pode estar ruim)
-            final_name = match['name']
-            final_team = match['team'] # Adeus "NONE"
-            final_id = match['id']     # Adeus Foto Quebrada
-            final_min = match['min']
-            final_impact = match['impact']
+            # SUCESSO: Usa ID e Time do Banco Oficial
+            f_name = match['name']
+            f_team = match['team']
+            f_id = match['id']
+            f_min = match['min']
+            f_impact = match['impact']
         else:
-            # Fallback (Dados ruins são melhores que nada)
-            final_name = p_name
-            final_team = hint_team if hint_team and len(hint_team) <= 3 else "UNK"
-            final_id = 0
-            final_min = 0.0
-            final_impact = 0
+            # FALHA: Usa dados crus (Sem foto)
+            f_name = p_name
+            f_team = src_team
+            f_id = 0
+            f_min = 0
+            f_impact = 0
 
         # Status
         st_raw = str(p.get('status', '')).upper()
-        if "OUT" in st_raw: status = "OUT"
-        elif any(x in st_raw for x in ["GTD", "QUEST", "DOUBT"]): status = "GTD"
-        elif "DAY" in st_raw: status = "DTD"
-        else: status = "INFO"
-        
-        # Filtro de Ativos
+        if "OUT" in st_raw: st_code = "OUT"
+        elif any(x in st_raw for x in ["GTD", "QUEST", "DOUBT"]): st_code = "GTD"
+        elif "DAY" in st_raw: st_code = "DTD"
+        else: st_code = "INFO"
+
         if "ACTIVE" in st_raw and "NOT" not in st_raw: continue
 
         final_roster.append({
-            "name": final_name,
-            "team": final_team,
-            "id": final_id,
-            "min": final_min,
-            "impact": final_impact,
-            "status": status,
+            "name": f_name, "team": f_team, "id": f_id, 
+            "min": f_min, "impact": f_impact, "status": st_code,
             "desc": p.get('description') or p.get('details') or ""
         })
 
-    # --- 6. RENDERIZAÇÃO BLINDADA ---
+    # --- 5. RENDERIZAÇÃO ---
     
-    # A. HOSPITAL WARD (Estrelas)
-    # Filtro rígido: Impacto 2 (Estrela) + (OUT ou GTD)
+    # A. HERO (Estrelas Críticas)
     ward = [p for p in final_roster if p['impact'] == 2 and p['status'] in ['OUT', 'GTD']]
     
     if ward:
-        st.markdown(f"#### 🚨 HOSPITAL WARD ({len(ward)} Estrelas)")
+        st.error(f"🚨 **HOSPITAL WARD ({len(ward)} Estrelas Fora)**")
         cols = st.columns(4)
         for i, p in enumerate(ward):
             with cols[i % 4]:
-                # Cores do Card
                 color = "#ef4444" if p['status'] == "OUT" else "#f97316"
-                bg_col = "#7f1d1d" if p['status'] == "OUT" else "#7c2d12"
-                
-                # HTML Card Seguro
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
                 
                 st.markdown(f"""
-                <div class="hosp-card" style="border-color: {color};">
-                    <div class="hc-header" style="background: {color};">{p['status']}</div>
+                <div class="hosp-card" style="border-color:{color}">
+                    <div class="hc-header" style="background:{color}; color:white;">{p['status']}</div>
                     <div class="hc-body">
-                        <img src="{photo}" class="hc-img">
+                        <img src="{photo}" class="hc-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                         <div class="hc-info">
                             <div class="hc-name">{p['name']}</div>
-                            <div class="hc-meta">{p['team']} • {p['min']:.1f} MP</div>
+                            <div class="hc-meta">{p['team']}</div>
                         </div>
                     </div>
                 </div>
@@ -7099,60 +7044,51 @@ def show_depto_medico():
 
     st.divider()
 
-    # B. LISTA GERAL POR TIME
-    # Agrupa
+    # B. LISTA GERAL
     teams_dict = {}
     for p in final_roster:
-        # Se mesmo com tudo isso o time for UNK, joga pro fim
-        t = p['team'] if p['team'] != "NONE" else "UNK"
-        if t not in teams_dict: teams_dict[t] = []
-        teams_dict[t].append(p)
-    
-    # Ordena
+        if p['team'] not in teams_dict: teams_dict[p['team']] = []
+        teams_dict[p['team']].append(p)
+        
     sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
 
-    cols_main = st.columns(2)
+    cols = st.columns(2)
     for idx, (tm, players) in enumerate(sorted_teams):
-        if tm == "UNK": continue 
-
-        with cols_main[idx % 2]:
+        if tm == "UNK": continue
+        
+        with cols[idx % 2]:
             imp_total = sum(p['impact'] for p in players)
-            
-            # Header
-            if imp_total >= 3: h_col = "#ef4444"
-            elif imp_total >= 1: h_col = "#eab308"
-            else: h_col = "#475569"
+            color = "#ef4444" if imp_total >= 3 else "#3b82f6"
             
             st.markdown(f"""
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid {h_col}; margin-bottom:10px; padding-bottom:4px;">
+            <div style="border-bottom:2px solid {color}; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-family:'Oswald'; font-size:18px; color:white;">{tm}</span>
-                <span style="font-size:10px; background:{h_col}30; color:{h_col}; padding:2px 6px; border-radius:4px; font-weight:bold;">IMP: {imp_total}</span>
+                <span style="font-size:10px; background:{color}30; color:{color}; padding:2px 6px; border-radius:4px;">IMP: {imp_total}</span>
             </div>
             """, unsafe_allow_html=True)
 
             players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
 
             for p in players:
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p['id'])}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
                 
-                # Estilo Linha
-                s = p['status']
-                if s == "OUT": cls_row = "s-bg-out"; txt_cls = "s-txt-out"; badge_bg = "#ef4444"
-                elif s == "GTD": cls_row = "s-bg-gtd"; txt_cls = "s-txt-gtd"; badge_bg = "#f97316"
-                else: cls_row = ""; txt_cls = "s-txt-day"; badge_bg = "#eab308"
-
-                desc = p['desc'][:50] + "..." if len(p['desc']) > 50 else p['desc']
+                if p['status'] == "OUT": cls_badge = "s-out"
+                elif p['status'] == "GTD": cls_badge = "s-gtd"
+                else: cls_badge = ""
+                bg_badge = "#eab308" if not cls_badge else ""
+                
+                desc_short = p['desc'][:45] + "..." if len(p['desc']) > 45 else p['desc']
 
                 st.markdown(f"""
-                <div class="list-row {cls_row}">
+                <div class="list-row">
                     <div class="lr-left">
-                        <img src="{photo}" class="lr-img">
+                        <img src="{photo}" class="lr-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                         <div>
-                            <div class="lr-name {txt_cls}">{p['name']}</div>
-                            <div class="lr-desc">{desc}</div>
+                            <div class="lr-name">{p['name']}</div>
+                            <div class="lr-desc" style="color:#94a3b8;">{desc_short}</div>
                         </div>
                     </div>
-                    <div class="lr-badge" style="background:{badge_bg}30; color:{badge_bg}; border:1px solid {badge_bg};">{s}</div>
+                    <div class="lr-badge {cls_badge}" style="background-color:{bg_badge if not cls_badge else ''}">{p['status']}</div>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -8002,6 +7938,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
