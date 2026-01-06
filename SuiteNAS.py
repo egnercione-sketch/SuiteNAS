@@ -1820,49 +1820,66 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (V12 - FINAL POLISH)
+# PÁGINA: TRINITY CLUB (V13 - NEON EDITION & PHOTO FORCE)
 # ============================================================================
 def show_trinity_club_page():
     import os
     import pandas as pd
     import streamlit as st
     import re
+    import unicodedata
 
-    # --- 1. CSS PREMIUM (ESTILIZA O CONTAINER NATIVO) ---
+    # --- 1. CSS VISUAL (NEON & COLORS) ---
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* Estiliza o Container com Borda do Streamlit */
+        /* Container Card */
         [data-testid="stVerticalBlockBorderWrapper"] {
             border: 1px solid #334155 !important;
-            background-color: #1e293b !important;
-            border-radius: 8px !important;
-            padding: 15px !important;
-            margin-bottom: 10px !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            background-color: #0f172a !important; /* Fundo mais escuro para contraste */
+            border-radius: 12px !important;
+            padding: 12px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
-        /* Títulos e Textos */
-        .trin-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; margin-bottom: 4px; }
+        /* Identidade Jogador */
+        .trin-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .trin-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
         
-        /* Stats Chips */
+        /* HEADERS DE COLUNA (O BOOM QUE VOCÊ PEDIU) */
+        .col-header {
+            text-align: center; font-family: 'Oswald'; font-size: 12px; font-weight: bold;
+            padding: 4px; border-radius: 4px; margin-bottom: 8px; letter-spacing: 1px;
+        }
+        .head-l5 { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.2); }
+        .head-l10 { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid #eab308; box-shadow: 0 0 8px rgba(234, 179, 8, 0.2); }
+        .head-l15 { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6; box-shadow: 0 0 8px rgba(59, 130, 246, 0.2); }
+
+        /* STATS BOX COLORIDA */
         .stat-box { 
             text-align: center; 
-            background: rgba(15, 23, 42, 0.6); 
+            background: rgba(30, 41, 59, 0.5); 
             border-radius: 6px; 
-            padding: 6px; 
+            padding: 5px; 
             border: 1px solid #334155;
+            margin-bottom: 4px;
         }
-        .stat-val { font-family: 'Oswald'; font-size: 18px; color: #D4AF37; font-weight: bold; line-height: 1; }
-        .stat-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+        .stat-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; line-height: 1; }
+        .stat-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: 600; }
         
+        /* Cores Específicas por Stat */
+        .color-pts { color: #fbbf24; text-shadow: 0 0 5px rgba(251, 191, 36, 0.3); } /* Ouro */
+        .color-reb { color: #f87171; text-shadow: 0 0 5px rgba(248, 113, 113, 0.3); } /* Vermelho */
+        .color-ast { color: #60a5fa; text-shadow: 0 0 5px rgba(96, 165, 250, 0.3); } /* Azul */
+        .color-def { color: #e2e8f0; } /* Padrão */
+
         /* Footer Info */
         .footer-info {
             font-size: 10px; color: #64748b; margin-top: 8px; 
             padding-top: 6px; border-top: 1px dashed #334155;
-            display: flex; gap: 12px;
+            display: flex; gap: 12px; font-family: 'Inter';
         }
         .f-val { color: #10b981; font-weight: bold; }
     </style>
@@ -1870,7 +1887,7 @@ def show_trinity_club_page():
 
     st.markdown("## 🏆 Trinity Club")
     
-    # --- 2. CARREGAMENTO E FOTOS (LÓGICA MOMENTUM) ---
+    # --- 2. CARREGAMENTO E FOTOS (LÓGICA BLINDADA) ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
@@ -1878,50 +1895,66 @@ def show_trinity_club_page():
         st.warning("Aguardando dados...")
         return
 
-    # MAPA DE FOTOS ROBUSTO
+    # MAPA DE FOTOS (O MESMO DA ABA MOMENTUM)
+    # Estrutura: { "JOSHGIDDEY": 12345, "GIDDEY_CHI": 12345 }
     PHOTO_DB = {} 
     
+    def clean_key(text):
+        """Limpa string para chave de dicionário (ex: JOSHGIDDEY)"""
+        if not text: return ""
+        try:
+            t = str(text).upper().strip()
+            # Remove acentos e caracteres especiais
+            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z]', '', t)
+        except: return ""
+
     if not df_l5.empty:
         try:
-            # Normaliza colunas
+            # Normaliza colunas para evitar erro de Key
             df_l5.columns = [c.upper().strip() for c in df_l5.columns]
             cols = df_l5.columns
             
+            # Encontra colunas cruciais
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
             c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
 
             for _, row in df_l5.iterrows():
                 try:
-                    # Extração segura de ID
-                    raw_id = row.get(c_id, 0)
-                    pid = int(float(raw_id))
+                    # EXTRAÇÃO DE ID (CRÍTICO: int(float()))
+                    val_id = row.get(c_id, 0)
+                    pid = int(float(val_id)) 
                     
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        # Chave Limpa: JOSHGIDDEY
-                        key = re.sub(r'[^A-Z]', '', raw_name.upper())
-                        team = str(row.get(c_team, 'UNK')).upper()
+                        key = clean_key(raw_name) # Ex: LEBRONJAMES
+                        team = str(row.get(c_team, 'UNK')).upper().strip()
                         
-                        data = {'id': pid, 'team': team}
-                        PHOTO_DB[key] = data
+                        # Salva Chave Completa
+                        PHOTO_DB[key] = {'id': pid, 'team': team}
                         
-                        # Fallback Sobrenome (ex: Giddey)
+                        # Salva Chave Sobrenome + Time (Ex: JAMES_LAL)
                         parts = raw_name.split()
                         if len(parts) > 1:
-                            lname = re.sub(r'[^A-Z]', '', parts[-1].upper())
-                            if lname not in PHOTO_DB: PHOTO_DB[lname] = data
+                            lname = clean_key(parts[-1])
+                            key_sec = f"{lname}_{team}"
+                            if key_sec not in PHOTO_DB: PHOTO_DB[key_sec] = {'id': pid, 'team': team}
+                            
+                            # Salva só Sobrenome (Fallback perigoso mas útil)
+                            if lname not in PHOTO_DB: PHOTO_DB[lname] = {'id': pid, 'team': team}
+                            
                 except: continue
         except: pass
 
-    # --- 3. EXECUÇÃO DA ENGINE ---
+    # --- 3. ENGINE TRIPLE SCAN ---
     engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
     
     res_l5 = engine.scan_market(window=5)
     res_l10 = engine.scan_market(window=10)
     res_l15 = engine.scan_market(window=15)
 
-    # Consolidação: Games -> Players -> Windows
+    # Consolidação
     games_dict = {}
 
     def consolidate(results, label):
@@ -1941,11 +1974,10 @@ def show_trinity_club_page():
         st.info("Nenhum padrão encontrado hoje.")
         return
 
-    # --- 4. RENDERIZAÇÃO ---
+    # --- 4. RENDERIZAÇÃO (V13) ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
 
     for game_name, players in games_dict.items():
-        # Header do Jogo
         st.markdown(f"""
         <div style="font-family:'Oswald'; font-size:18px; color:#F8FAFC; border-left:4px solid #D4AF37; padding-left:10px; margin-top:25px; margin-bottom:10px;">
             🏀 {game_name}
@@ -1955,51 +1987,60 @@ def show_trinity_club_page():
         for p_name, data in players.items():
             meta = data['meta']
             
-            # Recupera Foto e Time Real
-            clean_key = re.sub(r'[^A-Z]', '', p_name.upper())
-            db_data = PHOTO_DB.get(clean_key)
+            # --- CAÇA À FOTO ---
+            key_inj = clean_key(p_name)
+            tm_inj = str(meta['team']).upper()
             
-            # Se falhar exato, tenta conter
-            if not db_data:
-                for k, v in PHOTO_DB.items():
-                    if clean_key in k: 
-                        db_data = v
-                        break
+            # 1. Match Exato
+            match = PHOTO_DB.get(key_inj)
             
-            pid = db_data['id'] if db_data else 0
-            # Se o time for UNK, tenta pegar do PHOTO_DB, senao usa o meta
-            real_team = db_data['team'] if db_data else meta['team']
-            if len(real_team) > 3: real_team = "UNK" # Proteção contra erro de string
+            # 2. Match Sobrenome + Time
+            if not match:
+                parts = p_name.split()
+                if len(parts) > 1:
+                    lname = clean_key(parts[-1])
+                    key_sec = f"{lname}_{tm_inj}"
+                    match = PHOTO_DB.get(key_sec)
+            
+            # 3. Match Sobrenome (Desespero)
+            if not match and len(parts) > 1:
+                match = PHOTO_DB.get(clean_key(parts[-1]))
 
-            # URLs
+            # Define ID e URL
+            pid = match['id'] if match else 0
+            # Se achou no DB, usa o time do DB, senão usa o da lesão
+            real_team = match['team'] if match else tm_inj
+            
             photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             
-            tm_logo = real_team.lower()
-            if tm_logo == "uta": tm_logo = "utah"
-            elif tm_logo == "nop": tm_logo = "no"
-            elif tm_logo == "phx": tm_logo = "pho"
-            elif tm_logo == "was": tm_logo = "wsh"
-            logo_url = f"{logo_base}/{tm_logo}.png"
+            # Logo Time
+            tm_low = real_team.lower()
+            # Mapeamento ESPN
+            if tm_low == "uta": tm_low = "utah"
+            elif tm_low == "nop": tm_low = "no"
+            elif tm_low == "phx": tm_low = "pho"
+            elif tm_low == "was": tm_low = "wsh"
+            logo_url = f"{logo_base}/{tm_low}.png"
 
-            # === CONTAINER NATIVO (COM BORDA CSS) ===
+            # === CONTAINER CARD ===
             with st.container(border=True):
-                c1, c2, c3, c4, c5 = st.columns([1.2, 2.8, 2, 2, 2])
+                # Colunas: [Foto 1.5] [Info 2.5] [L5 2] [L10 2] [L15 2]
+                c1, c2, c3, c4, c5 = st.columns([1.3, 2.7, 2, 2, 2])
                 
                 # C1: Foto
                 with c1:
                     st.image(photo_url, use_container_width=True)
                 
-                # C2: Identidade + Footer
+                # C2: Identidade
                 with c2:
                     st.markdown(f'<div class="trin-name">{p_name}</div>', unsafe_allow_html=True)
                     st.markdown(f"""
                     <div class="trin-meta">
-                        <img src="{logo_url}" width="16" style="vertical-align:middle"> 
+                        <img src="{logo_url}" width="18" style="vertical-align:middle; margin-right:4px;"> 
                         <b>{real_team}</b> vs {meta['opp']}
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Rodapé de Contexto (Recuperado!)
                     floors = meta['floors']
                     st.markdown(f"""
                     <div class="footer-info">
@@ -2009,26 +2050,32 @@ def show_trinity_club_page():
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Helper de Stats
-                def render_stat_col(col, title, items):
+                # Função Helper para Stats Coloridos
+                def render_col(col, title, css_class, items):
                     with col:
-                        st.caption(title)
+                        st.markdown(f'<div class="col-header {css_class}">{title}</div>', unsafe_allow_html=True)
                         if not items:
-                            st.markdown("<span style='color:#475569; font-size:20px;'>-</span>", unsafe_allow_html=True)
+                            st.markdown("<div style='text-align:center; color:#334155; font-size:20px;'>-</div>", unsafe_allow_html=True)
                         else:
                             for item in items:
+                                s_txt = item['stat']
+                                # Define cor baseada no stat
+                                if 'PTS' in s_txt: c_cls = "color-pts"
+                                elif 'REB' in s_txt: c_cls = "color-reb"
+                                elif 'AST' in s_txt: c_cls = "color-ast"
+                                else: c_cls = "color-def"
+                                
                                 st.markdown(f"""
                                 <div class="stat-box">
-                                    <div class="stat-val">{item['line']}+</div>
-                                    <div class="stat-lbl">{item['stat']}</div>
+                                    <div class="stat-val {c_cls}">{item['line']}+</div>
+                                    <div class="stat-lbl">{s_txt}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
 
-                # C3, C4, C5: As colunas de tempo
-                render_stat_col(c3, "🔥 L5", data['L5'])
-                render_stat_col(c4, "⚖️ L10", data['L10'])
-                render_stat_col(c5, "🏛️ L15", data['L15'])
-
+                # C3, C4, C5: Colunas Temporais (Com Badges Neon)
+                render_col(c3, "🔥 L5", "head-l5", data['L5'])
+                render_col(c4, "⚖️ L10", "head-l10", data['L10'])
+                render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
 # PÁGINA: NEXUS PAGE
@@ -8099,6 +8146,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
