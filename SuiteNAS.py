@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V60.0 - REVERSE LOOKUP)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V61.0 - PHOTO HUNTER)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6874,7 +6874,7 @@ def show_depto_medico():
             background: rgba(30, 41, 59, 0.4); border-bottom: 1px solid #334155;
             padding: 6px 10px; margin-bottom: 2px; border-radius: 4px;
         }
-        .lr-left { display: flex; align-items: center; gap: 10px; } /* Ajustei gap para a foto não colar */
+        .lr-left { display: flex; align-items: center; gap: 10px; }
         .lr-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #475569; object-fit: cover; background: #000; }
         .lr-name { font-size: 13px; color: #e2e8f0; font-weight: 600; }
         .lr-badge { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; min-width: 50px; text-align: center; }
@@ -6886,25 +6886,38 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 BIO-MONITOR <span style="font-size:14px; color:#ef4444">LIVE</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 2. UTILITÁRIOS DE LIMPEZA ---
+    # --- 2. UTILITÁRIOS DE DADOS ---
     def clean_key(text):
+        """Remove espaços e pontuação para criar chave de busca (ex: JOSHGIDDEY)."""
         if not text: return ""
-        t = str(text).upper().strip()
-        t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-        return re.sub(r'[^A-Z]', '', t) # Remove numeros tb, só letras para match de nome
+        try:
+            t = str(text).upper().strip()
+            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z]', '', t)
+        except: return ""
 
-    # --- 3. CRIAÇÃO DO ÍNDICE MESTRE (DO CACHE L5) ---
+    def extract_id(val):
+        """Tenta extrair um ID inteiro de qualquer lixo (string, float, etc)."""
+        try:
+            if pd.isna(val) or val == "": return 0
+            # Se for float (1630.0), converte int. Se for str "1630", converte int.
+            return int(float(str(val).strip()))
+        except: return 0
+
+    # --- 3. INDEXAÇÃO DO BANCO (DF_L5) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # Dicionário: CHAVE_LIMPA -> {DADOS REAIS}
-    PLAYER_INDEX = {}
+    # Índice Principal: ChaveNome -> Dados
+    DB_INDEX = {} 
+    # Índice Secundário: { "CHI": { "GIDDEY": Dados } }
+    TEAM_ROSTER_INDEX = {}
 
     if not df_l5.empty:
         try:
-            # Tenta identificar as colunas cruciais dinamicamente
             cols = [c.upper() for c in df_l5.columns]
             df_l5.columns = cols
             
+            # Busca Colunas com Flexibilidade
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
             c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
@@ -6914,32 +6927,51 @@ def show_depto_medico():
                 real_name = str(row.get(c_name, ''))
                 key = clean_key(real_name)
                 
-                try: pid = int(row.get(c_id, 0))
-                except: pid = 0
+                # Extração de ID blindada
+                pid = extract_id(row.get(c_id, 0))
                 
+                # Extração de Minutos
                 try: mins = float(row.get(c_min, 0))
                 except: mins = 0.0
                 
                 team = str(row.get(c_team, 'UNK')).upper().strip()
                 
-                # Guarda no índice
+                data = {
+                    "real_name": real_name,
+                    "real_id": pid,
+                    "real_team": team,
+                    "real_min": mins,
+                    "impact": 2 if mins >= 28 else (1 if mins >= 18 else 0)
+                }
+                
                 if key:
-                    PLAYER_INDEX[key] = {
-                        "real_name": real_name,
-                        "real_id": pid,
-                        "real_team": team,
-                        "real_min": mins,
-                        "impact": 2 if mins >= 28 else (1 if mins >= 18 else 0)
-                    }
+                    DB_INDEX[key] = data
+                    
+                    # Popula indice por time/sobrenome
+                    parts = key.replace(team, "").strip() # Tenta limpar o nome
+                    # Usa o ultimo nome "GIDDEY" de "JOSHGIDDEY" (Heuristica simples: contem)
+                    
+                    if team not in TEAM_ROSTER_INDEX: TEAM_ROSTER_INDEX[team] = {}
+                    # Salva usando a chave completa no bucket do time
+                    TEAM_ROSTER_INDEX[team][key] = data
+                    
+                    # Salva também só pelo sobrenome (se possível)
+                    parts_orig = real_name.upper().split()
+                    if len(parts_orig) > 1:
+                        lname = clean_key(parts_orig[-1])
+                        # Só salva se não existir ou se esse for o titular (minutos maiores)
+                        if lname not in TEAM_ROSTER_INDEX[team] or mins > TEAM_ROSTER_INDEX[team][lname]['real_min']:
+                            TEAM_ROSTER_INDEX[team][lname] = data
+
         except Exception as e:
             st.error(f"Erro ao indexar L5: {e}")
 
     # --- 4. LEITURA DE LESÕES ---
-    raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
+    # Tenta todas as chaves
+    raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
     injuries_list = []
 
     if raw_data:
-        # Parser "Achatador" de JSON
         stack = [raw_data]
         while stack:
             curr = stack.pop()
@@ -6950,7 +6982,6 @@ def show_depto_medico():
                     stack.extend(curr)
             elif isinstance(curr, dict):
                 for k, v in curr.items():
-                    # Se a chave parece um time (Ex: LAL), passa como dica
                     hint = k if len(k) <= 3 and k.isupper() else None
                     if isinstance(v, list) and hint:
                         for item in v:
@@ -6961,35 +6992,57 @@ def show_depto_medico():
         st.info("ℹ️ Nenhuma lesão reportada.")
         return
 
-    # --- 5. CRUZAMENTO (REVERSE LOOKUP) ---
+    # --- 5. O GRANDE ENCONTRO (MATCHING) ---
     final_roster = []
     
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
         inj_key = clean_key(p_name)
         
-        # BUSCA NO INDICE (AQUI RECUPERAMOS O ID E A FOTO)
-        match = PLAYER_INDEX.get(inj_key)
+        # Tenta pegar a dica de time (LAL, CHI, etc)
+        hint_team = str(p.get('_hint_team') or p.get('team') or p.get('team_code') or "UNK").upper()
+        if len(hint_team) > 3: hint_team = "UNK"
+
+        # --- LÓGICA DE MATCHING ---
+        match = None
         
-        # Fallback: Tenta match parcial se não achou exato (Ex: "Nic Claxton" vs "Nicolas Claxton")
+        # 1. Busca Direta no Índice Global (Nome Completo)
+        if inj_key in DB_INDEX:
+            match = DB_INDEX[inj_key]
+        
+        # 2. Busca no Bucket do Time (Se tivermos a dica do time)
+        if not match and hint_team in TEAM_ROSTER_INDEX:
+            roster = TEAM_ROSTER_INDEX[hint_team]
+            # Tenta achar nome completo no roster desse time
+            if inj_key in roster:
+                match = roster[inj_key]
+            else:
+                # Tenta achar sobrenome
+                parts = p_name.upper().split()
+                if len(parts) > 0:
+                    lname = clean_key(parts[-1])
+                    if lname in roster:
+                        match = roster[lname]
+
+        # 3. Busca Global por "Contém" (Se o time for UNK ou falhar)
         if not match:
-            for k, v in PLAYER_INDEX.items():
-                if inj_key in k or k in inj_key: # Um contem o outro
+            for k, v in DB_INDEX.items():
+                if inj_key in k: # Ex: "JOSHGIDDEY" in "JOSHGIDDEY"
                     match = v
                     break
-        
-        # Consolida Dados
+
+        # --- CONSOLIDAÇÃO ---
         if match:
-            # Temos ID! Temos Foto! Temos Time Certo!
+            # SUCESSO: Temos ID!
             d_name = match['real_name']
             d_team = match['real_team']
             d_id = match['real_id']
             d_min = match['real_min']
             d_impact = match['impact']
         else:
-            # Não achou no banco -> Usa dados brutos (Sem foto)
+            # FALHA: Sem foto
             d_name = p_name
-            d_team = str(p.get('_hint_team') or p.get('team') or "UNK").upper()
+            d_team = hint_team
             d_id = 0
             d_min = 0.0
             d_impact = 0
@@ -7009,9 +7062,9 @@ def show_depto_medico():
             "desc": p.get('description') or p.get('details') or ""
         })
 
-    # --- 6. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO (LAYOUT V60) ---
     
-    # 1. HERO: ESTRELAS (Impacto 2)
+    # 1. HERO: ESTRELAS
     ward = [p for p in final_roster if p['impact'] == 2 and p['status'] in ['OUT', 'GTD']]
     
     if ward:
@@ -7020,10 +7073,8 @@ def show_depto_medico():
         for i, p in enumerate(ward):
             with cols[i % 4]:
                 color = "#ef4444" if p['status'] == "OUT" else "#f97316"
-                # FOTO: Se ID existe, usa URL da NBA. Se não, fallback.
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
-                # Card HTML (Mantido do jeito que você gostou)
                 st.markdown(f"""
                 <div class="hosp-card" style="border-color:{color}">
                     <div class="hc-header" style="background:{color}; color:white;">{p['status']}</div>
@@ -7040,7 +7091,7 @@ def show_depto_medico():
 
     st.divider()
 
-    # 2. LISTA GERAL (Agrupada por Time)
+    # 2. LISTA GERAL
     teams_map = {}
     for p in final_roster:
         t = p['team']
@@ -7049,12 +7100,9 @@ def show_depto_medico():
         
     sorted_teams = sorted(teams_map.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
 
-    # Grid de 2 Colunas para os Times
     cols = st.columns(2)
-    
     for idx, (tm, players) in enumerate(sorted_teams):
-        # Pula time UNK se tivermos conseguido corrigir a maioria
-        if tm == "UNK" or tm == "NONE": continue 
+        if tm == "UNK" or tm == "NONE": continue
         
         with cols[idx % 2]:
             imp_total = sum(p['impact'] for p in players)
@@ -7070,8 +7118,7 @@ def show_depto_medico():
             players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
 
             for p in players:
-                # FOTO PEQUENA (30px)
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
                 if p['status'] == "OUT": cls_badge = "s-out"
                 elif p['status'] == "GTD": cls_badge = "s-gtd"
@@ -7939,6 +7986,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
