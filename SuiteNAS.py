@@ -1820,796 +1820,476 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (REDESIGN - NBA VISUAL STUDIO)
+# PÁGINA: TRINITY CLUB - SIMPLIFICADA & FUNCIONAL
 # ============================================================================
+
 def show_trinity_club_page():
     import os
     import pandas as pd
     import streamlit as st
-    from datetime import datetime
+    import json
+    # DEBUG: Verificar dados
+st.sidebar.write("📊 DEBUG INFO:")
+st.sidebar.write(f"Logs carregados: {len(full_cache) if full_cache else 0}")
+st.sidebar.write(f"df_l5 shape: {df_l5.shape if not df_l5.empty else 'vazio'}")
+st.sidebar.write(f"Colunas df_l5: {list(df_l5.columns) if not df_l5.empty else []}")
+st.sidebar.write(f"Mapa de fotos: {len(photo_map)} jogadores")
     
-    st.set_page_config(layout="wide")
-    
-    # --- NBA COLOR PALETTE & DESIGN SYSTEM ---
-    NBA_CSS = """
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap');
-        
-        /* NBA DESIGN SYSTEM */
-        :root {
-            --nba-red: #C9082A;
-            --nba-blue: #17408B;
-            --nba-gold: #FFD700;
-            --nba-silver: #C0C0C0;
-            --dark-bg: #0A1428;
-            --card-bg: #1D2B3E;
-            --accent-border: #2A3C5E;
-        }
-        
-        /* GLOBAL STYLING */
-        .stApp {
-            background: linear-gradient(135deg, #0A1428 0%, #1A1A2E 100%);
-            color: white;
-        }
-        
-        /* HEADER SECTION */
-        .nba-header {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 3.5rem;
-            color: var(--nba-gold);
-            text-align: center;
-            letter-spacing: 3px;
-            margin-bottom: 0.5rem;
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-            background: linear-gradient(90deg, var(--nba-red), var(--nba-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .nba-subtitle {
-            font-family: 'Oswald', sans-serif;
-            font-size: 1.2rem;
-            color: #A0AEC0;
-            text-align: center;
-            margin-bottom: 2rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        
-        /* GAME MATCHUP BANNER */
-        .game-banner {
-            background: linear-gradient(90deg, rgba(23, 64, 139, 0.9), rgba(201, 8, 42, 0.9));
-            border-radius: 15px;
-            padding: 15px 25px;
-            margin: 25px 0 15px 0;
-            border: 2px solid var(--nba-gold);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .game-banner::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--nba-gold), var(--nba-silver));
-        }
-        
-        .game-title {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 2.2rem;
-            color: white;
-            margin: 0;
-            letter-spacing: 2px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
-        .game-time {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            color: var(--nba-silver);
-            margin-top: 5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        /* PLAYER CARD - NBA STYLE */
-        .player-card {
-            background: linear-gradient(145deg, #1D2B3E, #16202E);
-            border-radius: 18px;
-            padding: 0;
-            margin-bottom: 25px;
-            border: 2px solid #2A3C5E;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-            transition: all 0.3s ease;
-            overflow: hidden;
-            position: relative;
-            min-height: 240px;
-        }
-        
-        .player-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--nba-gold);
-            box-shadow: 0 12px 30px rgba(201, 8, 42, 0.2);
-        }
-        
-        /* PLAYER PHOTO SECTION - CRITICAL */
-        .photo-container {
-            position: relative;
-            width: 100%;
-            height: 240px;
-            background: linear-gradient(135deg, #0A1428, #1A1A2E);
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 3px solid var(--nba-gold);
-        }
-        
-        .player-photo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top center;
-            transition: transform 0.5s ease;
-        }
-        
-        .player-card:hover .player-photo {
-            transform: scale(1.05);
-        }
-        
-        /* TEAM LOGO OVERLAY */
-        .team-logo-overlay {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            width: 45px;
-            height: 45px;
-            background: white;
-            border-radius: 50%;
-            padding: 3px;
-            border: 2px solid var(--nba-gold);
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .team-logo {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            border-radius: 50%;
-        }
-        
-        /* PLAYER INFO SECTION */
-        .player-info {
-            padding: 20px;
-        }
-        
-        .player-name {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 2rem;
-            color: white;
-            margin: 0 0 5px 0;
-            letter-spacing: 1.5px;
-            line-height: 1;
-        }
-        
-        .player-position {
-            font-family: 'Oswald', sans-serif;
-            font-size: 0.9rem;
-            color: var(--nba-silver);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        /* STATS SECTIONS */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .stat-period {
-            text-align: center;
-            padding: 12px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .stat-period:hover {
-            background: rgba(201, 8, 42, 0.1);
-            border-color: var(--nba-red);
-            transform: translateY(-3px);
-        }
-        
-        .period-label {
-            font-family: 'Oswald', sans-serif;
-            font-size: 0.8rem;
-            color: var(--nba-silver);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .stat-badges {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .stat-badge {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
-            padding: 6px 10px;
-            border-radius: 6px;
-            text-align: center;
-            font-weight: 600;
-        }
-        
-        .badge-double {
-            background: linear-gradient(90deg, rgba(23, 64, 139, 0.3), rgba(23, 64, 139, 0.1));
-            border: 1px solid rgba(23, 64, 139, 0.5);
-            color: #5D8BF4;
-        }
-        
-        .badge-triple {
-            background: linear-gradient(90deg, rgba(201, 8, 42, 0.3), rgba(201, 8, 42, 0.1));
-            border: 1px solid rgba(201, 8, 42, 0.5);
-            color: #FF6B8B;
-        }
-        
-        .stat-value {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 1.5rem;
-            color: var(--nba-gold);
-        }
-        
-        /* METRICS BAR */
-        .metrics-bar {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .metric-item {
-            text-align: center;
-            flex: 1;
-        }
-        
-        .metric-label {
-            font-family: 'Oswald', sans-serif;
-            font-size: 0.7rem;
-            color: #A0AEC0;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .metric-value {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: 1.3rem;
-            color: white;
-            margin-top: 5px;
-        }
-        
-        .metric-good {
-            color: #48BB78;
-        }
-        
-        .metric-neutral {
-            color: #ECC94B;
-        }
-        
-        .metric-bad {
-            color: #F56565;
-        }
-        
-        /* GAME STATUS INDICATORS */
-        .game-status {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 2;
-        }
-        
-        .status-badge {
-            font-family: 'Oswald', sans-serif;
-            font-size: 0.7rem;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .status-live {
-            background: linear-gradient(90deg, #FF0000, #FF6B6B);
-            color: white;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-        
-        .status-upcoming {
-            background: linear-gradient(90deg, #3182CE, #63B3ED);
-            color: white;
-        }
-        
-        /* LOADING STATES */
-        .photo-loading {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, #2D3748 25%, #4A5568 50%, #2D3748 75%);
-            background-size: 200% 100%;
-            animation: loading 1.5s infinite;
-        }
-        
-        @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        
-        /* EMPTY STATE */
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: #A0AEC0;
-            font-family: 'Inter', sans-serif;
-        }
-    </style>
-    """
-    
-    st.markdown(NBA_CSS, unsafe_allow_html=True)
-    
-    # --- NBA HEADER ---
-    st.markdown('<div class="nba-header">TRINITY CLUB</div>', unsafe_allow_html=True)
-    st.markdown('<div class="nba-subtitle">NBA Performance Radar • Double/Triple Barrel Detection</div>', unsafe_allow_html=True)
-    
-    # --- DATA LOADING & PROCESSING ---
-    @st.cache_data
-    def load_player_data():
-        """Load and process player data with photo mapping"""
-        try:
-            # Load L25 cache data
-            full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
-            if not full_cache:
-                return None, pd.DataFrame(), {}
+    # --- 1. CARREGAMENTO DE DADOS SIMPLES ---
+    try:
+        # Tenta carregar os dados
+        logs_path = os.path.join("cache", "real_game_logs.json")
+        if os.path.exists(logs_path):
+            with open(logs_path, 'r') as f:
+                full_cache = json.load(f)
+        else:
+            st.warning(f"Arquivo de logs não encontrado: {logs_path}")
+            return
             
-            # Load L5 data for player photos
-            df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+        df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+        scoreboard = st.session_state.get('scoreboard', [])
+        
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {str(e)}")
+        return
+    
+    # --- 2. MAPEAMENTO DE FOTOS DIRETO ---
+    photo_map = {}
+    if not df_l5.empty:
+        # Procura as colunas PLAYER e PLAYER_ID
+        df_cols_lower = [str(col).lower() for col in df_l5.columns]
+        
+        # Encontra índice das colunas
+        player_col_idx = None
+        id_col_idx = None
+        
+        for i, col in enumerate(df_cols_lower):
+            if 'player' in col and 'id' not in col:
+                player_col_idx = i
+            if 'player' in col and 'id' in col:
+                id_col_idx = i
+        
+        # Se não encontrou, tenta primeiro nomes alternativos
+        if player_col_idx is None:
+            for i, col in enumerate(df_cols_lower):
+                if 'name' in col:
+                    player_col_idx = i
+                    break
+        
+        if player_col_idx is not None and id_col_idx is not None:
+            player_col = df_l5.columns[player_col_idx]
+            id_col = df_l5.columns[id_col_idx]
             
-            # Build robust player ID mapping
-            photo_map = {}
-            if not df_l5.empty:
-                # Normalize column names
-                df_l5.columns = [col.upper().strip() for col in df_l5.columns]
-                
-                # Find key columns
-                player_col = next((c for c in df_l5.columns if 'PLAYER' in c and 'ID' not in c), None)
-                id_col = next((c for c in df_l5.columns if 'PLAYER_ID' in c or ('ID' in c and 'TEAM' not in c)), None)
-                
-                if player_col and id_col:
-                    for _, row in df_l5.iterrows():
-                        try:
-                            player_name = str(row[player_col]).strip().upper()
-                            player_id = int(float(row[id_col])) if pd.notna(row[id_col]) else 0
+            for idx, row in df_l5.iterrows():
+                try:
+                    player_name = str(row[player_col]).strip().upper()
+                    player_id = int(row[id_col]) if pd.notna(row[id_col]) else 0
+                    
+                    if player_id > 0:
+                        # Múltiplas chaves para busca
+                        photo_map[player_name] = player_id
+                        
+                        # Nome simplificado (último nome)
+                        parts = player_name.split()
+                        if len(parts) > 1:
+                            last_name = parts[-1]
+                            photo_map[last_name] = player_id
                             
-                            if player_id > 0:
-                                # Multiple key formats for robust lookup
-                                photo_map[player_name] = player_id
-                                
-                                # Split name for partial matches
-                                name_parts = player_name.split()
-                                if len(name_parts) > 1:
-                                    # Last name only
-                                    photo_map[name_parts[-1]] = player_id
-                                    # First letter + last name (e.g., LJAMES)
-                                    photo_map[name_parts[0][0] + name_parts[-1]] = player_id
-                                    
-                        except:
-                            continue
-            
-            return full_cache, df_l5, photo_map
-            
-        except Exception as e:
-            st.error(f"Error loading data: {str(e)}")
-            return None, pd.DataFrame(), {}
+                except:
+                    continue
     
-    # Load data
-    with st.spinner("Loading NBA data..."):
-        full_cache, df_l5, photo_map = load_player_data()
+    # --- 3. INICIALIZA ENGINE ---
+    engine = TrinityEngine(full_cache, scoreboard)
+    
+    # --- 4. SCAN MULTI-JANELA ---
+    windows = [5, 10, 15]
+    results = {}
+    
+    for window in windows:
+        results[f'L{window}'] = engine.scan_market(window=window)
+    
+    # --- 5. CSS SIMPLES E FUNCIONAL ---
+    st.markdown("""
+    <style>
+    /* CARD CONTAINER */
+    .trinity-card-v2 {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 12px;
+        border: 2px solid #334155;
+        padding: 0;
+        margin: 20px 0;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    /* HEADER DO JOGO */
+    .game-header-v2 {
+        background: linear-gradient(90deg, #1e40af 0%, #7c3aed 100%);
+        color: white;
+        padding: 12px 20px;
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: bold;
+        font-size: 18px;
+        border-bottom: 2px solid #fbbf24;
+    }
+    
+    /* CONTEÚDO DO CARD */
+    .card-content-v2 {
+        padding: 15px;
+        display: flex;
+        gap: 15px;
+    }
+    
+    /* ÁREA DA FOTO */
+    .photo-area-v2 {
+        flex-shrink: 0;
+        width: 120px;
+        height: 120px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 3px solid #475569;
+        background: #000;
+    }
+    
+    .player-photo-v2 {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    /* INFORMAÇÕES DO JOGADOR */
+    .player-info-v2 {
+        flex-grow: 1;
+    }
+    
+    .player-name-v2 {
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 20px;
+        font-weight: bold;
+        color: white;
+        margin: 0 0 5px 0;
+    }
+    
+    .player-meta-v2 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .team-logo-v2 {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .team-name-v2 {
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    
+    /* GRID DE STATS */
+    .stats-grid-v2 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .stat-column-v2 {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 8px;
+        padding: 10px;
+        border: 1px solid #334155;
+    }
+    
+    .stat-header-v2 {
+        text-align: center;
+        font-size: 12px;
+        font-weight: bold;
+        color: #cbd5e1;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .stat-item-v2 {
+        text-align: center;
+        margin: 5px 0;
+    }
+    
+    .stat-value-v2 {
+        font-size: 16px;
+        font-weight: bold;
+        color: #fbbf24;
+    }
+    
+    .stat-label-v2 {
+        font-size: 10px;
+        color: #94a3b8;
+        text-transform: uppercase;
+    }
+    
+    /* METADADOS */
+    .metadata-v2 {
+        display: flex;
+        gap: 15px;
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 1px dashed #475569;
+    }
+    
+    .meta-item-v2 {
+        text-align: center;
+    }
+    
+    .meta-label-v2 {
+        font-size: 10px;
+        color: #94a3b8;
+    }
+    
+    .meta-value-v2 {
+        font-size: 14px;
+        font-weight: bold;
+        color: #10b981;
+    }
+    
+    /* BADGE DE PATTERN */
+    .pattern-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: bold;
+        margin: 2px;
+    }
+    
+    .badge-double {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        border: 1px solid #3b82f6;
+    }
+    
+    .badge-triple {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+        border: 1px solid #ef4444;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # --- 6. TÍTULO DA PÁGINA ---
+    st.markdown("## 🏀 Trinity Club - Performance Patterns")
     
     if not full_cache:
-        st.error("Unable to load game data. Please check your data sources.")
+        st.warning("Dados não disponíveis. Atualize os dados primeiro.")
         return
     
-    # --- ENHANCED TRINITY ENGINE ---
-    class EnhancedTrinityEngine:
-        def __init__(self, game_logs, scoreboard):
-            self.game_logs = game_logs
-            self.scoreboard = scoreboard
-            self.player_stats = self._process_player_stats()
-            
-        def _process_player_stats(self):
-            """Process L25 game logs into player statistics"""
-            stats_dict = {}
-            
-            for game in self.game_logs:
-                for player in game.get('players', []):
-                    player_name = player.get('name', '')
-                    if not player_name:
-                        continue
-                    
-                    if player_name not in stats_dict:
-                        stats_dict[player_name] = {
-                            'team': player.get('team', ''),
-                            'position': player.get('position', ''),
-                            'games': [],
-                            'recent_performance': []
-                        }
-                    
-                    # Add game stats
-                    game_stats = {
-                        'points': player.get('points', 0),
-                        'rebounds': player.get('rebounds', 0),
-                        'assists': player.get('assists', 0),
-                        'steals': player.get('steals', 0),
-                        'blocks': player.get('blocks', 0),
-                        'minutes': player.get('minutes', 0),
-                        'date': game.get('date', '')
-                    }
-                    
-                    stats_dict[player_name]['games'].append(game_stats)
-                    
-                    # Calculate recent performance (last 5 games)
-                    if len(stats_dict[player_name]['games']) >= 5:
-                        recent = stats_dict[player_name]['games'][-5:]
-                        avg_pts = sum(g['points'] for g in recent) / 5
-                        avg_reb = sum(g['rebounds'] for g in recent) / 5
-                        avg_ast = sum(g['assists'] for g in recent) / 5
-                        
-                        stats_dict[player_name]['recent_performance'] = {
-                            'points': avg_pts,
-                            'rebounds': avg_reb,
-                            'assists': avg_ast,
-                            'double_double_chance': self._calculate_double_double_chance(recent),
-                            'triple_double_chance': self._calculate_triple_double_chance(recent)
-                        }
-            
-            return stats_dict
-        
-        def _calculate_double_double_chance(self, recent_games):
-            """Calculate double-double probability based on recent games"""
-            if len(recent_games) < 5:
-                return 0
-            
-            double_doubles = 0
-            for game in recent_games:
-                stats_above_10 = sum(1 for stat in [game['points'], game['rebounds'], game['assists']] if stat >= 10)
-                if stats_above_10 >= 2:
-                    double_doubles += 1
-            
-            return double_doubles / len(recent_games)
-        
-        def _calculate_triple_double_chance(self, recent_games):
-            """Calculate triple-double probability based on recent games"""
-            if len(recent_games) < 5:
-                return 0
-            
-            triple_doubles = 0
-            for game in recent_games:
-                if game['points'] >= 10 and game['rebounds'] >= 10 and game['assists'] >= 10:
-                    triple_doubles += 1
-            
-            return triple_doubles / len(recent_games)
-        
-        def scan_matchups(self, window_sizes=[5, 10, 15]):
-            """Scan for patterns across different windows"""
-            matchups = {}
-            
-            # Group games by matchup
-            for game in self.game_logs:
-                matchup_key = f"{game.get('home_team', '')} vs {game.get('away_team', '')}"
-                if matchup_key not in matchups:
-                    matchups[matchup_key] = {
-                        'home_team': game.get('home_team', ''),
-                        'away_team': game.get('away_team', ''),
-                        'date': game.get('date', ''),
-                        'players': {}
-                    }
-                
-                # Analyze players in this game
-                for player in game.get('players', []):
-                    player_name = player.get('name', '')
-                    if player_name not in matchups[matchup_key]['players']:
-                        matchups[matchup_key]['players'][player_name] = {
-                            'team': player.get('team', ''),
-                            'position': player.get('position', ''),
-                            'patterns': self._analyze_player_patterns(player_name, window_sizes),
-                            'recent_stats': self.player_stats.get(player_name, {}).get('recent_performance', {}),
-                            'photo_id': self._get_player_photo_id(player_name, photo_map)
-                        }
-            
-            return matchups
-        
-        def _analyze_player_patterns(self, player_name, window_sizes):
-            """Analyze player patterns for different windows"""
-            patterns = {}
-            
-            player_data = self.player_stats.get(player_name, {})
-            games = player_data.get('games', [])
-            
-            for window in window_sizes:
-                if len(games) >= window:
-                    recent_games = games[-window:]
-                    patterns[f'L{window}'] = self._detect_barrel_patterns(recent_games, window)
-            
-            return patterns
-        
-        def _detect_barrel_patterns(self, games, window):
-            """Detect double/triple barrel patterns"""
-            patterns = []
-            
-            # Analyze last N games
-            for i, game in enumerate(games[-min(5, len(games)):]):
-                stats = []
-                
-                # Check for double-digit categories
-                if game['points'] >= 20:
-                    stats.append(f"PTS {game['points']}+")
-                if game['rebounds'] >= 10:
-                    stats.append(f"REB {game['rebounds']}+")
-                if game['assists'] >= 10:
-                    stats.append(f"AST {game['assists']}+")
-                if game['steals'] >= 3:
-                    stats.append(f"STL {game['steals']}+")
-                if game['blocks'] >= 3:
-                    stats.append(f"BLK {game['blocks']}+")
-                
-                # Determine pattern type
-                if len(stats) >= 3:
-                    patterns.append({
-                        'type': 'triple',
-                        'stats': stats[:3],
-                        'game_num': len(games) - i
-                    })
-                elif len(stats) >= 2:
-                    patterns.append({
-                        'type': 'double',
-                        'stats': stats[:2],
-                        'game_num': len(games) - i
-                    })
-            
-            return patterns
-        
-        def _get_player_photo_id(self, player_name, photo_map):
-            """Get player photo ID using multiple matching strategies"""
-            # Try exact match
-            player_key = player_name.upper().strip()
-            if player_key in photo_map:
-                return photo_map[player_key]
-            
-            # Try partial matches
-            name_parts = player_key.split()
-            for part in name_parts:
-                if part in photo_map:
-                    return photo_map[part]
-            
-            # Try first initial + last name
-            if len(name_parts) > 1:
-                fl_key = name_parts[0][0] + name_parts[-1]
-                if fl_key in photo_map:
-                    return photo_map[fl_key]
-            
-            return 0
+    # --- 7. AGRUPAR RESULTADOS POR JOGO ---
+    games_dict = {}
     
-    # --- MAIN CONTENT ---
+    for window_label, window_results in results.items():
+        for result in window_results:
+            game_str = result.get('game_str', 'Desconhecido')
+            player_name = result.get('player', '')
+            
+            if game_str not in games_dict:
+                games_dict[game_str] = {}
+            
+            if player_name not in games_dict[game_str]:
+                games_dict[game_str][player_name] = {
+                    'team': result.get('team', ''),
+                    'opp': result.get('opp', ''),
+                    'floors': result.get('floors', {}),
+                    'L5': [],
+                    'L10': [],
+                    'L15': [],
+                    'all_stats': set()
+                }
+            
+            # Adiciona o resultado na janela correspondente
+            if window_label == 'L5':
+                games_dict[game_str][player_name]['L5'].append(result)
+            elif window_label == 'L10':
+                games_dict[game_str][player_name]['L10'].append(result)
+            elif window_label == 'L15':
+                games_dict[game_str][player_name]['L15'].append(result)
+            
+            # Adiciona stat à lista de todos os stats
+            games_dict[game_str][player_name]['all_stats'].add(result.get('stat', ''))
     
-    # Initialize engine
-    engine = EnhancedTrinityEngine(full_cache, st.session_state.get('scoreboard', []))
-    
-    # Get matchups
-    with st.spinner("Analyzing matchups..."):
-        matchups = engine.scan_matchups(window_sizes=[5, 10, 15])
-    
-    if not matchups:
-        st.markdown("""
-        <div class="empty-state">
-            <h3>🏀 No Active Games Found</h3>
-            <p>Check back later for today's matchups and player patterns.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # --- 8. RENDERIZAÇÃO ---
+    if not games_dict:
+        st.info("Nenhum padrão de performance detectado hoje.")
         return
     
-    # Display each matchup
-    for matchup_key, matchup_data in matchups.items():
-        # Game banner
+    for game_str, players in games_dict.items():
+        # Header do jogo
         st.markdown(f"""
-        <div class="game-banner">
-            <div class="game-title">
-                <span>🏀</span>
-                {matchup_data['home_team']} <span style="color:var(--nba-silver);">vs</span> {matchup_data['away_team']}
+        <div class="trinity-card-v2">
+            <div class="game-header-v2">
+                🏀 {game_str}
             </div>
-            <div class="game-time">
-                <span>📅 {matchup_data.get('date', 'Today')}</span>
-            </div>
-        </div>
         """, unsafe_allow_html=True)
         
-        # Get players with patterns
-        players_with_patterns = {}
-        for player_name, player_data in matchup_data['players'].items():
-            if any(player_data['patterns'].values()):
-                players_with_patterns[player_name] = player_data
-        
-        if not players_with_patterns:
-            st.info(f"No significant patterns detected for {matchup_key}")
-            continue
-        
-        # Display player cards in columns
-        players_list = list(players_with_patterns.items())
-        
-        # Sort by pattern strength (triple > double > single)
-        players_list.sort(key=lambda x: (
-            sum(1 for p in x[1]['patterns'].values() if any(item['type'] == 'triple' for item in p)),
-            sum(1 for p in x[1]['patterns'].values() if any(item['type'] == 'double' for item in p)),
-        ), reverse=True)
-        
-        # Display in columns (3 per row)
-        cols_per_row = 3
-        for i in range(0, len(players_list), cols_per_row):
-            cols = st.columns(cols_per_row)
+        for player_name, player_data in players.items():
+            # --- BUSCA DA FOTO ---
+            player_key = player_name.upper().strip()
+            player_id = 0
             
-            for j in range(cols_per_row):
-                if i + j < len(players_list):
-                    player_name, player_data = players_list[i + j]
+            # Tentativa 1: Nome completo
+            if player_key in photo_map:
+                player_id = photo_map[player_key]
+            else:
+                # Tentativa 2: Último nome
+                parts = player_name.split()
+                if len(parts) > 1:
+                    last_name = parts[-1].upper()
+                    if last_name in photo_map:
+                        player_id = photo_map[last_name]
+            
+            # URL da foto
+            if player_id > 0:
+                photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{player_id}.png"
+            else:
+                photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            
+            # Logo do time
+            team_abbr = player_data['team'].upper()
+            logo_map = {
+                'LAL': 'lal', 'GSW': 'gs', 'BOS': 'bos', 'MIA': 'mia',
+                'PHI': 'phi', 'MIL': 'mil', 'DEN': 'den', 'PHX': 'phx',
+                'DAL': 'dal', 'BKN': 'bkn', 'NYK': 'ny', 'CHI': 'chi',
+                'ATL': 'atl', 'LAC': 'lac', 'POR': 'por', 'UTA': 'utah',
+                'MEM': 'mem', 'NOP': 'no', 'SAS': 'sa', 'SAC': 'sac',
+                'ORL': 'orl', 'WAS': 'wsh', 'CHA': 'cha', 'DET': 'det',
+                'HOU': 'hou', 'OKC': 'okc', 'MIN': 'min', 'TOR': 'tor',
+                'CLE': 'cle', 'IND': 'ind'
+            }
+            team_logo = logo_map.get(team_abbr, 'nba')
+            logo_url = f"https://a.espncdn.com/i/teamlogos/nba/500/{team_logo}.png"
+            
+            # Conta patterns
+            def count_patterns(pattern_list):
+                double = sum(1 for p in pattern_list if p.get('line', 0) >= 10)
+                triple = sum(1 for p in pattern_list if p.get('line', 0) >= 15)
+                return double, triple
+            
+            l5_double, l5_triple = count_patterns(player_data['L5'])
+            l10_double, l10_triple = count_patterns(player_data['L10'])
+            l15_double, l15_triple = count_patterns(player_data['L15'])
+            
+            # HTML do card
+            html_card = f"""
+            <div class="card-content-v2">
+                <!-- FOTO -->
+                <div class="photo-area-v2">
+                    <img src="{photo_url}" class="player-photo-v2" 
+                         onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+                </div>
+                
+                <!-- INFORMAÇÕES -->
+                <div class="player-info-v2">
+                    <div class="player-name-v2">{player_name}</div>
+                    <div class="player-meta-v2">
+                        <img src="{logo_url}" class="team-logo-v2">
+                        <span class="team-name-v2">{player_data['team']} vs {player_data['opp']}</span>
+                    </div>
                     
-                    with cols[j]:
-                        # Build player card
-                        photo_id = player_data.get('photo_id', 0)
-                        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{photo_id}.png" if photo_id > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                        
-                        team_abbr = player_data.get('team', '').upper()
-                        team_logo_url = f"https://cdn.nba.com/logos/nba/{team_abbr}/global/L/logo.svg"
-                        
-                        # Get patterns for each window
-                        l5_patterns = player_data['patterns'].get('L5', [])
-                        l10_patterns = player_data['patterns'].get('L10', [])
-                        l15_patterns = player_data['patterns'].get('L15', [])
-                        
-                        # Calculate metrics
-                        recent_stats = player_data.get('recent_stats', {})
-                        form_score = min(100, int((recent_stats.get('points', 0) / 30) * 100))
-                        consistency = int((recent_stats.get('double_double_chance', 0) + recent_stats.get('triple_double_chance', 0)) * 50)
-                        
-                        # Generate card HTML
-                        card_html = f"""
-                        <div class="player-card">
-                            <div class="game-status">
-                                <span class="status-badge status-upcoming">ACTIVE</span>
-                            </div>
-                            
-                            <!-- PHOTO SECTION -->
-                            <div class="photo-container">
-                                <img src="{photo_url}" class="player-photo" 
-                                     onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
-                                <div class="team-logo-overlay">
-                                    <img src="{team_logo_url}" class="team-logo"
-                                         onerror="this.src='https://cdn.nba.com/logos/nba/1610612737/global/L/logo.svg'">
-                                </div>
-                            </div>
-                            
-                            <!-- PLAYER INFO -->
-                            <div class="player-info">
-                                <h3 class="player-name">{player_name}</h3>
-                                <div class="player-position">
-                                    <span>#{player_data.get('position', 'F')}</span>
-                                    <span>•</span>
-                                    <span>{team_abbr}</span>
-                                </div>
-                                
-                                <!-- STATS GRID -->
-                                <div class="stats-grid">
-                                    <!-- L5 -->
-                                    <div class="stat-period">
-                                        <div class="period-label">🔥 L5</div>
-                                        <div class="stat-badges">
-                                            {self._generate_stat_badges(l5_patterns)}
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- L10 -->
-                                    <div class="stat-period">
-                                        <div class="period-label">⚖️ L10</div>
-                                        <div class="stat-badges">
-                                            {self._generate_stat_badges(l10_patterns)}
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- L15 -->
-                                    <div class="stat-period">
-                                        <div class="period-label">🏛️ L15</div>
-                                        <div class="stat-badges">
-                                            {self._generate_stat_badges(l15_patterns)}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- METRICS BAR -->
-                                <div class="metrics-bar">
-                                    <div class="metric-item">
-                                        <div class="metric-label">Form</div>
-                                        <div class="metric-value metric-{'good' if form_score > 60 else 'neutral' if form_score > 40 else 'bad'}">
-                                            {form_score}
-                                        </div>
-                                    </div>
-                                    <div class="metric-item">
-                                        <div class="metric-label">Consistency</div>
-                                        <div class="metric-value metric-{'good' if consistency > 60 else 'neutral' if consistency > 40 else 'bad'}">
-                                            {consistency}%
-                                        </div>
-                                    </div>
-                                    <div class="metric-item">
-                                        <div class="metric-label">DD/TD Chance</div>
-                                        <div class="metric-value">
-                                            {int(recent_stats.get('double_double_chance', 0) * 100)}/{int(recent_stats.get('triple_double_chance', 0) * 100)}%
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <!-- GRID DE STATS -->
+                    <div class="stats-grid-v2">
+                        <!-- L5 -->
+                        <div class="stat-column-v2">
+                            <div class="stat-header-v2">🔥 Últimos 5 Jogos</div>
+                            {self._render_stats_html(player_data['L5'][:3]) if player_data['L5'] else '<div class="stat-item-v2"><span style="color:#64748b;">Sem dados</span></div>'}
+                            {self._render_pattern_badges(l5_double, l5_triple)}
                         </div>
-                        """
                         
-                        st.markdown(card_html, unsafe_allow_html=True)
-    
-    # --- UTILITY FUNCTIONS ---
-    def _generate_stat_badges(patterns):
-        """Generate HTML for stat badges"""
-        if not patterns:
-            return '<div style="color:#718096; font-size:0.8rem;">No patterns</div>'
-        
-        badges_html = ""
-        for pattern in patterns[:3]:  # Show max 3 patterns
-            badge_class = "badge-triple" if pattern['type'] == 'triple' else "badge-double"
+                        <!-- L10 -->
+                        <div class="stat-column-v2">
+                            <div class="stat-header-v2">⚖️ Últimos 10 Jogos</div>
+                            {self._render_stats_html(player_data['L10'][:3]) if player_data['L10'] else '<div class="stat-item-v2"><span style="color:#64748b;">Sem dados</span></div>'}
+                            {self._render_pattern_badges(l10_double, l10_triple)}
+                        </div>
+                        
+                        <!-- L15 -->
+                        <div class="stat-column-v2">
+                            <div class="stat-header-v2">🏛️ Últimos 15 Jogos</div>
+                            {self._render_stats_html(player_data['L15'][:3]) if player_data['L15'] else '<div class="stat-item-v2"><span style="color:#64748b;">Sem dados</span></div>'}
+                            {self._render_pattern_badges(l15_double, l15_triple)}
+                        </div>
+                    </div>
+                    
+                    <!-- METADADOS -->
+                    <div class="metadata-v2">
+                        <div class="meta-item-v2">
+                            <div class="meta-label-v2">Forma</div>
+                            <div class="meta-value-v2">{int(player_data['floors'].get('Form', 0))}</div>
+                        </div>
+                        <div class="meta-item-v2">
+                            <div class="meta-label-v2">Local</div>
+                            <div class="meta-value-v2">{int(player_data['floors'].get('Venue', 0))}</div>
+                        </div>
+                        <div class="meta-item-v2">
+                            <div class="meta-label-v2">H2H</div>
+                            <div class="meta-value-v2">{int(player_data['floors'].get('H2H', 0))}</div>
+                        </div>
+                        <div class="meta-item-v2">
+                            <div class="meta-label-v2">Padrões</div>
+                            <div class="meta-value-v2">{len(player_data['all_stats'])}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """
             
-            for stat in pattern['stats'][:2]:  # Show max 2 stats per pattern
-                badges_html += f'<div class="stat-badge {badge_class}">{stat}</div>'
+            st.markdown(html_card, unsafe_allow_html=True)
         
-        return badges_html
+        # Fechar card do jogo
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# --- FUNÇÕES AUXILIARES ---
+def _render_stats_html(stats_list):
+    """Renderiza HTML para lista de stats"""
+    html = ""
+    for stat in stats_list:
+        stat_name = stat.get('stat', '')
+        stat_line = stat.get('line', 0)
+        stat_color = ''
+        
+        if 'PTS' in stat_name:
+            stat_color = '#fbbf24'
+        elif 'REB' in stat_name:
+            stat_color = '#f87171'
+        elif 'AST' in stat_name:
+            stat_color = '#60a5fa'
+        else:
+            stat_color = '#94a3b8'
+        
+        html += f"""
+        <div class="stat-item-v2">
+            <div class="stat-value-v2" style="color:{stat_color}">{stat_line}+</div>
+            <div class="stat-label-v2">{stat_name}</div>
+        </div>
+        """
     
-    # Attach the helper function to the engine class
-    EnhancedTrinityEngine._generate_stat_badges = staticmethod(_generate_stat_badges)
+    return html if html else '<div class="stat-item-v2"><span style="color:#64748b;">-</span></div>'
+
+def _render_pattern_badges(double_count, triple_count):
+    """Renderiza badges de padrões"""
+    badges = []
+    if triple_count > 0:
+        badges.append(f'<span class="pattern-badge badge-triple">Triple: {triple_count}</span>')
+    if double_count > 0:
+        badges.append(f'<span class="pattern-badge badge-double">Double: {double_count}</span>')
     
-    # --- FOOTER ---
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #718096; font-family: 'Inter'; font-size: 0.8rem; padding: 20px;">
-        <p>🏀 <strong>Trinity Club Analytics</strong> • NBA Performance Patterns Detection</p>
-        <p>Data updates every 15 minutes • Last updated: {}</p>
-    </div>
-    """.format(datetime.now().strftime("%Y-%m-%d %H:%M")), unsafe_allow_html=True)
+    if badges:
+        return f'<div style="margin-top: 5px;">{" ".join(badges)}</div>'
+    return ''
+
+# Adiciona as funções auxiliares à função principal
+show_trinity_club_page._render_stats_html = staticmethod(_render_stats_html)
+show_trinity_club_page._render_pattern_badges = staticmethod(_render_pattern_badges)
 
 # ============================================================================
 # DATA LOADER HELPER (Assumed to exist)
@@ -8723,6 +8403,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
