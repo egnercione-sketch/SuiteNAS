@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timedelta
 from itertools import combinations
 
-# --- Imports de Terceiros ---
+# --- Imports de Terceiros --
 import requests
 import pandas as pd
 import numpy as np
@@ -2053,23 +2053,18 @@ def render_trinity_matchup_view(members, label_suffix="L10", photo_map=None):
 
 
 # ============================================================================
-# PÁGINA PRINCIPAL TRINITY (ATUALIZADA)
+# PÁGINA: TRINITY CLUB (V10 - NATIVE CONSOLIDATED)
 # ============================================================================
 def show_trinity_club_page():
     import os
     import pandas as pd
     import streamlit as st
-    
-    # CSS Específico
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
-    </style>
-    """, unsafe_allow_html=True)
 
+    # --- 1. CONFIGURAÇÃO VISUAL (NATIVA) ---
     st.markdown("## 🏆 Trinity Club (Consistência)")
-    
-    # 1. Carrega Dados
+    st.caption("Análise consolidada de consistência em múltiplos horizontes (L5, L10, L15).")
+
+    # --- 2. CARREGAMENTO DE DADOS ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
@@ -2077,33 +2072,26 @@ def show_trinity_club_page():
         st.warning("Aguardando dados de logs...")
         return
 
-    # 2. Mapa de Fotos (Lógica Momentum - Robustez Float->Int)
+    # --- 3. MAPA DE FOTOS (LÓGICA MOMENTUM - ROBUSTA) ---
     PHOTO_MAP = {}
     if not df_l5.empty:
         try:
-            # Normaliza colunas
             cols = [c.upper().strip() for c in df_l5.columns]
             df_l5.columns = cols
-            
-            # Localiza colunas
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            # Busca ID agressivamente
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
             if not c_id: c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
 
             for _, row in df_l5.iterrows():
                 try:
-                    # Lógica Momentum: int(float(val))
                     raw_id = row.get(c_id, 0)
                     pid = int(float(raw_id)) 
-                    
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        # Chave Limpa
                         key = raw_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
                         PHOTO_MAP[key] = pid
                         
-                        # Fallback Sobrenome (para garantir)
+                        # Fallback Sobrenome
                         parts = raw_name.split()
                         if len(parts) > 1:
                             lname = parts[-1].upper().replace(".", "").strip()
@@ -2111,25 +2099,85 @@ def show_trinity_club_page():
                 except: continue
         except: pass
 
-    # 3. Engine
+    # --- 4. ENGINE & SCANNING (TRIPLO SCAN) ---
     engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
-
-    st.caption("Jogadores agrupados por confronto e consistência.")
-
-    # 4. Abas
-    tab_l5, tab_l10, tab_l15 = st.tabs(["🔥 L5 (Recente)", "⚖️ L10 (Padrão)", "🏛️ L15 (Sólido)"])
     
-    with tab_l5:
-        members = engine.scan_market(window=5)
-        render_trinity_matchup_view(members, "L5", PHOTO_MAP)
+    # Escaneia os 3 horizontes
+    res_l5 = engine.scan_market(window=5)
+    res_l10 = engine.scan_market(window=10)
+    res_l15 = engine.scan_market(window=15)
+
+    # --- 5. CONSOLIDAÇÃO DOS DADOS ---
+    # Estrutura: games_dict[game_str][player_name] = { 'meta': ..., 'L5': [], 'L10': [], 'L15': [] }
+    games_dict = {}
+
+    def add_to_dict(results, label):
+        for r in results:
+            g_str = r['game_str']
+            p_name = r['player']
+            
+            if g_str not in games_dict: games_dict[g_str] = {}
+            if p_name not in games_dict[g_str]: 
+                games_dict[g_str][p_name] = {'meta': r, 'L5': [], 'L10': [], 'L15': []}
+            
+            # Adiciona o stat à lista correspondente (ex: 'PTS' na lista 'L5')
+            games_dict[g_str][p_name][label].append(r)
+
+    add_to_dict(res_l5, 'L5')
+    add_to_dict(res_l10, 'L10')
+    add_to_dict(res_l15, 'L15')
+
+    if not games_dict:
+        st.info("Nenhum padrão de consistência encontrado hoje.")
+        return
+
+    # --- 6. RENDERIZAÇÃO NATIVA ---
+    
+    # Itera sobre Jogos
+    for game_name, players in games_dict.items():
+        st.divider()
+        st.subheader(f"🏀 {game_name}")
         
-    with tab_l10:
-        members = engine.scan_market(window=10)
-        render_trinity_matchup_view(members, "L10", PHOTO_MAP)
-        
-    with tab_l15:
-        members = engine.scan_market(window=15)
-        render_trinity_matchup_view(members, "L15", PHOTO_MAP)
+        # Itera sobre Jogadores
+        for p_name, data in players.items():
+            meta = data['meta']
+            
+            # Busca Foto
+            clean_key = p_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
+            pid = PHOTO_MAP.get(clean_key, 0)
+            # Fallback
+            if pid == 0:
+                parts = p_name.split()
+                if len(parts) > 1: pid = PHOTO_MAP.get(parts[-1].upper().replace(".", "").strip(), 0)
+            
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+            # CARD DO JOGADOR (CONTAINER NATIVO)
+            with st.container(border=True):
+                # Topo: Foto e Nome
+                c_head, c_l5, c_l10, c_l15 = st.columns([1.5, 2, 2, 2])
+                
+                with c_head:
+                    st.image(photo_url, width=60)
+                    st.markdown(f"**{p_name}**")
+                    st.caption(f"{meta['team']}")
+
+                # Função Helper para Renderizar Coluna de Stat
+                def render_stat_col(col, label, stats_list):
+                    with col:
+                        st.markdown(f"**{label}**")
+                        if not stats_list:
+                            st.caption("-")
+                        else:
+                            for s in stats_list:
+                                # Visual Limpo: "20+ PTS" em verde
+                                st.markdown(f":green[**{s['line']}+ {s['stat']}**]")
+                                st.caption(f"Piso: {int(s['score'])}")
+
+                # Renderiza as 3 colunas de tempo
+                render_stat_col(c_l5, "🔥 L5", data['L5'])
+                render_stat_col(c_l10, "⚖️ L10", data['L10'])
+                render_stat_col(c_l15, "🏛️ L15", data['L15'])
         
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - CORRIGIDA)
@@ -8094,6 +8142,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
