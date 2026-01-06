@@ -1829,11 +1829,11 @@ def show_trinity_club_page():
     import streamlit as st
     import json
     # DEBUG: Verificar dados
-st.sidebar.write("📊 DEBUG INFO:")
-st.sidebar.write(f"Logs carregados: {len(full_cache) if full_cache else 0}")
-st.sidebar.write(f"df_l5 shape: {df_l5.shape if not df_l5.empty else 'vazio'}")
-st.sidebar.write(f"Colunas df_l5: {list(df_l5.columns) if not df_l5.empty else []}")
-st.sidebar.write(f"Mapa de fotos: {len(photo_map)} jogadores")
+    st.sidebar.write("📊 DEBUG INFO:")
+    st.sidebar.write(f"Logs carregados: {len(full_cache) if full_cache else 0}")
+    st.sidebar.write(f"df_l5 shape: {df_l5.shape if not df_l5.empty else 'vazio'}")
+    st.sidebar.write(f"Colunas df_l5: {list(df_l5.columns) if not df_l5.empty else []}")
+    st.sidebar.write(f"Mapa de fotos: {len(photo_map)} jogadores")
     
     # --- 1. CARREGAMENTO DE DADOS SIMPLES ---
     try:
@@ -8403,6 +8403,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
