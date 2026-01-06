@@ -491,7 +491,7 @@ def show_cloud_diagnostics():
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
 def show_props_odds_page():
-    st.header("🔥 Props & Odds Reais (Pinnacle)")
+    st.header("🔥 Las Vegas Sync")
 
     col1, col2 = st.columns(2)
     
@@ -8069,6 +8069,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
