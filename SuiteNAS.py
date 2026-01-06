@@ -6842,7 +6842,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V59.0 - DNA CONNECTOR)
+# PÁGINA: DEPTO MÉDICO (BIO-MONITOR V60.0 - REVERSE LOOKUP)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -6850,12 +6850,13 @@ def show_depto_medico():
     import unicodedata
     import re
 
-    # --- 1. VISUAL REFINADO ---
+    # --- 1. CSS (LAYOUT APROVADO - INTOCADO) ---
     st.markdown("""
     <style>
         .bio-header { border-bottom: 1px solid #334155; margin-bottom: 20px; padding-bottom: 10px; }
         .bio-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin: 0; letter-spacing: 1px; }
         
+        /* CARD HOSPITALAR (Hero) */
         .hosp-card {
             background: #0f172a; border-radius: 8px; overflow: hidden; height: 100%;
             border: 1px solid #334155; display: flex; flex-direction: column;
@@ -6867,13 +6868,14 @@ def show_depto_medico():
         .hc-name { color: #fff; font-weight: bold; font-size: 13px; font-family:'Oswald'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .hc-meta { color: #94a3b8; font-size: 11px; }
 
+        /* LISTA COMPACTA */
         .list-row {
             display: flex; align-items: center; justify-content: space-between;
             background: rgba(30, 41, 59, 0.4); border-bottom: 1px solid #334155;
             padding: 6px 10px; margin-bottom: 2px; border-radius: 4px;
         }
-        .lr-left { display: flex; align-items: center; gap: 8px; }
-        .lr-img { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #475569; object-fit: cover; }
+        .lr-left { display: flex; align-items: center; gap: 10px; } /* Ajustei gap para a foto não colar */
+        .lr-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #475569; object-fit: cover; background: #000; }
         .lr-name { font-size: 13px; color: #e2e8f0; font-weight: 600; }
         .lr-badge { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; min-width: 50px; text-align: center; }
         
@@ -6884,140 +6886,132 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 BIO-MONITOR <span style="font-size:14px; color:#ef4444">LIVE</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 2. PREPARAÇÃO DO DATABASE (O SEGREDO) ---
-    def normalize_key(text):
+    # --- 2. UTILITÁRIOS DE LIMPEZA ---
+    def clean_key(text):
         if not text: return ""
         t = str(text).upper().strip()
         t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-        return re.sub(r'[^A-Z0-9]', '', t)
+        return re.sub(r'[^A-Z]', '', t) # Remove numeros tb, só letras para match de nome
 
+    # --- 3. CRIAÇÃO DO ÍNDICE MESTRE (DO CACHE L5) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # Dicionário de DNA: Chave Normalizada -> {ID, Time, Min}
-    DNA_DB = {}
+    # Dicionário: CHAVE_LIMPA -> {DADOS REAIS}
+    PLAYER_INDEX = {}
 
-    if df_l5.empty:
-        st.warning("⚠️ Base L5 vazia. Impossível recuperar fotos.")
-    else:
-        # Mapeamento Dinâmico de Colunas (O CORRETOR)
-        cols = [c.upper() for c in df_l5.columns]
-        df_l5.columns = cols
-        
-        # Procura colunas com regex para garantir acerto
-        c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER_NAME')
-        # Tenta pegar TEAM_ABBREVIATION primeiro, depois TEAM_NAME, depois TEAM
-        c_team = next((c for c in cols if 'ABBREVIATION' in c), None)
-        if not c_team: c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
-        
-        c_id = next((c for c in cols if 'PLAYER' in c and 'ID' in c), 'PLAYER_ID')
-        c_min = next((c for c in cols if 'MIN' in c), 'MIN')
+    if not df_l5.empty:
+        try:
+            # Tenta identificar as colunas cruciais dinamicamente
+            cols = [c.upper() for c in df_l5.columns]
+            df_l5.columns = cols
+            
+            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), 'PLAYER_ID')
+            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            c_min = next((c for c in cols if 'MIN' in c), 'MIN')
 
-        for _, row in df_l5.iterrows():
-            try:
-                raw_name = str(row.get(c_name, ''))
-                key = normalize_key(raw_name)
+            for _, row in df_l5.iterrows():
+                real_name = str(row.get(c_name, ''))
+                key = clean_key(real_name)
                 
-                # Tratamento rigoroso do ID (DNA)
-                raw_id = row.get(c_id, 0)
-                pid = int(float(raw_id)) if raw_id else 0
+                try: pid = int(row.get(c_id, 0))
+                except: pid = 0
                 
-                # Tratamento do Time
+                try: mins = float(row.get(c_min, 0))
+                except: mins = 0.0
+                
                 team = str(row.get(c_team, 'UNK')).upper().strip()
                 
-                mins = float(row.get(c_min, 0))
-                
+                # Guarda no índice
                 if key:
-                    DNA_DB[key] = {
-                        "name": raw_name,
-                        "team": team,
-                        "id": pid,
-                        "min": mins,
+                    PLAYER_INDEX[key] = {
+                        "real_name": real_name,
+                        "real_id": pid,
+                        "real_team": team,
+                        "real_min": mins,
                         "impact": 2 if mins >= 28 else (1 if mins >= 18 else 0)
                     }
-            except: continue
+        except Exception as e:
+            st.error(f"Erro ao indexar L5: {e}")
 
-    # --- 3. LEITURA DE LESÕES ---
-    injuries_list = []
-    # Tenta chaves comuns
+    # --- 4. LEITURA DE LESÕES ---
     raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
-    
+    injuries_list = []
+
     if raw_data:
-        # Parser Genérico
+        # Parser "Achatador" de JSON
         stack = [raw_data]
         while stack:
             curr = stack.pop()
             if isinstance(curr, list):
-                # Se achou lista de objetos com 'player', é isso
                 if curr and isinstance(curr[0], dict) and ('player' in curr[0] or 'name' in curr[0]):
                     injuries_list.extend(curr)
                 else:
-                    for x in curr: stack.append(x)
+                    stack.extend(curr)
             elif isinstance(curr, dict):
                 for k, v in curr.items():
-                    # Se chave é time (LAL), propaga
-                    if isinstance(v, list) and len(k) <= 3:
-                        for p in v: 
-                            if isinstance(p, dict): p['_src_tm'] = k
+                    # Se a chave parece um time (Ex: LAL), passa como dica
+                    hint = k if len(k) <= 3 and k.isupper() else None
+                    if isinstance(v, list) and hint:
+                        for item in v:
+                            if isinstance(item, dict): item['_hint_team'] = hint
                     stack.append(v)
 
     if not injuries_list:
         st.info("ℹ️ Nenhuma lesão reportada.")
         return
 
-    # --- 4. O GRANDE ENCONTRO (MATCHING) ---
+    # --- 5. CRUZAMENTO (REVERSE LOOKUP) ---
     final_roster = []
     
     for p in injuries_list:
         p_name = p.get('player') or p.get('name') or "Unknown"
-        key_inj = normalize_key(p_name)
+        inj_key = clean_key(p_name)
         
-        src_team = str(p.get('_src_tm') or p.get('team') or p.get('team_code') or "UNK").upper()
-        if len(src_team) > 3: src_team = "UNK"
-
-        # Tenta Match no DNA_DB
-        match = DNA_DB.get(key_inj)
+        # BUSCA NO INDICE (AQUI RECUPERAMOS O ID E A FOTO)
+        match = PLAYER_INDEX.get(inj_key)
         
-        # Se falhar, tenta match por sobrenome dentro do mesmo time
-        if not match and src_team != "UNK":
-            parts = key_inj.replace(src_team, "").strip() # Remove time do nome se tiver
-            for k, v in DNA_DB.items():
-                if parts in k and v['team'] == src_team:
+        # Fallback: Tenta match parcial se não achou exato (Ex: "Nic Claxton" vs "Nicolas Claxton")
+        if not match:
+            for k, v in PLAYER_INDEX.items():
+                if inj_key in k or k in inj_key: # Um contem o outro
                     match = v
                     break
-
+        
+        # Consolida Dados
         if match:
-            # SUCESSO: Usa ID e Time do Banco Oficial
-            f_name = match['name']
-            f_team = match['team']
-            f_id = match['id']
-            f_min = match['min']
-            f_impact = match['impact']
+            # Temos ID! Temos Foto! Temos Time Certo!
+            d_name = match['real_name']
+            d_team = match['real_team']
+            d_id = match['real_id']
+            d_min = match['real_min']
+            d_impact = match['impact']
         else:
-            # FALHA: Usa dados crus (Sem foto)
-            f_name = p_name
-            f_team = src_team
-            f_id = 0
-            f_min = 0
-            f_impact = 0
+            # Não achou no banco -> Usa dados brutos (Sem foto)
+            d_name = p_name
+            d_team = str(p.get('_hint_team') or p.get('team') or "UNK").upper()
+            d_id = 0
+            d_min = 0.0
+            d_impact = 0
 
         # Status
-        st_raw = str(p.get('status', '')).upper()
-        if "OUT" in st_raw: st_code = "OUT"
-        elif any(x in st_raw for x in ["GTD", "QUEST", "DOUBT"]): st_code = "GTD"
-        elif "DAY" in st_raw: st_code = "DTD"
+        raw_s = str(p.get('status', '')).upper()
+        if "OUT" in raw_s: st_code = "OUT"
+        elif any(x in raw_s for x in ["GTD", "QUEST", "DOUBT"]): st_code = "GTD"
+        elif "DAY" in raw_s: st_code = "DTD"
         else: st_code = "INFO"
 
-        if "ACTIVE" in st_raw and "NOT" not in st_raw: continue
+        if "ACTIVE" in raw_s and "NOT" not in raw_s: continue
 
         final_roster.append({
-            "name": f_name, "team": f_team, "id": f_id, 
-            "min": f_min, "impact": f_impact, "status": st_code,
+            "name": d_name, "team": d_team, "id": d_id, 
+            "min": d_min, "impact": d_impact, "status": st_code,
             "desc": p.get('description') or p.get('details') or ""
         })
 
-    # --- 5. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO ---
     
-    # A. HERO (Estrelas Críticas)
+    # 1. HERO: ESTRELAS (Impacto 2)
     ward = [p for p in final_roster if p['impact'] == 2 and p['status'] in ['OUT', 'GTD']]
     
     if ward:
@@ -7026,15 +7020,17 @@ def show_depto_medico():
         for i, p in enumerate(ward):
             with cols[i % 4]:
                 color = "#ef4444" if p['status'] == "OUT" else "#f97316"
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+                # FOTO: Se ID existe, usa URL da NBA. Se não, fallback.
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
+                # Card HTML (Mantido do jeito que você gostou)
                 st.markdown(f"""
                 <div class="hosp-card" style="border-color:{color}">
                     <div class="hc-header" style="background:{color}; color:white;">{p['status']}</div>
                     <div class="hc-body">
                         <img src="{photo}" class="hc-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                         <div class="hc-info">
-                            <div class="hc-name">{p['name']}</div>
+                            <div class="hc-name">{p['name'].split()[-1]}</div>
                             <div class="hc-meta">{p['team']}</div>
                         </div>
                     </div>
@@ -7044,17 +7040,21 @@ def show_depto_medico():
 
     st.divider()
 
-    # B. LISTA GERAL
-    teams_dict = {}
+    # 2. LISTA GERAL (Agrupada por Time)
+    teams_map = {}
     for p in final_roster:
-        if p['team'] not in teams_dict: teams_dict[p['team']] = []
-        teams_dict[p['team']].append(p)
+        t = p['team']
+        if t not in teams_map: teams_map[t] = []
+        teams_map[t].append(p)
         
-    sorted_teams = sorted(teams_dict.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
+    sorted_teams = sorted(teams_map.items(), key=lambda x: sum(p['impact'] for p in x[1]), reverse=True)
 
+    # Grid de 2 Colunas para os Times
     cols = st.columns(2)
+    
     for idx, (tm, players) in enumerate(sorted_teams):
-        if tm == "UNK": continue
+        # Pula time UNK se tivermos conseguido corrigir a maioria
+        if tm == "UNK" or tm == "NONE": continue 
         
         with cols[idx % 2]:
             imp_total = sum(p['impact'] for p in players)
@@ -7070,14 +7070,15 @@ def show_depto_medico():
             players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
 
             for p in players:
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+                # FOTO PEQUENA (30px)
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png" if p['id'] else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
                 if p['status'] == "OUT": cls_badge = "s-out"
                 elif p['status'] == "GTD": cls_badge = "s-gtd"
                 else: cls_badge = ""
                 bg_badge = "#eab308" if not cls_badge else ""
                 
-                desc_short = p['desc'][:45] + "..." if len(p['desc']) > 45 else p['desc']
+                desc = p['desc'][:40] + "..." if len(p['desc']) > 40 else p['desc']
 
                 st.markdown(f"""
                 <div class="list-row">
@@ -7085,7 +7086,7 @@ def show_depto_medico():
                         <img src="{photo}" class="lr-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                         <div>
                             <div class="lr-name">{p['name']}</div>
-                            <div class="lr-desc" style="color:#94a3b8;">{desc_short}</div>
+                            <div class="lr-desc" style="color:#94a3b8;">{desc}</div>
                         </div>
                     </div>
                     <div class="lr-badge {cls_badge}" style="background-color:{bg_badge if not cls_badge else ''}">{p['status']}</div>
@@ -7938,6 +7939,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
