@@ -582,7 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V5 (CORREÇÃO DE ERRO + HEADER COMPACTO)
+# PÁGINA: ORÁCULO V6 (COMPACTO + SNAPSHOT + FOTO FIX)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -590,197 +590,267 @@ def show_oracle_page():
     import streamlit as st
     import re
     import unicodedata
+    import matplotlib.pyplot as plt
+    import io
+    from PIL import Image
+    import urllib.request
 
-    # --- 1. CSS VISUAL (ESTILO LINEMATE/TOAD) ---
+    # --- 1. CSS COMPACTO (ESTILO TICKET) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* Container do Card */
+        /* Container Card - Mais fino e compacto */
         [data-testid="stVerticalBlockBorderWrapper"] {
             background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
             border: 1px solid #334155 !important;
-            border-left: 5px solid #D4AF37 !important; /* Marca DigiBets */
-            border-radius: 12px !important;
-            padding: 12px !important;
-            margin-bottom: 12px !important;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border-left: 4px solid #D4AF37 !important;
+            border-radius: 6px !important;
+            padding: 8px !important; /* Padding reduzido */
+            margin-bottom: 8px !important; /* Margem reduzida */
         }
 
-        /* Identidade */
-        .oracle-name { font-family: 'Oswald'; font-size: 20px; color: #fff; text-transform: uppercase; line-height: 1.1; margin-bottom: 4px; }
-        .oracle-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        /* Identidade Compacta */
+        .oracle-name { font-family: 'Oswald'; font-size: 16px; color: #fff; text-transform: uppercase; line-height: 1.1; margin-bottom: 2px; }
+        .oracle-meta { font-family: 'Inter'; font-size: 10px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
 
-        /* Stats Boxes */
+        /* Stats Boxes Compactas */
         .stat-box-neon {
             background-color: rgba(15, 23, 42, 0.6);
             border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 6px 0;
+            border-radius: 4px;
+            padding: 4px 0;
             text-align: center;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            min-width: 60px;
+            min-width: 50px;
         }
-        .neon-val { font-family: 'Oswald'; font-size: 22px; font-weight: bold; line-height: 1; }
-        .neon-lbl { font-family: 'Inter'; font-size: 9px; color: #64748b; font-weight: 700; margin-top: 3px; letter-spacing: 1px; }
+        .neon-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; line-height: 1; } /* Fonte menor */
+        .neon-lbl { font-family: 'Inter'; font-size: 8px; color: #64748b; font-weight: 700; margin-top: 2px; }
 
         /* Cores */
-        .txt-gold { color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.3); }
-        .txt-red { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.3); }
-        .txt-blue { color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3); }
-        .txt-green { color: #4ade80; text-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
+        .txt-gold { color: #fbbf24; }
+        .txt-red { color: #f87171; }
+        .txt-blue { color: #60a5fa; }
+        .txt-green { color: #4ade80; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 2. HEADER COMPACTO (LOGO PEQUENO + TÍTULO) ---
-    st.markdown("""
-    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
-        <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" style="width: 40px; height: auto;">
-        <div style="font-family: 'Oswald'; font-size: 24px; color: #D4AF37; letter-spacing: 1px; font-weight: 500;">
-            PROJEÇÕES ORÁCULO
+    # --- 2. HEADER E DADOS ---
+    c_head, c_btn = st.columns([7, 3])
+    with c_head:
+        st.markdown("""
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" style="width: 30px;">
+            <div style="font-family: 'Oswald'; font-size: 20px; color: #D4AF37; letter-spacing: 1px;">PROJEÇÕES ORÁCULO</div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    # --- 3. CARREGAMENTO DE DADOS ---
+    # Carrega Dados
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     injuries_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
     if not full_cache:
-        st.warning("⚠️ Aguardando dados do Supabase...")
+        st.warning("⚠️ Aguardando dados...")
         return
 
-    # --- 4. CONSTRUÇÃO DO ÍNDICE DE IDENTIDADE (LÓGICA BLINDADA) ---
-    IDENTITY_DB = {}
-
-    def normalize_str(text):
-        """Transforma 'Luka Dončić' em 'LUKADONCIC'."""
+    # --- 3. MATCHING DE IDENTIDADE (CRUZAMENTO L25 -> L5) ---
+    # Passo 1: Indexar o L5 (que tem os IDs e Fotos)
+    L5_INDEX = {} # Chave Normalizada -> {ID, FotoURL, TimeReal, NomeBonito}
+    
+    def normalize(text):
         if not text: return ""
         try:
-            text = str(text).upper().strip()
-            # Remove acentos
-            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-            # Remove espaços e pontuação
-            return re.sub(r'[^A-Z]', '', text)
+            t = str(text).upper().strip()
+            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z]', '', t)
         except: return ""
 
     if not df_l5.empty:
         try:
-            # Normaliza colunas do L5
             df_l5.columns = [c.upper().strip() for c in df_l5.columns]
             cols = df_l5.columns
-            
-            # Localiza colunas
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
             c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
 
             for _, row in df_l5.iterrows():
                 try:
-                    # EXTRAÇÃO DE ID (CRUCIAL PARA FOTO)
-                    raw_id = row.get(c_id, 0)
-                    pid = int(float(raw_id)) 
-                    
+                    # ID do L5 (Fonte da Verdade)
+                    pid = int(float(row.get(c_id, 0)))
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        clean_key = normalize_str(raw_name) 
-                        team_real = str(row.get(c_team, 'UNK')).upper().strip()
+                        key = normalize(raw_name) # Ex: LEBRONJAMES
+                        team = str(row.get(c_team, 'UNK')).upper().strip()
                         
-                        data = {'id': pid, 'team': team_real, 'clean_name': raw_name}
+                        data = {
+                            'id': pid, 
+                            'team': team, 
+                            'clean_name': raw_name,
+                            'photo': f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+                        }
                         
-                        # 1. Indexa Full Name
-                        IDENTITY_DB[clean_key] = data
+                        L5_INDEX[key] = data
                         
-                        # 2. Indexa Sobrenome (Fallback)
+                        # Indexa Sobrenome também (para garantir match com nomes abreviados)
                         parts = raw_name.split()
                         if len(parts) > 1:
-                            lname = normalize_str(parts[-1])
-                            if lname not in IDENTITY_DB: IDENTITY_DB[lname] = data
+                            lname = normalize(parts[-1])
+                            if lname not in L5_INDEX: L5_INDEX[lname] = data
                 except: continue
-        except Exception as e:
-            st.error(f"Erro ao criar índice de identidade: {e}")
+        except: pass
 
-    # --- 5. EXECUÇÃO DO MOTOR ORÁCULO ---
+    # --- 4. ENGINE ORÁCULO ---
     engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=12)
+    projections = engine.generate_projections(limit=10) # Top 10 Compacto
 
     if not projections:
-        st.info("O Oráculo está calculando probabilidades...")
+        st.info("Calibrando...")
         return
 
-    # --- 6. RENDERIZAÇÃO DOS SUPER CARDS ---
+    # --- 5. RENDERIZAÇÃO NA TELA ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
 
-    # Header da Tabela Visual
+    # Header da Tabela
     st.markdown("""
-    <div style="display:flex; justify-content:flex-end; padding-right:15px; margin-bottom:5px; font-family:'Oswald'; font-size:10px; color:#64748b; gap:50px;">
+    <div style="display:flex; justify-content:flex-end; padding-right:10px; margin-bottom:5px; font-family:'Oswald'; font-size:9px; color:#64748b; gap:40px;">
         <span>PTS</span> <span>REB</span> <span>AST</span> <span>3PM</span>
     </div>
     """, unsafe_allow_html=True)
 
+    # Preparar dados para o Snapshot enquanto renderiza
+    snapshot_data = []
+
     for p in projections:
-        p_name = p['name']
+        p_name = p['name'] # Nome vindo do L25 (pode estar sujo/acentuado)
         
-        # --- BUSCA INTELIGENTE ---
-        search_key = normalize_str(p_name)
-        match = IDENTITY_DB.get(search_key)
+        # BUSCA NO INDEX DO L5
+        search_key = normalize(p_name)
+        match = L5_INDEX.get(search_key)
         
+        # Se não achou exato, tenta sobrenome
         if not match:
             parts = p_name.split()
-            if len(parts) > 1:
-                match = IDENTITY_DB.get(normalize_str(parts[-1]))
+            if len(parts) > 1: match = L5_INDEX.get(normalize(parts[-1]))
         
-        # Define Valores
+        # Se ainda não achou, tenta "Contém" (Força Bruta)
+        if not match:
+            for k, v in L5_INDEX.items():
+                if search_key in k or k in search_key:
+                    match = v
+                    break
+
+        # Dados Finais
         if match:
-            pid = match['id']
-            real_team = match['team']
-            display_name = match['clean_name']
+            final_name = match['clean_name']
+            final_team = match['team']
+            final_photo = match['photo']
         else:
-            pid = 0
-            real_team = str(p['team']).upper()
-            if len(real_team) > 3: real_team = "UNK"
-            display_name = p_name
-        
-        # URLs de Imagem
-        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-        
-        # --- CORREÇÃO DO ERRO DO TIME ---
-        tm_low = real_team.lower()
+            final_name = p_name
+            final_team = str(p['team']).upper()
+            if len(final_team) > 3: final_team = "UNK"
+            final_photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+        # Guarda dados para o Snapshot
+        snapshot_data.append({
+            "name": final_name, "team": final_team, 
+            "pts": p['PTS'], "reb": p['REB'], "ast": p['AST'], "3pm": p['3PM']
+        })
+
+        # Logo Time
+        tm_low = final_team.lower()
         if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
-        
         logo_url = f"{logo_base}/{tm_low}.png"
 
-        # --- CARD ---
+        # --- CARD VISUAL (COMPACTO) ---
         with st.container(border=True):
-            # Layout Grid: [Foto 1.2] [Info 3.5] [Stats...]
-            c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1.2, 3.5, 1.3, 1.3, 1.3, 1.3])
+            # Layout: [Foto 1] [Info 3] [Stats...]
+            c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1, 3, 1.2, 1.2, 1.2, 1.2])
             
             with c_img:
-                st.image(photo_url, use_container_width=True)
+                st.image(final_photo, use_container_width=True)
             
             with c_info:
-                st.markdown(f'<div class="oracle-name">{display_name}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="oracle-name">{final_name}</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <div class="oracle-meta">
-                    <img src="{logo_url}" width="18" style="vertical-align:middle;"> 
-                    <span style="font-size:12px; color:#cbd5e1;">{real_team}</span>
-                    <span style="color:#D4AF37; margin-left:5px;">• Projeção IA</span>
+                    <img src="{logo_url}" width="14" style="vertical-align:middle;"> 
+                    <span style="font-size:10px; color:#cbd5e1;">{final_team}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # QUADRADINHOS NEON
-            with c_pts:
-                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-gold">{p['PTS']:.1f}</div><div class="neon-lbl">PTS</div></div>""", unsafe_allow_html=True)
-            with c_reb:
-                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-red">{p['REB']:.1f}</div><div class="neon-lbl">REB</div></div>""", unsafe_allow_html=True)
-            with c_ast:
-                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-blue">{p['AST']:.1f}</div><div class="neon-lbl">AST</div></div>""", unsafe_allow_html=True)
-            with c_3pm:
-                st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-green">{p['3PM']:.1f}</div><div class="neon-lbl">3PM</div></div>""", unsafe_allow_html=True)
+            with c_pts: st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-gold">{p['PTS']:.1f}</div><div class="neon-lbl">PTS</div></div>""", unsafe_allow_html=True)
+            with c_reb: st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-red">{p['REB']:.1f}</div><div class="neon-lbl">REB</div></div>""", unsafe_allow_html=True)
+            with c_ast: st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-blue">{p['AST']:.1f}</div><div class="neon-lbl">AST</div></div>""", unsafe_allow_html=True)
+            with c_3pm: st.markdown(f"""<div class="stat-box-neon"><div class="neon-val txt-green">{p['3PM']:.1f}</div><div class="neon-lbl">3PM</div></div>""", unsafe_allow_html=True)
+
+    # --- 6. FUNÇÃO DE SNAPSHOT (GERA IMAGEM PNG) ---
+    def generate_image(data_list):
+        # Configuração do Plot Escuro
+        fig, ax = plt.subplots(figsize=(10, 12))
+        fig.patch.set_facecolor('#0f172a')
+        ax.set_facecolor('#0f172a')
+        ax.axis('off')
+
+        # Título
+        ax.text(0.5, 0.95, "DIGIBETS ORACLE", ha='center', va='center', fontsize=28, color='#D4AF37', fontname='DejaVu Sans', weight='bold')
+        ax.text(0.5, 0.92, "PROJEÇÕES MATEMÁTICAS (IA)", ha='center', va='center', fontsize=12, color='#94a3b8', fontname='DejaVu Sans')
+
+        # Headers
+        y_pos = 0.85
+        ax.text(0.05, y_pos, "PLAYER", color='#64748b', fontsize=10, weight='bold')
+        ax.text(0.55, y_pos, "PTS", color='#fbbf24', fontsize=10, weight='bold', ha='center')
+        ax.text(0.68, y_pos, "REB", color='#f87171', fontsize=10, weight='bold', ha='center')
+        ax.text(0.81, y_pos, "AST", color='#60a5fa', fontsize=10, weight='bold', ha='center')
+        ax.text(0.94, y_pos, "3PM", color='#4ade80', fontsize=10, weight='bold', ha='center')
+
+        # Linha separadora
+        ax.plot([0.05, 0.95], [0.83, 0.83], color='#334155', lw=1)
+
+        # Dados
+        y_start = 0.78
+        row_height = 0.075
+
+        for i, d in enumerate(data_list):
+            curr_y = y_start - (i * row_height)
+            
+            # Nome e Time
+            ax.text(0.05, curr_y, d['name'], color='white', fontsize=14, weight='bold')
+            ax.text(0.05, curr_y - 0.025, d['team'], color='#94a3b8', fontsize=10)
+            
+            # Stats
+            ax.text(0.55, curr_y, f"{d['pts']:.1f}", color='#fbbf24', fontsize=16, weight='bold', ha='center')
+            ax.text(0.68, curr_y, f"{d['reb']:.1f}", color='#f87171', fontsize=16, weight='bold', ha='center')
+            ax.text(0.81, curr_y, f"{d['ast']:.1f}", color='#60a5fa', fontsize=16, weight='bold', ha='center')
+            ax.text(0.94, curr_y, f"{d['3pm']:.1f}", color='#4ade80', fontsize=16, weight='bold', ha='center')
+            
+            # Linha fina entre rows
+            if i < len(data_list) - 1:
+                ax.plot([0.05, 0.95], [curr_y - 0.045, curr_y - 0.045], color='#1e293b', lw=0.5)
+
+        # Footer
+        ax.text(0.5, 0.03, "Gerado por DigiBets AI • Suite NAS", ha='center', fontsize=8, color='#475569')
+
+        # Salva em memória
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        return buf
+
+    # Botão de Download na Sidebar ou no Topo
+    with c_btn:
+        if snapshot_data:
+            img_buffer = generate_image(snapshot_data)
+            st.download_button(
+                label="📸 Baixar Card",
+                data=img_buffer,
+                file_name="oracle_projections.png",
+                mime="image/png",
+                use_container_width=True
+            )
 # ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
@@ -8442,6 +8512,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
