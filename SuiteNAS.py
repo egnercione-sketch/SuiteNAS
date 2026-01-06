@@ -582,7 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO (FRONTEND VISUAL)
+# PÁGINA: ORÁCULO (V2 - NATIVE & ROBUST)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -591,55 +591,33 @@ def show_oracle_page():
     import re
     import unicodedata
 
-    # --- 1. CONFIGURAÇÃO VISUAL (CSS DARK/NEON) ---
+    # --- 1. CSS VISUAL (FONTS & ADJUSTMENTS) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* O Super Card Container */
-        .oracle-card {
-            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
-            border: 1px solid #334155;
-            border-left: 5px solid #D4AF37; /* Borda Dourada DigiBets */
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: transform 0.2s;
+        /* Container Nativo Estilizado */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #0f172a !important;
+            border: 1px solid #334155 !important;
+            border-left: 4px solid #D4AF37 !important; /* Borda Dourada DigiBets */
         }
-        .oracle-card:hover { transform: translateX(5px); border-color: #64748b; }
 
-        /* Colunas de Dados */
-        .stat-col { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
-        .oracle-val { 
-            font-family: 'Oswald'; font-size: 22px; font-weight: bold; line-height: 1;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-        .oracle-lbl { font-family: 'Inter'; font-size: 9px; color: #94a3b8; font-weight: 600; letter-spacing: 1px; }
-
-        /* Cores Neon Específicas */
-        .neon-gold { color: #fbbf24; }
-        .neon-red { color: #f87171; }
-        .neon-blue { color: #60a5fa; }
-        .neon-green { color: #4ade80; }
-
-        /* Identidade */
-        .oracle-name { font-family: 'Oswald'; font-size: 18px; color: #fff; text-transform: uppercase; line-height: 1.1; }
-        .oracle-team { font-size: 11px; color: #64748b; font-weight: bold; display: flex; align-items: center; gap: 5px; }
-
-        /* Header da Tabela */
-        .oracle-header {
-            display: flex; justify-content: flex-end; padding-right: 25px; margin-bottom: 10px; gap: 45px;
-            font-family: 'Oswald'; font-size: 12px; color: #64748b; text-transform: uppercase;
-        }
+        /* Tipografia */
+        .oracle-val { font-family: 'Oswald'; font-size: 24px; font-weight: bold; line-height: 1; text-align: center; }
+        .oracle-lbl { font-family: 'Inter'; font-size: 10px; color: #94a3b8; font-weight: 600; text-align: center; margin-top: 2px; }
+        .oracle-name { font-family: 'Oswald'; font-size: 18px; color: #fff; text-transform: uppercase; }
+        
+        /* Cores Neon */
+        .neon-gold { color: #fbbf24; text-shadow: 0 0 10px rgba(251, 191, 36, 0.3); }
+        .neon-red { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.3); }
+        .neon-blue { color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3); }
+        .neon-green { color: #4ade80; text-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("## 🔮 O Oráculo")
-    st.caption("Projeções matemáticas baseadas em média ponderada (L5/L10/L25). Jogadores lesionados (OUT) são filtrados automaticamente.")
+    st.caption("Projeções matemáticas baseadas em média ponderada (50% L5, 30% L10, 20% L25).")
 
     # --- 2. CARREGAMENTO DE DADOS ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
@@ -647,112 +625,124 @@ def show_oracle_page():
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
     if not full_cache:
-        st.warning("⚠️ Aguardando dados de logs do Supabase...")
+        st.warning("⚠️ Aguardando dados do Supabase...")
         return
 
-    # --- 3. MAPA DE FOTOS (NOSSA LÓGICA V13 BLINDADA) ---
+    # --- 3. MAPA DE FOTOS (O MESMO DA TRINITY V13 - QUE FUNCIONA) ---
     PHOTO_DB = {}
+    
+    def clean_key(text):
+        if not text: return ""
+        try:
+            t = str(text).upper().strip()
+            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z]', '', t)
+        except: return ""
+
     if not df_l5.empty:
         try:
+            # Normalização agressiva de colunas
             df_l5.columns = [c.upper().strip() for c in df_l5.columns]
             cols = df_l5.columns
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            
+            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+
             for _, row in df_l5.iterrows():
                 try:
+                    # O SEGREDO: int(float())
                     pid = int(float(row.get(c_id, 0)))
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        key = raw_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
-                        PHOTO_DB[key] = pid
-                        # Fallback Sobrenome
+                        key = clean_key(raw_name)
+                        team = str(row.get(c_team, 'UNK')).upper().strip()
+                        
+                        data = {'id': pid, 'team': team}
+                        PHOTO_DB[key] = data
+                        
+                        # Fallback Sobrenome (ex: JAMES)
                         parts = raw_name.split()
                         if len(parts) > 1:
-                            lname = parts[-1].upper().replace(".", "").strip()
-                            if lname not in PHOTO_DB: PHOTO_DB[lname] = pid
+                            lname = clean_key(parts[-1])
+                            if lname not in PHOTO_DB: PHOTO_DB[lname] = data
                 except: continue
         except: pass
 
     # --- 4. EXECUÇÃO DO ORÁCULO ---
     engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=10) # Top 10
+    projections = engine.generate_projections(limit=12) # Top 12
 
     if not projections:
-        st.info("O Oráculo está calibrando... (Nenhum dado suficiente encontrado)")
+        st.info("Calibrando o Oráculo...")
         return
 
-    # --- 5. RENDERIZAÇÃO (SUPER CARD) ---
-    
-    # Cabeçalho Fake para alinhar colunas visualmente
-    st.markdown("""
-    <div style="display:flex; justify-content:space-between; padding: 0 10px; color:#475569; font-size:10px; font-family:'Oswald'; margin-bottom:5px;">
-        <div style="width: 250px;">JOGADOR</div>
-        <div style="display:flex; gap: 30px; margin-right: 20px;">
-            <div style="width:50px; text-align:center;">PTS</div>
-            <div style="width:50px; text-align:center;">REB</div>
-            <div style="width:50px; text-align:center;">AST</div>
-            <div style="width:50px; text-align:center;">3PM</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    # --- 5. RENDERIZAÇÃO NATIVA (INQUEBRÁVEL) ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+
+    # Cabeçalho da Tabela
+    c_h1, c_h2, c_h3, c_h4, c_h5, c_h6 = st.columns([1.2, 2.8, 1.5, 1.5, 1.5, 1.5])
+    c_h3.markdown("<div style='text-align:center; font-weight:bold; color:#fbbf24'>PTS</div>", unsafe_allow_html=True)
+    c_h4.markdown("<div style='text-align:center; font-weight:bold; color:#f87171'>REB</div>", unsafe_allow_html=True)
+    c_h5.markdown("<div style='text-align:center; font-weight:bold; color:#60a5fa'>AST</div>", unsafe_allow_html=True)
+    c_h6.markdown("<div style='text-align:center; font-weight:bold; color:#4ade80'>3PM</div>", unsafe_allow_html=True)
 
     for p in projections:
         p_name = p['name']
-        team = p['team']
+        proj_team = str(p['team']).upper() # Time que veio da projeção (pode ser UNK)
         
-        # Foto & Logo Logic
-        clean_key = p_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
-        pid = PHOTO_DB.get(clean_key, 0)
-        if pid == 0:
-             parts = p_name.split()
-             if len(parts) > 1: pid = PHOTO_DB.get(parts[-1].upper().replace(".", "").strip(), 0)
+        # --- BUSCA FOTO & TIME REAL ---
+        key = clean_key(p_name)
+        match = PHOTO_DB.get(key)
         
+        # Se falhar exato, tenta sobrenome
+        if not match:
+            parts = p_name.split()
+            if len(parts) > 1: match = PHOTO_DB.get(clean_key(parts[-1]))
+
+        pid = match['id'] if match else 0
+        real_team = match['team'] if match else proj_team
+        if len(real_team) > 3: real_team = "UNK"
+
+        # URLs
         photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
-        tm_low = str(team).lower()
+        tm_low = real_team.lower()
         if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
         logo_url = f"{logo_base}/{tm_low}.png"
 
-        # HTML do Card
-        st.markdown(f"""
-        <div class="oracle-card">
-            <div style="display: flex; align-items: center; gap: 15px; flex-grow: 1;">
-                <div style="position: relative;">
-                    <img src="{photo_url}" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background:#000;">
-                    <img src="{logo_url}" style="position: absolute; bottom: 0; right: -5px; width: 20px; height: 20px; background: #0f172a; border-radius: 50%; padding: 2px; border: 1px solid #475569;">
+        # --- CARD NATIVO ---
+        with st.container(border=True):
+            c_img, c_info, c_pts, c_reb, c_ast, c_3pm = st.columns([1.2, 2.8, 1.5, 1.5, 1.5, 1.5])
+            
+            with c_img:
+                st.image(photo_url, use_container_width=True)
+            
+            with c_info:
+                st.markdown(f'<div class="oracle-name">{p_name}</div>', unsafe_allow_html=True)
+                # Logo + Time
+                st.markdown(f"""
+                <div style="display:flex; align-items:center; gap:5px; margin-top:4px;">
+                    <img src="{logo_url}" width="18"> 
+                    <span style="font-size:12px; color:#94a3b8; font-weight:bold;">{real_team}</span>
+                    <span style="font-size:10px; color:#475569; margin-left:5px;">• Weighted</span>
                 </div>
-                <div>
-                    <div class="oracle-name">{p_name}</div>
-                    <div class="oracle-team">{team} • <span style="color:#D4AF37;">Proj. Weighted</span></div>
-                </div>
-            </div>
+                """, unsafe_allow_html=True)
 
-            <div style="display: flex; gap: 20px; padding-right: 10px;">
-                <div class="stat-col">
-                    <div class="oracle-val neon-gold">{p['PTS']:.2f}</div>
-                    <div class="oracle-lbl">PTS</div>
-                </div>
-                <div class="stat-col">
-                    <div class="oracle-val neon-red">{p['REB']:.2f}</div>
-                    <div class="oracle-lbl">REB</div>
-                </div>
-                <div class="stat-col">
-                    <div class="oracle-val neon-blue">{p['AST']:.2f}</div>
-                    <div class="oracle-lbl">AST</div>
-                </div>
-                <div class="stat-col">
-                    <div class="oracle-val neon-green">{p['3PM']:.2f}</div>
-                    <div class="oracle-lbl">3PM</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            # Colunas de Stats (HTML isolado para não quebrar)
+            with c_pts:
+                st.markdown(f'<div class="oracle-val neon-gold">{p["PTS"]:.2f}</div>', unsafe_allow_html=True)
+            
+            with c_reb:
+                st.markdown(f'<div class="oracle-val neon-red">{p["REB"]:.2f}</div>', unsafe_allow_html=True)
+                
+            with c_ast:
+                st.markdown(f'<div class="oracle-val neon-blue">{p["AST"]:.2f}</div>', unsafe_allow_html=True)
+                
+            with c_3pm:
+                st.markdown(f'<div class="oracle-val neon-green">{p["3PM"]:.2f}</div>', unsafe_allow_html=True)
         
 
 # ============================================================================
@@ -8416,6 +8406,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
