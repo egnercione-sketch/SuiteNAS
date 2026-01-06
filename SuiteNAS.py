@@ -1818,7 +1818,197 @@ class NexusEngine:
                 val = self._get_avg_stat(name, 'REB')
                 if val > max_reb: max_reb = val; best = name
         return best
+
+# ============================================================================
+# PÁGINA: TRINITY CLUB (V11 - MOMENTUM DNA & HIGH VISIBILITY)
+# ============================================================================
+def show_trinity_club_page():
+    import os
+    import pandas as pd
+    import streamlit as st
+    import unicodedata
+    import re
+
+    # --- 1. CSS DE ALTO CONTRASTE (ESTILO DIGIBETS) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Inter:wght@400;600&display=swap');
         
+        /* Torna os containers nativos do Streamlit visíveis no fundo preto */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+            background-color: rgba(30, 41, 59, 0.3) !important;
+            padding: 15px !important;
+            margin-bottom: 15px !important;
+        }
+        
+        /* Destaque para o Alvo Dourado */
+        .trin-target {
+            color: #D4AF37;
+            font-family: 'Oswald';
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .trin-stat-name {
+            color: #94a3b8;
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        .game-header {
+            font-family: 'Oswald';
+            font-size: 20px;
+            color: #F8FAFC;
+            border-left: 4px solid #D4AF37;
+            padding-left: 12px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## 🏆 Trinity Club (Consistência)")
+    
+    # --- 2. CARREGAMENTO E INDEXAÇÃO (DNA MOMENTUM) ---
+    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
+    
+    if not full_cache:
+        st.warning("Aguardando dados de logs...")
+        return
+
+    # MOTOR DE FOTOS (CÓPIA DA MOMENTUM/V64)
+    PLAYER_DB = {} # Chave: NOME -> {id, team}
+    
+    if not df_l5.empty:
+        try:
+            # Normalização de Colunas
+            df_l5.columns = [c.upper().strip() for c in df_l5.columns]
+            cols = df_l5.columns
+            
+            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
+            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+
+            for _, row in df_l5.iterrows():
+                try:
+                    # EXTRAÇÃO DE ID (BRUTA E SEM DECIMAIS)
+                    pid = int(float(row.get(c_id, 0)))
+                    if pid > 0:
+                        raw_name = str(row.get(c_name, ''))
+                        # Chave de Match: "JOSHGIDDEY"
+                        key = re.sub(r'[^A-Z]', '', raw_name.upper())
+                        
+                        team = str(row.get(c_team, 'UNK')).upper()
+                        
+                        PLAYER_DB[key] = {'id': pid, 'team': team, 'name': raw_name}
+                except: continue
+        except Exception as e:
+            st.error(f"Erro no Transplante de DNA: {e}")
+
+    # --- 3. ENGINE TRIPLE SCAN ---
+    engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
+    
+    res_l5 = engine.scan_market(window=5)
+    res_l10 = engine.scan_market(window=10)
+    res_l15 = engine.scan_market(window=15)
+
+    # Consolidação por Confronto -> Jogador
+    games_dict = {}
+
+    def consolidate(results, label):
+        for r in results:
+            g_str = r['game_str']
+            p_name = r['player']
+            if g_str not in games_dict: games_dict[g_str] = {}
+            if p_name not in games_dict[g_str]: 
+                games_dict[g_str][p_name] = {'L5': [], 'L10': [], 'L15': []}
+            games_dict[g_str][p_name][label].append(r)
+
+    consolidate(res_l5, 'L5')
+    consolidate(res_l10, 'L10')
+    consolidate(res_l15, 'L15')
+
+    if not games_dict:
+        st.info("Nenhum padrão identificado no Trinity Club hoje.")
+        return
+
+    # --- 4. RENDERIZAÇÃO POR CONFRONTO ---
+    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+
+    for game_name, players in games_dict.items():
+        st.markdown(f'<div class="game-header">{game_name}</div>', unsafe_allow_html=True)
+        
+        for p_name, timelines in players.items():
+            # Busca match no PLAYER_DB para pegar Foto e Time
+            key = re.sub(r'[^A-Z]', '', p_name.upper())
+            db_data = PLAYER_DB.get(key)
+            
+            # Se não achou full, tenta match por sobrenome (ex: Giddey em JoshGiddey)
+            if not db_data:
+                for db_k, db_v in PLAYER_DB.items():
+                    if key in db_k:
+                        db_data = db_v
+                        break
+
+            # Dados finais para o Card
+            pid = db_data['id'] if db_data else 0
+            team_code = db_data['team'] if db_data else "UNK"
+            
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            
+            # Logo do Time (ESPN Mapping)
+            tm_low = team_code.lower()
+            if tm_low == "uta": tm_low = "utah"
+            elif tm_low == "nop": tm_low = "no"
+            elif tm_low == "phx": tm_low = "pho"
+            elif tm_low == "was": tm_low = "wsh"
+            logo_url = f"{logo_base}/{tm_low}.png"
+
+            # CARD DO JOGADOR (CONTAINER NATIVO COM BORDA FORÇADA)
+            with st.container(border=True):
+                # Layout do Card: [Foto 1.5] [Nome/Team 2.5] [L5 2] [L10 2] [L15 2]
+                c_img, c_info, c_l5, c_l10, c_l15 = st.columns([1.5, 2.5, 2, 2, 2])
+                
+                with c_img:
+                    st.image(photo_url, use_container_width=True)
+                
+                with c_info:
+                    st.markdown(f"**{p_name}**")
+                    # Logo pequeno + Sigla
+                    st.markdown(f"""
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <img src="{logo_url}" width="18">
+                        <span style="font-size:11px; color:#94a3b8; font-weight:bold;">{team_code}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Função interna para evitar repetição de código
+                def draw_stat(col, title, stats):
+                    with col:
+                        st.caption(title)
+                        if not stats:
+                            st.markdown("<span style='color:#334155'>-</span>", unsafe_allow_html=True)
+                        else:
+                            for s in stats:
+                                st.markdown(f"""
+                                <div>
+                                    <div class="trin-target">{s['line']}+</div>
+                                    <div class="trin-stat-name">{s['stat']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                
+                draw_stat(c_l5, "🔥 L5", timelines['L5'])
+                draw_stat(c_l10, "⚖️ L10", timelines['L10'])
+                draw_stat(c_l15, "🏛️ L15", timelines['L15'])
+
+                
+# ============================================================================
+# PÁGINA: NEXUS PAGE
+# ============================================================================        
 def show_nexus_page():
     # Dados
     full_cache = get_data_universal("real_game_logs")
@@ -1926,265 +2116,8 @@ def show_nexus_page():
                     if i==1: l2.success(s)
                     if i==2: l3.warning(s)
                 st.caption(f"📉 {op['impact']}")
-# ============================================================================
-# RENDERIZAÇÃO V9 (MATCHUP EDITION + PHOTO FIX)
-# ============================================================================
-def render_trinity_matchup_view(members, label_suffix="L10", photo_map=None):
-    """
-    Renderiza a Trinity agrupada por Jogo -> Jogador (Consolidado).
-    Visual: Dark/Gold Premium.
-    """
-    import streamlit as st
-    
-    if not members:
-        st.info(f"Nenhum jogador consistente encontrado para {label_suffix}.")
-        return
-
-    # --- 1. AGRUPAMENTO DE DADOS ---
-    # Estrutura: games_dict[game_str][player_name] = [stat1, stat2, ...]
-    games_dict = {}
-    
-    for m in members:
-        g_str = m['game_str'] # Ex: "LAL @ GSW"
-        p_name = m['player']
-        
-        if g_str not in games_dict: games_dict[g_str] = {}
-        if p_name not in games_dict[g_str]: games_dict[g_str][p_name] = []
-        
-        games_dict[g_str][p_name].append(m)
-
-    # Helper de Foto (Lógica Momentum Blindada)
-    def get_photo_url(p_name):
-        if not photo_map: return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-        # Limpa chave: JOSHGIDDEY
-        clean_key = str(p_name).upper().replace(" ", "").replace(".", "").replace("'", "").strip()
-        pid = photo_map.get(clean_key, 0)
-        
-        # Fallback parcial
-        if pid == 0:
-            for k, v in photo_map.items():
-                if k in clean_key: 
-                    pid = v
-                    break
-        
-        if pid > 0: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-
-    # --- 2. RENDERIZAÇÃO POR JOGO ---
-    for game_name, players_dict in games_dict.items():
-        
-        # Cabeçalho do Jogo
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
-            border-left: 5px solid #D4AF37;
-            padding: 8px 15px; margin-top: 20px; margin-bottom: 10px;
-            border-radius: 4px; display: flex; align-items: center; gap: 10px;
-        ">
-            <div style="font-family:'Oswald'; font-size:18px; color:#fff; letter-spacing:1px;">🏀 {game_name}</div>
-            <div style="font-size:11px; color:#94a3b8; background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:10px;">
-                {len(players_dict)} Jogadores
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Renderiza Jogadores deste Jogo
-        for p_name, stats in players_dict.items():
-            meta = stats[0] # Pega dados gerais do primeiro registro
-            photo = get_photo_url(p_name)
-            
-            # Identifica Time para Logo
-            tm = meta['team'].lower()
-            if tm == "uta": tm = "utah"
-            elif tm == "nop": tm = "no"
-            elif tm == "phx": tm = "pho"
-            elif tm == "was": tm = "wsh"
-            logo = f"https://a.espncdn.com/i/teamlogos/nba/500/{tm}.png"
-
-            # Monta HTML das Estatísticas (Pode ser 1, 2 ou 3)
-            stats_html = ""
-            for s in stats:
-                stats_html += f"""
-                <div style="
-                    background: rgba(212, 175, 55, 0.1); 
-                    border: 1px solid rgba(212, 175, 55, 0.2);
-                    border-radius: 6px; padding: 4px 10px; text-align: center;
-                    min-width: 70px; margin-left: 8px;">
-                    <div style="font-family:'Oswald'; font-size:18px; color:#D4AF37; font-weight:bold; line-height:1;">{s['line']}+</div>
-                    <div style="font-size:10px; color:#D4AF37; opacity:0.8; font-weight:600;">{s['stat']}</div>
-                </div>
-                """
-            
-            # Monta Rodapé (Pega dados do primeiro stat para simplificar, já que são do mesmo jogador/jogo)
-            # Idealmente mostraria ranges, mas vamos simplificar visualmente
-            floors = meta['floors']
-            footer_html = f"""
-            <div style="display:flex; gap: 15px; font-size:10px; color:#64748b; margin-top:8px; border-top:1px solid #334155; padding-top:4px;">
-                <span>📈 Forma: <b style="color:#10B981">{int(floors['Form'])}</b></span>
-                <span>🏠 Local: <b style="color:#10B981">{int(floors['Venue'])}</b></span>
-                <span>⚔️ H2H: <b style="color:#10B981">{int(floors['H2H'])}</b></span>
-            </div>
-            """
-
-            # CARD DO JOGADOR
-            st.markdown(f"""
-            <div style="
-                background: #1e293b; border: 1px solid #334155; border-radius: 8px; 
-                padding: 10px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="position: relative;">
-                        <img src="{photo}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #475569; background:#000;">
-                        <img src="{logo}" style="position: absolute; bottom: -2px; right: -2px; width: 18px; height: 18px; background: #0f172a; border-radius: 50%; padding: 2px; border: 1px solid #475569;">
-                    </div>
-                    <div>
-                        <div style="font-family:'Oswald'; font-size:16px; color:#fff; line-height:1.1;">{p_name}</div>
-                        <div style="font-size:11px; color:#94a3b8;">{meta['team']}</div>
-                        {footer_html}
-                    </div>
-                </div>
-
-                <div style="display: flex; align-items: center;">
-                    {stats_html}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 
 
-# ============================================================================
-# PÁGINA: TRINITY CLUB (V10 - NATIVE CONSOLIDATED)
-# ============================================================================
-def show_trinity_club_page():
-    import os
-    import pandas as pd
-    import streamlit as st
-
-    # --- 1. CONFIGURAÇÃO VISUAL (NATIVA) ---
-    st.markdown("## 🏆 Trinity Club (Consistência)")
-    st.caption("Análise consolidada de consistência em múltiplos horizontes (L5, L10, L15).")
-
-    # --- 2. CARREGAMENTO DE DADOS ---
-    full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
-    
-    if not full_cache:
-        st.warning("Aguardando dados de logs...")
-        return
-
-    # --- 3. MAPA DE FOTOS (LÓGICA MOMENTUM - ROBUSTA) ---
-    PHOTO_MAP = {}
-    if not df_l5.empty:
-        try:
-            cols = [c.upper().strip() for c in df_l5.columns]
-            df_l5.columns = cols
-            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
-            if not c_id: c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
-
-            for _, row in df_l5.iterrows():
-                try:
-                    raw_id = row.get(c_id, 0)
-                    pid = int(float(raw_id)) 
-                    if pid > 0:
-                        raw_name = str(row.get(c_name, ''))
-                        key = raw_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
-                        PHOTO_MAP[key] = pid
-                        
-                        # Fallback Sobrenome
-                        parts = raw_name.split()
-                        if len(parts) > 1:
-                            lname = parts[-1].upper().replace(".", "").strip()
-                            if lname not in PHOTO_MAP: PHOTO_MAP[lname] = pid
-                except: continue
-        except: pass
-
-    # --- 4. ENGINE & SCANNING (TRIPLO SCAN) ---
-    engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
-    
-    # Escaneia os 3 horizontes
-    res_l5 = engine.scan_market(window=5)
-    res_l10 = engine.scan_market(window=10)
-    res_l15 = engine.scan_market(window=15)
-
-    # --- 5. CONSOLIDAÇÃO DOS DADOS ---
-    # Estrutura: games_dict[game_str][player_name] = { 'meta': ..., 'L5': [], 'L10': [], 'L15': [] }
-    games_dict = {}
-
-    def add_to_dict(results, label):
-        for r in results:
-            g_str = r['game_str']
-            p_name = r['player']
-            
-            if g_str not in games_dict: games_dict[g_str] = {}
-            if p_name not in games_dict[g_str]: 
-                games_dict[g_str][p_name] = {'meta': r, 'L5': [], 'L10': [], 'L15': []}
-            
-            # Adiciona o stat à lista correspondente (ex: 'PTS' na lista 'L5')
-            games_dict[g_str][p_name][label].append(r)
-
-    add_to_dict(res_l5, 'L5')
-    add_to_dict(res_l10, 'L10')
-    add_to_dict(res_l15, 'L15')
-
-    if not games_dict:
-        st.info("Nenhum padrão de consistência encontrado hoje.")
-        return
-
-    # --- 6. RENDERIZAÇÃO NATIVA ---
-    
-    # Itera sobre Jogos
-    for game_name, players in games_dict.items():
-        st.divider()
-        st.subheader(f"🏀 {game_name}")
-        
-        # Itera sobre Jogadores
-        for p_name, data in players.items():
-            meta = data['meta']
-            
-            # Busca Foto
-            clean_key = p_name.upper().replace(" ", "").replace(".", "").replace("'", "").strip()
-            pid = PHOTO_MAP.get(clean_key, 0)
-            # Fallback
-            if pid == 0:
-                parts = p_name.split()
-                if len(parts) > 1: pid = PHOTO_MAP.get(parts[-1].upper().replace(".", "").strip(), 0)
-            
-            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-
-            # CARD DO JOGADOR (CONTAINER NATIVO)
-            with st.container(border=True):
-                # Topo: Foto e Nome
-                c_head, c_l5, c_l10, c_l15 = st.columns([1.5, 2, 2, 2])
-                
-                with c_head:
-                    st.image(photo_url, width=60)
-                    st.markdown(f"**{p_name}**")
-                    st.caption(f"{meta['team']}")
-
-                # Função Helper para Renderizar Coluna de Stat
-                def render_stat_col(col, label, stats_list):
-                    with col:
-                        st.markdown(f"**{label}**")
-                        if not stats_list:
-                            st.caption("-")
-                        else:
-                            for s in stats_list:
-                                # Visual Limpo: "20+ PTS" em verde
-                                st.markdown(f":green[**{s['line']}+ {s['stat']}**]")
-                                st.caption(f"Piso: {int(s['score'])}")
-
-                # Renderiza as 3 colunas de tempo
-                render_stat_col(c_l5, "🔥 L5", data['L5'])
-                render_stat_col(c_l10, "⚖️ L10", data['L10'])
-                render_stat_col(c_l15, "🏛️ L15", data['L15'])
-        
-# ============================================================================
-# STRATEGY ENGINE: 5/7/10 (VERSÃO FINAL - CORRIGIDA)
-# ============================================================================
-import os
-import json
-import unicodedata
 
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
@@ -8142,6 +8075,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
