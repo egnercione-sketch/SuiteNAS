@@ -5062,74 +5062,145 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
     return None
 
 # ============================================================================
-# FUNÇÃO REVISADA: GET PLAYERS L5 (TEMPORADA 2025-26)
+# FUNÇÃO REVISADA: GET PLAYERS L5 (COM SMART UPDATE INCREMENTAL)
 # ============================================================================
-def get_players_l5(progress_ui=True, force_update=False):
+def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     """
-    Baixa estatísticas L5 (Últimos 5 Jogos) da temporada ATUAL.
+    Baixa estatísticas L5.
+    
+    - force_update=True: Baixa TUDO do zero (Lento ~5min). Use 1x na semana.
+    - incremental=True: Baixa apenas times que jogaram ONTEM e HOJE (Rápido ~30s). Use todo dia.
+    - Padrão: Baixa apenas jogadores novos (novas contratações).
     """
     from nba_api.stats.static import players
-    from nba_api.stats.endpoints import playergamelog
+    from nba_api.stats.endpoints import playergamelog, scoreboardv2
     import concurrent.futures
     import time
     import json
     import pandas as pd
+    from datetime import datetime, timedelta
     
-    # --- CORREÇÃO AQUI ---
-    SEASON_CURRENT = "2025-26" # <--- ALTERADO PARA 2025-26
+    # --- CONFIGURAÇÃO DA TEMPORADA ATUAL ---
+    SEASON_CURRENT = "2025-26" 
     MAX_WORKERS = 8 
     KEY_L5 = "l5_stats"
 
-    # ... (O resto da função continua igual, pois a lógica não muda) ...
-    # Vou resumir o resto para não ficar gigante, mas você DEVE alterar a variável lá em cima.
-    
-    # 1. Carrega Cache
+    # 1. Carrega o Cache Atual
     df_cached = pd.DataFrame()
-    if not force_update:
-        cloud_data = get_data_universal(KEY_L5)
-        if cloud_data and "records" in cloud_data:
-            try: df_cached = pd.DataFrame.from_records(cloud_data["records"])
-            except: pass
+    cloud_data = get_data_universal(KEY_L5)
+    if cloud_data and "records" in cloud_data:
+        try:
+            df_cached = pd.DataFrame.from_records(cloud_data["records"])
+            # Normaliza nomes de colunas para garantir filtro correto
+            df_cached.columns = [str(c).upper().strip() for c in df_cached.columns]
+        except: pass
     
-    # 2. Define pendentes
-    act_players = players.get_active_players()
+    # Se for Force Update, ignoramos o cache
     if force_update:
-        pending_players = act_players
         df_cached = pd.DataFrame()
-        if progress_ui: st.toast(f"🔄 Modo Forçado: Baixando TODOS ({SEASON_CURRENT})...", icon="🚀")
+        if progress_ui: st.toast(f"☢️ Modo Force: Apagando cache e baixando TUDO...", icon="⚠️")
+
+    act_players = players.get_active_players()
+    pending_players = []
+
+    # 2. LÓGICA DE SELEÇÃO (QUEM VAMOS BAIXAR?)
+    
+    if force_update:
+        # BAIXA TODO MUNDO
+        pending_players = act_players
+        
+    elif incremental:
+        # SMART UPDATE: Só quem jogou Ontem ou Hoje
+        if progress_ui: st.toast("🧠 Calculando times recentes...", icon="📅")
+        
+        # Datas de interesse: Ontem e Hoje
+        dates_to_check = [
+            datetime.now().strftime('%Y-%m-%d'), 
+            (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        ]
+        
+        target_team_ids = set()
+        
+        # Pega Scoreboard para descobrir quais times jogaram
+        for d in dates_to_check:
+            try:
+                board = scoreboardv2.ScoreboardV2(game_date=d).get_data_frames()[0]
+                if not board.empty:
+                    target_team_ids.update(board['HOME_TEAM_ID'].tolist())
+                    target_team_ids.update(board['VISITOR_TEAM_ID'].tolist())
+            except: pass
+            
+        if not target_team_ids:
+            if progress_ui: st.warning("⚠️ Não encontrei jogos recentes para atualizar.")
+            return df_cached
+
+        # Filtra o Cache: Quais jogadores pertencem a esses times?
+        # (Precisamos confiar que o 'TEAM_ID' ou 'TEAM' no cache está certo)
+        ids_to_update = set()
+        
+        # Tenta filtrar pelo ID do Time se tiver no cache, ou pela sigla
+        if not df_cached.empty:
+            # Se tivermos a coluna TEAM_ID
+            col_tid = next((c for c in df_cached.columns if 'TEAM_ID' in c), None)
+            if col_tid:
+                ids_to_update = set(df_cached[df_cached[col_tid].isin(target_team_ids)]['PLAYER_ID'])
+            else:
+                # Se não tiver TEAM_ID, vamos ter que baixar os 'novos' ou usar force na duvida.
+                # Fallback: Baixa quem não tem dados atualizados recentemente (logica complexa),
+                # então vamos simplificar: se não achar TEAM_ID, avisa pra rodar full.
+                if progress_ui: st.warning("Cache antigo sem ID de time. Rode o FULL UPDATE uma vez.")
+                return df_cached
+        
+        # Cria a lista final de players para baixar
+        # 1. Jogadores dos times alvo
+        # 2. Jogadores que nem estão no cache ainda (novos)
+        existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty else set()
+        
+        pending_players = [
+            p for p in act_players 
+            if p['id'] in ids_to_update or p['id'] not in existing_ids
+        ]
+        
+        if progress_ui: st.toast(f"🎯 Alvo: {len(pending_players)} jogadores de times recentes.", icon="⚡")
+
     else:
+        # PADRÃO: Só baixa quem não existe no cache (Novos contratados)
         existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty and "PLAYER_ID" in df_cached.columns else set()
         pending_players = [p for p in act_players if p['id'] not in existing_ids]
 
+    # --- FIM DA LÓGICA DE SELEÇÃO ---
+
     total_needed = len(pending_players)
     if total_needed == 0:
-        if progress_ui: st.success(f"✅ Base L5 já está atualizada ({len(df_cached)} registros).")
+        if progress_ui: st.success(f"✅ Nada para atualizar.")
         return df_cached
 
     # 3. UI
     if progress_ui:
-        status_box = st.status(f"🚀 Baixando L5 - {SEASON_CURRENT} ({total_needed} jogadores)...", expanded=True)
+        label_mode = "INCREMENTAL" if incremental else ("FULL" if force_update else "NOVOS")
+        status_box = st.status(f"🚀 Baixando L5 [{label_mode}] ({total_needed} jogadores)...", expanded=True)
         p_bar = status_box.progress(0)
         metric_ph = status_box.empty()
     
-    # Worker
+    # Worker (Intacto)
     def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
             time.sleep(0.05) 
-            # --- API CHAMADA COM A TEMPORADA CERTA ---
             log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=10)
             df = log.get_data_frames()[0]
             
             if not df.empty:
                 df_l5 = df.head(5).copy()
-                
-                # Sanitização Int
                 int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FGM', 'FG3M', 'FG3A', 'TOV', 'PF']
                 for col in int_cols:
                     if col in df_l5.columns:
                         df_l5[col] = df_l5[col].fillna(0).astype('int64')
+                
+                # Garante que temos o TEAM_ID para o próximo incremental funcionar
+                if 'Team_ID' in df.columns: df_l5['TEAM_ID'] = df['Team_ID']
+                elif 'TEAM_ID' in df.columns: df_l5['TEAM_ID'] = df['TEAM_ID']
 
                 df_l5['PLAYER_NAME'] = pname
                 df_l5['PLAYER_ID'] = pid
@@ -5154,24 +5225,25 @@ def get_players_l5(progress_ui=True, force_update=False):
                 p_bar.progress(min(pct, 1.0))
                 metric_ph.write(f"Processando: {results_count}/{total_needed}")
 
-            if results_count % 50 == 0:
-                df_partial = pd.concat([df_cached, df_new_batch], ignore_index=True)
-                records = json.loads(df_partial.to_json(orient="records", date_format="iso"))
-                save_data_universal(KEY_L5, {"records": records})
+    # 5. MERGE INTELIGENTE (Crucial para o Incremental)
+    if not df_new_batch.empty:
+        # Se temos cache, removemos os jogadores antigos que acabamos de baixar atualizados
+        if not df_cached.empty:
+            updated_ids = df_new_batch['PLAYER_ID'].unique()
+            df_cached = df_cached[~df_cached['PLAYER_ID'].isin(updated_ids)]
+        
+        # Junta o cache antigo (sem os desatualizados) com o lote novo
+        df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
+    else:
+        df_final = df_cached
 
-    # 5. Final
-    df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
+    # Salva
     records_final = json.loads(df_final.to_json(orient="records", date_format="iso"))
-    
-    payload = {
-        "records": records_final,
-        "timestamp": datetime.now().isoformat(),
-        "count": len(df_final)
-    }
+    payload = { "records": records_final, "timestamp": datetime.now().isoformat(), "count": len(df_final) }
     save_data_universal(KEY_L5, payload)
     
     if progress_ui:
-        status_box.update(label=f"✅ L5 Atualizado ({SEASON_CURRENT})! Total: {len(df_final)}", state="complete", expanded=False)
+        status_box.update(label=f"✅ L5 Atualizado! Total na base: {len(df_final)}", state="complete", expanded=False)
         
     return df_final
 # ============================================================================
@@ -5325,25 +5397,50 @@ def show_config_page():
     with col_act1:
         st.subheader("📥 Ingestão de Dados")
         
-        # 1. BOTÃO DE ATUALIZAÇÃO GERAL (L5 + LOGS)
-        if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
-            try:
-                # A. Atualiza Médias L5 (Forçando Update)
-                st.write("📊 Baixando TODOS os dados L5 (Isso garante dados novos)...")
-                new_l5 = get_players_l5(progress_ui=True, force_update=True)
-                st.session_state.df_l5 = new_l5
-                
-                # B. Atualiza Logs Brutos (Com a correção do Bug 19.0)
-                st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
-                fetch_and_upload_real_game_logs(progress_ui=True)
-                
-                # C. Finalização
-                st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
-                time.sleep(2)
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Erro crítico no processo: {e}")
-                print(f"Erro Update Full: {e}")
+# --- COLUNA DA ESQUERDA: DADOS PESADOS (L5 & LESÕES) ---
+        with col_act1:
+            st.subheader("📥 Ingestão de Dados")
+            
+            # CRIAMOS DUAS COLUNAS PARA OS BOTÕES DE UPDATE
+            bt1, bt2 = st.columns(2)
+            
+            with bt1:
+                # BOTÃO RÁPIDO (INCREMENTAL)
+                if st.button("⚡ UPDATE RÁPIDO\n(Ontem/Hoje)", type="primary", use_container_width=True):
+                    try:
+                        st.write("🏎️ Atualizando apenas jogadores que jogaram recentemente...")
+                        # MODO INCREMENTAL: TRUE
+                        new_l5 = get_players_l5(progress_ui=True, incremental=True)
+                        st.session_state.df_l5 = new_l5
+                        
+                        st.write("📝 Atualizando Logs...")
+                        # A função de logs não tem incremental ainda, mas ela é mais rápida que o L5.
+                        # Se quiser deixá-la incremental também, me avise. Por enquanto, roda full (L30).
+                        fetch_and_upload_real_game_logs(progress_ui=True)
+                        
+                        st.success("✅ Dados Recentes Atualizados!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+            with bt2:
+                # BOTÃO COMPLETO (ANTIGO)
+                if st.button("🐢 FULL UPDATE\n(Reset Total)", use_container_width=True):
+                    try:
+                        st.write("🐌 Baixando 500+ jogadores do zero (Isso demora)...")
+                        # MODO FORCE: TRUE
+                        new_l5 = get_players_l5(progress_ui=True, force_update=True)
+                        st.session_state.df_l5 = new_l5
+                        
+                        st.write("📝 Baixando Logs...")
+                        fetch_and_upload_real_game_logs(progress_ui=True)
+                        
+                        st.success("✅ Base Resetada com Sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
 
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
@@ -8583,6 +8680,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
