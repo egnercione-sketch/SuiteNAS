@@ -2577,16 +2577,30 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (V9.0 - LAYOUT BLINDADO COM TABELAS)
+# PÁGINA: NEXUS PAGE (V10.0 - NATIVE STREAMLIT / BULLETPROOF)
 # ============================================================================
 def show_nexus_page():
-    # --- CSS TIPOGRAFIA (Apenas fontes, sem layout perigoso) ---
+    # --- CSS MÍNIMO (Apenas para embelezar fontes e cores) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
-        /* Remove padding padrão de tabelas para ficar clean */
-        .nx-table { width: 100%; border-collapse: collapse; border: none; }
-        .nx-table td { vertical-align: middle; padding: 5px; border: none; }
+        
+        /* Classes utilitárias para TEXTO apenas (Seguro) */
+        .nx-title { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: bold; letter-spacing: 1px; color: #FFFFFF; }
+        .nx-score { font-family: monospace; font-weight: bold; color: #FBBF24; background: #1e293b; padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; }
+        
+        .nx-big-stat { font-family: 'Oswald', sans-serif; font-size: 24px; font-weight: bold; line-height: 1.1; }
+        .nx-meta { font-family: monospace; font-size: 11px; color: #94a3b8; text-transform: uppercase; }
+        
+        /* Cores Neon */
+        .c-pts { color: #FBBF24; }
+        .c-ast { color: #38BDF8; }
+        .c-reb { color: #F87171; }
+        .c-def { color: #A3E635; }
+        
+        /* Imagem Redonda Segura (Inline) */
+        .nx-avatar { border-radius: 50%; width: 60px; height: 60px; object-fit: cover; border: 2px solid #334155; }
+        .nx-logo { width: 60px; height: 60px; object-fit: contain; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -2594,13 +2608,9 @@ def show_nexus_page():
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
 
-    # Header Clean
-    st.markdown("""
-    <div style="text-align:center; margin-bottom:20px;">
-        <h1 style="font-family:'Oswald', sans-serif; font-size:32px; color:white; margin:0; letter-spacing:1px;">NEXUS HUD</h1>
-        <div style="font-family:monospace; color:#64748b; font-size:12px;">SISTEMA TÁTICO • ONLINE</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Header Nativo
+    st.markdown("<h1 style='text-align:center; margin-bottom:0;'>NEXUS HUD</h1>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; color:#64748b; font-size:12px; margin-bottom:20px;'>SISTEMA TÁTICO • ONLINE</div>", unsafe_allow_html=True)
 
     if not full_cache:
         st.info("ℹ️ Aguardando dados...")
@@ -2626,149 +2636,134 @@ def show_nexus_page():
         return
 
     # Helper de Cores
-    def get_stat_color(stat_name):
+    def get_color_class(stat_name):
         s = str(stat_name).upper()
-        if 'PTS' in s: return "#FBBF24" # Amarelo
-        if 'AST' in s: return "#38BDF8" # Azul
-        if 'REB' in s: return "#F87171" # Vermelho
-        return "#A3E635" # Verde
+        if 'PTS' in s: return "c-pts"
+        if 'AST' in s: return "c-ast"
+        if 'REB' in s: return "c-reb"
+        return "c-def"
 
-    # 3. RENDERIZAÇÃO
+    # 3. RENDERIZAÇÃO 100% NATIVA
     for op in opportunities:
-        # Variáveis
+        # Prepara Dados
         score = op.get('score', 0)
-        color = op.get('color', '#38BDF8')
+        color = op.get('color', '#38BDF8') # Usado na borda lateral se quisermos
         raw_title = op.get('title', 'OPORTUNIDADE')
         op_type = op.get('type', 'Standard')
         is_sgp = (op_type == 'SGP')
         
         if is_sgp:
             main_title = "SINERGIA"
-            center_icon = "⚡"
-            center_label = "" 
+            icon = "⚡"
+            center_label = ""
         else:
             main_title = str(raw_title).replace("VÁCUO DE REBOTE", "VÁCUO TÁTICO")
-            center_icon = "⚔️"
+            icon = "⚔️"
             center_label = "VS"
 
         # Hero (Esquerda)
-        hero = op.get('hero', {}) or {}
+        hero = op.get('hero', {})
         h_name = hero.get('name', 'Unknown')
-        h_photo = hero.get('photo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
-        h_logo = hero.get('logo', '')
+        h_photo = hero.get('photo', '')
         h_role = hero.get('role', 'PLAYER') 
-        h_target = hero.get('target', '-')
+        h_val = hero.get('target', '-')
         h_stat = hero.get('stat', '')
-        h_stat_color = get_stat_color(h_stat)
+        h_cls = get_color_class(h_stat)
 
         # Target (Direita)
         if is_sgp:
-            partner = op.get('partner', {}) or {}
+            partner = op.get('partner', {})
             t_name = partner.get('name', 'Parceiro')
-            t_photo = partner.get('photo', h_photo)
-            t_logo = partner.get('logo', '')
+            t_photo = partner.get('photo', '')
             t_role = "PARCEIRO"
-            t_val_html = f"<div style='color:{get_stat_color(partner.get('stat'))}; font-size:18px; font-weight:bold; font-family:Oswald;'>{partner.get('target')} <span style='font-size:10px; color:#94a3b8;'>{partner.get('stat')}</span></div>"
-            t_img_src = t_photo
-            t_is_round = True
+            t_val_html = f"<span class='nx-big-stat {get_color_class(partner.get('stat'))}'>{partner.get('target')}</span> <span style='font-size:12px; color:#94a3b8'>{partner.get('stat')}</span>"
+            t_img_class = "nx-avatar"
         else:
-            villain = op.get('villain', {}) or {}
+            villain = op.get('villain', {})
             t_name = villain.get('name', 'Adversário')
-            t_photo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
-            t_logo = ''
+            t_photo = villain.get('logo', '')
             t_role = "DEFESA"
             v_status = villain.get('status', '')
-            status_span = f"<span style='background:rgba(248,113,113,0.2); color:#F87171; padding:2px 4px; border-radius:3px; font-size:10px;'>🚨 {v_status}</span>" if v_status else ""
-            t_val_html = f"<div style='margin-top:2px;'>{status_span}</div>"
-            t_img_src = t_photo
-            t_is_round = False
+            status_alert = f"<span style='color:#F87171; background:#3f1a1a; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:11px;'>🚨 {v_status}</span>" if v_status else ""
+            t_val_html = f"<div style='margin-top:5px'>{status_alert}</div>"
+            t_img_class = "nx-logo" # Logo quadrado/contain
 
-        # Ladder & Impacto
-        ladder_raw = op.get('ladder', []) or []
-        ladder_clean = [str(l).split(":")[-1].strip() for l in ladder_raw if ":" in str(l)]
-        
-        ladder_html = ""
-        if len(ladder_clean) >= 3:
-            ladder_html = f"""
-            <span style='color:#64748b;'>Base</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[0]}</span>
-            <span style='color:#334155; margin:0 5px;'>|</span>
-            <span style='color:#FBBF24;'>Alvo</span> <span style='color:#FBBF24; font-weight:bold;'>{ladder_clean[1]}</span>
-            <span style='color:#334155; margin:0 5px;'>|</span>
-            <span style='color:#64748b;'>Teto</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[2]}</span>
-            """
-        elif len(ladder_clean) > 0:
-            ladder_html = " | ".join(ladder_clean)
-
-        impact_txt = op.get('impact', '...')
-
-        # --- REGRAS DE ESTILO DOS AVATARES ---
-        h_img_style = f"width:55px; height:55px; border-radius:50%; border:2px solid {color}; object-fit:cover; display:block;"
-        
-        if t_is_round:
-            t_img_style = f"width:55px; height:55px; border-radius:50%; border:2px solid {color}; object-fit:cover; display:block;"
-        else:
-            t_img_style = "width:50px; height:50px; border-radius:4px; border:1px solid #475569; object-fit:contain; background:#000; display:block;"
-
-        # --- HTML CARD FINAL (ESTRUTURA DE TABELA - ANTI-EXPLOSÃO) ---
-        html_card = f"""
-        <div style="background-color:#0f172a; border:1px solid {color}; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.5); overflow:hidden; font-family:'Oswald', sans-serif;">
+        # --- ESTRUTURA DO CARD (NATIVA) ---
+        # border=True cria a caixa visual segura
+        with st.container(border=True):
             
-            <div style="background:{color}20; padding:8px 15px; border-bottom:1px solid {color}40; display:flex; justify-content:space-between; align-items:center;">
-                <div style="color:{color}; font-size:14px; letter-spacing:1px;">
-                    {center_icon} {main_title}
-                </div>
-                <div style="background:#000; color:#FBBF24; padding:2px 8px; border-radius:4px; border:1px solid #334155; font-size:12px; font-family:monospace;">
-                    SCORE {score}
-                </div>
+            # 1. HEADER (Duas colunas nativas)
+            c_head_L, c_head_R = st.columns([3, 1])
+            with c_head_L:
+                # Título Colorido
+                st.markdown(f"<span style='color:{color}; font-size:18px;'>{icon}</span> <span class='nx-title'>{main_title}</span>", unsafe_allow_html=True)
+            with c_head_R:
+                # Badge de Score (Alinhado à direita via HTML simples)
+                st.markdown(f"<div style='text-align:right'><span class='nx-score'>SCORE {score}</span></div>", unsafe_allow_html=True)
+            
+            st.divider() # Linha nativa do Streamlit (Segura e bonita)
+
+            # 2. CORPO (3 Colunas Nativas)
+            c1, c2, c3 = st.columns([2, 0.4, 2])
+            
+            # --- Coluna Esquerda: HEROI ---
+            with c1:
+                sc1, sc2 = st.columns([0.8, 2]) # Sub-colunas para alinhar foto e texto
+                with sc1:
+                    # Imagem via HTML simples (Inline não quebra)
+                    st.markdown(f"<img src='{h_photo}' class='nx-avatar' style='border-color:{color}'>", unsafe_allow_html=True)
+                with sc2:
+                    st.markdown(f"""
+                    <div style='line-height:1.2'>
+                        <div style='font-weight:bold; font-size:15px; color:#fff'>{h_name}</div>
+                        <div class='nx-meta'>{h_role}</div>
+                        <div class='nx-big-stat {h_cls}'>{h_val} <span style='font-size:12px; font-weight:normal; color:#94a3b8'>{h_stat}</span></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # --- Coluna Central: VS ---
+            with c2:
+                if center_label:
+                    st.markdown(f"<div style='text-align:center; margin-top:15px; font-weight:bold; color:#475569;'>{center_label}</div>", unsafe_allow_html=True)
+            
+            # --- Coluna Direita: TARGET ---
+            with c3:
+                sc_txt, sc_img = st.columns([2, 0.8])
+                with sc_txt:
+                    # Alinhamento à direita via HTML text-align (Seguro)
+                    st.markdown(f"""
+                    <div style='text-align:right; line-height:1.2'>
+                        <div style='font-weight:bold; font-size:15px; color:#fff'>{t_name}</div>
+                        <div class='nx-meta'>{t_role}</div>
+                        {t_val_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+                with sc_img:
+                    st.markdown(f"<div style='display:flex; justify-content:flex-end'><img src='{t_photo}' class='{t_img_class}'></div>", unsafe_allow_html=True)
+
+            # 3. FOOTER (Ladder e Impacto)
+            # Prepara Ladder
+            ladder_raw = op.get('ladder', [])
+            ladder_clean = [str(l).split(":")[-1].strip() for l in ladder_raw if ":" in str(l)]
+            
+            if len(ladder_clean) >= 3:
+                ladder_html = f"""
+                <span style='color:#64748b'>Base</span> <strong style='color:#fff'>{ladder_clean[0]}</strong> <span style='color:#334155'>|</span> 
+                <span style='color:#FBBF24'>Alvo</span> <strong style='color:#FBBF24'>{ladder_clean[1]}</strong> <span style='color:#334155'>|</span> 
+                <span style='color:#64748b'>Teto</span> <strong style='color:#fff'>{ladder_clean[2]}</strong>
+                """
+            else:
+                ladder_html = " • ".join(ladder_clean)
+                
+            impact_txt = op.get('impact', '')
+
+            # Renderiza Footer com fundo leve
+            st.markdown(f"""
+            <div style='margin-top:10px; background:#111827; border-radius:6px; padding:8px; border:1px dashed #334155; display:flex; justify-content:space-between; align-items:center; font-size:12px;'>
+                <div>{ladder_html}</div>
+                <div style='color:#94a3b8; font-style:italic; text-align:right; max-width:40%;'>{impact_txt}</div>
             </div>
-
-            <div style="padding:15px;">
-                <table class="nx-table">
-                    <tr>
-                        <td style="width:55px;">
-                             <div style="position:relative; width:55px; height:55px;">
-                                <img src="{h_photo}" style="{h_img_style}">
-                                <img src="{h_logo}" style="position:absolute; bottom:-2px; right:-2px; width:20px; height:20px; border-radius:50%; background:#000; border:1px solid #fff; padding:1px;">
-                            </div>
-                        </td>
-                        <td style="text-align:left; padding-left:12px;">
-                            <div style="color:#fff; font-size:16px; font-weight:bold; line-height:1.1;">{h_name}</div>
-                            <div style="color:#64748b; font-size:10px; font-family:monospace;">{h_role}</div>
-                            <div style="color:{h_stat_color}; font-size:20px; font-weight:bold; line-height:1;">
-                                {h_target} <span style="font-size:11px; color:#64748b; font-weight:normal;">{h_stat}</span>
-                            </div>
-                        </td>
-
-                        <td style="width:40px; text-align:center; color:#475569; font-weight:bold; font-size:12px;">
-                            {center_label}
-                        </td>
-
-                        <td style="text-align:right; padding-right:12px;">
-                            <div style="color:#fff; font-size:16px; font-weight:bold; line-height:1.1;">{t_name}</div>
-                            <div style="color:#64748b; font-size:10px; font-family:monospace;">{t_role}</div>
-                            {t_val_html}
-                        </td>
-                        <td style="width:55px; text-align:right;">
-                            <div style="display:flex; justify-content:flex-end;">
-                                <img src="{t_img_src}" style="{t_img_style}">
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-
-            <div style="background:rgba(0,0,0,0.2); border-top:1px dashed #334155; padding:8px 15px; font-family:sans-serif; font-size:11px;">
-                <table class="nx-table">
-                    <tr>
-                        <td style="text-align:left; color:#cbd5e1;">{ladder_html}</td>
-                        <td style="text-align:right; color:#94a3b8; font-style:italic;">IMPACTO: {impact_txt}</td>
-                    </tr>
-                </table>
-            </div>
-
-        </div>
-        """
-        st.markdown(html_card, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
 # ============================================================================
@@ -8905,6 +8900,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
