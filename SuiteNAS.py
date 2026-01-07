@@ -585,7 +585,7 @@ class OracleEngine:
 # PÁGINA: ORÁCULO V6 (COMPACTO + SNAPSHOT + FOTO FIX)
 # ============================================================================
 # ============================================================================
-# PÁGINA: ORÁCULO V7 (DASHBOARD DNA + COMPACT LAYOUT)
+# PÁGINA: ORÁCULO V8 (CRUZAMENTO BLINDADO L5/L25)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -596,103 +596,115 @@ def show_oracle_page():
     import matplotlib.pyplot as plt
     import io
 
-    # --- 1. CSS VISUAL (COMPACTO & NATIVO) ---
+    # --- 1. CSS VISUAL (TICKET COMPACTO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* Card Compacto */
+        /* Container Card */
         [data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: #0f172a !important;
+            background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%) !important;
             border: 1px solid #334155 !important;
             border-left: 4px solid #D4AF37 !important;
             padding: 8px !important;
             margin-bottom: 8px !important;
+            border-radius: 6px !important;
         }
 
-        /* Tipografia */
-        .oracle-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; }
+        /* Identidade */
+        .oracle-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .oracle-meta { font-family: 'Inter'; font-size: 10px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
         
         /* Stats Box */
-        .stat-box {
-            background: rgba(30, 41, 59, 0.5); border-radius: 4px; padding: 2px 0; text-align: center;
-        }
+        .stat-box { background: rgba(30, 41, 59, 0.5); border-radius: 4px; padding: 3px 0; text-align: center; border: 1px solid #334155; }
         .stat-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; line-height: 1; }
-        .stat-lbl { font-family: 'Inter'; font-size: 8px; color: #64748b; font-weight: 700; }
+        .stat-lbl { font-family: 'Inter'; font-size: 8px; color: #64748b; font-weight: 700; margin-top: -2px; }
 
-        /* Cores */
-        .c-gold { color: #fbbf24; } .c-red { color: #f87171; }
-        .c-blue { color: #60a5fa; } .c-green { color: #4ade80; }
+        /* Cores Neon */
+        .c-gold { color: #fbbf24; text-shadow: 0 0 5px rgba(251, 191, 36, 0.3); }
+        .c-red { color: #f87171; text-shadow: 0 0 5px rgba(248, 113, 113, 0.3); }
+        .c-blue { color: #60a5fa; text-shadow: 0 0 5px rgba(96, 165, 250, 0.3); }
+        .c-green { color: #4ade80; text-shadow: 0 0 5px rgba(74, 222, 128, 0.3); }
     </style>
     """, unsafe_allow_html=True)
 
     # --- 2. HEADER ---
     c1, c2 = st.columns([8, 2])
-    c1.markdown("""
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-        <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="35">
-        <div style="font-family:'Oswald'; font-size:22px; color:#D4AF37; letter-spacing:1px;">ORACLE PROJECTIONS</div>
-    </div>
-    """, unsafe_allow_html=True)
+    with c1:
+        st.markdown("""
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+            <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="35">
+            <div>
+                <div style="font-family:'Oswald'; font-size:22px; color:#D4AF37; line-height:1;">ORACLE PROJECTIONS</div>
+                <div style="font-family:'Inter'; font-size:10px; color:#64748b;">POWERED BY DIGIBETS AI</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # --- 3. DADOS & INDEXAÇÃO (A LÓGICA DO DASHBOARD) ---
+    # --- 3. DADOS & NORMALIZAÇÃO ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     injuries_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
     if not full_cache:
-        st.warning("⚠️ Aguardando dados...")
+        st.warning("⚠️ Aguardando dados do Oráculo (L25)...")
         return
 
-    # INDEXADOR DE IDENTIDADE (Igual ao Dashboard/Momentum)
-    ID_DB = {} # Chave Normalizada -> {ID, Time}
-    
+    # FUNÇÃO DE LIMPEZA ABSOLUTA
     def clean_key(text):
         if not text: return ""
         try:
-            t = str(text).upper().strip()
-            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-            return re.sub(r'[^A-Z]', '', t)
+            # 1. Remove acentos (Jokić -> Jokic)
+            text = str(text)
+            nfkd_form = unicodedata.normalize('NFKD', text)
+            text = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+            # 2. Upper case e remove tudo que não for letra
+            return re.sub(r'[^A-Z]', '', text.upper())
         except: return ""
+
+    # DICIONÁRIO MESTRE DE IDENTIDADE (DO L5)
+    # Estrutura: "NIKOLAJOKIC": {"id": 203999, "team": "DEN", "name": "Nikola Jokic"}
+    MASTER_DB = {}
 
     if not df_l5.empty:
         try:
-            # Normaliza Colunas
-            df_l5.columns = [c.upper().strip() for c in df_l5.columns]
-            cols = df_l5.columns
+            # Garante colunas limpas
+            df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
             
-            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            # Tenta encontrar as colunas certas
+            col_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID']), 'PLAYER_ID')
+            col_name = next((c for c in df_l5.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), 'PLAYER')
+            col_team = next((c for c in df_l5.columns if c in ['TEAM', 'TEAM_ABBREVIATION']), 'TEAM')
 
             for _, row in df_l5.iterrows():
                 try:
-                    # EXTRAÇÃO LIMPA (Igual Dashboard)
-                    raw_id = row.get(c_id, 0)
-                    pid = int(float(raw_id)) 
+                    # ID Seguro
+                    raw_id = row.get(col_id, 0)
+                    pid = int(float(raw_id))
                     
                     if pid > 0:
-                        raw_name = str(row.get(c_name, ''))
-                        key = clean_key(raw_name)
-                        team = str(row.get(c_team, 'UNK')).upper().strip()
+                        p_name = str(row.get(col_name, ''))
+                        p_team = str(row.get(col_team, 'UNK')).upper()
                         
-                        data = {'id': pid, 'team': team, 'clean_name': raw_name}
+                        # Chave Limpa (Ex: NIKOLAJOKIC)
+                        key = clean_key(p_name)
                         
-                        # Indexa Full
-                        ID_DB[key] = data
+                        entry = {'id': pid, 'team': p_team, 'real_name': p_name}
+                        MASTER_DB[key] = entry
                         
-                        # Indexa Sobrenome (Fallback)
-                        parts = raw_name.split()
+                        # Indexa também só pelo sobrenome para garantir (Ex: JOKIC)
+                        parts = p_name.split()
                         if len(parts) > 1:
-                            lname = clean_key(parts[-1])
-                            if lname not in ID_DB: ID_DB[lname] = data
+                            last_name_key = clean_key(parts[-1])
+                            if last_name_key not in MASTER_DB: # Prioridade para nome completo
+                                MASTER_DB[last_name_key] = entry
                 except: continue
-        except: pass
+        except Exception as e:
+            st.error(f"Erro ao indexar L5: {e}")
 
     # --- 4. ENGINE ORÁCULO ---
     engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=10)
+    projections = engine.generate_projections(limit=12)
 
     if not projections:
         st.info("Calibrando...")
@@ -711,40 +723,47 @@ def show_oracle_page():
     snapshot_list = []
 
     for p in projections:
-        p_name = p['name']
+        raw_name = p['name'] # Ex: "Nikola Jokic" (L25)
+        search_key = clean_key(raw_name) # Ex: "NIKOLAJOKIC"
         
-        # BUSCA NO INDEX
-        match = ID_DB.get(clean_key(p_name))
+        # 1. Busca no Dicionário Mestre
+        match = MASTER_DB.get(search_key)
         
-        # Fallback Sobrenome
+        # 2. Se falhar, tenta só o sobrenome
         if not match:
-            parts = p_name.split()
-            if len(parts) > 1: match = ID_DB.get(clean_key(parts[-1]))
-            
+            parts = raw_name.split()
+            if len(parts) > 1:
+                match = MASTER_DB.get(clean_key(parts[-1]))
+
         # Define Dados Finais
         if match:
-            pid = match['id']
-            real_team = match['team']
-            display_name = match['clean_name']
+            final_id = match['id']
+            final_team = match['team']
+            final_name = match['real_name']
         else:
-            pid = 0
-            real_team = str(p['team']).upper()
-            if len(real_team) > 3: real_team = "UNK"
-            display_name = p_name
+            # Fallback se não achar no L5
+            final_id = 0
+            final_team = str(p['team']).upper()
+            final_name = raw_name
+            if len(final_team) > 3: final_team = "UNK"
+
+        # URLs
+        if final_id > 0:
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{final_id}.png"
+        else:
+            photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             
-        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-        
         # Logo Time
-        tm_low = real_team.lower()
+        tm_low = final_team.lower()
         if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
         logo_url = f"{logo_base}/{tm_low}.png"
 
-        # Guarda para o Snapshot
+        # Guarda dados para Snapshot
         snapshot_list.append({
-            'name': display_name, 'team': real_team, 
+            'name': final_name, 'team': final_team, 
             'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM']
         })
 
@@ -756,15 +775,14 @@ def show_oracle_page():
                 st.image(photo_url, use_container_width=True)
             
             with c_info:
-                st.markdown(f'<div class="oracle-name">{display_name}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="oracle-name">{final_name}</div>', unsafe_allow_html=True)
                 st.markdown(f"""
                 <div class="oracle-meta">
                     <img src="{logo_url}" width="14" style="vertical-align:middle;"> 
-                    <span style="font-size:10px; color:#cbd5e1;">{real_team}</span>
+                    <span style="font-size:10px; color:#cbd5e1;">{final_team}</span>
                 </div>
                 """, unsafe_allow_html=True)
-                
-            # Stats (Quadradinhos)
+            
             with c1: st.markdown(f'<div class="stat-box"><div class="stat-val c-gold">{p["PTS"]:.1f}</div><div class="stat-lbl">PTS</div></div>', unsafe_allow_html=True)
             with c2: st.markdown(f'<div class="stat-box"><div class="stat-val c-red">{p["REB"]:.1f}</div><div class="stat-lbl">REB</div></div>', unsafe_allow_html=True)
             with c3: st.markdown(f'<div class="stat-box"><div class="stat-val c-blue">{p["AST"]:.1f}</div><div class="stat-lbl">AST</div></div>', unsafe_allow_html=True)
@@ -772,46 +790,42 @@ def show_oracle_page():
 
     # --- 6. SNAPSHOT ENGINE (GERAÇÃO DE PNG) ---
     def create_snapshot(data):
-        fig, ax = plt.subplots(figsize=(8, 10)) # Tamanho retrato
+        fig, ax = plt.subplots(figsize=(8, 10))
         fig.patch.set_facecolor('#0f172a')
         ax.set_facecolor('#0f172a')
         ax.axis('off')
         
         # Header
-        ax.text(0.5, 0.95, "DIGIBETS ORACLE", color='#D4AF37', fontsize=24, ha='center', weight='bold', fontname='DejaVu Sans')
+        ax.text(0.5, 0.95, "DIGIBETS ORACLE", color='#D4AF37', fontsize=26, ha='center', weight='bold', fontname='DejaVu Sans')
         ax.text(0.5, 0.92, "PROJEÇÕES MATEMÁTICAS (IA)", color='#94a3b8', fontsize=10, ha='center')
         
         # Colunas
         y_pos = 0.86
-        ax.text(0.05, y_pos, "JOGADOR", color='#64748b', fontsize=8, weight='bold')
-        ax.text(0.60, y_pos, "PTS", color='#fbbf24', fontsize=9, weight='bold', ha='center')
-        ax.text(0.72, y_pos, "REB", color='#f87171', fontsize=9, weight='bold', ha='center')
-        ax.text(0.84, y_pos, "AST", color='#60a5fa', fontsize=9, weight='bold', ha='center')
-        ax.text(0.96, y_pos, "3PM", color='#4ade80', fontsize=9, weight='bold', ha='center')
+        ax.text(0.05, y_pos, "JOGADOR", color='#64748b', fontsize=9, weight='bold')
+        ax.text(0.55, y_pos, "PTS", color='#fbbf24', fontsize=10, weight='bold', ha='center')
+        ax.text(0.68, y_pos, "REB", color='#f87171', fontsize=10, weight='bold', ha='center')
+        ax.text(0.81, y_pos, "AST", color='#60a5fa', fontsize=10, weight='bold', ha='center')
+        ax.text(0.94, y_pos, "3PM", color='#4ade80', fontsize=10, weight='bold', ha='center')
         
-        # Linha
         ax.plot([0.05, 0.95], [0.84, 0.84], color='#334155', lw=1)
         
-        # Dados
         y_curr = 0.80
         step = 0.075
-        
         for item in data:
             # Nome e Time
             ax.text(0.05, y_curr, item['name'], color='white', fontsize=12, weight='bold')
-            ax.text(0.05, y_curr-0.02, item['team'], color='#94a3b8', fontsize=8)
+            ax.text(0.05, y_curr-0.02, item['team'], color='#94a3b8', fontsize=9)
             
             # Stats
-            ax.text(0.60, y_curr-0.01, f"{item['pts']:.1f}", color='#fbbf24', fontsize=14, weight='bold', ha='center')
-            ax.text(0.72, y_curr-0.01, f"{item['reb']:.1f}", color='#f87171', fontsize=14, weight='bold', ha='center')
-            ax.text(0.84, y_curr-0.01, f"{item['ast']:.1f}", color='#60a5fa', fontsize=14, weight='bold', ha='center')
-            ax.text(0.96, y_curr-0.01, f"{item['3pm']:.1f}", color='#4ade80', fontsize=14, weight='bold', ha='center')
+            ax.text(0.55, y_curr-0.01, f"{item['pts']:.1f}", color='#fbbf24', fontsize=14, weight='bold', ha='center')
+            ax.text(0.68, y_curr-0.01, f"{item['reb']:.1f}", color='#f87171', fontsize=14, weight='bold', ha='center')
+            ax.text(0.81, y_curr-0.01, f"{item['ast']:.1f}", color='#60a5fa', fontsize=14, weight='bold', ha='center')
+            ax.text(0.94, y_curr-0.01, f"{item['3pm']:.1f}", color='#4ade80', fontsize=14, weight='bold', ha='center')
             
-            # Separador
+            # Separador fino
             ax.plot([0.05, 0.95], [y_curr-0.04, y_curr-0.04], color='#1e293b', lw=0.5)
             y_curr -= step
             
-        # Footer
         ax.text(0.5, 0.02, "Gerado via DigiBets Suite", color='#475569', ha='center', fontsize=8)
         
         buf = io.BytesIO()
@@ -822,8 +836,11 @@ def show_oracle_page():
     # Botão de Download
     with c2:
         if snapshot_list:
-            img = create_snapshot(snapshot_list)
-            st.download_button("📸 Baixar Card", data=img, file_name="oracle_card.png", mime="image/png")
+            try:
+                img = create_snapshot(snapshot_list)
+                st.download_button("📸 Baixar Card", data=img, file_name="oracle_card.png", mime="image/png")
+            except Exception as e:
+                st.error("Erro ao gerar imagem. Verifique matplotlib.")
 # ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
@@ -8485,6 +8502,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
