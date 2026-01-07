@@ -8298,6 +8298,9 @@ CUSTOM_CSS = """
 # ============================================================================
 # PÁGINA: LAB DE NARRATIVAS (WAR ROOM V4.1 - LOOP FIX & CLEAN UI)
 # ============================================================================
+# ============================================================================
+# PÁGINA: LAB DE NARRATIVAS (V4.2 - DEBUG & TEAM FIX)
+# ============================================================================
 def show_narrative_lab():
     import time
     
@@ -8307,27 +8310,18 @@ def show_narrative_lab():
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
-        /* Títulos */
         .wr-header { font-family: 'Oswald', sans-serif; font-size: 32px; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
         .wr-sub { font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
-        
-        /* Tabelas Indestrutíveis */
         .wr-table { width: 100%; border-collapse: collapse; }
         .wr-table td { padding: 8px 4px; vertical-align: middle; border-bottom: 1px dashed #334155; }
         .wr-table tr:last-child td { border-bottom: none; }
-        
-        /* Classes de Texto */
         .wr-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; font-weight: bold; line-height: 1.1; }
         .wr-stat { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; }
         .wr-val-killer { font-family: 'Oswald', sans-serif; font-size: 18px; color: #F87171; font-weight: bold; text-align: right; }
         .wr-val-cold { font-family: 'Oswald', sans-serif; font-size: 18px; color: #00E5FF; font-weight: bold; text-align: right; }
-        
-        /* Tags */
         .wr-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-top: 4px; }
         .tag-killer { background: rgba(248, 113, 113, 0.15); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
         .tag-cold { background: rgba(6, 182, 212, 0.15); color: #00E5FF; border: 1px solid rgba(6, 182, 212, 0.3); }
-
-        /* Imagens */
         .wr-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; display: block; }
     </style>
     """, unsafe_allow_html=True)
@@ -8339,7 +8333,7 @@ def show_narrative_lab():
             st.session_state.narrative_engine = NarrativeIntelligence()
         engine = st.session_state.narrative_engine
     except:
-        st.error("⚠️ Módulo de Inteligência não detectado.")
+        st.error("⚠️ Engine não encontrada.")
         return
 
     games = st.session_state.get("scoreboard", [])
@@ -8350,63 +8344,83 @@ def show_narrative_lab():
     st.markdown('<div class="wr-sub">MONITORAMENTO DE ANOMALIAS ESTATÍSTICAS HISTÓRICAS</div>', unsafe_allow_html=True)
 
     if not games or df_l5.empty:
-        st.info("ℹ️ Aguardando dados para iniciar varredura...")
+        st.info("ℹ️ Aguardando dados...")
         return
 
-    # Limpeza
-    df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
+    # --- FIX 1: NORMALIZAÇÃO AGRESSIVA DOS TIMES ---
+    # Garante que GS vire GSW, NY vire NYK, etc na base inteira
+    TEAM_MAP_FIX = {
+        'GS': 'GSW', 'GOLDEN STATE': 'GSW', 'NO': 'NOP', 'NEW ORLEANS': 'NOP',
+        'NY': 'NYK', 'NEW YORK': 'NYK', 'SA': 'SAS', 'SAN ANTONIO': 'SAS',
+        'PHO': 'PHX', 'PHOENIX': 'PHX', 'UTAH': 'UTA', 'UTA': 'UTA',
+        'WSH': 'WAS', 'WASHINGTON': 'WAS', 'BKN': 'BKN', 'BROOKLYN': 'BKN',
+        'LAL': 'LAL', 'LAC': 'LAC', 'NOP': 'NOP', 'SAS': 'SAS', 'GSW': 'GSW'
+    }
+    
+    # Função segura
+    def normalize_t(x):
+        x = str(x).upper().strip()
+        return TEAM_MAP_FIX.get(x, x)
 
-    # 2. LÓGICA DE CACHE E PROCESSAMENTO (SEM LOOP)
+    # Aplica na base de dados
+    if 'TEAM' in df_l5.columns:
+        df_l5['TEAM'] = df_l5['TEAM'].apply(normalize_t)
+    elif 'TEAM_ABBREVIATION' in df_l5.columns:
+        df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION'].apply(normalize_t)
+    else:
+        st.error("Coluna de Time não encontrada no L5.")
+        return
+
+    # Garante PTS_AVG como float
+    if 'PTS_AVG' in df_l5.columns:
+        df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
+
+    # 2. SCAN
     if "narrative_cache_v4" not in st.session_state:
         st.session_state.narrative_cache_v4 = {}
 
-    # Chave única baseada no número de jogos e hora atual (evita recálculo constante)
     cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
-    
-    # Tenta pegar do cache
     scan_results = st.session_state.narrative_cache_v4.get(cache_key)
 
-    # Se não tiver cache, calcula AGORA (sem rerun)
+    debug_logs = [] # Para armazenar logs de erro
+
     if scan_results is None:
-        # Placeholder para mostrar progresso e DEPOIS SUMIR
         loading_ph = st.empty()
-        
         with loading_ph.container():
-            st.write("📡 Escaneando histórico de confrontos...")
-            prog_bar = st.progress(0)
-            
+            st.write("📡 Escaneando histórico...")
+            prog = st.progress(0)
             scan_results = []
-            ESPN_MAP = {"SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA", "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"}
-            
-            total_steps = len(games)
             
             for i, game in enumerate(games):
                 try:
-                    away_raw, home_raw = game['away'], game['home']
-                    away_n = ESPN_MAP.get(away_raw, away_raw)
-                    home_n = ESPN_MAP.get(home_raw, home_raw)
+                    # Normaliza os times do Placar também
+                    away_raw = normalize_t(game['away'])
+                    home_raw = normalize_t(game['home'])
                     
-                    # Top 8 scorers
-                    r_away = df_l5[df_l5['TEAM'] == away_n].sort_values('PTS_AVG', ascending=False).head(8)
-                    r_home = df_l5[df_l5['TEAM'] == home_n].sort_values('PTS_AVG', ascending=False).head(8)
+                    # Filtra Base
+                    r_away = df_l5[df_l5['TEAM'] == away_raw].sort_values('PTS_AVG', ascending=False).head(8)
+                    r_home = df_l5[df_l5['TEAM'] == home_raw].sort_values('PTS_AVG', ascending=False).head(8)
+
+                    # DEBUG LOG
+                    if r_away.empty: debug_logs.append(f"⚠️ Zero jogadores encontrados para {away_raw}")
+                    if r_home.empty: debug_logs.append(f"⚠️ Zero jogadores encontrados para {home_raw}")
 
                     def analyze_player(row, opp_team, my_team):
                         try:
                             pid = int(float(row.get('PLAYER_ID', 0)))
-                            if pid == 0: return
-
                             pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
-                            # Filtro Bagre
-                            if avg_pts < 10: return
+                            # Filtro: Média mínima de 8 pts (baixei um pouco)
+                            if avg_pts < 8: return
 
-                            # Engine Call
+                            # Engine
                             data = engine.get_player_matchup_history(pid, pname, opp_team)
                             
                             if data and 'comparison' in data:
                                 diff = data['comparison'].get('diff_pct', 0)
                                 
+                                # Classificação
                                 n_type = "NEUTRAL"
                                 if diff >= 15: n_type = "KILLER"
                                 elif diff <= -15: n_type = "COLD"
@@ -8415,7 +8429,6 @@ def show_narrative_lab():
                                     scan_results.append({
                                         "game_id": f"{away_raw} @ {home_raw}",
                                         "player": pname,
-                                        "team": my_team,
                                         "opponent": opp_team,
                                         "diff": diff,
                                         "avg": avg_pts,
@@ -8425,42 +8438,56 @@ def show_narrative_lab():
                                     })
                         except: pass
 
-                    for _, p in r_away.iterrows(): analyze_player(p, home_n, away_raw)
-                    for _, p in r_home.iterrows(): analyze_player(p, away_n, home_raw)
+                    for _, p in r_away.iterrows(): analyze_player(p, home_raw, away_raw)
+                    for _, p in r_home.iterrows(): analyze_player(p, away_raw, home_raw)
                     
-                    prog_bar.progress((i+1)/total_steps)
-                except: continue
+                    prog.progress((i+1)/len(games))
+                except Exception as e:
+                    debug_logs.append(f"Erro no jogo {game}: {str(e)}")
             
-            # Salva no cache
             st.session_state.narrative_cache_v4[cache_key] = scan_results
-            
-        # LIMPA O PROGRESSO VISUALMENTE
         loading_ph.empty()
 
-    # --- FIM DO CÁLCULO, AGORA EXIBE (SEM RERUN) ---
-
+    # 3. RESULTADOS
     if not scan_results:
-        st.success("Nenhuma anomalia crítica detectada hoje. Jogos equilibrados.")
+        st.warning("Nenhuma anomalia crítica detectada.")
+        
+        # --- ÁREA DE DEBUG (CLIQUE PARA VER O PORQUÊ) ---
+        with st.expander("🕵️ DETETIVE DE ERROS (Clique aqui)", expanded=False):
+            st.write("**Diagnóstico:**")
+            st.write(f"Total de jogos analisados: {len(games)}")
+            
+            # Mostra quais times o sistema enxergou
+            if not games:
+                st.error("Lista de jogos (games) vazia.")
+            else:
+                teams_game = [f"{g['away']}@{g['home']}" for g in games]
+                st.write(f"Jogos no Placar: {teams_game}")
+            
+            # Mostra quais times existem no L5
+            st.write(f"Times disponíveis no Banco de Dados (L5): {df_l5['TEAM'].unique().tolist()}")
+            
+            # Logs específicos
+            if debug_logs:
+                st.write("Logs de Aviso:")
+                for log in debug_logs: st.warning(log)
+            else:
+                st.success("Nenhum erro técnico detectado. Talvez os jogadores hoje sejam apenas 'normais' (Médias < 8pts ou Diff < 15%).")
         return
 
-    # 3. UI: HIGH VALUE TARGETS (TOP 3)
+    # UI: TOP THREATS
     killers = [x for x in scan_results if x['type'] == "KILLER"]
     top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
 
     if top_threats:
         st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#F87171; font-weight:bold;'>🚨 ALVOS DE ALTO VALOR (TOP 3)</div>", unsafe_allow_html=True)
-        
         cols = st.columns(3)
         for idx, t in enumerate(top_threats):
             with cols[idx]:
-                # Card Nativo de Destaque
                 with st.container(border=True):
                     c_img, c_info = st.columns([1, 2])
-                    
                     with c_img:
-                        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png"
-                        st.markdown(f"<img src='{photo_url}' style='width:55px; height:55px; border-radius:50%; border:2px solid #F87171; object-fit:cover;'>", unsafe_allow_html=True)
-                    
+                        st.markdown(f"<img src='https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png' class='wr-img' style='border-color:#F87171'>", unsafe_allow_html=True)
                     with c_info:
                         st.markdown(f"""
                         <div style='line-height:1.1'>
@@ -8470,81 +8497,42 @@ def show_narrative_lab():
                         </div>
                         """, unsafe_allow_html=True)
 
-    # 4. UI: WAR ZONE (LISTA DE JOGOS)
+    # UI: WAR ZONE
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 ARQUIVOS DE CONFRONTO</div>", unsafe_allow_html=True)
 
-    # Agrupa por jogo
     games_dict = {}
     for item in scan_results:
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
-        
-        if item['type'] == "KILLER":
-            games_dict[gid]["killers"].append(item)
-        else:
-            games_dict[gid]["cold"].append(item)
+        if item['type'] == "KILLER": games_dict[gid]["killers"].append(item)
+        else: games_dict[gid]["cold"].append(item)
 
-    # Renderiza Expanders
     for gid, rosters in games_dict.items():
-        n_killers = len(rosters['killers'])
-        n_cold = len(rosters['cold'])
-        
-        # Título do Expander
         label = f"{gid}"
-        if n_killers > 0: label += f" | 🚨 {n_killers} Killers"
-        if n_cold > 0: label += f" | ❄️ {n_cold} Cold"
+        if len(rosters['killers']) > 0: label += f" | 🚨 {len(rosters['killers'])} Killers"
+        if len(rosters['cold']) > 0: label += f" | ❄️ {len(rosters['cold'])} Cold"
 
         with st.expander(label, expanded=False):
             c_kill, c_cold = st.columns(2)
             
-            # ESQUERDA: KILLERS
             with c_kill:
-                st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS (+15%)</div>", unsafe_allow_html=True)
-                if not rosters['killers']:
-                    st.caption("Nada relevante.")
+                st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS</div>", unsafe_allow_html=True)
+                if not rosters['killers']: st.caption("Nada relevante.")
                 else:
-                    rows_html = ""
+                    rows = ""
                     for p in rosters['killers']:
-                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png"
-                        rows_html += f"""
-                        <tr>
-                            <td style="width:50px;"><img src="{photo}" class="wr-img" style="border-color:#F87171"></td>
-                            <td>
-                                <div class="wr-name">{p['player']}</div>
-                                <div class="wr-stat">Méd: {p['avg']:.1f} pts</div>
-                                <span class="wr-tag tag-killer">HISTÓRICO</span>
-                            </td>
-                            <td>
-                                <div class="wr-val-killer">+{p['diff']:.0f}%</div>
-                            </td>
-                        </tr>
-                        """
-                    st.markdown(f"<table class='wr-table'>{rows_html}</table>", unsafe_allow_html=True)
+                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#F87171"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-killer">HISTÓRICO</span></td><td><div class="wr-val-killer">+{p['diff']:.0f}%</div></td></tr>"""
+                    st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 
-            # DIREITA: COLD
             with c_cold:
-                st.markdown("<div style='color:#00E5FF; font-family:Oswald; font-size:14px; margin-bottom:10px;'>❄️ GELADOS (-15%)</div>", unsafe_allow_html=True)
-                if not rosters['cold']:
-                    st.caption("Nada relevante.")
+                st.markdown("<div style='color:#00E5FF; font-family:Oswald; font-size:14px; margin-bottom:10px;'>❄️ GELADOS</div>", unsafe_allow_html=True)
+                if not rosters['cold']: st.caption("Nada relevante.")
                 else:
-                    rows_html = ""
+                    rows = ""
                     for p in rosters['cold']:
-                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png"
-                        rows_html += f"""
-                        <tr>
-                            <td style="width:50px;"><img src="{photo}" class="wr-img" style="border-color:#00E5FF"></td>
-                            <td>
-                                <div class="wr-name">{p['player']}</div>
-                                <div class="wr-stat">Méd: {p['avg']:.1f} pts</div>
-                                <span class="wr-tag tag-cold">TRAUMA</span>
-                            </td>
-                            <td>
-                                <div class="wr-val-cold">{p['diff']:.0f}%</div>
-                            </td>
-                        </tr>
-                        """
-                    st.markdown(f"<table class='wr-table'>{rows_html}</table>", unsafe_allow_html=True)
+                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
+                    st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: DASHBOARD (CORRIGIDA - COMPLETA)
 # ============================================================================
@@ -8921,6 +8909,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
