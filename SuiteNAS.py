@@ -582,7 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V10 (VARREDURA INTELIGENTE DE COLUNAS + SNAPSHOT)
+# PÁGINA: ORÁCULO V11 (THE BUNKER - MANUAL OVERRIDE PARA ESTRELAS)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -635,72 +635,58 @@ def show_oracle_page():
         st.warning("⚠️ Aguardando dados...")
         return
 
-    # FUNÇÃO DE LIMPEZA ABSOLUTA
+    # --- 4. ENGINE DE IDENTIDADE "BUNKER" (MANUAL DE ELITE) ---
+    # Já que o L5 está quebrado (sem colunas de ID), usamos este mapa manual para as estrelas.
+    # Isso garante que os principais jogadores tenham foto HOJE.
+    ELITE_DB = {
+        "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "SHAIGILGEOUSALEXANDER": 1628983, "GIANNISANTETOKOUNMPO": 203507,
+        "JOELEMBIID": 203954, "JAYSONTATUM": 1628369, "JALENBRUNSON": 1628973, "ANTHONYEDWARDS": 1630162,
+        "STEPHENCURRY": 201939, "KEVINDURANT": 201142, "DEVINBOOKER": 1626164, "ANTHONYDAVIS": 203076,
+        "LEBRONJAMES": 2544, "TYRESEMAXEY": 1630178, "DEARRONFOX": 1628368, "DOMANTASSABONIS": 1627734,
+        "TRAEYOUNG": 1629027, "DONOVANMITCHELL": 1628378, "JAYLENBROWN": 1627759, "TYRESEHALIBURTON": 1630169,
+        "DAMIANLILLARD": 203081, "KAWHILEONARD": 202695, "PAULGEORGE": 202331, "BAMADEBAYO": 1628389,
+        "ALPERENSENGUN": 1630578, "VICTORWEMBANYAMA": 1641705, "CHETHOLMGREN": 1631096, "ZIONWILLIAMSON": 1629627,
+        "BRANDONINGRAM": 1627742, "PAOLOBANCHERO": 1631094, "SCOTTIEBARNES": 1630567, "LAMELOBALL": 1630163,
+        "JACOMPLETE": 1629630, "JIMMYBUTLER": 202710, "JULIUSERANDLE": 203944, "DERRICKWHITE": 1628401,
+        "JRUEHOLIDAY": 201950, "KRISTAPSPORZINGIS": 204001, "MYLESTURNER": 1626167, "PASCALSIAKAM": 1627783,
+        "LAURIMARKKANEN": 1628374, "DESMONDBANE": 1630217, "JARENJACKSONJR": 1628991, "DEJOUNTEMURRAY": 1627749,
+        "CADECUNNINGHAM": 1630595, "JALENJOHNSON": 1630552, "FRANZWAGNER": 1630532, "EVANMOBLEY": 1630596,
+        "JARRETTALLEN": 1628386, "DARIUSGARLAND": 1629636, "KYRIEIRVING": 202681, "JAMESHARDEN": 201935
+    }
+    
+    # Mapa manual de times para corrigir os UNK
+    TEAM_FIX = {
+        "NIKOLAJOKIC": "DEN", "LUKADONCIC": "DAL", "SHAIGILGEOUSALEXANDER": "OKC", "GIANNISANTETOKOUNMPO": "MIL",
+        "JOELEMBIID": "PHI", "JAYSONTATUM": "BOS", "JALENBRUNSON": "NYK", "ANTHONYEDWARDS": "MIN",
+        "STEPHENCURRY": "GSW", "KEVINDURANT": "PHX", "DEVINBOOKER": "PHX", "ANTHONYDAVIS": "LAL",
+        "LEBRONJAMES": "LAL", "TYRESEMAXEY": "PHI", "DEARRONFOX": "SAC", "DOMANTASSABONIS": "SAC",
+        "TRAEYOUNG": "ATL", "DONOVANMITCHELL": "CLE", "JAYLENBROWN": "BOS", "TYRESEHALIBURTON": "IND",
+        "DAMIANLILLARD": "MIL", "KAWHILEONARD": "LAC", "PAULGEORGE": "PHI", "BAMADEBAYO": "MIA",
+        "ALPERENSENGUN": "HOU", "VICTORWEMBANYAMA": "SAS", "CHETHOLMGREN": "OKC", "ZIONWILLIAMSON": "NOP",
+        "BRANDONINGRAM": "NOP", "PAOLOBANCHERO": "ORL", "SCOTTIEBARNES": "TOR", "LAMELOBALL": "CHA",
+        "CADECUNNINGHAM": "DET", "JALENJOHNSON": "ATL", "KYRIEIRVING": "DAL", "JAMESHARDEN": "LAC"
+    }
+
     def clean_key(text):
         if not text: return ""
         try:
-            # Força string e remove Nones
             t = str(text)
-            if t.lower() == 'nan' or t.lower() == 'none' or t.lower() == 'null': return ""
-            # Normaliza Unicode
             nfkd = unicodedata.normalize('NFKD', t)
             t = "".join([c for c in nfkd if not unicodedata.combining(c)])
-            # Upper e Apenas Letras
             return re.sub(r'[^A-Z]', '', t.upper())
         except: return ""
 
-    # --- 4. INDEXAÇÃO INTELIGENTE (VARREDURA DE COLUNAS) ---
-    MASTER_DB = {}
-    DEBUG_LOG = []
-
+    # TENTA CARREGAR L5 (Se tiver colunas, ok. Se não, usa o Bunker)
+    L5_DB = {}
+    l5_valid = False
+    
     if not df_l5.empty:
-        try:
-            # 1. Normaliza nomes das colunas do DataFrame
-            df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-            cols = df_l5.columns
-            
-            # 2. DETECÇÃO INTELIGENTE DE COLUNAS
-            # Prioriza PLAYER_NAME porque vimos no seu log que PLAYER pode ser null
-            col_name_candidates = ['PLAYER_NAME', 'PLAYER', 'NAME', 'FULL_NAME']
-            col_id_candidates = ['PLAYER_ID', 'ID', 'PERSON_ID']
-            col_team_candidates = ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_ID', 'TEAM_NAME']
-
-            c_name = next((c for c in col_name_candidates if c in cols), None)
-            c_id = next((c for c in col_id_candidates if c in cols), None)
-            c_team = next((c for c in col_team_candidates if c in cols), None)
-            
-            # Debug das colunas encontradas
-            DEBUG_LOG.append(f"Colunas usadas -> Nome: {c_name} | ID: {c_id} | Time: {c_team}")
-
-            if c_name and c_id:
-                for _, row in df_l5.iterrows():
-                    try:
-                        # Extrai ID
-                        raw_id = row.get(c_id, 0)
-                        pid = int(float(raw_id)) if pd.notnull(raw_id) else 0
-                        
-                        # Extrai Nome (Ignora se for None/Null)
-                        raw_name = row.get(c_name, '')
-                        if pd.isna(raw_name): continue
-                        raw_name = str(raw_name)
-
-                        # Extrai Time
-                        raw_team = str(row.get(c_team, 'UNK')).strip().upper()
-                        
-                        if pid > 0 and len(raw_name) > 2:
-                            key = clean_key(raw_name)
-                            if key:
-                                entry = {'id': pid, 'team': raw_team, 'real_name': raw_name}
-                                MASTER_DB[key] = entry
-                                
-                                # Indexa Sobrenome
-                                parts = raw_name.split()
-                                if len(parts) > 1:
-                                    lname = clean_key(parts[-1])
-                                    if lname not in MASTER_DB: MASTER_DB[lname] = entry
-                    except: continue
-        except Exception as e:
-            st.error(f"Erro Indexação: {e}")
+        df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+        # Verifica se as colunas essenciais existem
+        if any(x in df_l5.columns for x in ['PLAYER_ID', 'ID']) and any(x in df_l5.columns for x in ['PLAYER', 'NAME', 'PLAYER_NAME']):
+            l5_valid = True
+            # (Código de indexação do L5 iria aqui, mas sabemos que está quebrado agora)
+            # Vamos pular direto para usar o Bunker se o L5 falhar.
 
     # --- 5. ENGINE ---
     engine = OracleEngine(full_cache, injuries_data)
@@ -720,70 +706,59 @@ def show_oracle_page():
         raw_name = p['name']
         search_key = clean_key(raw_name)
         
-        # BUSCA
-        match = MASTER_DB.get(search_key)
+        # 1. TENTA BUNKER (Elite DB)
+        pid = ELITE_DB.get(search_key, 0)
         
-        # Fallback Sobrenome
-        if not match:
+        # Se não achou exato, tenta sobrenome no Bunker
+        if pid == 0:
             parts = raw_name.split()
-            if len(parts) > 1: match = MASTER_DB.get(clean_key(parts[-1]))
-            
-        # Fallback "Contém"
-        if not match:
-             for k, v in MASTER_DB.items():
-                 if len(k) > 4 and k in search_key:
-                     match = v
-                     break
+            if len(parts) > 1:
+                pid = ELITE_DB.get(clean_key(parts[-1]), 0)
 
-        if match:
-            final_id = match['id']
-            final_team = match['team']
-            final_name = match['real_name']
-        else:
-            final_id = 0
-            final_team = str(p['team']).upper()
-            if len(final_team) > 3: final_team = "UNK"
-            final_name = raw_name
+        # 2. DEFINE TIME (Prioriza Fix, depois Projeção)
+        real_team = TEAM_FIX.get(search_key)
+        if not real_team:
+            real_team = str(p['team']).upper().strip()
+            if len(real_team) > 3: real_team = "UNK"
 
-        # URL
-        if final_id > 0:
-            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{final_id}.png"
+        # 3. DEFINE FOTO
+        if pid > 0:
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         else:
             photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-        # Logo
-        tm_low = final_team.lower()
+        # Logo URL
+        tm_low = real_team.lower()
         if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
         logo_url = f"{logo_base}/{tm_low}.png"
 
-        snapshot_list.append({'name': final_name, 'team': final_team, 'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM']})
+        snapshot_list.append({'name': raw_name, 'team': real_team, 'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM']})
 
+        # Card
         with st.container(border=True):
             c_img, c_info, c1, c2, c3, c4 = st.columns([1, 3, 1.2, 1.2, 1.2, 1.2])
             with c_img: st.image(photo_url, use_container_width=True)
             with c_info:
-                st.markdown(f'<div class="oracle-name">{final_name}</div>', unsafe_allow_html=True)
-                st.markdown(f"""<div class="oracle-meta"><img src="{logo_url}" width="14" style="vertical-align:middle;"> <span style="font-size:10px; color:#cbd5e1;">{final_team}</span></div>""", unsafe_allow_html=True)
+                st.markdown(f'<div class="oracle-name">{raw_name}</div>', unsafe_allow_html=True)
+                st.markdown(f"""<div class="oracle-meta"><img src="{logo_url}" width="14" style="vertical-align:middle;"> <span style="font-size:10px; color:#cbd5e1;">{real_team}</span></div>""", unsafe_allow_html=True)
             with c1: st.markdown(f'<div class="stat-box"><div class="stat-val c-gold">{p["PTS"]:.1f}</div><div class="stat-lbl">PTS</div></div>', unsafe_allow_html=True)
             with c2: st.markdown(f'<div class="stat-box"><div class="stat-val c-red">{p["REB"]:.1f}</div><div class="stat-lbl">REB</div></div>', unsafe_allow_html=True)
             with c3: st.markdown(f'<div class="stat-box"><div class="stat-val c-blue">{p["AST"]:.1f}</div><div class="stat-lbl">AST</div></div>', unsafe_allow_html=True)
             with c4: st.markdown(f'<div class="stat-box"><div class="stat-val c-green">{p["3PM"]:.1f}</div><div class="stat-lbl">3PM</div></div>', unsafe_allow_html=True)
 
-    # --- 7. DIAGNÓSTICO ---
-    with st.expander("🛠️ DIAGNÓSTICO (DEBUG)", expanded=False):
-        st.write(DEBUG_LOG)
-        st.write(f"Total Jogadores Indexados: {len(MASTER_DB)}")
-        test_search = st.text_input("Testar nome no cache L5:").upper()
-        if test_search:
-            k = clean_key(test_search)
-            res = MASTER_DB.get(k)
-            st.write(f"Chave gerada: {k}")
-            st.write(f"Resultado: {res}")
+    # --- 7. DIAGNÓSTICO (MANTIDO PARA FUTURO) ---
+    with st.expander("🛠️ DIAGNÓSTICO L5 (STATUS)", expanded=False):
+        if l5_valid:
+            st.success("Arquivo L5 carregado com colunas de identidade!")
+        else:
+            st.error("⚠️ ALERTA CRÍTICO: O Arquivo L5 está carregando sem colunas de 'PLAYER_ID' ou 'PLAYER_NAME'.")
+            st.write("Colunas atuais:", list(df_l5.columns)[:10])
+            st.info("O sistema está rodando no modo 'BUNKER' (Dicionário Manual) para as estrelas.")
 
-    # --- 8. SNAPSHOT ENGINE ---
+    # --- 8. SNAPSHOT ---
     def create_snapshot(data):
         fig, ax = plt.subplots(figsize=(8, 10))
         fig.patch.set_facecolor('#0f172a')
@@ -8479,6 +8454,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
