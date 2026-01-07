@@ -45,8 +45,16 @@ BASE_DIR = os.path.dirname(__file__)
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Arquivos de Cache (Fallback Local)
-L5_CACHE_FILE = os.path.join(CACHE_DIR, "l5_players.pkl")
+# ============================================================================
+# CONFIGURAÇÃO DE DIRETÓRIOS E ARQUIVOS (MANTENHA ISSO)
+# ============================================================================
+CACHE_DIR = "cache"
+if not os.path.exists(CACHE_DIR):
+    os.makedirs(CACHE_DIR)
+
+# Arquivos de Cache (Fallback Local - Necessários para o código não quebrar)
+# Mudei L5 para .json pois abandonamos o Pickle
+L5_CACHE_FILE = os.path.join(CACHE_DIR, "l5_players.json") 
 SCOREBOARD_JSON_FILE = os.path.join(CACHE_DIR, "scoreboard_today.json")
 TEAM_ADVANCED_FILE = os.path.join(CACHE_DIR, "team_advanced.json")
 TEAM_OPPONENT_FILE = os.path.join(CACHE_DIR, "team_opponent.json")
@@ -59,66 +67,8 @@ AUDIT_CACHE_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
 FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")
 LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
 
-# ============================================================================
-# 1. CONEXÃO SUPABASE (MOTOR DO BANCO DE DADOS)
-# ============================================================================
-import streamlit as st
-from supabase import create_client, Client
-
-class DatabaseHandler:
-    def __init__(self):
-        self.client = None
-        self.connected = False
-        try:
-            # Tenta pegar as credenciais do secrets
-            if "supabase" in st.secrets:
-                url = st.secrets["supabase"]["url"]
-                key = st.secrets["supabase"]["key"]
-                self.client: Client = create_client(url, key)
-                self.connected = True
-                print("🔌 Supabase Conectado com Sucesso!")
-            else:
-                print("⚠️ Secrets do Supabase não encontrados.")
-        except Exception as e:
-            print(f"❌ Erro ao conectar Supabase: {e}")
-
-    def get_data(self, key):
-        """Busca o valor JSON dentro da tabela app_cache pela chave"""
-        if not self.connected: return None
-        try:
-            # SELECT value FROM app_cache WHERE key = 'chave'
-            response = self.client.table("app_cache").select("value").eq("key", key).execute()
-            
-            # Verifica se retornou dados
-            if response.data and len(response.data) > 0:
-                # O Supabase retorna uma lista de dicionários [{'value': {...}}]
-                return response.data[0]['value']
-            else:
-                return None
-        except Exception as e:
-            print(f"⚠️ Erro ao buscar '{key}' no DB: {e}")
-            return None
-
-    def save_data(self, key, value):
-        """Salva (Upsert) o valor JSON na tabela app_cache"""
-        if not self.connected: return False
-        try:
-            # Prepara o payload no formato da tabela
-            # A tabela deve ter colunas: key (text, PK), value (jsonb), last_updated (timestamp)
-            payload = {
-                "key": key,
-                "value": value,
-                "last_updated": datetime.now().isoformat()
-            }
-            # UPSERT (Atualiza se existir, cria se não existir)
-            self.client.table("app_cache").upsert(payload).execute()
-            return True
-        except Exception as e:
-            # Levanta o erro para ser pego pelo save_data_universal e mostrar o log detalhado
-            raise e 
-
-# --- INICIALIZAÇÃO DO OBJETO GLOBAL 'db' ---
-# Isso cria a variável 'db' que suas funções universal usam
+# Se o arquivo se chama db_manager.py:
+from db_manager import db, DatabaseHandler
 try:
     db = DatabaseHandler()
     if not db.connected:
@@ -8833,6 +8783,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
