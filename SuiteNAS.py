@@ -106,69 +106,44 @@ def get_data_universal(key_db, file_fallback=None):
     return data
 
 # ============================================================================
-# FUNÇÃO DE SALVAMENTO BLINDADA (NUCLEAR CLEANER)
+# FUNÇÃO SAVE BLINDADA v2 (COM REPORT DE ERRO DETALHADO)
 # ============================================================================
 def save_data_universal(key_db, data, file_path=None):
-    """
-    Salva no Supabase E no arquivo local.
-    INCLUI LIMPEZA FORÇADA DE JSON (Remove NaNs e Infinity).
-    """
     import json
     import time
     
     sucesso_nuvem = False
     
-    # --- 1. LIMPEZA NUCLEAR DOS DADOS ---
-    # O Supabase rejeita NaN e Infinity. O JSON padrão também não gosta.
-    # Esta rotina converte tudo para string JSON segura e depois carrega de volta.
+    # 1. Limpeza
     try:
-        # Dumps com default=str trata datas e tipos estranhos
-        # Replace remove os NaNs que o Pandas deixa passar
-        json_str = json.dumps(data, default=str).replace("NaN", "null").replace("Infinity", "null").replace("-Infinity", "null")
-        
-        # Carrega de volta para um objeto Python limpo (dict/list)
+        json_str = json.dumps(data, default=str).replace("NaN", "null").replace("Infinity", "null")
         clean_data = json.loads(json_str)
-        
-        # Calcula tamanho para debug
         size_kb = len(json_str) / 1024
-        print(f"📦 [CLEAN] '{key_db}': {size_kb:.2f} KB (Limpo e Pronto)")
-        
+        print(f"📦 [CLEAN] '{key_db}': {size_kb:.2f} KB")
     except Exception as e:
-        print(f"⚠️ Erro ao limpar dados '{key_db}': {e}")
-        # Se falhar a limpeza, tenta enviar o original (risco de falha)
+        print(f"⚠️ Erro limpeza '{key_db}': {e}")
         clean_data = data
         size_kb = 0
 
-    # --- 2. SALVA NA NUVEM (SUPABASE) ---
+    # 2. Salva na Nuvem
     if db:
         try:
             start_time = time.time()
-            # Usa os dados LIMPOS
-            db.save_data(key_db, clean_data)
+            db.save_data(key_db, clean_data) # Tenta salvar
             duration = time.time() - start_time
-            
-            print(f"☁️ [UPLOAD] '{key_db}' salvo com sucesso! ({duration:.2f}s)")
-            if size_kb > 10: 
-                st.toast(f"Nuvem: {key_db} salvo ({size_kb:.0f}KB)", icon="☁️")
-            
+            print(f"☁️ [UPLOAD] '{key_db}' salvo! ({duration:.2f}s)")
             sucesso_nuvem = True
-            
         except Exception as e:
-            err_msg = str(e)
-            print(f"❌ [ERRO UPLOAD] '{key_db}': {err_msg}")
-            # Não mostra erro na tela para coisas pequenas, apenas logs
-            if "413" in err_msg:
-                st.error(f"Erro '{key_db}': Arquivo muito grande para o Supabase!")
-            elif "400" in err_msg:
-                st.error(f"Erro '{key_db}': Formato de dados inválido (400).")
-            else:
-                st.warning(f"Falha ao salvar '{key_db}' na nuvem.")
-
-    # --- 3. SALVA LOCAL (BACKUP) ---
+            # --- AQUI ESTÁ A MUDANÇA: MOSTRAR O ERRO REAL NA TELA ---
+            erro_txt = str(e)
+            print(f"❌ [ERRO UPLOAD] '{key_db}': {erro_txt}")
+            st.error(f"❌ Erro ao salvar '{key_db}' no Supabase: {erro_txt}") 
+            # Isso vai imprimir o erro técnico (ex: 413, 500, timeout)
+            
+    # 3. Salva Local
     if file_path:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                # Usa json_str que já está pronto e limpo
                 f.write(json_str)
         except: pass
     
@@ -428,7 +403,7 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# FUNÇÃO LOGS: MODO TURBO (BULK FETCH - 1 REQUISIÇÃO)
+# FUNÇÃO LOGS: MODO TURBO v2 (COM TIMEOUT DE 120s)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
     from nba_api.stats.endpoints import leaguegamelog
@@ -444,13 +419,13 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
         status_box.write("📡 Conectando ao servidor da NBA (LeagueGameLog)...")
 
     try:
-        # --- O PULO DO GATO: 1 Requisição para a Liga Inteira ---
-        # Em vez de pedir jogador por jogador, pedimos tudo de uma vez.
+        # --- CORREÇÃO: TIMEOUT AUMENTADO PARA 120 SEGUNDOS ---
         logs_api = leaguegamelog.LeagueGameLog(
             season=SEASON_CURRENT,
-            player_or_team_abbreviation='P', # P = Player
-            direction='DESC', # Mais recentes primeiro
-            sorter='DATE'
+            player_or_team_abbreviation='P', 
+            direction='DESC', 
+            sorter='DATE',
+            timeout=120  # <--- AQUI ESTÁ A CORREÇÃO DO TIMEOUT
         )
         df_all = logs_api.get_data_frames()[0]
         
@@ -460,49 +435,33 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
 
         if progress_ui: status_box.write(f"📦 Processando {len(df_all)} registros de jogos...")
 
-        # --- PROCESSAMENTO LOCAL (PANDAS É RÁPIDO) ---
-        # Garante tipos numéricos
+        # Processamento Local
         cols_int = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M', 'TOV', 'PF']
         for c in cols_int:
             if c in df_all.columns: df_all[c] = df_all[c].fillna(0).astype(int)
 
-        # Agrupa por Jogador e pega os últimos 30 jogos
-        # Como pedimos 'DESC' na API, já deve vir ordenado, mas garantimos:
         df_all['GAME_DATE'] = pd.to_datetime(df_all['GAME_DATE'])
         df_all = df_all.sort_values(by=['PLAYER_ID', 'GAME_DATE'], ascending=[True, False])
 
-        # Dicionário final
         results = {}
-        
-        # Pega lista de jogadores únicos
         unique_players = df_all['PLAYER_ID'].unique()
         total_p = len(unique_players)
-        
-        # Itera localmente (muito mais rápido que requisição de rede)
         processed_count = 0
-        
-        # Para barra de progresso visual
         bar = status_box.progress(0)
         
         for pid in unique_players:
-            # Filtra os jogos desse jogador
-            player_games = df_all[df_all['PLAYER_ID'] == pid].head(30) # L30
-            
+            player_games = df_all[df_all['PLAYER_ID'] == pid].head(30)
             if player_games.empty: continue
             
             p_name = player_games.iloc[0]['PLAYER_NAME']
             p_team = player_games.iloc[0]['TEAM_ABBREVIATION']
             
-            # Monta estrutura de logs
             clean_logs = {}
             for col in cols_int:
                 if col in player_games.columns:
                     clean_logs[col] = player_games[col].tolist()
             
-            # Minutos (Tratamento especial)
             if 'MIN' in player_games.columns:
-                # A API LeagueGameLog geralmente manda MIN como float (ex: 24.0), 
-                # mas as vezes como string. Garantimos float.
                 def parse_min(x):
                     try: return float(x)
                     except: return 0.0
@@ -517,14 +476,12 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             }
             
             processed_count += 1
-            if progress_ui and processed_count % 50 == 0:
+            if progress_ui and processed_count % 100 == 0:
                 bar.progress(processed_count / total_p)
 
-        # --- SALVA NO SUPABASE ---
+        # Salva no Supabase
         if results:
-            if progress_ui: status_box.write("☁️ Enviando pacote compactado para Nuvem...")
-            
-            # Chama sua função save blindada
+            if progress_ui: status_box.write("☁️ Enviando pacote para Nuvem...")
             save_data_universal(KEY_LOGS, results)
             
             if progress_ui:
@@ -533,8 +490,9 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
         return results
 
     except Exception as e:
-        print(f"Erro Turbo: {e}")
+        # Mostra o erro exato na tela
         if progress_ui: status_box.error(f"Erro no Modo Turbo: {e}")
+        print(f"Erro Turbo: {e}")
         return {}
     
 # ============================================================================
@@ -8896,6 +8854,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
