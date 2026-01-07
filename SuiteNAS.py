@@ -1790,7 +1790,7 @@ def show_blowout_hunter_page():
             nm = normalize_str(check)
             st.write(f"Status '{nm}': {'⛔ BANIDO' if nm in banned_players else '✅ JOGANDO'}")
 # ============================================================================
-# PÁGINA: MOMENTUM (V5.1 - FIX COLUMNS & SAFE CALC)
+# PÁGINA: MOMENTUM (V5.2 - FIX COLUMNS & UNK)
 # ============================================================================
 def show_momentum_page():
     import pandas as pd
@@ -1806,8 +1806,6 @@ def show_momentum_page():
             margin-bottom: 10px; 
             letter-spacing: 1px; 
         }
-        
-        /* Card Container */
         .mom-card {
             background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
             border-radius: 12px;
@@ -1820,44 +1818,16 @@ def show_momentum_page():
             transition: transform 0.2s;
         }
         .mom-card:hover { transform: scale(1.02); border-color: #64748B; }
-        
-        /* Bordas */
         .border-hot { border-left: 6px solid #10B981; }
         .border-cold { border-left: 6px solid #EF4444; }
-        
-        /* Área da Foto */
         .mom-img-box {
-            width: 80px;
-            height: 80px;
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0;
+            width: 80px; height: 80px; background: #000;
+            display: flex; justify-content: center; align-items: center; flex-shrink: 0;
         }
-        .mom-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.9;
-        }
-        
-        /* Área de Texto */
+        .mom-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.9; }
         .mom-info { padding: 10px 15px; flex-grow: 1; }
-        
-        .mom-name { 
-            font-family: 'Oswald', sans-serif; 
-            font-size: 16px; 
-            color: #fff; 
-            line-height: 1.1; 
-        }
-        .mom-team { 
-            font-size: 11px; 
-            color: #94a3b8; 
-            font-weight: bold; 
-            margin-bottom: 4px; 
-        }
-        
+        .mom-name { font-family: 'Oswald', sans-serif; font-size: 16px; color: #fff; line-height: 1.1; }
+        .mom-team { font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; }
         .mom-stat-row { display: flex; justify-content: space-between; align-items: end; }
         .mom-score { font-family: 'Oswald'; font-size: 22px; font-weight: bold; }
         .mom-avg { font-size: 10px; color: #64748B; text-align: right; }
@@ -1865,106 +1835,110 @@ def show_momentum_page():
     """
     st.markdown(MOMENTUM_CSS, unsafe_allow_html=True)
     st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
-    st.info("Ranking baseado na Dominância Relativa. Jogadores com performance muito acima ou muito abaixo da média da liga nos últimos 5 jogos.")
+    st.info("Ranking baseado na Dominância Relativa (Performance vs Média da Liga nos últimos 5 jogos).")
 
     # --- 2. DADOS ---
-    original_df = st.session_state.get('df_l5', pd.DataFrame())
-    
-    if original_df.empty:
+    if 'df_l5' not in st.session_state or st.session_state.df_l5.empty:
         st.warning("Dados insuficientes. Vá em Config > Atualizar L5.")
         return
 
+    # Trabalhamos numa cópia para não estragar o original
+    df = st.session_state.df_l5.copy()
+    
     # ==============================================================================
-    # 🚑 FIX CRÍTICO DE COLUNAS (NORMALIZAÇÃO)
+    # 🚑 FIX CRÍTICO DE COLUNAS (NORMALIZAÇÃO ABSOLUTA)
     # ==============================================================================
-    # 1. Copia para não alterar o original da sessão
-    df_calc = original_df.copy()
     
-    # 2. Normaliza nomes para Maiúsculas
-    df_calc.columns = [str(c).upper().strip() for c in df_calc.columns]
+    # 1. Tudo Maiúsculo
+    df.columns = [str(c).upper().strip() for c in df.columns]
 
-    # 3. Mapeia Colunas Essenciais (Se não tiver MIN_AVG, usa MIN)
-    # O Pandas as vezes carrega como 'MIN' e as vezes como 'MIN_AVG' dependendo da API
-    
-    # Minutos
-    if 'MIN_AVG' not in df_calc.columns:
-        if 'MIN' in df_calc.columns: df_calc['MIN_AVG'] = df_calc['MIN']
-        else: df_calc['MIN_AVG'] = 0 # Fallback
-    
-    # Pontos
-    if 'PTS_AVG' not in df_calc.columns:
-        if 'PTS' in df_calc.columns: df_calc['PTS_AVG'] = df_calc['PTS']
-        else: df_calc['PTS_AVG'] = 0
-
-    # Rebotes
-    if 'REB_AVG' not in df_calc.columns:
-        if 'REB' in df_calc.columns: df_calc['REB_AVG'] = df_calc['REB']
-        else: df_calc['REB_AVG'] = 0
-
-    # Assistências
-    if 'AST_AVG' not in df_calc.columns:
-        if 'AST' in df_calc.columns: df_calc['AST_AVG'] = df_calc['AST']
-        else: df_calc['AST_AVG'] = 0
-
-    # Player e Team (Fallback)
-    if 'PLAYER' not in df_calc.columns:
-        if 'PLAYER_NAME' in df_calc.columns: df_calc['PLAYER'] = df_calc['PLAYER_NAME']
-    
-    if 'TEAM' not in df_calc.columns:
-        if 'TEAM_ABBREVIATION' in df_calc.columns: df_calc['TEAM'] = df_calc['TEAM_ABBREVIATION']
-        else: df_calc['TEAM'] = 'UNK'
+    # 2. Mapeamento de Colunas Essenciais (Fallback em Cascata)
     
     # ID
-    if 'PLAYER_ID' not in df_calc.columns:
-        if 'ID' in df_calc.columns: df_calc['PLAYER_ID'] = df_calc['ID']
-        elif 'PERSON_ID' in df_calc.columns: df_calc['PLAYER_ID'] = df_calc['PERSON_ID']
-        else: df_calc['PLAYER_ID'] = 0
+    if 'PLAYER_ID' not in df.columns:
+        if 'ID' in df.columns: df['PLAYER_ID'] = df['ID']
+        elif 'PERSON_ID' in df.columns: df['PLAYER_ID'] = df['PERSON_ID']
+        else: df['PLAYER_ID'] = 0
+
+    # NOME
+    if 'PLAYER' not in df.columns:
+        if 'PLAYER_NAME' in df.columns: df['PLAYER'] = df['PLAYER_NAME']
+        elif 'NAME' in df.columns: df['PLAYER'] = df['NAME']
+        else: df['PLAYER'] = 'Unknown'
+
+    # TIME (Tenta resolver o UNK)
+    if 'TEAM' not in df.columns or df['TEAM'].iloc[0] == 'UNK':
+        # Tenta achar a sigla em outras colunas
+        potential_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM_ID', 'TEAM_NAME']
+        for c in potential_cols:
+            if c in df.columns:
+                df['TEAM'] = df[c]
+                break
+        if 'TEAM' not in df.columns: df['TEAM'] = 'UNK'
+
+    # MINUTOS (Onde estava dando erro)
+    if 'MIN_AVG' not in df.columns:
+        if 'MIN' in df.columns: df['MIN_AVG'] = df['MIN']
+        elif 'MINUTES' in df.columns: df['MIN_AVG'] = df['MINUTES']
+        else: df['MIN_AVG'] = 0
+
+    # PTS
+    if 'PTS_AVG' not in df.columns:
+        if 'PTS' in df.columns: df['PTS_AVG'] = df['PTS']
+        else: df['PTS_AVG'] = 0
+
+    # REB
+    if 'REB_AVG' not in df.columns:
+        if 'REB' in df.columns: df['REB_AVG'] = df['REB']
+        else: df['REB_AVG'] = 0
+        
+    # AST
+    if 'AST_AVG' not in df.columns:
+        if 'AST' in df.columns: df['AST_AVG'] = df['AST']
+        else: df['AST_AVG'] = 0
 
     # ==============================================================================
 
     # --- 3. CÁLCULO ESTATÍSTICO (Z-SCORE) ---
     
-    # Garante que as colunas sejam numéricas
+    # Converte para números (Força bruta para evitar erros de string)
     cols_to_numeric = ['MIN_AVG', 'PTS_AVG', 'REB_AVG', 'AST_AVG']
     for col in cols_to_numeric:
-        df_calc[col] = pd.to_numeric(df_calc[col], errors='coerce').fillna(0)
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Filtro mínimo de minutos
-    df_calc = df_calc[df_calc['MIN_AVG'] >= 15].copy()
+    # Filtro mínimo de minutos (Agora é seguro filtrar)
+    df_calc = df[df['MIN_AVG'] >= 15].copy()
     
     if df_calc.empty:
-        st.warning("Nenhum jogador com mais de 15 minutos de média carregado.")
+        st.warning("Nenhum jogador com mais de 15 min de média encontrado. Verifique a carga de dados.")
+        st.write("Colunas disponíveis:", df.columns.tolist())
         return
 
-    # Calcula PRA (Points + Rebounds + Assists)
+    # Calcula PRA
     df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
 
     # Estatísticas da Liga
     mean_league = df_calc['PRA_AVG'].mean()
     std_league = df_calc['PRA_AVG'].std()
-    
     if std_league == 0: std_league = 1
 
     # Z-Score
     df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
 
-    # --- 4. SEPARAÇÃO RIGOROSA HOT / COLD ---
+    # --- 4. SEPARAÇÃO HOT / COLD ---
     
-    # HOT: Apenas Z-Score Positivo (> 0)
-    hot_candidates = df_calc[df_calc['z_score'] > 0].copy()
-    top_hot = hot_candidates.sort_values('z_score', ascending=False).head(10)
+    # HOT: Z-Score > 0
+    top_hot = df_calc[df_calc['z_score'] > 0].sort_values('z_score', ascending=False).head(10)
     
-    # COLD: Apenas Z-Score Negativo (< 0) E Titulares (Min > 24)
-    cold_candidates = df_calc[
+    # COLD: Z-Score < 0 e Minutos Altos (> 24)
+    top_cold = df_calc[
         (df_calc['z_score'] < 0) & 
         (df_calc['MIN_AVG'] >= 24)
-    ].copy()
-    top_cold = cold_candidates.sort_values('z_score', ascending=True).head(10)
+    ].sort_values('z_score', ascending=True).head(10)
 
     # --- 5. RENDERIZAÇÃO ---
     c1, c2 = st.columns(2)
 
-    # Função Helper de Renderização (Local)
     def render_momentum_card(col, row, type_card):
         is_hot = type_card == "HOT"
         css_class = "border-hot" if is_hot else "border-cold"
@@ -1979,11 +1953,9 @@ def show_momentum_page():
         pra = row['PRA_AVG']
         z = row['z_score']
         
-        # Foto da NBA
         if pid > 0: photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         else: photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
-        # HTML do Card
         col.markdown(f"""
         <div class="mom-card {css_class}">
             <div class="mom-img-box">
@@ -2005,24 +1977,17 @@ def show_momentum_page():
         </div>
         """, unsafe_allow_html=True)
 
-    # --- COLUNA HOT ---
     with c1:
         st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
-        if top_hot.empty:
-            st.info("Nenhum destaque positivo relevante (Z > 0).")
+        if top_hot.empty: st.info("Nenhum destaque positivo.")
         else:
-            for _, row in top_hot.iterrows():
-                render_momentum_card(c1, row, "HOT")
+            for _, row in top_hot.iterrows(): render_momentum_card(c1, row, "HOT")
 
-    # --- COLUNA COLD ---
     with c2:
         st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
-        st.caption("Jogadores titulares (+24min) com performance abaixo da média.")
-        if top_cold.empty:
-            st.info("Nenhum titular com performance negativa crítica (Z < 0).")
+        if top_cold.empty: st.info("Nenhum titular 'frio'.")
         else:
-            for _, row in top_cold.iterrows():
-                render_momentum_card(c2, row, "COLD")
+            for _, row in top_cold.iterrows(): render_momentum_card(c2, row, "COLD")
                 
 
 # ============================================================================
@@ -8535,9 +8500,12 @@ def show_narrative_lab():
         render_list(c2, rosters["home"], "right")
 
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V7.1 - FIX KEYERROR & MAPPING)
+# DASHBOARD (VISUAL ARENA V7.2 - FIX LIST/DF ATTRIBUTE ERROR)
 # ============================================================================
 def show_dashboard_page():
+    import streamlit as st
+    import pandas as pd
+    
     # Helper de Fontes e Cores
     st.markdown("""
     <style>
@@ -8549,15 +8517,16 @@ def show_dashboard_page():
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # Tenta pegar scoreboard (suporta DataFrame ou Lista de Dicts)
-    games_data = st.session_state.get('scoreboard', [])
+    # IMPORTANTE: Carrega 'games' de forma segura
+    games = st.session_state.get('scoreboard', [])
     
+    # Verifica se L5 está vazio
     if df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia. Vá em Config e atualize.")
         return
 
     # ==============================================================================
-    # 🚑 FIX CRÍTICO DE COLUNAS (RESOLVE O KEYERROR: 'TEAM')
+    # 🚑 FIX CRÍTICO DE COLUNAS DO L5
     # ==============================================================================
     # 1. Normaliza nomes das colunas para Maiúsculas
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
@@ -8569,49 +8538,92 @@ def show_dashboard_page():
         elif 'TEAM_ID' in df_l5.columns:
             df_l5['TEAM'] = df_l5['TEAM_ID']
         else:
-            df_l5['TEAM'] = 'UNK' # Fallback para não quebrar
+            df_l5['TEAM'] = 'UNK'
 
+    # 3. Garante PLAYER e PTS
+    if 'PLAYER' not in df_l5.columns:
+        if 'PLAYER_NAME' in df_l5.columns: df_l5['PLAYER'] = df_l5['PLAYER_NAME']
+    if 'PTS' not in df_l5.columns:
+        if 'PTS_AVG' in df_l5.columns: df_l5['PTS'] = df_l5['PTS_AVG']
+        else: df_l5['PTS'] = 0
     # ==============================================================================
 
-    # --- FILTRO: APENAS QUEM JOGA HOJE ---
+    # --- LÓGICA DE JOGOS DO DIA (Blindada contra List vs DataFrame) ---
     teams_playing_today = []
     
     # Mapa de Correção de Siglas (Scoreboard -> L5)
-    # Ex: ESPN usa 'GS', NBA Stats usa 'GSW'
     MAP_TEAMS = {
         "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", 
         "PHO": "PHX", "UTAH": "UTA", "WSH": "WAS", "BRK": "BKN",
         "NOH": "NOP"
     }
 
-    if isinstance(games_data, pd.DataFrame) and not games_data.empty:
-        # Se for DataFrame
-        raw_teams = set(games_data['home'].tolist() + games_data['away'].tolist())
-        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams]
-        
-    elif isinstance(games_data, list) and len(games_data) > 0:
-        # Se for Lista de Dicionários (comum no st.session_state['scoreboard'])
-        raw_teams = set()
-        for g in games_data:
-            raw_teams.add(g.get('home', ''))
-            raw_teams.add(g.get('away', ''))
-        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams if t]
-    
-    # FILTRAGEM SEGURA
-    if not teams_playing_today:
-        st.info("Nenhum jogo identificado para hoje (Scoreboard vazio ou offline).")
-        # Mostra Top Geral como fallback
+    # Verifica se 'games' tem dados (Funciona para Lista ou DF)
+    has_games = False
+    if isinstance(games, list):
+        if len(games) > 0: has_games = True
+    elif isinstance(games, pd.DataFrame):
+        if not games.empty: has_games = True
+
+    # Se não tiver jogos, exibe aviso
+    if not has_games:
+        st.info("Nenhum jogo identificado para hoje (Scoreboard vazio).")
         st.caption("Mostrando Top Geral (Fallback):")
         df_today = df_l5
     else:
-        # O erro acontecia aqui. Agora 'TEAM' existe com certeza.
+        # Extrai os times
+        raw_teams = set()
+        
+        # Lógica Híbrida (Aceita Lista ou DF)
+        if isinstance(games, pd.DataFrame):
+            raw_teams = set(games['home'].tolist() + games['away'].tolist())
+            # Renderiza Mini Placar (Se for DF)
+            cols = st.columns(min(len(games), 4))
+            for i, row in games.iterrows():
+                try:
+                    with cols[i % 4]:
+                        st.markdown(f"""
+                        <div style="background: #1e293b; border-radius: 8px; padding: 10px; border: 1px solid #334155; text-align: center; margin-bottom: 10px;">
+                            <div style="font-size: 14px; font-weight: bold; color: #fff;">{row['away']} @ {row['home']}</div>
+                            <div style="font-size: 12px; color: #cbd5e1;">{row['status']}</div>
+                            <div style="font-family: 'Oswald'; font-size: 18px; color: #fbbf24;">{row.get('away_score',0)} - {row.get('home_score',0)}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                except: pass
+
+        elif isinstance(games, list):
+            for g in games:
+                raw_teams.add(g.get('home', ''))
+                raw_teams.add(g.get('away', ''))
+            
+            # Renderiza Mini Placar (Se for Lista)
+            cols = st.columns(min(len(games), 4))
+            for i, g in enumerate(games):
+                try:
+                    with cols[i % 4]:
+                        st.markdown(f"""
+                        <div style="background: #1e293b; border-radius: 8px; padding: 10px; border: 1px solid #334155; text-align: center; margin-bottom: 10px;">
+                            <div style="font-size: 14px; font-weight: bold; color: #fff;">{g.get('away')} @ {g.get('home')}</div>
+                            <div style="font-size: 12px; color: #cbd5e1;">{g.get('status')}</div>
+                            <div style="font-family: 'Oswald'; font-size: 18px; color: #fbbf24;">{g.get('away_score',0)} - {g.get('home_score',0)}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                except: pass
+
+        # Normaliza siglas
+        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams if t]
+
+        # Filtra o L5
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
         
         if df_today.empty:
-            st.warning(f"Jogos detectados: {teams_playing_today}, mas nenhum jogador encontrado no L5 com esses times.")
-            st.write("Times disponíveis no L5:", df_l5['TEAM'].unique()[:10])
+            st.warning(f"Jogos detectados: {teams_playing_today}, mas a sigla não bateu com o L5.")
+            st.write("Exemplo de times no L5:", df_l5['TEAM'].unique()[:5])
+            df_today = df_l5 # Fallback para não ficar vazio
 
-    # --- RENDERIZAÇÃO (Mantendo seu layout original) ---
+    st.divider()
+
+    # --- RENDERIZAÇÃO DA TABELA ---
     if not df_today.empty:
         st.markdown('<div class="dash-title">🔥 Destaques da Rodada (L5)</div>', unsafe_allow_html=True)
         
@@ -8621,6 +8633,8 @@ def show_dashboard_page():
         cols_final = [c for c in cols_to_show if c in df_today.columns]
         
         if 'PTS' in df_today.columns:
+            # Converte para numérico para ordenar certo
+            df_today['PTS'] = pd.to_numeric(df_today['PTS'], errors='coerce').fillna(0)
             df_display = df_today.sort_values('PTS', ascending=False).head(10)
         else:
             df_display = df_today.head(10)
@@ -8853,4 +8867,5 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
