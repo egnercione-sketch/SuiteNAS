@@ -2577,13 +2577,16 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (V8.0 - ESTRUTURA BLINDADA / CSS INLINE)
+# PÁGINA: NEXUS PAGE (V9.0 - LAYOUT BLINDADO COM TABELAS)
 # ============================================================================
 def show_nexus_page():
-    # --- CSS GLOBAL (Apenas Fontes) ---
+    # --- CSS TIPOGRAFIA (Apenas fontes, sem layout perigoso) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        /* Remove padding padrão de tabelas para ficar clean */
+        .nx-table { width: 100%; border-collapse: collapse; border: none; }
+        .nx-table td { vertical-align: middle; padding: 5px; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -2593,9 +2596,9 @@ def show_nexus_page():
 
     # Header Clean
     st.markdown("""
-    <div style="text-align:center; padding-bottom:20px;">
-        <h1 style="font-family:'Oswald', sans-serif; font-size:36px; color:white; margin:0;">NEXUS HUD</h1>
-        <div style="font-family:monospace; color:#64748b; letter-spacing:2px; font-size:12px;">INTELLIGENCE SYSTEM • ONLINE</div>
+    <div style="text-align:center; margin-bottom:20px;">
+        <h1 style="font-family:'Oswald', sans-serif; font-size:32px; color:white; margin:0; letter-spacing:1px;">NEXUS HUD</h1>
+        <div style="font-family:monospace; color:#64748b; font-size:12px;">SISTEMA TÁTICO • ONLINE</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2632,22 +2635,21 @@ def show_nexus_page():
 
     # 3. RENDERIZAÇÃO
     for op in opportunities:
-        # --- PREPARAÇÃO DOS DADOS (PYTHON) ---
+        # Variáveis
         score = op.get('score', 0)
         color = op.get('color', '#38BDF8')
         raw_title = op.get('title', 'OPORTUNIDADE')
         op_type = op.get('type', 'Standard')
         is_sgp = (op_type == 'SGP')
         
-        # Configuração Visual
         if is_sgp:
             main_title = "SINERGIA"
             center_icon = "⚡"
-            center_txt = "" 
+            center_label = "" 
         else:
             main_title = str(raw_title).replace("VÁCUO DE REBOTE", "VÁCUO TÁTICO")
             center_icon = "⚔️"
-            center_txt = "VS"
+            center_label = "VS"
 
         # Hero (Esquerda)
         hero = op.get('hero', {}) or {}
@@ -2657,7 +2659,7 @@ def show_nexus_page():
         h_role = hero.get('role', 'PLAYER') 
         h_target = hero.get('target', '-')
         h_stat = hero.get('stat', '')
-        h_color = get_stat_color(h_stat)
+        h_stat_color = get_stat_color(h_stat)
 
         # Target (Direita)
         if is_sgp:
@@ -2665,24 +2667,21 @@ def show_nexus_page():
             t_name = partner.get('name', 'Parceiro')
             t_photo = partner.get('photo', h_photo)
             t_logo = partner.get('logo', '')
-            t_line1 = "PARCEIRO"
-            t_line2 = f"<span style='color:{get_stat_color(partner.get('stat'))}; font-size:18px; font-weight:bold;'>{partner.get('target')}</span> <span style='font-size:10px; color:#94a3b8;'>{partner.get('stat')}</span>"
-            t_img_block = f"""
-                <div style="position:relative; width:50px; height:50px;">
-                    <img src="{t_photo}" style="width:50px; height:50px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
-                    <img src="{t_logo}" style="position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%; background:#000; border:1px solid #fff;">
-                </div>"""
+            t_role = "PARCEIRO"
+            t_val_html = f"<div style='color:{get_stat_color(partner.get('stat'))}; font-size:18px; font-weight:bold; font-family:Oswald;'>{partner.get('target')} <span style='font-size:10px; color:#94a3b8;'>{partner.get('stat')}</span></div>"
+            t_img_src = t_photo
+            t_is_round = True
         else:
             villain = op.get('villain', {}) or {}
             t_name = villain.get('name', 'Adversário')
-            t_logo = villain.get('logo', '')
+            t_photo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
+            t_logo = ''
+            t_role = "DEFESA"
             v_status = villain.get('status', '')
-            t_line1 = "DEFESA"
-            t_line2 = f"<span style='color:#F87171; background:rgba(248,113,113,0.1); padding:2px 4px; border-radius:4px; font-size:11px; font-weight:bold;'>🚨 {v_status}</span>" if v_status else ""
-            t_img_block = f"""
-                <div style="width:50px; height:50px;">
-                    <img src="{t_logo}" style="width:50px; height:50px; border-radius:4px; border:1px solid #475569; object-fit:contain; background:#000;">
-                </div>"""
+            status_span = f"<span style='background:rgba(248,113,113,0.2); color:#F87171; padding:2px 4px; border-radius:3px; font-size:10px;'>🚨 {v_status}</span>" if v_status else ""
+            t_val_html = f"<div style='margin-top:2px;'>{status_span}</div>"
+            t_img_src = t_photo
+            t_is_round = False
 
         # Ladder & Impacto
         ladder_raw = op.get('ladder', []) or []
@@ -2692,63 +2691,79 @@ def show_nexus_page():
         if len(ladder_clean) >= 3:
             ladder_html = f"""
             <span style='color:#64748b;'>Base</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[0]}</span>
-            <span style='color:#334155; margin:0 4px;'>|</span>
+            <span style='color:#334155; margin:0 5px;'>|</span>
             <span style='color:#FBBF24;'>Alvo</span> <span style='color:#FBBF24; font-weight:bold;'>{ladder_clean[1]}</span>
-            <span style='color:#334155; margin:0 4px;'>|</span>
+            <span style='color:#334155; margin:0 5px;'>|</span>
             <span style='color:#64748b;'>Teto</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[2]}</span>
             """
         elif len(ladder_clean) > 0:
             ladder_html = " | ".join(ladder_clean)
-            
+
         impact_txt = op.get('impact', '...')
 
-        # --- HTML BLINDADO ---
-        # Usamos estilos inline para garantir que o Streamlit não quebre
+        # --- REGRAS DE ESTILO DOS AVATARES ---
+        h_img_style = f"width:55px; height:55px; border-radius:50%; border:2px solid {color}; object-fit:cover; display:block;"
+        
+        if t_is_round:
+            t_img_style = f"width:55px; height:55px; border-radius:50%; border:2px solid {color}; object-fit:cover; display:block;"
+        else:
+            t_img_style = "width:50px; height:50px; border-radius:4px; border:1px solid #475569; object-fit:contain; background:#000; display:block;"
+
+        # --- HTML CARD FINAL (ESTRUTURA DE TABELA - ANTI-EXPLOSÃO) ---
         html_card = f"""
-        <div style="background-color:#0f172a; border:1px solid {color}; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 6px rgba(0,0,0,0.3); overflow:hidden; font-family:'Oswald', sans-serif;">
+        <div style="background-color:#0f172a; border:1px solid {color}; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.5); overflow:hidden; font-family:'Oswald', sans-serif;">
             
-            <div style="background-color:{color}15; padding:8px 15px; border-bottom:1px solid {color}30; display:flex; justify-content:space-between; align-items:center;">
-                <div style="color:{color}; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:6px;">
-                    <span>{center_icon}</span> <span>{main_title}</span>
+            <div style="background:{color}20; padding:8px 15px; border-bottom:1px solid {color}40; display:flex; justify-content:space-between; align-items:center;">
+                <div style="color:{color}; font-size:14px; letter-spacing:1px;">
+                    {center_icon} {main_title}
                 </div>
-                <div style="background:#000; color:#FBBF24; border:1px solid #334155; padding:2px 8px; border-radius:4px; font-size:12px; font-family:monospace;">
+                <div style="background:#000; color:#FBBF24; padding:2px 8px; border-radius:4px; border:1px solid #334155; font-size:12px; font-family:monospace;">
                     SCORE {score}
                 </div>
             </div>
 
-            <div style="display:flex; align-items:center; padding:15px; width:100%; box-sizing:border-box;">
-                
-                <div style="flex:1; display:flex; align-items:center; gap:10px; min-width:0;">
-                    <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
-                        <img src="{h_photo}" style="width:50px; height:50px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
-                        <img src="{h_logo}" style="position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%; background:#000; border:1px solid #fff;">
-                    </div>
-                    <div style="min-width:0;">
-                        <div style="color:#fff; font-size:15px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{h_name}</div>
-                        <div style="color:#64748b; font-size:10px; margin-bottom:2px;">{h_role}</div>
-                        <div style="color:{h_color}; font-size:18px; font-weight:bold; line-height:1;">{h_target} <span style="font-size:10px; color:#64748b;">{h_stat}</span></div>
-                    </div>
-                </div>
+            <div style="padding:15px;">
+                <table class="nx-table">
+                    <tr>
+                        <td style="width:55px;">
+                             <div style="position:relative; width:55px; height:55px;">
+                                <img src="{h_photo}" style="{h_img_style}">
+                                <img src="{h_logo}" style="position:absolute; bottom:-2px; right:-2px; width:20px; height:20px; border-radius:50%; background:#000; border:1px solid #fff; padding:1px;">
+                            </div>
+                        </td>
+                        <td style="text-align:left; padding-left:12px;">
+                            <div style="color:#fff; font-size:16px; font-weight:bold; line-height:1.1;">{h_name}</div>
+                            <div style="color:#64748b; font-size:10px; font-family:monospace;">{h_role}</div>
+                            <div style="color:{h_stat_color}; font-size:20px; font-weight:bold; line-height:1;">
+                                {h_target} <span style="font-size:11px; color:#64748b; font-weight:normal;">{h_stat}</span>
+                            </div>
+                        </td>
 
-                <div style="width:40px; text-align:center; flex-shrink:0; color:#475569; font-weight:bold; font-size:12px;">
-                    {center_txt}
-                </div>
+                        <td style="width:40px; text-align:center; color:#475569; font-weight:bold; font-size:12px;">
+                            {center_label}
+                        </td>
 
-                <div style="flex:1; display:flex; align-items:center; justify-content:flex-end; gap:10px; min-width:0; text-align:right;">
-                    <div style="min-width:0;">
-                        <div style="color:#fff; font-size:15px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{t_name}</div>
-                        <div style="color:#64748b; font-size:10px; margin-bottom:2px;">{t_line1}</div>
-                        <div>{t_line2}</div>
-                    </div>
-                    <div style="flex-shrink:0;">
-                        {t_img_block}
-                    </div>
-                </div>
+                        <td style="text-align:right; padding-right:12px;">
+                            <div style="color:#fff; font-size:16px; font-weight:bold; line-height:1.1;">{t_name}</div>
+                            <div style="color:#64748b; font-size:10px; font-family:monospace;">{t_role}</div>
+                            {t_val_html}
+                        </td>
+                        <td style="width:55px; text-align:right;">
+                            <div style="display:flex; justify-content:flex-end;">
+                                <img src="{t_img_src}" style="{t_img_style}">
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
-            <div style="background-color:rgba(0,0,0,0.2); border-top:1px dashed #334155; padding:8px 15px; display:flex; justify-content:space-between; align-items:center; font-family:sans-serif; font-size:11px;">
-                <div style="color:#cbd5e1;">{ladder_html}</div>
-                <div style="color:#94a3b8; font-style:italic;">{impact_txt}</div>
+            <div style="background:rgba(0,0,0,0.2); border-top:1px dashed #334155; padding:8px 15px; font-family:sans-serif; font-size:11px;">
+                <table class="nx-table">
+                    <tr>
+                        <td style="text-align:left; color:#cbd5e1;">{ladder_html}</td>
+                        <td style="text-align:right; color:#94a3b8; font-style:italic;">IMPACTO: {impact_txt}</td>
+                    </tr>
+                </table>
             </div>
 
         </div>
@@ -8890,6 +8905,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
