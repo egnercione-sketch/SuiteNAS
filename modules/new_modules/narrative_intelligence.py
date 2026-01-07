@@ -14,8 +14,12 @@ except ImportError:
 # ==============================================================================
 # CONFIGURAÇÕES
 # ==============================================================================
+# Define as temporadas de análise (Atual + Passada para maior amostra H2H)
+CURRENT_SEASON = "2025-26"
+PREV_SEASON = "2024-25"
+
 CACHE_DIR = os.path.join(os.getcwd(), "cache")
-NARRATIVE_CACHE_FILE = os.path.join(CACHE_DIR, "narrative_cache.json")
+NARRATIVE_CACHE_FILE = os.path.join(CACHE_DIR, "narrative_cache_v2.json")
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -37,93 +41,104 @@ def save_json(path, data):
     except: pass
 
 # ==============================================================================
-# ENGINE DE NARRATIVAS
+# ENGINE DE NARRATIVAS (CORRIGIDA)
 # ==============================================================================
 class NarrativeIntelligence:
     def __init__(self):
         self.cache = load_json(NARRATIVE_CACHE_FILE)
-        self.api_delay = 0.6 # Delay para não tomar block da NBA API
+        self.api_delay = 0.6 # Delay vital para não tomar block
 
     def get_player_matchup_history(self, player_id, player_name, opponent_abbr):
         """
         Busca o histórico do jogador contra um time específico (H2H).
-        Retorna: Estatísticas médias e 'Badges' de narrativa.
+        Olha para a temporada atual e anterior para criar volume de dados.
         """
-        # 1. Chave de Cache Única (Ex: 203999_BOS)
-        cache_key = f"{player_id}_{opponent_abbr}"
+        # 1. Chave de Cache (Ex: 203999_BOS_v2)
+        cache_key = f"{player_id}_{opponent_abbr}_v2"
         
-        # 2. Verificar Cache (Validade de 7 dias para histórico)
+        # 2. Verificar Cache (Validade de 7 dias)
         if cache_key in self.cache:
             cached_data = self.cache[cache_key]
             last_update = cached_data.get('updated_at', '2000-01-01')
-            # Se for recente, retorna cache
-            if (datetime.now() - datetime.strptime(last_update, "%Y-%m-%d")).days < 7:
+            days_diff = (datetime.now() - datetime.strptime(last_update, "%Y-%m-%d")).days
+            
+            # Se for recente e tiver dados válidos, retorna
+            if days_diff < 7 and cached_data.get('data') is not None:
                 return cached_data['data']
 
-        # 3. Buscar na API (Se disponível)
+        # 3. Buscar na API
         if not NBA_API_AVAILABLE:
-            return self._get_mock_narrative(player_name, opponent_abbr)
+            return None
 
         try:
-            # Busca logs desta temporada e da passada para ter amostra
-            # (Simplificação: pegando apenas season atual por performance inicial)
             time.sleep(self.api_delay)
-            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
             
-            if gamelog.empty:
+            # --- CORREÇÃO: Busca DUAS temporadas para ter amostra ---
+            # Temporada Atual
+            df_curr = playergamelog.PlayerGameLog(player_id=player_id, season=CURRENT_SEASON).get_data_frames()[0]
+            # Temporada Passada (Opcional, mas recomendado para H2H)
+            time.sleep(0.3) 
+            df_prev = playergamelog.PlayerGameLog(player_id=player_id, season=PREV_SEASON).get_data_frames()[0]
+            
+            # Junta tudo
+            df_full = pd.concat([df_curr, df_prev], ignore_index=True)
+            
+            if df_full.empty:
                 return None
 
             # 4. Filtrar jogos contra o oponente
-            # O campo MATCHUP geralmente é "LAL @ BOS" ou "LAL vs. BOS"
-            # Vamos procurar a sigla do oponente na string
+            # Normaliza para garantir que ache 'GSW' em 'GS' ou 'NOP' em 'NO'
+            opp_games = df_full[df_full['MATCHUP'].str.contains(opponent_abbr, case=False, na=False)]
             
-            # Normalização simples de string
-            opp_games = gamelog[gamelog['MATCHUP'].str.contains(opponent_abbr, case=False, na=False)]
-            
-            if opp_games.empty:
-                # Se não jogou esse ano, tenta verificar se o usuário quer buscar ano passado (future feature)
-                return {
-                    "games_played": 0,
-                    "narrative": "Sem histórico recente",
-                    "avg_stats": {}
-                }
-
-            # 5. Calcular Médias H2H
-            avg_pts = opp_games['PTS'].mean()
-            avg_reb = opp_games['REB'].mean()
-            avg_ast = opp_games['AST'].mean()
-            
-            # 6. Analisar Narrativa (Killer vs Victim)
-            # Precisamos comparar com a média geral da temporada
-            season_pts = gamelog['PTS'].mean()
-            
-            narrative = "Neutro"
-            badge = ""
-            
-            if avg_pts > season_pts * 1.2: # 20% acima da média
-                narrative = "Killer"
-                badge = "🔥 H2H KILLER"
-            elif avg_pts < season_pts * 0.8: # 20% abaixo da média
-                narrative = "Struggles"
-                badge = "❄️ FRIA H2H"
+            # Se tiver menos de 2 jogos em 2 anos, não dá pra tirar conclusão
+            if len(opp_games) < 2:
+                result_data = None # Ignora dados insuficientes
+            else:
+                # 5. Calcular Médias H2H
+                avg_pts = opp_games['PTS'].mean()
+                avg_reb = opp_games['REB'].mean()
+                avg_ast = opp_games['AST'].mean()
                 
-            result_data = {
-                "games_played": len(opp_games),
-                "avg_stats": {
-                    "PTS": round(avg_pts, 1),
-                    "REB": round(avg_reb, 1),
-                    "AST": round(avg_ast, 1)
-                },
-                "comparison": {
-                    "season_pts": round(season_pts, 1),
-                    "diff_pct": round(((avg_pts - season_pts) / season_pts) * 100, 1) if season_pts > 0 else 0
-                },
-                "narrative": narrative,
-                "badge": badge,
-                "last_games": opp_games[['GAME_DATE', 'MATCHUP', 'PTS', 'REB', 'AST']].head(3).to_dict('records')
-            }
+                # 6. Comparar com média da temporada ATUAL apenas (para saber se ele sobe de produção)
+                if not df_curr.empty:
+                    season_pts = df_curr['PTS'].mean()
+                else:
+                    season_pts = df_full['PTS'].mean() # Fallback
+                
+                narrative = "Neutro"
+                badge = "H2H"
+                
+                # Regra do Killer: +15% sobre a média da temporada
+                if season_pts > 0:
+                    diff_pct = ((avg_pts - season_pts) / season_pts) * 100
+                else:
+                    diff_pct = 0
+                
+                if diff_pct >= 15:
+                    narrative = "Killer"
+                    badge = "🔥 CARRASCO"
+                elif diff_pct <= -15:
+                    narrative = "Cold"
+                    badge = "❄️ TRAUMA"
+                    
+                result_data = {
+                    "games_played": len(opp_games),
+                    "avg_stats": {
+                        "PTS": round(avg_pts, 1),
+                        "REB": round(avg_reb, 1),
+                        "AST": round(avg_ast, 1)
+                    },
+                    "comparison": {
+                        "season_pts": round(season_pts, 1),
+                        "diff_pct": round(diff_pct, 1)
+                    },
+                    "narrative": narrative,
+                    "badge": badge,
+                    # Pega apenas dados serializáveis (strings/floats) para o JSON
+                    "last_games_count": len(opp_games)
+                }
             
-            # Salvar no Cache
+            # Salvar no Cache (Mesmo que seja None, para não tentar de novo hoje)
             self.cache[cache_key] = {
                 "updated_at": datetime.now().strftime("%Y-%m-%d"),
                 "data": result_data
@@ -133,15 +148,6 @@ class NarrativeIntelligence:
             return result_data
 
         except Exception as e:
-            print(f"Erro no NarrativeIntelligence: {e}")
+            # Em caso de erro de API (timeout), não salva no cache pra tentar de novo depois
+            print(f"Erro Intelligence: {e}")
             return None
-
-    def _get_mock_narrative(self, player_name, opponent_abbr):
-        """Fallback para quando a API falhar ou estiver offline"""
-        return {
-            "games_played": 2,
-            "avg_stats": {"PTS": 25.0, "REB": 5.0, "AST": 5.0},
-            "narrative": "Simulado",
-            "badge": "⚠️ OFF-LINE",
-            "last_games": []
-        }
