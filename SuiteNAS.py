@@ -7542,7 +7542,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (V46.0 - JSON WRAPPER FIX)
+# PÁGINA: DEPTO MÉDICO (V47.0 - PHOTO RECOVERY FIX)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -7607,7 +7607,7 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 HOSPITAL HUB <span style="font-size:14px; color:#ef4444; margin-left:10px;">LIVE MONITOR</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 3. FETCH E PROCESSAMENTO (CORREÇÃO DO WRAPPER "TEAMS") ---
+    # --- 3. FETCH E PROCESSAMENTO ---
     raw_data = get_data_universal('injuries')
     if not raw_data: raw_data = get_data_universal('injuries_data')
     if not raw_data: raw_data = st.session_state.get('injuries_data', [])
@@ -7616,18 +7616,15 @@ def show_depto_medico():
         st.info("ℹ️ Nenhuma atualização de lesão encontrada.")
         return
 
-    # >>> FIX: DESEMBRULHA O JSON SE TIVER A CHAVE "TEAMS" <<<
     if isinstance(raw_data, dict) and 'teams' in raw_data:
         raw_data = raw_data['teams']
 
-    # Flattening data
     injuries_flat = []
     stack = [raw_data]
     
     while stack:
         curr = stack.pop()
         if isinstance(curr, list):
-            # Verifica se é lista de objetos de lesão
             if curr and isinstance(curr[0], dict) and ('name' in curr[0] or 'player' in curr[0]):
                 injuries_flat.extend(curr)
             else:
@@ -7639,15 +7636,13 @@ def show_depto_medico():
                     for item in v:
                         if isinstance(item, dict): 
                             if hint: item['_hint'] = hint
-                            # Padroniza chaves
                             if 'name' in item and 'player' not in item: item['player'] = item['name']
                             if 'status' not in item and 'notes' in item: item['status'] = 'Unknown'
                     stack.append(v)
                 elif isinstance(v, dict):
-                    # Se for dict aninhado, joga no stack também
                     stack.append(v)
 
-    # --- 4. MAPA DE FOTOS E DADOS (L5) ---
+    # --- 4. MAPA DE FOTOS E DADOS (ROBUSTO) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PHOTO_MAP, TEAM_MAP, MIN_MAP = {}, {}, {}
 
@@ -7662,6 +7657,7 @@ def show_depto_medico():
             c_min = 'MIN_AVG' if 'MIN_AVG' in df_norm.columns else 'MIN'
 
             df_norm['KEY'] = df_norm[c_player].apply(normalize_key)
+            # Garante que não temos IDs zerados
             df_norm = df_norm[df_norm[c_id] != 0].drop_duplicates(subset=['KEY'])
             
             PHOTO_MAP = dict(zip(df_norm['KEY'], df_norm[c_id]))
@@ -7683,12 +7679,11 @@ def show_depto_medico():
         if key in seen_players: continue
         seen_players.add(key)
 
-        # Dados Enriquecidos
         pid = PHOTO_MAP.get(key, 0)
         real_team = TEAM_MAP.get(key, "UNK")
         real_min = MIN_MAP.get(key, 0.0)
 
-        # Fallback Sobrenome
+        # Fallback Sobrenome (Crucial para nomes abreviados)
         if pid == 0:
             parts = raw_name.split()
             if len(parts) > 1:
@@ -7698,22 +7693,18 @@ def show_depto_medico():
                     real_team = TEAM_MAP.get(last_key, "UNK")
                     real_min = MIN_MAP.get(last_key, 0.0)
 
-        # Fallback Team
         if real_team == "UNK":
             real_team = str(p.get('_hint') or p.get('team') or "UNK").upper()
 
-        # Impacto
         impact = 0
-        if real_min >= 28: impact = 2 # Estrela
-        elif real_min >= 15: impact = 1 # Rotação
+        if real_min >= 28: impact = 2 
+        elif real_min >= 15: impact = 1 
 
-        # Status
         status_raw = str(p.get('status', '')).upper()
         if "OUT" in status_raw: status_code = "OUT"
         elif any(x in status_raw for x in ["GTD", "QUEST", "DOUBT", "DAY"]): status_code = "GTD"
         else: status_code = "DTD"
 
-        # Descrição
         desc = p.get('details') or p.get('description') or p.get('notes') or ""
         desc = re.sub(r'<[^>]*>', '', str(desc))
 
@@ -7730,7 +7721,6 @@ def show_depto_medico():
         })
 
     # --- 6. RENDERIZAÇÃO: UTI DE ESTRELAS ---
-    # Mostra apenas impacto 2 (Estrelas)
     ward_stars = [x for x in final_roster if x['impact'] == 2]
     
     if ward_stars:
@@ -7746,12 +7736,13 @@ def show_depto_medico():
             with col:
                 color = "#ef4444" if star['status'] == "OUT" else "#f97316"
                 
-                # FOTO HÍBRIDA (NBA/ESPN/FALLBACK)
+                # FOTO HÍBRIDA + FALLBACK
                 pid = int(star['id'])
                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
                 espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
                 fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
+                # HTML Inteligente: Tenta NBA -> Tenta ESPN -> Usa Boneco
                 img_html = f"""<img src="{nba_url}" class="hc-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
                 if pid == 0: img_html = f"""<img src="{fallback_url}" class="hc-img">"""
 
@@ -7800,8 +7791,11 @@ def show_depto_medico():
             for p in players:
                 pid = int(p['id'])
                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+                espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
                 fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                img_html = f"""<img src="{nba_url}" class="lr-img" onerror="this.src='{fallback_url}'">"""
+                
+                # HTML Inteligente para Lista
+                img_html = f"""<img src="{nba_url}" class="lr-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
                 if pid == 0: img_html = f"""<img src="{fallback_url}" class="lr-img">"""
 
                 badge_cls = "s-out" if p['status'] == "OUT" else ("s-gtd" if p['status'] == "GTD" else "s-dtd")
@@ -8778,6 +8772,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
