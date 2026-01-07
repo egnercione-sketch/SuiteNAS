@@ -8296,233 +8296,165 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V3.1 - PHOTO FIX)
+# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V4.0 - NATIVE & BULLETPROOF)
 # ============================================================================
 def show_narrative_lab():
     import time
     
-    # CSS Específico para o Layout "War Room"
+    # --- CSS TÁTICO (Apenas Tipografia e Tabelas) ---
     st.markdown("""
     <style>
-        /* Header */
-        .war-room-title { font-family: 'Oswald'; font-size: 28px; color: #fff; letter-spacing: 2px; margin-bottom: 5px; }
-        .war-room-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 25px; }
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        /* Títulos */
+        .wr-header { font-family: 'Oswald', sans-serif; font-size: 32px; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
+        .wr-sub { font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
         
-        /* Top Threats Cards */
-        .threat-card {
-            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid #334155;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            transition: transform 0.2s;
-        }
-        .threat-card:hover { transform: translateY(-5px); }
-        .threat-val { font-family: 'Oswald'; font-size: 32px; font-weight: bold; margin: 5px 0; }
-        .threat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
+        /* Tabelas Indestrutíveis */
+        .wr-table { width: 100%; border-collapse: collapse; }
+        .wr-table td { padding: 8px 4px; vertical-align: middle; border-bottom: 1px dashed #334155; }
+        .wr-table tr:last-child td { border-bottom: none; }
         
-        /* Battle Grid */
-        .battle-header { 
-            background: #1e293b; color: #e2e8f0; 
-            padding: 8px 15px; border-radius: 6px; 
-            font-family: 'Oswald'; font-size: 16px; 
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 2px solid #334155;
-            margin-top: 20px; margin-bottom: 10px;
-        }
+        /* Classes de Texto */
+        .wr-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; font-weight: bold; line-height: 1.1; }
+        .wr-stat { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; }
+        .wr-val-killer { font-family: 'Oswald', sans-serif; font-size: 18px; color: #F87171; font-weight: bold; text-align: right; }
+        .wr-val-cold { font-family: 'Oswald', sans-serif; font-size: 18px; color: #00E5FF; font-weight: bold; text-align: right; }
         
-        /* Player Mini Cards */
-        .p-card {
-            background: rgba(15, 23, 42, 0.6);
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-            border-left-width: 4px;
-            border-left-style: solid;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .p-card-killer { border-left-color: #FF4F4F; background: linear-gradient(90deg, rgba(255, 79, 79, 0.1) 0%, transparent 100%); }
-        .p-card-cold { border-left-color: #00E5FF; background: linear-gradient(90deg, rgba(0, 229, 255, 0.1) 0%, transparent 100%); }
+        /* Tags */
+        .wr-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-top: 4px; }
+        .tag-killer { background: rgba(248, 113, 113, 0.15); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+        .tag-cold { background: rgba(6, 182, 212, 0.15); color: #00E5FF; border: 1px solid rgba(6, 182, 212, 0.3); }
+
+        /* Imagens */
+        .wr-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. SETUP & DADOS
+    # 1. SETUP & ENGINE
     try:
-        from modules.new_modules.narrative_intelligence import NarrativeIntelligence
+        # Tenta carregar a engine se existir
         if "narrative_engine" not in st.session_state:
+            from modules.new_modules.narrative_intelligence import NarrativeIntelligence
             st.session_state.narrative_engine = NarrativeIntelligence()
         engine = st.session_state.narrative_engine
-    except ImportError:
-        st.error("⚠️ Engine não encontrada.")
+    except:
+        # Fallback simples caso a engine não esteja carregada
+        st.error("⚠️ Módulo de Inteligência não detectado.")
         return
 
     games = st.session_state.get("scoreboard", [])
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
+    # Header
+    st.markdown('<div class="wr-header">⚔️ NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
+    st.markdown('<div class="wr-sub">MONITORAMENTO DE ANOMALIAS ESTATÍSTICAS HISTÓRICAS</div>', unsafe_allow_html=True)
+
     if not games or df_l5.empty:
-        st.warning("⚠️ Dados insuficientes. Atualize na aba Config.")
+        st.info("ℹ️ Aguardando dados para iniciar varredura...")
         return
 
-    # FIX CRÍTICO: Remove colunas duplicadas do L5 para evitar crash
+    # Limpeza de colunas duplicadas
     df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
 
-    # 2. AUTO-SCAN LÓGICO (Processamento)
-    if "narrative_cache_v3" not in st.session_state:
-        st.session_state.narrative_cache_v3 = {}
+    # 2. PROCESSAMENTO (SCAN)
+    if "narrative_cache_v4" not in st.session_state:
+        st.session_state.narrative_cache_v4 = {}
 
-    cache_key = f"war_room_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d')}"
-    scan_results = st.session_state.narrative_cache_v3.get(cache_key)
+    cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
+    scan_results = st.session_state.narrative_cache_v4.get(cache_key)
 
     if not scan_results:
         with st.status("📡 Rastreando Anomalias H2H...", expanded=True) as status:
             scan_results = []
+            # Mapa simples de times para normalizar nomes
             ESPN_MAP = {"SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA", "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"}
             
             prog = st.progress(0)
+            total_steps = len(games)
+            
             for i, game in enumerate(games):
                 try:
                     away_raw, home_raw = game['away'], game['home']
                     away_n = ESPN_MAP.get(away_raw, away_raw)
                     home_n = ESPN_MAP.get(home_raw, home_raw)
                     
-                    # Analisa os Top 8 de cada time
+                    # Top 8 scorers apenas (Filtro de Relevância)
                     r_away = df_l5[df_l5['TEAM'] == away_n].sort_values('PTS_AVG', ascending=False).head(8)
                     r_home = df_l5[df_l5['TEAM'] == home_n].sort_values('PTS_AVG', ascending=False).head(8)
 
                     def analyze_player(row, opp_team, my_team):
-                        # Pega ID com segurança
                         try:
-                            pid_raw = row['PLAYER_ID']
-                            if isinstance(pid_raw, pd.Series): pid_raw = pid_raw.iloc[0]
-                            pid = int(float(pid_raw))
-                        except: pid = 0
-                        
-                        pname = row['PLAYER'] if 'PLAYER' in row else row.get('PLAYER_NAME', 'Unknown')
-                        
-                        data = engine.get_player_matchup_history(pid, pname, opp_team)
-                        
-                        if data and 'comparison' in data:
-                            diff = data['comparison'].get('diff_pct', 0)
-                            
-                            n_type = "NEUTRAL"
-                            if diff >= 15: n_type = "KILLER"      # +15% melhor que a média
-                            elif diff <= -15: n_type = "COLD"     # -15% pior que a média
-                            
-                            if n_type != "NEUTRAL":
-                                scan_results.append({
-                                    "game_id": f"{away_raw} @ {home_raw}",
-                                    "player": pname,
-                                    "team": my_team,
-                                    "opponent": opp_team,
-                                    "diff": diff,
-                                    "avg": data['avg_stats'].get('PTS', 0),
-                                    "type": n_type,
-                                    "pid": pid,
-                                    "badge": data.get('badge', '')
-                                })
+                            # ID Seguro
+                            pid = int(float(row.get('PLAYER_ID', 0)))
+                            if pid == 0: return
 
+                            pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
+                            avg_pts = float(row.get('PTS_AVG', 0))
+                            
+                            # FILTRO "BAGRE": Ignora jogadores com média < 10pts
+                            if avg_pts < 10: return
+
+                            # Chama Engine
+                            data = engine.get_player_matchup_history(pid, pname, opp_team)
+                            
+                            if data and 'comparison' in data:
+                                diff = data['comparison'].get('diff_pct', 0)
+                                
+                                # Classificação
+                                n_type = "NEUTRAL"
+                                if diff >= 15: n_type = "KILLER"
+                                elif diff <= -15: n_type = "COLD"
+                                
+                                if n_type != "NEUTRAL":
+                                    scan_results.append({
+                                        "game_id": f"{away_raw} @ {home_raw}",
+                                        "game_display": f"{away_raw} vs {home_raw}",
+                                        "player": pname,
+                                        "team": my_team,
+                                        "opponent": opp_team,
+                                        "diff": diff,
+                                        "avg": avg_pts,
+                                        "type": n_type,
+                                        "pid": pid,
+                                        "badge": data.get('badge', 'H2H')
+                                    })
+                        except: pass
+
+                    # Executa análise
                     for _, p in r_away.iterrows(): analyze_player(p, home_n, away_raw)
                     for _, p in r_home.iterrows(): analyze_player(p, away_n, home_raw)
                     
-                    prog.progress((i+1)/len(games))
+                    prog.progress((i+1)/total_steps)
                 except: continue
             
-            st.session_state.narrative_cache_v3[cache_key] = scan_results
-            status.update(label="✅ Scan Completo!", state="complete", expanded=False)
+            st.session_state.narrative_cache_v4[cache_key] = scan_results
+            status.update(label="✅ Scan Tático Completo!", state="complete", expanded=False)
             time.sleep(0.5)
             st.rerun()
 
-    # 3. RENDERIZAÇÃO DA UI (LAYOUT SOLICITADO)
-    
-    st.markdown('<div class="war-room-title">&#9876; NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
-    st.markdown('<div class="war-room-sub">Monitoramento de anomalias estatísticas históricas.</div>', unsafe_allow_html=True)
-
     if not scan_results:
-        st.info("Nenhuma anomalia crítica detectada hoje (Jogos equilibrados).")
+        st.success("Nenhuma anomalia crítica detectada hoje. Jogos equilibrados.")
         return
 
-    # --- A. TICKER DE ALERTA (TOP 3 THREATS) ---
+    # 3. UI: HIGH VALUE TARGETS (TOP 3)
     killers = [x for x in scan_results if x['type'] == "KILLER"]
     top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
-    
+
     if top_threats:
+        st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#F87171; font-weight:bold;'>🚨 ALVOS DE ALTO VALOR (TOP 3)</div>", unsafe_allow_html=True)
+        
         cols = st.columns(3)
         for idx, t in enumerate(top_threats):
-            # URL SEGURA + Fallback
-            pid_safe = int(t['pid']) if t['pid'] > 0 else 0
-            if pid_safe > 0:
-                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid_safe}.png"
-            else:
-                photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                
-            color = "#FF4F4F"
-            
             with cols[idx]:
-                st.markdown(f"""
-                <div class="threat-card" style="border-top: 4px solid {color};">
-                    <div style="display:flex; justify-content:center; margin-bottom:10px;">
-                        <img src="{photo}" style="width:60px; height:60px; border-radius:50%; border:2px solid {color}; object-fit:cover;" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
-                    </div>
-                    <div style="font-family:'Oswald'; font-size:16px; color:#fff;">{t['player']}</div>
-                    <div style="font-size:11px; color:#94a3b8;">vs {t['opponent']}</div>
-                    <div class="threat-val" style="color:{color};">+{t['diff']:.0f}%</div>
-                    <div class="threat-lbl">Performance Histórica</div>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    # --- B. GRID DE BATALHA (MATCHUPS) ---
-    games_dict = {}
-    for item in scan_results:
-        gid = item['game_id']
-        if gid not in games_dict: games_dict[gid] = {"home": [], "away": []}
-        
-        away_name, home_name = gid.split(" @ ")
-        if item['team'] == home_name:
-            games_dict[gid]["home"].append(item)
-        else:
-            games_dict[gid]["away"].append(item)
-
-    for game_name, rosters in games_dict.items():
-        away_team, home_team = game_name.split(" @ ")
-        
-        st.markdown(f"""
-        <div class="battle-header">
-            <div>✈️ {away_team}</div>
-            <div style="font-size:12px; color:#64748B;">VS</div>
-            <div>🏠 {home_team}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        c1, c2 = st.columns(2)
-        
-        def render_list(col, items, align="left"):
-            with col:
-                if not items:
-                    st.markdown(f"<div style='text-align:{align}; color:#475569; font-size:12px; padding:10px;'><i>Neutro</i></div>", unsafe_allow_html=True)
-                else:
-                    for p in items:
-                        is_killer = p['type'] == "KILLER"
-                        css_class = "p-card-killer" if is_killer else "p-card-cold"
-                        color = "#FF4F4F" if is_killer else "#00E5FF"
-                        icon = "&#128293;" if is_killer else "&#10052;" 
-                        sign = "+" if p['diff'] > 0 else ""
-                        
-                        st.markdown(f"""
-                        <div class="p-card {css_class}">
-                            <div>
-                                <div style="font-weight:bold; font-size:13px; color:#fff;">{p['player']}</div>
-                                <div style="font-size:10px; color:{color}; font-weight:bold;">{icon} {p['badge']}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div style="font-family:'Oswald'; font-size:16px; color:{color};">{sign}{p['diff']:.0f}%</div>
-                                <div style="font-size:9px; color:#94a3b8;">Avg: {p['avg']:.1f}</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-        render_list(c1, rosters["away"], "left")
-        render_list(c2, rosters["home"], "right")
+                # Card Nativo de Destaque
+                with st.container(border=True):
+                    c_img, c_info = st.columns([1, 2])
+                    
+                    with c_img:
+                        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png"
+                        st.markdown(f"<img src='{photo_url}' style='width:55px; height:55px; border-radius:50%; border:2px solid #F87171; object-fit:cover;'>", unsafe_allow_html=True)
 
 # ============================================================================
 # PÁGINA: DASHBOARD (CORRIGIDA - COMPLETA)
@@ -8900,6 +8832,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
