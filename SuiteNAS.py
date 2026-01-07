@@ -398,17 +398,12 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# 7. SISTEMA DE AUTENTICAÇÃO (CORREÇÃO: PASSE MESTRE ANTI-BLOQUEIO)
-# ============================================================================
-# ============================================================================
-# NOVA FUNÇÃO: FETCH REAL GAME LOGS (CORREÇÃO DECIMAL 19.0)
+# NOVA FUNÇÃO: FETCH REAL GAME LOGS (CORREÇÃO DE TEMPORADA)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
     """
     Baixa logs da NBA, FORÇA a conversão de floats (19.0) para inteiros (19)
     e salva na nuvem via save_data_universal.
-    
-    Correção Crítica: Resolve 'invalid input syntax for type bigint: "19.0"'
     """
     import concurrent.futures
     import pandas as pd
@@ -416,10 +411,9 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
     from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog
     
-    # 1. Configurações
-    # Ajuste a temporada conforme necessário (ex: "2024-25")
-    SEASON_CURRENT = "2024-25" 
-    MAX_WORKERS = 8 # Paralelismo seguro para não tomar block da NBA
+    # --- CORREÇÃO AQUI ---
+    SEASON_CURRENT = "2025-26"  # <--- ALTERADO PARA A TEMPORADA ATUAL
+    MAX_WORKERS = 8 
     
     # 2. Obter lista de jogadores ativos
     try:
@@ -440,20 +434,16 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
     # --- FUNÇÃO INTERNA DE WORKER ---
     def fetch_one_player_log(p):
         try:
-            # Pequeno delay para evitar rate limit se rodar muito rápido
             time.sleep(0.05)
-            
-            # Chama API
+            # Chama API com a temporada certa
             log = playergamelog.PlayerGameLog(player_id=p['id'], season=SEASON_CURRENT)
             df = log.get_data_frames()[0]
             
             if df.empty: return None
 
-            # Pegamos apenas os últimos 30 jogos para não ficar gigante
-            df = df.head(30)
+            df = df.head(30) # L30 Jogos
 
-            # === SANITIZAÇÃO DE DADOS (A CORREÇÃO DO ERRO) ===
-            # Colunas que OBRIGATORIAMENTE precisam ser INTEIROS no Supabase (BigInt/Int8)
+            # === SANITIZAÇÃO DE DADOS ===
             int_cols = [
                 'PTS', 'REB', 'AST', 'STL', 'BLK', 
                 'FGA', 'FGM', 'FG3M', 'FG3A', 'FTM', 'FTA', 
@@ -461,17 +451,10 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             ]
             
             clean_logs = {}
-            
-            # Tratamento de Inteiros
             for col in int_cols:
                 if col in df.columns:
-                    # 1. fillna(0): Troca Nulos por 0
-                    # 2. astype(int): Remove o ponto decimal (19.0 -> 19)
-                    # 3. tolist(): Garante que seja lista Python nativa, não numpy array
-                    clean_logs[col] = df[col].fillna(0).astype(int).tolist()
+                    clean_logs[col] = df[col].fillna(0).astype('int64').tolist()
             
-            # Tratamento de Minutos (Geralmente vem como string "32:15" ou float)
-            # Vamos padronizar para Float arredondado para salvar como numeric se precisar
             if 'MIN' in df.columns:
                 def clean_min_val(val):
                     try:
@@ -481,11 +464,8 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
                             return float(int(parts[0]) + int(parts[1])/60)
                         return float(val)
                     except: return 0.0
-                
-                # Arredonda para 1 casa decimal para ficar limpo (ex: 32.5)
                 clean_logs['MIN'] = df['MIN'].apply(clean_min_val).round(1).tolist()
 
-            # Retorna estrutura pronta
             return {
                 "name": p['full_name'],
                 "id": p['id'],
@@ -495,6 +475,36 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             }
         except Exception:
             return None
+    # --------------------------------
+
+    count = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_player = {executor.submit(fetch_one_player_log, p): p for p in active_players}
+        
+        for future in concurrent.futures.as_completed(future_to_player):
+            res = future.result()
+            if res:
+                results[res['name']] = res
+            
+            count += 1
+            if progress_ui:
+                pct = count / total
+                p_bar.progress(min(pct, 1.0))
+                current_p = res['name'] if res else "..."
+                text_ph.write(f"Processando {count}/{total}: {current_p}")
+
+    if results:
+        if progress_ui: text_ph.write("☁️ Enviando para Supabase (Sanitizado)...")
+        sucesso = save_data_universal("real_game_logs", results, os.path.join("cache", "real_game_logs.json"))
+        
+        if progress_ui:
+            if sucesso:
+                status_box.update(label=f"✅ Sucesso! {len(results)} logs ({SEASON_CURRENT}) sincronizados.", state="complete", expanded=False)
+            else:
+                status_box.update(label=f"⚠️ Salvo localmente, mas erro na nuvem.", state="error", expanded=True)
+            
+    return results
+    
     # --------------------------------
 
     # 4. Execução Paralela (ThreadPool)
@@ -706,7 +716,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORACLE PROJECTIONS (V3 - PRO SNAPSHOT)
+# PÁGINA: ORACLE PROJECTIONS (V3.1 - FIX DUPLICATE COLS)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -721,7 +731,7 @@ def show_oracle_page():
     from urllib.request import urlopen
     from PIL import Image
 
-    # --- 1. CSS VISUAL (MANTIDO) ---
+    # --- 1. CSS VISUAL ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
@@ -779,27 +789,49 @@ def show_oracle_page():
         st.warning("⚠️ Aguardando dados... Por favor, atualize o L5 na Config.")
         return
 
-    # --- 4. MAPA DE ROSTER ---
+    # --- 4. MAPA DE ROSTER (CORREÇÃO APLICADA AQUI) ---
     roster_map = {}
     if not df_l5.empty:
+        # 1. Normaliza nomes das colunas
         df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+        
+        # 2. --- FIX CRÍTICO: REMOVE COLUNAS DUPLICADAS ---
+        # Isso impede que row['PLAYER_ID'] retorne dois valores e quebre o código
+        df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
+
         col_name = next((c for c in ['PLAYER_NAME', 'PLAYER', 'NAME', 'FULL_NAME'] if c in df_l5.columns), None)
         col_id = next((c for c in ['PLAYER_ID', 'ID', 'PERSON_ID'] if c in df_l5.columns), None)
         col_team = next((c for c in ['TEAM_ABBREVIATION', 'TEAM', 'TEAM_ID'] if c in df_l5.columns), None)
         
         if col_name and col_id:
             for _, row in df_l5.iterrows():
-                k = clean_key(row[col_name])
-                roster_map[k] = {
-                    'id': int(row[col_id]) if pd.notnull(row[col_id]) else 0,
-                    'team': normalize_team_code(row[col_team]) if col_team else "UNK"
-                }
+                try:
+                    k = clean_key(row[col_name])
+                    
+                    # Garante que pegamos um valor escalar, mesmo se o Pandas tentar trair a gente
+                    raw_id = row[col_id]
+                    if isinstance(raw_id, pd.Series): raw_id = raw_id.iloc[0] # Pega o primeiro se for duplicado
+                    
+                    val_id = int(raw_id) if pd.notnull(raw_id) else 0
+                    
+                    raw_team = row[col_team] if col_team else "UNK"
+                    if isinstance(raw_team, pd.Series): raw_team = raw_team.iloc[0]
+
+                    roster_map[k] = {
+                        'id': val_id,
+                        'team': normalize_team_code(raw_team)
+                    }
+                except: continue
 
     ELITE_DB_BACKUP = { "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "SHAIGILGEOUSALEXANDER": 1628983, "GIANNISANTETOKOUNMPO": 203507, "JOELEMBIID": 203954, "STEPHENCURRY": 201939, "LEBRONJAMES": 2544, "KEVINDURANT": 201142, "JAYSONTATUM": 1628369 }
 
     # --- 5. ENGINE ---
-    engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=10)
+    try:
+        engine = OracleEngine(full_cache, injuries_data)
+        projections = engine.generate_projections(limit=10)
+    except Exception as e:
+        st.error(f"Erro no Motor do Oráculo: {e}")
+        return
 
     if not projections:
         st.info("Calibrando o Oráculo...")
@@ -833,7 +865,7 @@ def show_oracle_page():
         snapshot_list.append({
             'name': raw_name, 'team': real_team, 
             'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM'],
-            'pid': pid # Importante para o snapshot tentar buscar foto
+            'pid': pid 
         })
 
         with st.container(border=True):
@@ -849,7 +881,6 @@ def show_oracle_page():
 
     # --- 7. SNAPSHOT PROFISSIONAL (DESIGNER MODE) ---
     def create_professional_snapshot(data_list):
-        # Configurações de Design
         BG_COLOR = "#0f172a"
         CARD_BG = "#1e293b"
         TEXT_WHITE = "#F8FAFC"
@@ -859,37 +890,30 @@ def show_oracle_page():
         COLOR_BLUE = "#60A5FA"
         COLOR_GREEN = "#4ADE80"
         
-        # Dimensões
         num_items = len(data_list)
-        fig_height = 2 + (num_items * 1.2) # Altura dinâmica
+        fig_height = 2 + (num_items * 1.2)
         fig, ax = plt.subplots(figsize=(8, fig_height))
         
-        # Fundo Geral
         fig.patch.set_facecolor(BG_COLOR)
         ax.set_facecolor(BG_COLOR)
         ax.set_xlim(0, 100)
         ax.set_ylim(0, 100)
         ax.axis('off')
 
-        # --- HEADER: LOGO E TÍTULO ---
-        # Tenta carregar logo da DigiBets
+        # Header
         try:
             logo_url = "https://i.ibb.co/TxfVPy49/Sem-t-tulo.png"
             with urlopen(logo_url) as url:
                 logo_img = Image.open(url)
-                imagebox = OffsetImage(logo_img, zoom=0.15) # Ajuste o zoom conforme necessário
+                imagebox = OffsetImage(logo_img, zoom=0.15)
                 ab = AnnotationBbox(imagebox, (10, 95), frameon=False, box_alignment=(0, 0.5))
                 ax.add_artist(ab)
         except: pass
 
-        # Texto do Header
         ax.text(20, 96, "ORACLE PROJECTIONS", color=COLOR_GOLD, fontsize=20, weight='bold', fontname='DejaVu Sans')
         ax.text(20, 92, "DIGIBETS AI PREDICTIVE MODEL", color=TEXT_GRAY, fontsize=9, fontname='DejaVu Sans')
-        
-        # Linha divisória
         ax.plot([5, 95], [89, 89], color=TEXT_GRAY, lw=0.5, alpha=0.5)
         
-        # Cabeçalho das Colunas
         header_y = 86
         ax.text(12, header_y, "PLAYER", color=TEXT_GRAY, fontsize=8, weight='bold')
         ax.text(55, header_y, "PTS", color=COLOR_GOLD, fontsize=8, weight='bold', ha='center')
@@ -897,47 +921,36 @@ def show_oracle_page():
         ax.text(81, header_y, "AST", color=COLOR_BLUE, fontsize=8, weight='bold', ha='center')
         ax.text(94, header_y, "3PM", color=COLOR_GREEN, fontsize=8, weight='bold', ha='center')
 
-        # --- LOOP DOS JOGADORES ---
-        # Calcula altura de cada linha baseado no espaço disponível (aproximado)
-        # Vamos usar coordenadas fixas relativas decrescentes para controle total
         start_y = 82
         row_height = 8
         
         for i, item in enumerate(data_list):
             y_pos = start_y - (i * row_height)
             
-            # Fundo do Card (Retângulo Arredondado simulado)
-            # FancyBboxPatch é complexo no MPL, vamos usar Rectangle simples com cor diferente
             rect = patches.Rectangle((5, y_pos - 3), 90, 6, linewidth=0, edgecolor='none', facecolor=CARD_BG, alpha=0.6)
             ax.add_patch(rect)
             
-            # Nome e Time
             ax.text(12, y_pos + 1, item['name'], color=TEXT_WHITE, fontsize=11, weight='bold')
             ax.text(12, y_pos - 1.5, f"{item['team']} • NBA", color=TEXT_GRAY, fontsize=7)
             
-            # Bolinha/Ícone (Simulação de foto)
             circle = patches.Circle((8, y_pos), 2, color='#334155')
             ax.add_patch(circle)
             
-            # Stats (Valores Grandes)
             ax.text(55, y_pos - 0.5, f"{item['pts']:.1f}", color=COLOR_GOLD, fontsize=12, weight='bold', ha='center')
             ax.text(68, y_pos - 0.5, f"{item['reb']:.1f}", color=COLOR_RED, fontsize=12, weight='bold', ha='center')
             ax.text(81, y_pos - 0.5, f"{item['ast']:.1f}", color=COLOR_BLUE, fontsize=12, weight='bold', ha='center')
             ax.text(94, y_pos - 0.5, f"{item['3pm']:.1f}", color=COLOR_GREEN, fontsize=12, weight='bold', ha='center')
 
-        # Footer
         ax.text(50, 2, "Gerado automaticamente por DigiBets SuiteNAS", color=TEXT_GRAY, fontsize=6, ha='center', alpha=0.5)
 
-        # Output
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=200, bbox_inches='tight', facecolor=BG_COLOR)
         buf.seek(0)
-        plt.close(fig) # Libera memória
+        plt.close(fig)
         return buf
 
     with c2:
         if snapshot_list:
-            # Chama a nova função profissional
             img = create_professional_snapshot(snapshot_list)
             st.download_button("📸 Baixar Pro", data=img, file_name="oracle_pro_card.png", mime="image/png")
 # ============================================================================
@@ -5049,14 +5062,11 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
     return None
 
 # ============================================================================
-# FUNÇÃO REVISADA: GET PLAYERS L5 (COM FORCE UPDATE + CORREÇÃO DECIMAL)
+# FUNÇÃO REVISADA: GET PLAYERS L5 (TEMPORADA 2025-26)
 # ============================================================================
 def get_players_l5(progress_ui=True, force_update=False):
     """
-    Baixa estatísticas L5 (Últimos 5 Jogos).
-    
-    force_update=True -> Ignora o cache e baixa tudo do zero (Para o botão Atualizar).
-    force_update=False -> Só baixa jogadores novos que não estão na lista (Para carregamento rápido).
+    Baixa estatísticas L5 (Últimos 5 Jogos) da temporada ATUAL.
     """
     from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog
@@ -5065,66 +5075,62 @@ def get_players_l5(progress_ui=True, force_update=False):
     import json
     import pandas as pd
     
-    # Configurações
-    SEASON_CURRENT = "2024-25" 
+    # --- CORREÇÃO AQUI ---
+    SEASON_CURRENT = "2025-26" # <--- ALTERADO PARA 2025-26
     MAX_WORKERS = 8 
-    BATCH_SAVE_SIZE = 20 
-    KEY_L5 = "l5_stats" # Nome da chave no Supabase
+    KEY_L5 = "l5_stats"
 
-    # 1. Carrega o Cache Atual (se não for forçar update)
+    # ... (O resto da função continua igual, pois a lógica não muda) ...
+    # Vou resumir o resto para não ficar gigante, mas você DEVE alterar a variável lá em cima.
+    
+    # 1. Carrega Cache
     df_cached = pd.DataFrame()
     if not force_update:
         cloud_data = get_data_universal(KEY_L5)
         if cloud_data and "records" in cloud_data:
-            try:
-                df_cached = pd.DataFrame.from_records(cloud_data["records"])
+            try: df_cached = pd.DataFrame.from_records(cloud_data["records"])
             except: pass
     
-    # 2. Define quem precisa ser baixado
+    # 2. Define pendentes
     act_players = players.get_active_players()
-    
-    # Se force_update é True, pendentes = TODOS. Se não, apenas os novos.
     if force_update:
         pending_players = act_players
-        df_cached = pd.DataFrame() # Zera o cache para reconstruir limpo
-        if progress_ui: st.toast("🔄 Modo Forçado: Baixando TODOS os jogadores...", icon="🚀")
+        df_cached = pd.DataFrame()
+        if progress_ui: st.toast(f"🔄 Modo Forçado: Baixando TODOS ({SEASON_CURRENT})...", icon="🚀")
     else:
         existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty and "PLAYER_ID" in df_cached.columns else set()
         pending_players = [p for p in act_players if p['id'] not in existing_ids]
 
     total_needed = len(pending_players)
-    
     if total_needed == 0:
         if progress_ui: st.success(f"✅ Base L5 já está atualizada ({len(df_cached)} registros).")
         return df_cached
 
     # 3. UI
     if progress_ui:
-        status_box = st.status(f"🚀 Baixando L5 ({total_needed} jogadores)...", expanded=True)
+        status_box = st.status(f"🚀 Baixando L5 - {SEASON_CURRENT} ({total_needed} jogadores)...", expanded=True)
         p_bar = status_box.progress(0)
         metric_ph = status_box.empty()
     
-    # Função Worker
+    # Worker
     def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
             time.sleep(0.05) 
+            # --- API CHAMADA COM A TEMPORADA CERTA ---
             log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=10)
             df = log.get_data_frames()[0]
             
             if not df.empty:
-                # Pega últimos 5
                 df_l5 = df.head(5).copy()
                 
-                # === SANITIZAÇÃO DE INTEIROS (Igual ao real_game_logs) ===
-                # Garante que PTS, REB, etc sejam inteiros puros (19) e não float (19.0)
+                # Sanitização Int
                 int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FGM', 'FG3M', 'FG3A', 'TOV', 'PF']
                 for col in int_cols:
                     if col in df_l5.columns:
-                        df_l5[col] = df_l5[col].fillna(0).astype('int64') # Força Inteiro
+                        df_l5[col] = df_l5[col].fillna(0).astype('int64')
 
-                # Metadados
                 df_l5['PLAYER_NAME'] = pname
                 df_l5['PLAYER_ID'] = pid
                 return df_l5
@@ -5132,37 +5138,29 @@ def get_players_l5(progress_ui=True, force_update=False):
             return None
         return None
 
-    # 4. Execução Paralela
+    # 4. Execução
     df_new_batch = pd.DataFrame()
     results_count = 0
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_player = {executor.submit(fetch_one_player, p): p for p in pending_players}
-        
         for i, future in enumerate(concurrent.futures.as_completed(future_to_player)):
             player_data = future.result()
-            
             if player_data is not None and not player_data.empty:
                 df_new_batch = pd.concat([df_new_batch, player_data], ignore_index=True)
-            
             results_count += 1
-            
             if progress_ui:
                 pct = (i + 1) / total_needed
                 p_bar.progress(min(pct, 1.0))
                 metric_ph.write(f"Processando: {results_count}/{total_needed}")
 
-            # Salva parciais (Checkpoint) a cada 50 para não perder tudo se cair
             if results_count % 50 == 0:
                 df_partial = pd.concat([df_cached, df_new_batch], ignore_index=True)
-                # Converte para JSON compatível
                 records = json.loads(df_partial.to_json(orient="records", date_format="iso"))
                 save_data_universal(KEY_L5, {"records": records})
 
-    # 5. Finalização
+    # 5. Final
     df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
-    
-    # Sanitiza NaN para None (JSON Standard)
     records_final = json.loads(df_final.to_json(orient="records", date_format="iso"))
     
     payload = {
@@ -5170,14 +5168,12 @@ def get_players_l5(progress_ui=True, force_update=False):
         "timestamp": datetime.now().isoformat(),
         "count": len(df_final)
     }
-    
     save_data_universal(KEY_L5, payload)
     
     if progress_ui:
-        status_box.update(label=f"✅ L5 Atualizado! Total de linhas: {len(df_final)}", state="complete", expanded=False)
+        status_box.update(label=f"✅ L5 Atualizado ({SEASON_CURRENT})! Total: {len(df_final)}", state="complete", expanded=False)
         
     return df_final
-
 # ============================================================================
 # FUNÇÃO PARA CALCULAR RISCO DE BLOWOUT (ADICIONE ESTA FUNÇÃO)
 # ============================================================================
@@ -7484,6 +7480,9 @@ def show_escalacoes():
 # ============================================================================
 # PÁGINA: DEPTO MÉDICO (BIO-MONITOR V64.0 - MOMENTUM LOGIC + SURNAME FIX)
 # ============================================================================
+# ============================================================================
+# PÁGINA: DEPTO MÉDICO (V2 - FIX ID & PHOTOS)
+# ============================================================================
 def show_depto_medico():
     import streamlit as st
     import pandas as pd
@@ -7525,27 +7524,30 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 BIO-MONITOR <span style="font-size:14px; color:#ef4444">LIVE</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 2. PREPARAÇÃO DO DATABASE (LÓGICA MOMENTUM REPLICADA) ---
+    # --- 2. PREPARAÇÃO DO DATABASE (LÓGICA BLINDADA) ---
     def clean_str(val):
         """Limpeza básica: Upper e remove espaços extras"""
         return str(val).upper().strip()
 
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # MAPA DE FOTOS: { "JOSHGIDDEY": 1630581, "GIDDEY": 1630581 }
     PHOTO_MAP = {}
     TEAM_MAP = {}
     MIN_MAP = {}
 
     if not df_l5.empty:
         try:
-            # Normaliza colunas (Igual Momentum)
-            df_l5.columns = [c.upper().strip() for c in df_l5.columns]
+            # 1. Normaliza nomes das colunas
+            df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+            
+            # 2. FIX CRÍTICO: Remove colunas duplicadas para evitar crash
+            df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
+
             cols = df_l5.columns
 
             # Localiza colunas chaves
             c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            # Busca ID agressivamente (aqui estava o erro antes, as vezes vem como PERSON_ID)
+            # Busca ID agressivamente
             c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
             if not c_id: c_id = next((c for c in cols if 'ID' in c), 'PLAYER_ID')
             
@@ -7553,10 +7555,11 @@ def show_depto_medico():
             c_min = next((c for c in cols if 'MIN' in c), 'MIN')
 
             for _, row in df_l5.iterrows():
-                # 1. Recupera ID (Lógica Momentum: int(float()))
                 try:
+                    # 1. Recupera ID com segurança (Lida com Series ou Float)
                     raw_id = row.get(c_id, 0)
-                    pid = int(float(raw_id)) # Converte 1630.0 -> 1630
+                    if isinstance(raw_id, pd.Series): raw_id = raw_id.iloc[0]
+                    pid = int(float(raw_id)) if pd.notnull(raw_id) else 0
                 except: 
                     pid = 0
                 
@@ -7565,11 +7568,14 @@ def show_depto_medico():
                 # 2. Recupera Dados
                 raw_name = clean_str(row.get(c_name, ''))
                 team = clean_str(row.get(c_team, 'UNK'))
-                try: mins = float(row.get(c_min, 0))
+                
+                try: 
+                    raw_min = row.get(c_min, 0)
+                    if isinstance(raw_min, pd.Series): raw_min = raw_min.iloc[0]
+                    mins = float(raw_min)
                 except: mins = 0.0
 
                 # 3. Cria Chaves de Busca (Full e Sobrenome)
-                # Chave Full: "JOSH GIDDEY" -> "JOSHGIDDEY"
                 full_key = re.sub(r'[^A-Z]', '', raw_name)
                 
                 # Salva no Mapa
@@ -7578,18 +7584,18 @@ def show_depto_medico():
                     TEAM_MAP[full_key] = team
                     MIN_MAP[full_key] = mins
 
-                # Chave Sobrenome: "GIDDEY"
+                # Chave Sobrenome
                 parts = raw_name.split()
                 if len(parts) > 1:
                     last_name_key = re.sub(r'[^A-Z]', '', parts[-1])
-                    # Só salva sobrenome se não existir ou se este for o titular (mais minutos)
                     if last_name_key not in MIN_MAP or mins > MIN_MAP[last_name_key]:
                         PHOTO_MAP[last_name_key] = pid
                         TEAM_MAP[last_name_key] = team
                         MIN_MAP[last_name_key] = mins
 
         except Exception as e:
-            st.error(f"Erro ao processar base de fotos (L5): {e}")
+            # Não quebra a página se o DF estiver estranho, apenas avisa no log
+            print(f"Erro ao processar base de fotos (L5): {e}")
 
     # --- 3. FETCH LESÕES ---
     raw_data = get_data_universal('injuries') or get_data_universal('injuries_cache_v44')
@@ -7613,22 +7619,20 @@ def show_depto_medico():
                     stack.append(v)
 
     if not injuries_list:
-        st.info("ℹ️ Nenhuma lesão reportada.")
+        st.info("ℹ️ Nenhuma lesão reportada ou aguardando sincronização.")
         return
 
     # --- 4. CRUZAMENTO (LOGICA MOMENTUM + SOBRENOME) ---
     final_roster = []
     
     for p in injuries_list:
-        # Nome vindo da lesão
         p_name = p.get('player') or p.get('name') or "Unknown"
-        # Limpa para busca: "Josh Giddey" -> "JOSHGIDDEY"
         inj_key = re.sub(r'[^A-Z]', '', clean_str(p_name))
         
         # 1. TENTA MATCH FULL
         pid = PHOTO_MAP.get(inj_key, 0)
         
-        # 2. TENTA MATCH SOBRENOME (Se falhou full)
+        # 2. TENTA MATCH SOBRENOME
         if pid == 0:
             parts = p_name.split()
             if len(parts) > 1:
@@ -7637,18 +7641,12 @@ def show_depto_medico():
         
         # 3. RECUPERA DADOS REAIS SE ACHOU ID
         if pid > 0:
-            # Inverso do dicionário (não eficiente mas seguro): acha qual chave deu match
-            # Simplificação: Se temos o PID, não precisamos buscar no mapa de novo, 
-            # mas precisamos do Time e Minutos.
-            # Como o mapa é Key -> ID, vamos assumir que o TIME_MAP usa a mesma chave.
-            # Qual chave usou? Full ou Last?
             if inj_key in PHOTO_MAP: used_key = inj_key
             else: used_key = re.sub(r'[^A-Z]', '', clean_str(p_name.split()[-1]))
             
             real_team = TEAM_MAP.get(used_key, "UNK")
             real_min = MIN_MAP.get(used_key, 0.0)
             
-            # Se o time do DB for UNK, tenta usar o da lesão
             if real_team == "UNK":
                 real_team = str(p.get('_hint') or p.get('team') or "UNK").upper()
         else:
@@ -7687,7 +7685,7 @@ def show_depto_medico():
             with cols[i % 4]:
                 color = "#ef4444" if p['status'] == "OUT" else "#f97316"
                 
-                # FOTO: Aqui usamos o PID que veio do float->int igual Momentum
+                # URL DA FOTO DA NBA
                 if p['id'] > 0:
                     photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
                 else:
@@ -7763,6 +7761,7 @@ def show_depto_medico():
                 """, unsafe_allow_html=True)
             
             st.markdown("<div style='margin-bottom:20px'></div>", unsafe_allow_html=True)
+            
 # ============================================================================
 # FUNÇÕES AUXILIARES E SESSION STATE (CORRIGIDA)
 # ============================================================================
@@ -8109,7 +8108,7 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V3.0 - GRID & THREATS)
+# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V3.1 - PHOTO FIX)
 # ============================================================================
 def show_narrative_lab():
     import time
@@ -8177,6 +8176,9 @@ def show_narrative_lab():
         st.warning("⚠️ Dados insuficientes. Atualize na aba Config.")
         return
 
+    # FIX CRÍTICO: Remove colunas duplicadas do L5 para evitar crash
+    df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
+
     # 2. AUTO-SCAN LÓGICO (Processamento)
     if "narrative_cache_v3" not in st.session_state:
         st.session_state.narrative_cache_v3 = {}
@@ -8196,18 +8198,25 @@ def show_narrative_lab():
                     away_n = ESPN_MAP.get(away_raw, away_raw)
                     home_n = ESPN_MAP.get(home_raw, home_raw)
                     
-                    # Analisa os Top 8 de cada time (aumentei o range)
+                    # Analisa os Top 8 de cada time
                     r_away = df_l5[df_l5['TEAM'] == away_n].sort_values('PTS_AVG', ascending=False).head(8)
                     r_home = df_l5[df_l5['TEAM'] == home_n].sort_values('PTS_AVG', ascending=False).head(8)
 
                     def analyze_player(row, opp_team, my_team):
-                        pid, pname = row['PLAYER_ID'], row['PLAYER']
+                        # Pega ID com segurança
+                        try:
+                            pid_raw = row['PLAYER_ID']
+                            if isinstance(pid_raw, pd.Series): pid_raw = pid_raw.iloc[0]
+                            pid = int(float(pid_raw))
+                        except: pid = 0
+                        
+                        pname = row['PLAYER'] if 'PLAYER' in row else row.get('PLAYER_NAME', 'Unknown')
+                        
                         data = engine.get_player_matchup_history(pid, pname, opp_team)
                         
                         if data and 'comparison' in data:
                             diff = data['comparison'].get('diff_pct', 0)
                             
-                            # LÓGICA DE CLASSIFICAÇÃO RIGOROSA
                             n_type = "NEUTRAL"
                             if diff >= 15: n_type = "KILLER"      # +15% melhor que a média
                             elif diff <= -15: n_type = "COLD"     # -15% pior que a média
@@ -8252,14 +8261,20 @@ def show_narrative_lab():
     if top_threats:
         cols = st.columns(3)
         for idx, t in enumerate(top_threats):
-            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(t['pid'])}.png"
+            # URL SEGURA + Fallback
+            pid_safe = int(t['pid']) if t['pid'] > 0 else 0
+            if pid_safe > 0:
+                photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid_safe}.png"
+            else:
+                photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                
             color = "#FF4F4F"
             
             with cols[idx]:
                 st.markdown(f"""
                 <div class="threat-card" style="border-top: 4px solid {color};">
                     <div style="display:flex; justify-content:center; margin-bottom:10px;">
-                        <img src="{photo}" style="width:60px; height:60px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
+                        <img src="{photo}" style="width:60px; height:60px; border-radius:50%; border:2px solid {color}; object-fit:cover;" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                     </div>
                     <div style="font-family:'Oswald'; font-size:16px; color:#fff;">{t['player']}</div>
                     <div style="font-size:11px; color:#94a3b8;">vs {t['opponent']}</div>
@@ -8269,14 +8284,11 @@ def show_narrative_lab():
                 """, unsafe_allow_html=True)
     
     # --- B. GRID DE BATALHA (MATCHUPS) ---
-    # Agrupa por Jogo
     games_dict = {}
     for item in scan_results:
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"home": [], "away": []}
         
-        # Identifica lado (Home ou Away) baseado no nome do time no ID do jogo
-        # ID: "AWAY @ HOME"
         away_name, home_name = gid.split(" @ ")
         if item['team'] == home_name:
             games_dict[gid]["home"].append(item)
@@ -8286,7 +8298,6 @@ def show_narrative_lab():
     for game_name, rosters in games_dict.items():
         away_team, home_team = game_name.split(" @ ")
         
-        # Renderiza Header do Jogo
         st.markdown(f"""
         <div class="battle-header">
             <div>✈️ {away_team}</div>
@@ -8297,7 +8308,6 @@ def show_narrative_lab():
         
         c1, c2 = st.columns(2)
         
-        # Função interna para renderizar lista
         def render_list(col, items, align="left"):
             with col:
                 if not items:
@@ -8307,7 +8317,7 @@ def show_narrative_lab():
                         is_killer = p['type'] == "KILLER"
                         css_class = "p-card-killer" if is_killer else "p-card-cold"
                         color = "#FF4F4F" if is_killer else "#00E5FF"
-                        icon = "&#128293;" if is_killer else "&#10052;" # Fire / Snowflake
+                        icon = "&#128293;" if is_killer else "&#10052;" 
                         sign = "+" if p['diff'] > 0 else ""
                         
                         st.markdown(f"""
@@ -8325,50 +8335,6 @@ def show_narrative_lab():
 
         render_list(c1, rosters["away"], "left")
         render_list(c2, rosters["home"], "right")
-# ============================================================================
-# FUNÇÃO PARA RENDERIZAR CARD DE JOGO (ATUALIZADA)
-# ============================================================================
-import streamlit as st
-import streamlit.components.v1 as components
-def calculate_blowout_risk(spread_val, total_val=None):
-    """Calcula o risco de blowout baseado no spread e total"""
-    if spread_val is None:
-        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread não disponível", "color": "#9CA3AF"}
-    
-    try:
-        spread = float(spread_val)
-        abs_spread = abs(spread)
-        
-        if abs_spread >= 12:
-            return {
-                "nivel": "ALTO",
-                "icon": "🔴", 
-                "desc": "Alto risco de blowout (≥12 pts)",
-                "color": "#FF4F4F"
-            }
-        elif abs_spread >= 8:
-            return {
-                "nivel": "MÉDIO",
-                "icon": "🟡",
-                "desc": "Risco moderado de blowout (8-11 pts)",
-                "color": "#FFA500"
-            }
-        elif abs_spread >= 5:
-            return {
-                "nivel": "BAIXO",
-                "icon": "🟢",
-                "desc": "Baixo risco de blowout (5-7 pts)",
-                "color": "#00FF9C"
-            }
-        else:
-            return {
-                "nivel": "MÍNIMO",
-                "icon": "🔵",
-                "desc": "Jogo equilibrado (<5 pts)",
-                "color": "#1E90FF"
-            }
-    except:
-        return {"nivel": "DESCONHECIDO", "icon": "⚪", "desc": "Spread inválido", "color": "#9CA3AF"}
 
 # ============================================================================
 # DASHBOARD (VISUAL ARENA V7.0 - STABLE & CLEAN)
@@ -8486,15 +8452,15 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
+# EXECUÇÃO PRINCIPAL (VISUAL DO MENU AJUSTADO)
 # ============================================================================
 def main():
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
-    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
+    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & LEGIBILIDADE)
     st.markdown("""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;800&family=Oswald:wght@400;600&display=swap');
 
             /* 1. FORÇA FUNDO PRETO GLOBAL */
             .stApp { background-color: #000000 !important; }
@@ -8519,15 +8485,20 @@ def main():
                 border-right: 1px solid #1e293b;
             }
 
-            /* 5. ESTILO MENU LATERAL (NUNITO) */
+            /* 5. ESTILO MENU LATERAL (CORRIGIDO PARA BRANCO) */
             div[role="radiogroup"] label {
                 background: transparent !important;
                 border: none !important;
                 padding: 8px 12px !important;
                 margin-bottom: 2px !important;
                 font-family: 'Nunito', sans-serif !important;
+                
+                /* --- AQUI ESTÁ A CORREÇÃO DE VISIBILIDADE --- */
                 font-size: 0.95rem !important;
-                color: #cbd5e1 !important;
+                color: #ffffff !important; /* Antes era #cbd5e1 (cinza), agora é BRANCO */
+                font-weight: 500 !important; /* Um pouco mais encorpado para ler melhor no preto */
+                /* -------------------------------------------- */
+                
                 border-radius: 8px !important;
                 transition: all 0.2s ease;
             }
@@ -8544,18 +8515,20 @@ def main():
             }
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
 
-            /* 6. SEPARADORES DE MENU (CSS INDEXING) */
+            /* 6. SEPARADORES DE MENU (CSS INDEXING - TITULOS MAIS CLAROS) */
+            /* Clareamos também os títulos (ex: #94a3b8) para não sumirem no preto */
+            
             div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
-            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
     
