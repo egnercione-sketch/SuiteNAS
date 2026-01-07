@@ -8499,13 +8499,7 @@ def show_narrative_lab():
         render_list(c1, rosters["away"], "left")
         render_list(c2, rosters["home"], "right")
 
-# ============================================================================
-# DASHBOARD (VISUAL ARENA V7.2 - FIX LIST/DF ATTRIBUTE ERROR)
-# ============================================================================
 def show_dashboard_page():
-    import streamlit as st
-    import pandas as pd
-    
     # Helper de Fontes e Cores
     st.markdown("""
     <style>
@@ -8516,139 +8510,22 @@ def show_dashboard_page():
 
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    games = get_scoreboard_data()
     
-    # IMPORTANTE: Carrega 'games' de forma segura
-    games = st.session_state.get('scoreboard', [])
-    
-    # Verifica se L5 está vazio
     if df_l5.empty:
-        st.warning("⚠️ Base de dados L5 vazia. Vá em Config e atualize.")
+        st.warning("⚠️ Base de dados L5 vazia.")
         return
 
-    # ==============================================================================
-    # 🚑 FIX CRÍTICO DE COLUNAS DO L5
-    # ==============================================================================
-    # 1. Normaliza nomes das colunas para Maiúsculas
-    df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-
-    # 2. Garante que a coluna TEAM exista
-    if 'TEAM' not in df_l5.columns:
-        if 'TEAM_ABBREVIATION' in df_l5.columns:
-            df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION']
-        elif 'TEAM_ID' in df_l5.columns:
-            df_l5['TEAM'] = df_l5['TEAM_ID']
-        else:
-            df_l5['TEAM'] = 'UNK'
-
-    # 3. Garante PLAYER e PTS
-    if 'PLAYER' not in df_l5.columns:
-        if 'PLAYER_NAME' in df_l5.columns: df_l5['PLAYER'] = df_l5['PLAYER_NAME']
-    if 'PTS' not in df_l5.columns:
-        if 'PTS_AVG' in df_l5.columns: df_l5['PTS'] = df_l5['PTS_AVG']
-        else: df_l5['PTS'] = 0
-    # ==============================================================================
-
-    # --- LÓGICA DE JOGOS DO DIA (Blindada contra List vs DataFrame) ---
+    # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
+    if not games.empty:
+        teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
-    # Mapa de Correção de Siglas (Scoreboard -> L5)
-    MAP_TEAMS = {
-        "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", 
-        "PHO": "PHX", "UTAH": "UTA", "WSH": "WAS", "BRK": "BKN",
-        "NOH": "NOP"
-    }
-
-    # Verifica se 'games' tem dados (Funciona para Lista ou DF)
-    has_games = False
-    if isinstance(games, list):
-        if len(games) > 0: has_games = True
-    elif isinstance(games, pd.DataFrame):
-        if not games.empty: has_games = True
-
-    # Se não tiver jogos, exibe aviso
-    if not has_games:
-        st.info("Nenhum jogo identificado para hoje (Scoreboard vazio).")
-        st.caption("Mostrando Top Geral (Fallback):")
-        df_today = df_l5
+    if not teams_playing_today:
+        st.info("Nenhum jogo identificado para hoje.")
+        df_today = pd.DataFrame()
     else:
-        # Extrai os times
-        raw_teams = set()
-        
-        # Lógica Híbrida (Aceita Lista ou DF)
-        if isinstance(games, pd.DataFrame):
-            raw_teams = set(games['home'].tolist() + games['away'].tolist())
-            # Renderiza Mini Placar (Se for DF)
-            cols = st.columns(min(len(games), 4))
-            for i, row in games.iterrows():
-                try:
-                    with cols[i % 4]:
-                        st.markdown(f"""
-                        <div style="background: #1e293b; border-radius: 8px; padding: 10px; border: 1px solid #334155; text-align: center; margin-bottom: 10px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #fff;">{row['away']} @ {row['home']}</div>
-                            <div style="font-size: 12px; color: #cbd5e1;">{row['status']}</div>
-                            <div style="font-family: 'Oswald'; font-size: 18px; color: #fbbf24;">{row.get('away_score',0)} - {row.get('home_score',0)}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                except: pass
-
-        elif isinstance(games, list):
-            for g in games:
-                raw_teams.add(g.get('home', ''))
-                raw_teams.add(g.get('away', ''))
-            
-            # Renderiza Mini Placar (Se for Lista)
-            cols = st.columns(min(len(games), 4))
-            for i, g in enumerate(games):
-                try:
-                    with cols[i % 4]:
-                        st.markdown(f"""
-                        <div style="background: #1e293b; border-radius: 8px; padding: 10px; border: 1px solid #334155; text-align: center; margin-bottom: 10px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #fff;">{g.get('away')} @ {g.get('home')}</div>
-                            <div style="font-size: 12px; color: #cbd5e1;">{g.get('status')}</div>
-                            <div style="font-family: 'Oswald'; font-size: 18px; color: #fbbf24;">{g.get('away_score',0)} - {g.get('home_score',0)}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                except: pass
-
-        # Normaliza siglas
-        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams if t]
-
-        # Filtra o L5
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
-        
-        if df_today.empty:
-            st.warning(f"Jogos detectados: {teams_playing_today}, mas a sigla não bateu com o L5.")
-            st.write("Exemplo de times no L5:", df_l5['TEAM'].unique()[:5])
-            df_today = df_l5 # Fallback para não ficar vazio
-
-    st.divider()
-
-    # --- RENDERIZAÇÃO DA TABELA ---
-    if not df_today.empty:
-        st.markdown('<div class="dash-title">🔥 Destaques da Rodada (L5)</div>', unsafe_allow_html=True)
-        
-        # Seleciona colunas úteis e ordena
-        cols_to_show = ['PLAYER', 'TEAM', 'PTS', 'REB', 'AST', 'FG3M']
-        # Garante que todas existam
-        cols_final = [c for c in cols_to_show if c in df_today.columns]
-        
-        if 'PTS' in df_today.columns:
-            # Converte para numérico para ordenar certo
-            df_today['PTS'] = pd.to_numeric(df_today['PTS'], errors='coerce').fillna(0)
-            df_display = df_today.sort_values('PTS', ascending=False).head(10)
-        else:
-            df_display = df_today.head(10)
-            
-        st.dataframe(
-            df_display[cols_final],
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "PTS": st.column_config.ProgressColumn("Pontos", format="%.1f", min_value=0, max_value=40),
-                "REB": st.column_config.NumberColumn("Reb", format="%.1f"),
-                "AST": st.column_config.NumberColumn("Ast", format="%.1f")
-            }
-        )
 
     # ========================================================================
     # 2. DESTAQUES DO DIA
@@ -8735,15 +8612,15 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (VISUAL DO MENU CORRIGIDO - ALTO CONTRASTE)
+# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
-    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & LEGIBILIDADE)
+    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
     st.markdown("""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;800&family=Oswald:wght@400;600&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
 
             /* 1. FORÇA FUNDO PRETO GLOBAL */
             .stApp { background-color: #000000 !important; }
@@ -8768,20 +8645,15 @@ def main():
                 border-right: 1px solid #1e293b;
             }
 
-            /* 5. ESTILO MENU LATERAL (CORRIGIDO PARA BRANCO) */
+            /* 5. ESTILO MENU LATERAL (NUNITO) */
             div[role="radiogroup"] label {
                 background: transparent !important;
                 border: none !important;
                 padding: 8px 12px !important;
                 margin-bottom: 2px !important;
                 font-family: 'Nunito', sans-serif !important;
-                
-                /* --- AQUI ESTÁ A CORREÇÃO DE VISIBILIDADE --- */
                 font-size: 0.95rem !important;
-                color: #ffffff !important; /* MUDADO PARA BRANCO PURO */
-                font-weight: 500 !important; /* AUMENTADO O PESO PARA LEGIBILIDADE */
-                /* -------------------------------------------- */
-                
+                color: #cbd5e1 !important;
                 border-radius: 8px !important;
                 transition: all 0.2s ease;
             }
@@ -8798,20 +8670,18 @@ def main():
             }
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
 
-            /* 6. SEPARADORES DE MENU (CSS INDEXING - TITULOS MAIS CLAROS) */
-            /* Clareamos os títulos para #94a3b8 (Slate-400) para aparecerem no fundo preto */
-            
+            /* 6. SEPARADORES DE MENU (CSS INDEXING) */
             div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
-            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
 
             div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
-            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
+            div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
     
@@ -8866,6 +8736,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
                 
+
 
 
