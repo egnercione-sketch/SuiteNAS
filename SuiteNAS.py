@@ -8506,7 +8506,7 @@ def show_narrative_lab():
         render_list(c2, rosters["home"], "right")
 
 # ============================================================================
-# PÁGINA: DASHBOARD (CORRIGIDA - BLINDAGEM DE COLUNAS)
+# PÁGINA: DASHBOARD (CORRIGIDA - COM MAPA DE SIGLAS)
 # ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
@@ -8526,40 +8526,54 @@ def show_dashboard_page():
         return
 
     # ========================================================================
-    # 🛠️ FIX: NORMALIZAÇÃO DE COLUNAS (CORREÇÃO DO KEYERROR 'TEAM')
+    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS
     # ========================================================================
-    # 1. Garante colunas em maiúsculo e sem espaços
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
 
-    # 2. Garante que a coluna 'TEAM' exista
     if 'TEAM' not in df_l5.columns:
         if 'TEAM_ABBREVIATION' in df_l5.columns:
             df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION']
         elif 'TEAM_CODE' in df_l5.columns:
             df_l5['TEAM'] = df_l5['TEAM_CODE']
-        elif 'TEAM_ID' in df_l5.columns:
-            # Fallback extremo: se só tiver ID, cria TEAM como 'UNK' para não quebrar
-            # (O ideal seria mapear ID -> Nome, mas isso evita o crash imediato)
-            df_l5['TEAM'] = 'UNK'
         else:
-            # Se não tem nada de time, cria coluna vazia
             df_l5['TEAM'] = 'UNK'
+
     # ========================================================================
+    # 🛠️ FIX 2: PADRONIZAÇÃO DE SIGLAS (MAPA DE CORREÇÃO)
+    # ========================================================================
+    # Dicionário para forçar siglas padrão (Mapping: Variação -> Padrão 3 Letras)
+    team_map_fix = {
+        'GS': 'GSW',  'GOLDEN STATE': 'GSW',
+        'NO': 'NOP',  'NEW ORLEANS': 'NOP',
+        'NY': 'NYK',  'NEW YORK': 'NYK',
+        'SA': 'SAS',  'SAN ANTONIO': 'SAS',
+        'PHO': 'PHX', 'PHOENIX': 'PHX',
+        'UTAH': 'UTA', 'UTA': 'UTA',
+        'WSH': 'WAS', 'WASHINGTON': 'WAS',
+        'BKN': 'BKN', 'BROOKLYN': 'BKN'
+    }
+
+    def normalize_team_abbr(t):
+        t = str(t).upper().strip()
+        return team_map_fix.get(t, t) # Retorna a correção ou a própria sigla se não houver mapeamento
+
+    # Aplica a correção na base de dados
+    df_l5['TEAM'] = df_l5['TEAM'].apply(normalize_team_abbr)
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
     if not games.empty:
-        # Normaliza as siglas dos jogos de hoje para garantir match
-        teams_playing_today = set(
-            [str(x).upper() for x in games['home'].tolist()] + 
-            [str(x).upper() for x in games['away'].tolist()]
-        )
+        # Aplica a mesma correção na lista de jogos de hoje
+        raw_teams = games['home'].tolist() + games['away'].tolist()
+        teams_playing_today = set([normalize_team_abbr(x) for x in raw_teams])
     
     if not teams_playing_today:
-        st.info("Nenhum jogo identificado para hoje.")
+        st.info("Nenhum jogo identificado para hoje na API.")
         df_today = pd.DataFrame()
     else:
-        # Agora é seguro fazer o filtro
+        # Debug (opcional - remove depois se quiser)
+        # st.write(f"Times Jogando Hoje (Normalizado): {teams_playing_today}")
+        
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
 
     # ========================================================================
@@ -8575,14 +8589,12 @@ def show_dashboard_page():
         return name[:limit]
 
     if df_today.empty:
-        st.warning("Nenhum jogador da base L5 joga hoje (ou as siglas dos times não coincidem).")
+        st.warning(f"Jogos hoje: {list(teams_playing_today)}. Nenhum jogador correspondente encontrado na base L5.")
     else:
         def get_top_n(df, col, n=3):
-            # Garante que a coluna de stat existe antes de ordenar
             if col not in df.columns: return pd.DataFrame()
             return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
 
-        # Verifica se as colunas de média existem, senão usa 0
         if 'PTS_AVG' not in df_today.columns: df_today['PTS_AVG'] = 0
         if 'AST_AVG' not in df_today.columns: df_today['AST_AVG'] = 0
         if 'REB_AVG' not in df_today.columns: df_today['REB_AVG'] = 0
@@ -8595,7 +8607,6 @@ def show_dashboard_page():
             if df_top.empty: return
             king = df_top.iloc[0]
             
-            # Tratamento seguro do ID
             try: p_id = int(float(king.get('PLAYER_ID', 0)))
             except: p_id = 0
                 
@@ -8605,12 +8616,14 @@ def show_dashboard_page():
             row2_html = ""
             if len(df_top) > 1:
                 p2 = df_top.iloc[1]
-                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{p2[df_top.columns[2]]:.1f}</span></div>"""
+                val2 = p2[df_top.columns[2]]
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{val2:.1f}</span></div>"""
             
             row3_html = ""
             if len(df_top) > 2:
                 p3 = df_top.iloc[2]
-                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{p3[df_top.columns[2]]:.1f}</span></div>"""
+                val3 = p3[df_top.columns[2]]
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{val3:.1f}</span></div>"""
 
             st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid {color}; border-radius: 12px; overflow: hidden; height: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
@@ -8784,6 +8797,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
