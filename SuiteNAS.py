@@ -3397,22 +3397,51 @@ class TridentEngine:
             "THE_GLUE_GUY": {"name": "The Glue Guy", "stats": ["PTS", "REB", "AST"], "min_lines": [4, 2, 1], "min_hit": 0.80},
             "MINI_SNIPER": {"name": "Mini Sniper", "stats": ["PTS", "3PM"], "min_lines": [6, 1], "min_hit": 0.80}
         }
+
     def find_tridents(self, cache_data, games):
         tridents = []
+        # Cria mapa de times ativos
         game_info_map = get_game_info_map(games)
-        teams_active = {fix_team_abbr(g.get('home', 'UNK')) for g in games} | {fix_team_abbr(g.get('away', 'UNK')) for g in games}
+        teams_active = set()
+        for g in games:
+            teams_active.add(fix_team_abbr(g.get('home', 'UNK')))
+            teams_active.add(fix_team_abbr(g.get('away', 'UNK')))
         
         for name, data in cache_data.items():
+            # 1. Validação Básica
+            if not isinstance(data, dict): continue
+            
             team = fix_team_abbr(data.get('team', 'UNK'))
             if team not in teams_active: continue
+            
             g_info = game_info_map.get(team, {"game_id": "UNK", "game_str": "UNK"})
             logs = data.get('logs', {})
-            if not logs or len(logs.get('PTS', [])) < 10: continue
+            
+            # 2. Validação de Logs
+            if not logs or not isinstance(logs, dict): continue
+            # Garante que temos pelo menos PTS para base
+            if 'PTS' not in logs or len(logs['PTS']) < 10: continue
             
             for arch_key, arch in self.archetypes.items():
-                stats = arch['stats']; min_reqs = arch['min_lines']; hits = 0
+                stats = arch['stats']
+                min_reqs = arch['min_lines']
+                
+                # --- TRAVA DE SEGURANÇA (FIX KEYERROR) ---
+                # Verifica se TODAS as stats necessárias existem nos logs deste jogador
+                # Se faltar '3PM' ou 'AST', pula este arquétipo para não quebrar
+                if not all(s in logs and isinstance(logs[s], list) and len(logs[s]) >= 10 for s in stats):
+                    continue
+                # -----------------------------------------
+
+                hits = 0
                 for i in range(10):
-                    if all(logs[s][i] >= m for s, m in zip(stats, min_reqs)): hits += 1
+                    # Agora é seguro acessar logs[s][i] pois verificamos acima
+                    try:
+                        if all(logs[s][i] >= m for s, m in zip(stats, min_reqs)): 
+                            hits += 1
+                    except: 
+                        continue # Se der erro de índice, ignora
+
                 if (hits/10) >= arch['min_hit']:
                     comps = [(s, m) for s, m in zip(stats, min_reqs)]
                     tridents.append({
@@ -3421,6 +3450,7 @@ class TridentEngine:
                         "archetype": arch['name'], "components": comps, "hit_rate": hits/10
                     })
                     break 
+                    
         return sorted(tridents, key=lambda x: x['hit_rate'], reverse=True)
 
 def generate_atomic_props(cache_data, games):
@@ -8203,6 +8233,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
