@@ -2577,383 +2577,284 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (DESIGN TÁTICO / HUD v2.0)
+# PÁGINA: NEXUS PAGE (VERSÃO ESTÁVEL V3.0)
 # ============================================================================
 def show_nexus_page():
-    # --- CSS TÁTICO ---
+    # --- CSS ISOLADO (PREVINE QUEBRA DE LAYOUT) ---
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
-
-        /* Título Principal */
-        .nexus-header {
+        /* Escopo Tático Nexus (nx-) */
+        .nx-header {
             text-align: center;
-            padding: 30px 0;
-            background: radial-gradient(circle at center, rgba(56, 189, 248, 0.1) 0%, rgba(0,0,0,0) 70%);
+            padding: 20px 0;
+            border-bottom: 1px solid #334155;
             margin-bottom: 20px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0) 0%, rgba(56, 189, 248, 0.05) 100%);
         }
-        .nexus-title {
-            font-family: 'Oswald', sans-serif;
-            font-size: 3.5rem;
-            font-weight: 700;
-            color: #FFFFFF;
-            letter-spacing: 4px;
-            text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        .nx-title {
+            font-family: 'Arial Black', sans-serif;
+            font-size: 2.5rem;
+            color: #F8FAFC;
+            letter-spacing: -1px;
             margin: 0;
-            line-height: 1;
-        }
-        .nexus-subtitle {
-            font-family: 'JetBrains Mono', monospace;
-            color: #94A3B8;
-            font-size: 0.9rem;
-            letter-spacing: 2px;
-            margin-top: 10px;
             text-transform: uppercase;
         }
-        .status-dot {
-            height: 8px; width: 8px;
-            background-color: #10B981;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            box-shadow: 0 0 8px #10B981;
-        }
-
-        /* Card HUD */
-        .hud-card {
-            background: #0f172a;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            margin-bottom: 25px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
-            transition: transform 0.2s;
-        }
-        .hud-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.2);
+        .nx-subtitle {
+            font-family: 'Courier New', monospace;
+            color: #94A3B8;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            margin-top: 5px;
         }
         
-        /* Faixa Superior Colorida */
-        .hud-top-bar {
-            height: 4px;
-            width: 100%;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        /* Card Container */
+        .nx-card {
+            background-color: #0f172a;
+            border: 1px solid #1e293b;
+            border-left: 4px solid #38BDF8; /* Cor padrão, muda inline */
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            font-family: sans-serif;
         }
-
+        
         /* Header do Card */
-        .hud-header {
+        .nx-card-header {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 15px;
-            background: rgba(0,0,0,0.2);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid #1e293b;
         }
-        .hud-title {
-            font-family: 'Oswald', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 700;
+        .nx-op-title {
+            font-weight: bold;
             color: #E2E8F0;
+            font-size: 1.1rem;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
-        .hud-score {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: bold;
-            font-size: 0.8rem;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background: #000;
-            border: 1px solid #334155;
+        .nx-score-badge {
+            background: #020617;
             color: #FBBF24;
+            border: 1px solid #FBBF24;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 0.9rem;
         }
 
         /* Corpo do Card */
-        .hud-body {
+        .nx-body {
+            padding: 15px;
             display: flex;
             align-items: center;
-            padding: 20px;
-            position: relative;
+            flex-wrap: wrap; /* Segurança para mobile */
+            gap: 15px;
         }
         
-        /* Colunas Internas */
-        .col-hero { flex: 1; display: flex; align-items: center; gap: 15px; }
-        .col-vs { width: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .col-target { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 15px; text-align: right; }
+        /* Colunas Flex */
+        .nx-col-player { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; }
+        .nx-col-vs { width: 40px; text-align: center; display: flex; justify-content: center; }
+        .nx-col-target { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; justify-content: flex-end; text-align: right; }
 
-        /* Imagens com Logo Sobreposto */
-        .avatar-container {
-            position: relative;
-            width: 70px;
-            height: 70px;
-        }
-        .player-img {
-            width: 100%; height: 100%;
+        /* Imagens */
+        .nx-avatar {
+            width: 60px; height: 60px;
             border-radius: 50%;
-            object-fit: cover;
             border: 2px solid #334155;
-            background: #020617;
+            object-fit: cover;
+            background: #000;
         }
-        .team-logo-mini {
-            position: absolute;
-            bottom: -5px;
-            right: -5px;
-            width: 28px;
-            height: 28px;
-            background: #0f172a;
-            border-radius: 50%;
-            padding: 2px;
-            border: 1px solid #475569;
-        }
-
+        
         /* Textos */
-        .player-name {
-            font-family: 'Oswald', sans-serif;
-            font-size: 1.2rem;
-            color: white;
-            line-height: 1.1;
-        }
-        .player-role {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            color: #94A3B8;
-            text-transform: uppercase;
-        }
-
-        /* Stat Principal (O ALVO) */
-        .stat-box {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid; /* Cor definida inline */
-            padding: 8px 12px;
-            border-radius: 6px;
-            text-align: center;
-            min-width: 100px;
-        }
-        .stat-val {
-            font-family: 'Oswald', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: white;
-            line-height: 1;
-        }
-        .stat-label {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            margin-top: 2px;
-        }
-
-        /* Conector Central */
-        .vs-line {
-            height: 2px;
-            width: 100%;
-            background: repeating-linear-gradient(90deg, #334155, #334155 4px, transparent 4px, transparent 8px);
-            position: absolute;
-            top: 50%;
-            left: 0;
-            z-index: 0;
-        }
-        .vs-badge {
+        .nx-name { color: #fff; font-weight: bold; font-size: 1rem; line-height: 1.1; }
+        .nx-role { color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-top: 2px; }
+        
+        /* O Dado Principal */
+        .nx-stat-box {
             background: #1e293b;
-            border: 1px solid #475569;
-            color: #94A3B8;
-            font-size: 0.7rem;
-            padding: 4px;
-            border-radius: 50%;
-            z-index: 1;
-            position: relative;
-            width: 30px; height: 30px;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: bold;
-        }
-
-        /* Footer / Badges */
-        .hud-footer {
-            background: rgba(0,0,0,0.3);
-            padding: 10px 15px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            border-top: 1px solid rgba(255,255,255,0.05);
-            align-items: center;
-        }
-        .tag {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            padding: 3px 8px;
+            padding: 5px 10px;
             border-radius: 4px;
-            font-weight: 600;
+            border: 1px solid #334155;
+            text-align: center;
+            min-width: 80px;
         }
-        .tag-green { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .tag-yellow { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .tag-red { background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-        .impact-score { margin-left: auto; font-family: 'Oswald'; color: #64748b; font-size: 0.9rem; }
+        .nx-val { font-size: 1.3rem; font-weight: 900; color: #fff; }
+        .nx-lbl { font-size: 0.7rem; color: #94A3B8; text-transform: uppercase; }
 
+        /* Footer */
+        .nx-footer {
+            background: #020617;
+            padding: 8px 15px;
+            border-top: 1px solid #1e293b;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .nx-pill {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: #1e293b;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Dados
+    # 1. Dados e Validação
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # 2. Header Nexus
+    # Header
     st.markdown("""
-    <div class="nexus-header">
-        <h1 class="nexus-title">NEXUS INTELLIGENCE</h1>
-        <div class="nexus-subtitle">
-            <span class="status-dot"></span>SYSTEM ONLINE • PREDADOR MODE ACTIVE
-        </div>
+    <div class="nx-header">
+        <h1 class="nx-title">NEXUS HUD</h1>
+        <div class="nx-subtitle">INTELLIGENCE SYSTEM • ONLINE</div>
     </div>
     """, unsafe_allow_html=True)
 
     if not full_cache:
-        st.error("❌ Logs vazios. Sistema offline.")
+        st.info("ℹ️ Aguardando sincronização de logs para iniciar Nexus.")
         return
 
-    # 3. Engine
+    # 2. Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # Filtro discreto
+    # Filtro
     col_filter, _ = st.columns([1, 3])
     with col_filter:
-        min_score = st.slider("🎚️ Sensibilidade do Radar (Score Mínimo)", 50, 100, 65)
+        min_score = st.slider("🎚️ Sensibilidade (Score)", 50, 100, 65)
 
     try:
         all_ops = nexus.run_nexus_scan()
-        opportunities = [op for op in all_ops if op['score'] >= min_score]
+        # Filtra e ordena
+        opportunities = sorted(
+            [op for op in all_ops if op.get('score', 0) >= min_score],
+            key=lambda x: x.get('score', 0),
+            reverse=True
+        )
     except Exception as e:
-        st.error(f"Erro Crítico no Scan: {e}")
+        st.error(f"Erro no Motor Nexus: {e}")
         return
 
     if not opportunities:
-        st.info("Nenhuma oportunidade tática identificada com os parâmetros atuais.")
+        st.warning("Nenhuma oportunidade encontrada com este score.")
         return
 
-    # 4. Renderização dos Cards (HUD)
+    # 3. Renderização Segura
     for op in opportunities:
-        is_sgp = (op['type'] == 'SGP')
-        color = op['color'] # Hex code vindo do nexus
-        icon = "⚡" if is_sgp else "🎯"
+        # Extração Segura de Dados (Evita KeyError)
+        score = op.get('score', 0)
+        color = op.get('color', '#38BDF8')
+        title = op.get('title', 'OPORTUNIDADE')
+        op_type = op.get('type', 'Standard')
+        is_sgp = (op_type == 'SGP')
         
-        # Dados do Heroi
-        h_name = op['hero']['name']
-        h_role = op['hero'].get('role', 'PLAYER')
-        h_photo = op['hero']['photo']
-        h_logo = op['hero']['logo']
-        h_target = op['hero'].get('target', '-')
-        h_stat = op['hero'].get('stat', '')
+        # Hero
+        hero = op.get('hero', {})
+        h_name = hero.get('name', 'Unknown')
+        h_role = hero.get('role', 'Player')
+        h_photo = hero.get('photo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
+        h_target = hero.get('target', '-')
+        h_stat = hero.get('stat', '')
 
-        # Dados do Alvo (Direita)
+        # Villain / Partner
+        target_col_html = ""
+        center_icon = "⚔️"
+        
         if is_sgp:
-            t_name = op['partner']['name']
-            t_role = "PARCEIRO"
-            t_photo = op['partner']['photo']
-            t_logo = op['partner']['logo']
-            t_val = op['partner']['target']
-            t_stat_label = op['partner']['stat']
-            t_status_html = "" # Sem status de defesa pra parceiro
-            conn_icon = "🔗"
-        else:
-            t_name = op['villain']['name']
-            t_role = "DEFESA"
-            t_photo = op['villain']['logo'] # Usa logo grande pra defesa
-            t_logo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png" # Logo vazio ou do time
-            t_val = "VS"
-            t_stat_label = op['villain']['name'] # Nome do time no lugar do stat
-            conn_icon = "⚔️"
+            center_icon = "🔗"
+            partner = op.get('partner', {})
+            p_name = partner.get('name', 'Parceiro')
+            p_photo = partner.get('photo', h_photo)
+            p_target = partner.get('target', '-')
+            p_stat = partner.get('stat', '')
             
-            # Status da Defesa (ex: Desfalcada)
-            missing = op['villain'].get('missing', '')
-            status_txt = op['villain'].get('status', '')
-            if status_txt:
-                t_status_html = f'<div style="color:#F87171; font-size:0.7rem; font-weight:bold; margin-top:4px;">🚨 {status_txt}</div>'
-                if missing: t_status_html += f'<div style="color:#64748b; font-size:0.65rem;">Sem: {missing}</div>'
-            else:
-                t_status_html = ""
+            target_col_html = f"""
+            <div style="text-align:right;">
+                <div class="nx-name">{p_name}</div>
+                <div class="nx-role">PARCEIRO</div>
+                <div style="margin-top:5px; color:#fff; font-weight:bold;">{p_target} <span style="font-size:0.8rem; color:#94a3b8;">{p_stat}</span></div>
+            </div>
+            <img src="{p_photo}" class="nx-avatar" style="border-color:{color}; margin-left:10px;">
+            """
+        else:
+            villain = op.get('villain', {})
+            v_name = villain.get('name', 'Adversário')
+            v_status = villain.get('status', '') # ex: Bottom 5 Def
+            v_missing = villain.get('missing', '')
+            v_logo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
+            
+            status_html = f"<div style='color:#F87171; font-weight:bold; font-size:0.75rem;'>{v_status}</div>" if v_status else ""
+            
+            target_col_html = f"""
+            <div style="text-align:right;">
+                <div class="nx-name">{v_name}</div>
+                <div class="nx-role">DEFESA</div>
+                {status_html}
+            </div>
+            <img src="{v_logo}" class="nx-avatar" style="border-radius:4px; margin-left:10px;">
+            """
 
-        # Badges do Footer
+        # Badges (Seguro)
+        badges = op.get('badges', []) or op.get('ladder', [])
         badges_html = ""
-        if is_sgp:
-            for b in op['badges']:
-                badges_html += f'<span class="tag tag-yellow">{b}</span>'
-        else:
-            # Ladder Colorida
-            colors = ["tag-red", "tag-yellow", "tag-green"]
-            for i, s in enumerate(op['ladder']):
-                s = s.replace(":", "")
-                c_class = "tag-green" if "✅" in s else ("tag-red" if "❌" in s else "tag-yellow")
-                badges_html += f'<span class="tag {c_class}">{s}</span>'
+        for b in badges:
+            # Limpa strings sujas
+            clean_b = str(b).replace(":", "").replace("✅", "").strip()
+            if clean_b:
+                badges_html += f'<span class="nx-pill">{clean_b}</span>'
+        
+        # Impacto (Calculado se não existir)
+        impact_txt = op.get('impact', 'ALTA PRECISÃO' if score > 80 else 'MODERADO')
 
-        # --- CONSTRUÇÃO DO HTML DO CARD ---
-        html_card = f"""
-        <div class="hud-card">
-            <div class="hud-top-bar" style="background: {color};"></div>
-            
-            <div class="hud-header">
-                <div class="hud-title">
-                    <span style="color:{color}; font-size:1.2rem;">{icon}</span>
-                    {op['title']}
+        # --- HTML CARD SEGURO ---
+        html = f"""
+        <div class="nx-card" style="border-left-color: {color};">
+            <div class="nx-card-header">
+                <div class="nx-op-title">
+                    <span style="color:{color}; font-size:1.2rem;">{center_icon}</span>
+                    {title}
                 </div>
-                <div class="hud-score">SCORE {op['score']}</div>
+                <div class="nx-score-badge" style="color:{color}; border-color:{color};">SCORE {score}</div>
             </div>
             
-            <div class="hud-body">
-                <div class="vs-line"></div>
-                
-                <div class="col-hero" style="z-index:2;">
-                    <div class="avatar-container">
-                        <img src="{h_photo}" class="player-img" style="border-color: {color};">
-                        <img src="{h_logo}" class="team-logo-mini">
-                    </div>
+            <div class="nx-body">
+                <div class="nx-col-player">
+                    <img src="{h_photo}" class="nx-avatar" style="border-color:{color};">
                     <div>
-                        <div class="player-name">{h_name}</div>
-                        <div class="player-role">{h_role}</div>
-                        
-                        <div style="margin-top:8px; display:inline-block;">
-                            <div class="stat-box" style="border-color: {color}; background: linear-gradient(180deg, {color}10 0%, {color}00 100%);">
-                                <div class="stat-val" style="color:{color}; text-shadow: 0 0 10px {color}60;">{h_target}</div>
-                                <div class="stat-label" style="color:{color};">{h_stat}</div>
+                        <div class="nx-name">{h_name}</div>
+                        <div class="nx-role">{h_role}</div>
+                        <div style="margin-top:5px;">
+                            <div class="nx-stat-box" style="border-color:{color}40;">
+                                <div class="nx-val" style="color:{color};">{h_target}</div>
+                                <div class="nx-lbl">{h_stat}</div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-vs">
-                    <div class="vs-badge">{conn_icon}</div>
+                <div class="nx-col-vs">
+                    <div style="color:#475569; font-size:0.8rem;">VS</div>
                 </div>
                 
-                <div class="col-target" style="z-index:2;">
-                    <div style="text-align:right;">
-                        <div class="player-name" style="font-size:1rem;">{t_name}</div>
-                        <div class="player-role">{t_role}</div>
-                        {t_status_html}
-                        
-                        {f'''
-                        <div style="margin-top:5px; font-family:'Oswald'; color:#E2E8F0;">
-                            <b>{t_val}</b> <span style="font-size:0.8rem; color:#94A3B8;">{t_stat_label}</span>
-                        </div>
-                        ''' if is_sgp else ''}
-                        
-                    </div>
-                    <div class="avatar-container">
-                        <img src="{t_photo}" class="player-img" style="border-color: #475569;">
-                        {f'<img src="{t_logo}" class="team-logo-mini">' if is_sgp else ''}
-                    </div>
+                <div class="nx-col-target">
+                    {target_col_html}
                 </div>
             </div>
             
-            <div class="hud-footer">
+            <div class="nx-footer">
                 {badges_html}
-                <div class="impact-score">IMPACTO: {op['impact']}</div>
+                <span class="nx-pill" style="margin-left:auto; border-color:{color}; color:{color};">IMPACTO: {impact_txt}</span>
             </div>
         </div>
         """
-        
-        st.markdown(html_card, unsafe_allow_html=True)
-
+        st.markdown(html, unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -9092,6 +8993,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
