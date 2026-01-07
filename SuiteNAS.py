@@ -3079,7 +3079,7 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V48.4 - CLOUD PURE EDITION (SUPABASE ONLY)
+# ☢️ HIT PROP HUNTER V50.0 - PURE STATS EDITION (NO ODDS)
 # ==============================================================================
 
 import time
@@ -3127,13 +3127,14 @@ def get_game_info_map(games):
     info_map = {}
     for g in games:
         h = fix_team_abbr(g.get('home', 'UNK')); a = fix_team_abbr(g.get('away', 'UNK'))
-        gid = g.get('game_id', 'UNK')
+        gid = str(g.get('game_id') or g.get('id') or 'UNK')
         info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
-        info_map[h] = info; info_map[a] = info
+        if h != "UNK": info_map[h] = info
+        if a != "UNK": info_map[a] = info
     return info_map
 
 # ==============================================================================
-# 1. DATA FETCHING (CLOUD PURE)
+# 1. DATA FETCHING (NBA API -> SUPABASE)
 # ==============================================================================
 def get_player_logs(name):
     """Busca logs reais da NBA API."""
@@ -3142,7 +3143,7 @@ def get_player_logs(name):
         from nba_api.stats.static import players
         p = players.find_players_by_full_name(name)
         if not p: return None
-        # Busca temporada atual
+        
         df = playergamelog.PlayerGameLog(player_id=p[0]['id'], season='2025-26').get_data_frames()[0].head(25)
         
         def parse_min(m):
@@ -3161,41 +3162,32 @@ def get_player_logs(name):
     except: return None 
 
 def update_batch_cache(games_list):
-    """
-    Sincronização 100% via Nuvem (get_data_universal/save_data_universal).
-    """
+    """Sincronização Cloud-First."""
     KEY_LOGS = "real_game_logs"
-    
-    # 1. Carrega Estado Atual da Nuvem
     full_cache = get_data_universal(KEY_LOGS) or {}
+    if not isinstance(full_cache, dict): full_cache = {}
     
-    status = st.status("☁️ Sincronizando nuvem...", expanded=True)
+    status = st.status("☁️ Sincronizando dados estatísticos...", expanded=True)
     
-    # 2. Identifica Elencos (Tenta usar Odds carregadas ou L5 para rapidez)
+    # Identifica Elencos via DF_L5
     players_needed = set()
-    
-    # Tenta pegar das Odds (Jogadores listados nas casas de aposta jogam hoje)
-    odds_data = get_data_universal("pinnacle_cache") or {}
-    if odds_data.get('props'):
-        for p_name in odds_data['props'].keys():
-            players_needed.add(p_name)
-
-    # Fallback: Se não tiver odds, usa DF_L5
-    if not players_needed and 'df_l5' in st.session_state:
+    if 'df_l5' in st.session_state:
         df = st.session_state['df_l5']
         if not df.empty:
             for p in df['PLAYER'].unique():
                 players_needed.add(p)
+    
+    if not players_needed:
+        status.update(label="⚠️ Nenhum jogador identificado.", state="complete")
+        return
 
-    # 3. Filtra Delta (Quem falta ou está velho)
+    # Filtra Delta
     pending = []
     now = datetime.now()
-    
     for p_name in players_needed:
         if p_name not in full_cache:
             pending.append(p_name)
             continue
-            
         last_up = full_cache[p_name].get('updated', '2000-01-01')
         try:
             dt_last = datetime.fromisoformat(last_up)
@@ -3205,21 +3197,21 @@ def update_batch_cache(games_list):
             pending.append(p_name)
 
     if not pending:
-        status.update(label="✅ Nuvem Sincronizada!", state="complete", expanded=False)
+        status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False)
         return
 
-    # 4. Download Paralelo
-    status.write(f"⚡ Atualizando {len(pending)} jogadores na nuvem...")
+    # Download Paralelo
+    status.write(f"⚡ Atualizando {len(pending)} jogadores...")
     bar = status.progress(0)
     
     def fetch_task(name):
         return (name, get_player_logs(name))
 
-    batch_size = 15
+    batch_size = 10
     chunks = [pending[i:i + batch_size] for i in range(0, len(pending), batch_size)]
     
     completed = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         for chunk in chunks:
             futures = [executor.submit(fetch_task, p) for p in chunk]
             for f in concurrent.futures.as_completed(futures):
@@ -3231,73 +3223,15 @@ def update_batch_cache(games_list):
                     }
                 completed += 1
                 bar.progress(min(completed / len(pending), 1.0))
-            time.sleep(0.2)
+            time.sleep(0.5)
             
-    # 5. Salva na Nuvem
     save_data_universal(KEY_LOGS, full_cache)
-    status.update(label="✅ Upload Concluído!", state="complete", expanded=False)
+    status.update(label="✅ Dados Estatísticos Atualizados!", state="complete", expanded=False)
     time.sleep(1)
 
 # ==============================================================================
-# 2. ENGINES (ODDS, MATRIX, TRIDENT) - CLOUD ADAPTED
+# 2. ENGINES (PURE STATS - NO ODDS)
 # ==============================================================================
-class OddsManager:
-    def __init__(self):
-        self.KEY = "pinnacle_cache"
-        self._memory_cache = {}
-
-    def load_odds(self):
-        """Lê do Supabase/Cache Universal."""
-        if self._memory_cache: return self._memory_cache
-        data = get_data_universal(self.KEY) or {}
-        self._memory_cache = data.get('props', {})
-        return self._memory_cache
-
-    def force_update(self):
-        """Simula atualização e salva na nuvem (Placeholder para lógica real)."""
-        # Aqui entraria a chamada para PinnacleClient se disponível
-        # Como é exemplo, vamos apenas retornar status
-        return False, "Requer integração PinnacleClient ativa."
-
-    def match_odds(self, player_name, stat, target_line):
-        props_db = self.load_odds()
-        n_name = normalize_name(player_name)
-        
-        # Fuzzy
-        player_data = props_db.get(n_name)
-        if not player_data:
-            for k in props_db.keys():
-                if (len(n_name) > 3 and n_name in k) or (len(k) > 3 and k in n_name):
-                    player_data = props_db[k]; break
-        
-        if not player_data: return 1.0, 0
-        lines = player_data.get(stat, [])
-        if not lines: return 1.0, 0
-        
-        best_match = None; min_diff = 999
-        for item in lines:
-            mkt_line = item['line']
-            diff = abs(mkt_line - target_line)
-            if diff < 0.1: return item['odds'], mkt_line
-            if diff < min_diff and mkt_line <= target_line + 1.5:
-                min_diff = diff; best_match = item
-        if best_match: return best_match['odds'], best_match['line']
-        return 1.0, 0
-
-    def get_market_data(self, player_name, stat):
-        props_db = self.load_odds()
-        n_name = normalize_name(player_name)
-        player_data = props_db.get(n_name)
-        if not player_data: 
-            for k in props_db.keys():
-                if (len(n_name) > 3 and n_name in k) or (len(k) > 3 and k in n_name):
-                    player_data = props_db[k]; break
-        if not player_data: return None
-        lines = player_data.get(stat, [])
-        return lines[0] if lines else None
-
-odds_manager = OddsManager()
-
 class MatrixEngine:
     def __init__(self):
         self.min_anchor_quality = 16
@@ -3315,26 +3249,16 @@ class MatrixEngine:
         return int(core[0]) if core else 0
 
     def analyze_market_pool(self, cache_data, games, tridents):
-        om = odds_manager
         valid_teams = set()
         game_map = {}
         
-        # --- FIX DE SEGURANÇA NO LOOP DE JOGOS ---
         for g in games:
-            # Tenta pegar chaves de forma segura (home/away/game_id)
             h = fix_team_abbr(g.get('home', 'UNK'))
             a = fix_team_abbr(g.get('away', 'UNK'))
-            
-            # Tenta 'game_id', se falhar tenta 'id', se falhar vira 'UNK'
             gid = str(g.get('game_id') or g.get('id') or 'UNK')
             
-            if h != 'UNK': 
-                valid_teams.add(h)
-                game_map[h] = gid
-            if a != 'UNK': 
-                valid_teams.add(a)
-                game_map[a] = gid
-        # -----------------------------------------
+            if h != 'UNK': valid_teams.add(h); game_map[h] = gid
+            if a != 'UNK': valid_teams.add(a); game_map[a] = gid
 
         anchors, boosters = [], []
         
@@ -3342,8 +3266,8 @@ class MatrixEngine:
         for t in tridents:
             legs = []
             for stat, val in t['components']:
-                ro, ml = om.match_odds(t['player'], stat, val)
-                legs.append({"stat": stat, "line": val, "real_odd": ro})
+                # Sem odds, apenas a linha estatística
+                legs.append({"stat": stat, "line": val})
             
             role = "ANCHOR" if t['hit_rate'] >= 0.9 else "BOOSTER"
             obj = {
@@ -3355,12 +3279,13 @@ class MatrixEngine:
 
         # 2. VARREDURA GERAL
         for name, data in cache_data.items():
-            if not isinstance(data, dict): continue # Proteção extra
-            
+            if not isinstance(data, dict): continue
             team = fix_team_abbr(data.get('team', 'UNK'))
             if team not in valid_teams: continue
             
             logs = data.get('logs', {})
+            if 'PTS' not in logs: continue
+            
             safe_pts = self._calculate_smart_floor(logs, 'PTS')
             if safe_pts < 6: continue
             
@@ -3369,14 +3294,13 @@ class MatrixEngine:
             elif safe_pts >= self.min_booster_quality: role = "BOOSTER"
             
             if role:
-                ro, line = om.match_odds(name, "PTS", safe_pts)
                 # Verifica duplicidade
                 if any(a['name'] == name for a in anchors) or any(b['name'] == name for b in boosters): continue
                 
                 obj = {
                     "name": name, "team": team, "game_id": game_map.get(team, "UNK"),
                     "role": role, "quality": safe_pts,
-                    "legs": [{"stat": "PTS", "line": safe_pts, "real_odd": ro}]
+                    "legs": [{"stat": "PTS", "line": safe_pts}]
                 }
                 if role == "ANCHOR": anchors.append(obj)
                 else: boosters.append(obj)
@@ -3391,42 +3315,41 @@ class MatrixEngine:
         boosters = pool.get("BOOSTERS", [])
         used_combos = set()
         
-        # Para cada Anchor, tenta achar boosters ideais
+        # Para cada Anchor
         for i, anc in enumerate(anchors[:8]):
             # Filtra boosters de OUTROS jogos
             valid_boosters = [
                 b for b in boosters 
                 if str(b.get('game_id')) != str(anc.get('game_id')) and b['name'] != anc['name']
             ]
-            
             if len(valid_boosters) < 2: continue
             
             candidates = valid_boosters[:12]
             found_combo = False
             
             for combo in combinations(candidates, 2):
-                if combo[0]['team'] == combo[1]['team']: continue # Diversidade
+                if combo[0]['team'] == combo[1]['team']: continue 
                 
                 combo_key = tuple(sorted([anc['name'], combo[0]['name'], combo[1]['name']]))
                 if combo_key in used_combos: continue
                 
                 legs = []
                 aleg = anc['legs'][0]
-                legs.append({"player": anc['name'], "team": anc['team'], "role": "ANCHOR", "stat": aleg['stat'], "line": aleg['line'], "real_odd": aleg.get('real_odd', 1.45)})
+                legs.append({"player": anc['name'], "team": anc['team'], "role": "ANCHOR", "stat": aleg['stat'], "line": aleg['line']})
                 
-                total_odd = aleg.get('real_odd', 1.45)
+                # Calcula score estatístico
+                score = anc['quality']
                 for b in combo:
+                    score += b['quality']
                     bleg = b['legs'][0]
-                    odd = bleg.get('real_odd', 1.40)
-                    total_odd *= odd
-                    legs.append({"player": b['name'], "team": b['team'], "role": "BOOSTER", "stat": bleg['stat'], "line": bleg['line'], "real_odd": odd})
-                
-                if total_odd < 2.2 or total_odd > 12.0: continue
+                    legs.append({"player": b['name'], "team": b['team'], "role": "BOOSTER", "stat": bleg['stat'], "line": bleg['line']})
                 
                 tickets.append({
                     "id": f"MTX_{i}_{len(tickets)}", 
-                    "title": f"🔥 {anc['name']} Protocol", "type": "ALPHA",
-                    "total_odd": round(total_odd, 2), "legs": legs
+                    "title": f"🔥 {anc['name']} Protocol", 
+                    "type": "ALPHA",
+                    "score": score, # Score puramente estatístico
+                    "legs": legs
                 })
                 used_combos.add(combo_key)
                 found_combo = True
@@ -3445,7 +3368,6 @@ class TridentEngine:
 
     def find_tridents(self, cache_data, games):
         tridents = []
-        # Cria mapa de times ativos
         game_info_map = get_game_info_map(games)
         teams_active = set()
         for g in games:
@@ -3453,7 +3375,6 @@ class TridentEngine:
             teams_active.add(fix_team_abbr(g.get('away', 'UNK')))
         
         for name, data in cache_data.items():
-            # 1. Validação Básica
             if not isinstance(data, dict): continue
             
             team = fix_team_abbr(data.get('team', 'UNK'))
@@ -3462,30 +3383,22 @@ class TridentEngine:
             g_info = game_info_map.get(team, {"game_id": "UNK", "game_str": "UNK"})
             logs = data.get('logs', {})
             
-            # 2. Validação de Logs
             if not logs or not isinstance(logs, dict): continue
-            # Garante que temos pelo menos PTS para base
             if 'PTS' not in logs or len(logs['PTS']) < 10: continue
             
             for arch_key, arch in self.archetypes.items():
                 stats = arch['stats']
                 min_reqs = arch['min_lines']
                 
-                # --- TRAVA DE SEGURANÇA (FIX KEYERROR) ---
-                # Verifica se TODAS as stats necessárias existem nos logs deste jogador
-                # Se faltar '3PM' ou 'AST', pula este arquétipo para não quebrar
+                # Safety Check
                 if not all(s in logs and isinstance(logs[s], list) and len(logs[s]) >= 10 for s in stats):
                     continue
-                # -----------------------------------------
 
                 hits = 0
                 for i in range(10):
-                    # Agora é seguro acessar logs[s][i] pois verificamos acima
                     try:
-                        if all(logs[s][i] >= m for s, m in zip(stats, min_reqs)): 
-                            hits += 1
-                    except: 
-                        continue # Se der erro de índice, ignora
+                        if all(logs[s][i] >= m for s, m in zip(stats, min_reqs)): hits += 1
+                    except: continue
 
                 if (hits/10) >= arch['min_hit']:
                     comps = [(s, m) for s, m in zip(stats, min_reqs)]
@@ -3495,19 +3408,24 @@ class TridentEngine:
                         "archetype": arch['name'], "components": comps, "hit_rate": hits/10
                     })
                     break 
-                    
         return sorted(tridents, key=lambda x: x['hit_rate'], reverse=True)
 
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = get_game_info_map(games)
-    teams_active = {fix_team_abbr(g.get('home', 'UNK')) for g in games} | {fix_team_abbr(g.get('away', 'UNK')) for g in games}
+    teams_active = set()
+    for g in games:
+        teams_active.add(fix_team_abbr(g.get('home', 'UNK')))
+        teams_active.add(fix_team_abbr(g.get('away', 'UNK')))
+        
     min_thresholds = {"PTS": 8, "REB": 3, "AST": 2, "3PM": 1, "STL": 1, "BLK": 1}
     for name, data in cache_data.items():
         team = fix_team_abbr(data.get('team', 'UNK'))
         if team not in teams_active: continue
         g_info = game_info_map.get(team, {"game_id": "UNK", "game_str": "UNK"})
         logs = data.get('logs', {})
+        if not logs: continue
+        
         for stat, min_req in min_thresholds.items():
             vals = logs.get(stat, [])
             if not vals: continue
@@ -3550,14 +3468,19 @@ def organize_sgp_lab(atomic_props):
 def generate_sniper_data(cache_data, games):
     snipers = []
     game_info_map = get_game_info_map(games)
-    teams_active = {fix_team_abbr(g.get('home', 'UNK')) for g in games} | {fix_team_abbr(g.get('away', 'UNK')) for g in games}
+    teams_active = set()
+    for g in games:
+        teams_active.add(fix_team_abbr(g.get('home', 'UNK')))
+        teams_active.add(fix_team_abbr(g.get('away', 'UNK')))
+        
     for name, data in cache_data.items():
         team = fix_team_abbr(data.get('team', ''))
         if team not in teams_active: continue
         g_info = game_info_map.get(team, {})
         logs = data.get('logs', {})
         if not logs or len(logs.get('PTS', [])) < 15: continue
-        if '3PA' in logs:
+        
+        if '3PA' in logs and '3PM' in logs:
             avg_3pa = sum(logs['3PA'][:10]) / 10
             if avg_3pa >= 5.0:
                 avg_pts = sum(logs['PTS'][:15]) / 15
@@ -3573,23 +3496,21 @@ def generate_sniper_data(cache_data, games):
     return sorted(snipers, key=lambda x: x['line'], reverse=True)
 
 # ==============================================================================
-# 4. AUDITORIA (CLOUD PURE)
+# 4. AUDITORIA (CLOUD PURE - NO ODDS)
 # ==============================================================================
 def save_audit_ticket(ticket_data):
-    """Salva bilhete na nuvem (Supabase)."""
+    """Salva bilhete na nuvem sem odds."""
     try:
         KEY_AUDIT = "audit_trixies"
         current = get_data_universal(KEY_AUDIT) or []
-        
-        # Garante que seja lista
         if not isinstance(current, list): current = []
         
         new_ticket = {
             "id": f"TKT_{int(time.time())}_{str(uuid.uuid4())[:6]}", 
             "created_at": datetime.now().isoformat(),
             "status": "PENDING",
-            "category": "MATRIX_AI",
-            "total_odd": ticket_data.get('total_odd', 0),
+            "category": "MATRIX_STATS",
+            "score": ticket_data.get('score', 0), # Salva score em vez de odd
             "legs": ticket_data.get('legs', [])
         }
         current.append(new_ticket)
@@ -3616,7 +3537,6 @@ def auto_update_system():
         except: st.session_state['scoreboard'] = []
     
     # 2. DADOS (CLOUD CHECK)
-    # Verifica se já temos dados carregados na nuvem
     data = get_data_universal("real_game_logs")
     if not data:
         with status_ph.container():
@@ -3707,7 +3627,7 @@ def show_hit_prop_page():
 
     # 5. RENDER UI
     st.markdown('<div class="prop-title">☢️ HIT PROP <span style="color:#ef4444">HUNTER</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">ECOSYSTEM AUTO-PILOT • V48.4 (Cloud Pure)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">PURE STATS • V50.0</div>', unsafe_allow_html=True)
 
     tab_matrix, tab_sniper, tab_sgp, tab_list = st.tabs(["🧬 MÚLTIPLAS", "💎 SNIPER GEMS", "🧪 SGP LAB", "📋 LISTA GERAL"])
 
@@ -3720,7 +3640,10 @@ def show_hit_prop_page():
                 with st.container(border=True):
                     c_head, c_odd = st.columns([3, 1])
                     with c_head: st.markdown(f"**{ticket['title']}**")
-                    with c_odd: st.markdown(f"<div style='text-align:right; color:#fbbf24; font-weight:bold; font-size:18px;'>{ticket['total_odd']}x</div>", unsafe_allow_html=True)
+                    # Visualização de Score (Sem Odds)
+                    score_val = ticket.get('score', 0)
+                    score_color = "#10b981" if score_val > 100 else "#fbbf24"
+                    with c_odd: st.markdown(f"<div style='text-align:right; color:{score_color}; font-weight:bold; font-size:14px;'>Score: {score_val}</div>", unsafe_allow_html=True)
                     st.divider()
                     
                     for leg in ticket['legs']:
@@ -8278,6 +8201,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
