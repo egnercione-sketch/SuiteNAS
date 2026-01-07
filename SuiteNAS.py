@@ -2577,285 +2577,178 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (VERSÃO ESTÁVEL V3.0)
+# PÁGINA: NEXUS PAGE (ESTRATÉGIA HÍBRIDA & SEGURA)
 # ============================================================================
 def show_nexus_page():
-    # --- CSS ISOLADO (PREVINE QUEBRA DE LAYOUT) ---
+    # --- CSS LEVE (Apenas fontes e cores, sem layout) ---
     st.markdown("""
     <style>
-        /* Escopo Tático Nexus (nx-) */
-        .nx-header {
-            text-align: center;
-            padding: 20px 0;
-            border-bottom: 1px solid #334155;
-            margin-bottom: 20px;
-            background: linear-gradient(180deg, rgba(15, 23, 42, 0) 0%, rgba(56, 189, 248, 0.05) 100%);
-        }
-        .nx-title {
-            font-family: 'Arial Black', sans-serif;
-            font-size: 2.5rem;
-            color: #F8FAFC;
-            letter-spacing: -1px;
-            margin: 0;
-            text-transform: uppercase;
-        }
-        .nx-subtitle {
-            font-family: 'Courier New', monospace;
-            color: #94A3B8;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-            margin-top: 5px;
-        }
+        /* Fontes Táticas */
+        .nx-text-hero { font-family: sans-serif; font-size: 16px; font-weight: bold; color: #FFFFFF; }
+        .nx-text-meta { font-family: monospace; font-size: 12px; color: #94A3B8; text-transform: uppercase; }
+        .nx-stat-big { font-family: sans-serif; font-size: 24px; font-weight: 900; color: #F8FAFC; line-height: 1; }
         
-        /* Card Container */
-        .nx-card {
-            background-color: #0f172a;
-            border: 1px solid #1e293b;
-            border-left: 4px solid #38BDF8; /* Cor padrão, muda inline */
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-            font-family: sans-serif;
-        }
-        
-        /* Header do Card */
-        .nx-card-header {
-            background: rgba(30, 41, 59, 0.5);
-            padding: 10px 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #1e293b;
-        }
-        .nx-op-title {
-            font-weight: bold;
-            color: #E2E8F0;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .nx-score-badge {
-            background: #020617;
-            color: #FBBF24;
-            border: 1px solid #FBBF24;
+        /* Badges (Pills) */
+        .nx-badge {
+            display: inline-block;
             padding: 2px 8px;
+            font-size: 11px;
+            font-family: monospace;
             border-radius: 4px;
-            font-family: 'Courier New', monospace;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        .nx-score {
+            font-family: monospace;
             font-weight: bold;
-            font-size: 0.9rem;
-        }
-
-        /* Corpo do Card */
-        .nx-body {
-            padding: 15px;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap; /* Segurança para mobile */
-            gap: 15px;
-        }
-        
-        /* Colunas Flex */
-        .nx-col-player { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; }
-        .nx-col-vs { width: 40px; text-align: center; display: flex; justify-content: center; }
-        .nx-col-target { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 10px; justify-content: flex-end; text-align: right; }
-
-        /* Imagens */
-        .nx-avatar {
-            width: 60px; height: 60px;
-            border-radius: 50%;
-            border: 2px solid #334155;
-            object-fit: cover;
             background: #000;
-        }
-        
-        /* Textos */
-        .nx-name { color: #fff; font-weight: bold; font-size: 1rem; line-height: 1.1; }
-        .nx-role { color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-top: 2px; }
-        
-        /* O Dado Principal */
-        .nx-stat-box {
-            background: #1e293b;
-            padding: 5px 10px;
+            color: #FBBF24;
+            padding: 4px 8px;
             border-radius: 4px;
-            border: 1px solid #334155;
-            text-align: center;
-            min-width: 80px;
+            border: 1px solid #FBBF24;
         }
-        .nx-val { font-size: 1.3rem; font-weight: 900; color: #fff; }
-        .nx-lbl { font-size: 0.7rem; color: #94A3B8; text-transform: uppercase; }
-
-        /* Footer */
-        .nx-footer {
-            background: #020617;
-            padding: 8px 15px;
-            border-top: 1px solid #1e293b;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .nx-pill {
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 10px;
-            background: #1e293b;
-            color: #94a3b8;
-            border: 1px solid #334155;
+        
+        /* Imagens */
+        .nx-img-circle {
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #475569;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Dados e Validação
+    # 1. Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # Header
-    st.markdown("""
-    <div class="nx-header">
-        <h1 class="nx-title">NEXUS HUD</h1>
-        <div class="nx-subtitle">INTELLIGENCE SYSTEM • ONLINE</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Header Simples e Seguro
+    st.markdown("<h1 style='text-align:center; color:#fff; margin-bottom:0;'>NEXUS HUD</h1>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; color:#94a3b8; font-family:monospace; margin-bottom:20px;'>INTELLIGENCE SYSTEM • ONLINE</div>", unsafe_allow_html=True)
 
     if not full_cache:
-        st.info("ℹ️ Aguardando sincronização de logs para iniciar Nexus.")
+        st.info("ℹ️ Aguardando dados de logs para análise.")
         return
 
     # 2. Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
     
-    # Filtro
-    col_filter, _ = st.columns([1, 3])
+    col_filter, _ = st.columns([1, 2])
     with col_filter:
-        min_score = st.slider("🎚️ Sensibilidade (Score)", 50, 100, 65)
+        min_score = st.slider("🎚️ Score Mínimo", 50, 100, 65)
 
     try:
         all_ops = nexus.run_nexus_scan()
-        # Filtra e ordena
         opportunities = sorted(
             [op for op in all_ops if op.get('score', 0) >= min_score],
             key=lambda x: x.get('score', 0),
             reverse=True
         )
     except Exception as e:
-        st.error(f"Erro no Motor Nexus: {e}")
+        st.error(f"Erro Nexus: {e}")
         return
 
     if not opportunities:
-        st.warning("Nenhuma oportunidade encontrada com este score.")
+        st.warning("Nenhuma oportunidade encontrada.")
         return
 
-    # 3. Renderização Segura
+    # 3. Renderização Híbrida (Container Nativo + HTML Leve)
     for op in opportunities:
-        # Extração Segura de Dados (Evita KeyError)
+        # Extração Segura de Dados (.get para evitar KeyError)
         score = op.get('score', 0)
         color = op.get('color', '#38BDF8')
         title = op.get('title', 'OPORTUNIDADE')
-        op_type = op.get('type', 'Standard')
-        is_sgp = (op_type == 'SGP')
+        is_sgp = (op.get('type') == 'SGP')
         
-        # Hero
+        # Hero Data
         hero = op.get('hero', {})
         h_name = hero.get('name', 'Unknown')
-        h_role = hero.get('role', 'Player')
         h_photo = hero.get('photo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
         h_target = hero.get('target', '-')
         h_stat = hero.get('stat', '')
-
-        # Villain / Partner
-        target_col_html = ""
-        center_icon = "⚔️"
         
+        # Target Data
         if is_sgp:
             center_icon = "🔗"
             partner = op.get('partner', {})
-            p_name = partner.get('name', 'Parceiro')
-            p_photo = partner.get('photo', h_photo)
-            p_target = partner.get('target', '-')
-            p_stat = partner.get('stat', '')
-            
-            target_col_html = f"""
-            <div style="text-align:right;">
-                <div class="nx-name">{p_name}</div>
-                <div class="nx-role">PARCEIRO</div>
-                <div style="margin-top:5px; color:#fff; font-weight:bold;">{p_target} <span style="font-size:0.8rem; color:#94a3b8;">{p_stat}</span></div>
-            </div>
-            <img src="{p_photo}" class="nx-avatar" style="border-color:{color}; margin-left:10px;">
-            """
+            t_name = partner.get('name', 'Parceiro')
+            t_photo = partner.get('photo', h_photo)
+            t_desc = "PARCEIRO"
+            t_val = f"{partner.get('target', '-')} {partner.get('stat', '')}"
         else:
+            center_icon = "⚔️"
             villain = op.get('villain', {})
-            v_name = villain.get('name', 'Adversário')
-            v_status = villain.get('status', '') # ex: Bottom 5 Def
-            v_missing = villain.get('missing', '')
-            v_logo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
-            
-            status_html = f"<div style='color:#F87171; font-weight:bold; font-size:0.75rem;'>{v_status}</div>" if v_status else ""
-            
-            target_col_html = f"""
-            <div style="text-align:right;">
-                <div class="nx-name">{v_name}</div>
-                <div class="nx-role">DEFESA</div>
-                {status_html}
-            </div>
-            <img src="{v_logo}" class="nx-avatar" style="border-radius:4px; margin-left:10px;">
-            """
+            t_name = villain.get('name', 'Adversário')
+            t_photo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
+            t_desc = "DEFESA"
+            v_status = villain.get('status', '')
+            t_val = f"<span style='color:#F87171'>{v_status}</span>" if v_status else "Vs Defesa"
 
-        # Badges (Seguro)
-        badges = op.get('badges', []) or op.get('ladder', [])
-        badges_html = ""
-        for b in badges:
-            # Limpa strings sujas
-            clean_b = str(b).replace(":", "").replace("✅", "").strip()
-            if clean_b:
-                badges_html += f'<span class="nx-pill">{clean_b}</span>'
-        
-        # Impacto (Calculado se não existir)
-        impact_txt = op.get('impact', 'ALTA PRECISÃO' if score > 80 else 'MODERADO')
-
-        # --- HTML CARD SEGURO ---
-        html = f"""
-        <div class="nx-card" style="border-left-color: {color};">
-            <div class="nx-card-header">
-                <div class="nx-op-title">
-                    <span style="color:{color}; font-size:1.2rem;">{center_icon}</span>
-                    {title}
-                </div>
-                <div class="nx-score-badge" style="color:{color}; border-color:{color};">SCORE {score}</div>
-            </div>
+        # --- INÍCIO DO CARD (NATIVO) ---
+        # Usamos st.container com borda nativa (disponível nas versões recentes)
+        with st.container(border=True):
             
-            <div class="nx-body">
-                <div class="nx-col-player">
-                    <img src="{h_photo}" class="nx-avatar" style="border-color:{color};">
-                    <div>
-                        <div class="nx-name">{h_name}</div>
-                        <div class="nx-role">{h_role}</div>
-                        <div style="margin-top:5px;">
-                            <div class="nx-stat-box" style="border-color:{color}40;">
-                                <div class="nx-val" style="color:{color};">{h_target}</div>
-                                <div class="nx-lbl">{h_stat}</div>
-                            </div>
-                        </div>
+            # TOPO: Título e Score
+            c_top1, c_top2 = st.columns([3, 1])
+            with c_top1:
+                st.markdown(f"<div style='color:{color}; font-weight:bold; font-size:18px;'>{center_icon} {title}</div>", unsafe_allow_html=True)
+            with c_top2:
+                st.markdown(f"<div style='text-align:right;'><span class='nx-score'>SCORE {score}</span></div>", unsafe_allow_html=True)
+            
+            st.markdown("---") # Linha divisória nativa
+            
+            # MEIO: Colunas Nativas (Isso evita a quebra do layout!)
+            c1, c2, c3 = st.columns([2, 0.5, 2])
+            
+            # Esquerda (Heroi)
+            with c1:
+                col_img, col_txt = st.columns([1, 2])
+                with col_img:
+                    st.markdown(f"<img src='{h_photo}' class='nx-img-circle' style='width:60px; border-color:{color};'>", unsafe_allow_html=True)
+                with col_txt:
+                    st.markdown(f"""
+                    <div class='nx-text-hero'>{h_name}</div>
+                    <div class='nx-text-meta'>JOGADOR</div>
+                    <div class='nx-stat-big' style='color:{color}'>{h_target} <span style='font-size:12px; color:#94a3b8;'>{h_stat}</span></div>
+                    """, unsafe_allow_html=True)
+            
+            # Centro (Icone VS)
+            with c2:
+                st.markdown(f"<div style='text-align:center; font-size:20px; color:#475569; margin-top:15px;'>VS</div>", unsafe_allow_html=True)
+                
+            # Direita (Alvo)
+            with c3:
+                # Invertemos a ordem visual: Texto | Imagem
+                col_txt_r, col_img_r = st.columns([2, 1])
+                with col_txt_r:
+                    st.markdown(f"""
+                    <div style='text-align:right;'>
+                        <div class='nx-text-hero'>{t_name}</div>
+                        <div class='nx-text-meta'>{t_desc}</div>
+                        <div style='font-weight:bold; color:#E2E8F0; margin-top:5px;'>{t_val}</div>
                     </div>
-                </div>
-                
-                <div class="nx-col-vs">
-                    <div style="color:#475569; font-size:0.8rem;">VS</div>
-                </div>
-                
-                <div class="nx-col-target">
-                    {target_col_html}
-                </div>
-            </div>
-            
-            <div class="nx-footer">
-                {badges_html}
-                <span class="nx-pill" style="margin-left:auto; border-color:{color}; color:{color};">IMPACTO: {impact_txt}</span>
-            </div>
-        </div>
-        """
-        st.markdown(html, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                with col_img_r:
+                    st.markdown(f"<img src='{t_photo}' class='nx-img-circle' style='width:60px;'>", unsafe_allow_html=True)
 
+            # RODAPÉ: Badges (Impacto e Ladder)
+            impact = op.get('impact', 'MODERADO')
+            badges = op.get('ladder', []) or op.get('badges', [])
+            
+            # Limpa badges
+            badges_html = ""
+            for b in badges:
+                clean_b = str(b).replace(":", "").replace("✅", "").strip()
+                if clean_b: badges_html += f"<span class='nx-badge'>{clean_b}</span>"
+            
+            st.markdown(f"""
+            <div style='margin-top:10px; padding-top:10px; border-top:1px solid #334155; display:flex; justify-content:space-between; align-items:center;'>
+                <div>{badges_html}</div>
+                <div class='nx-text-meta' style='color:{color}'>IMPACTO: {impact}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
@@ -8993,6 +8886,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
