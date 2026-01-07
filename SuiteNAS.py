@@ -1395,7 +1395,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V27.0 - TARGETING V44 CACHE)
+# PÁGINA: BLOWOUT RADAR (V28.0 - VISUAL UPGRADE: LOGOS & PHOTOS)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1415,28 +1415,64 @@ def show_blowout_hunter_page():
             return text.upper().strip()
         except: return ""
 
-    # --- 2. ESTILO VISUAL ---
+    # Mapeamento para garantir URLs de logo corretas (ESPN IDs)
+    LOGO_MAP = {
+        "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
+        "NO": "NOP", "NOP": "NOP", "SA": "SAS", "SAS": "SAS",
+        "UTAH": "UTA", "UTA": "UTA", "PHO": "PHX", "PHX": "PHX",
+        "WSH": "WAS", "WAS": "WAS", "BRK": "BKN", "BKN": "BKN",
+        "CHO": "CHA", "CHA": "CHA", "LAL": "LAL", "LAC": "LAC",
+        "DET": "DET", "OKC": "OKC"
+    }
+
+    def get_logo_url(team_abbr):
+        """Retorna URL do logo da ESPN baseado na sigla."""
+        clean_abbr = LOGO_MAP.get(team_abbr.upper(), team_abbr.upper())
+        return f"https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/{clean_abbr.lower()}.png"
+
+    # --- 2. ESTILO VISUAL (ATUALIZADO PARA IMAGENS) ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
-        .match-container { background-color: #1e293b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
+        
+        /* Container Principal */
+        .match-container { background-color: #1e293b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; overflow: hidden; }
+        
+        /* Header do Jogo */
         .risk-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
         .risk-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 80%); border-left: 5px solid #EF4444; }
         .risk-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 80%); border-left: 5px solid #F59E0B; }
         .risk-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 80%); border-left: 5px solid #10B981; }
-        .game-matchup { font-family: 'Oswald'; font-size: 18px; color: #fff; }
+        
+        .game-matchup-box { display: flex; align-items: center; gap: 10px; }
+        .match-logo { width: 35px; height: 35px; object-fit: contain; }
+        .game-matchup-text { font-family: 'Oswald'; font-size: 20px; color: #fff; letter-spacing: 1px; }
+        
         .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        
+        /* Área de Jogadores */
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
-        .team-label { color: #64748b; font-size: 10px; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #334155; }
+        
+        /* Header da Coluna (Logo do Time + Texto) */
+        .team-col-header { 
+            display: flex; align-items: center; gap: 8px; 
+            border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; 
+        }
+        .team-col-logo { width: 24px; height: 24px; object-fit: contain; }
+        .team-col-text { color: #94a3b8; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+        
+        /* Card do Jogador (Vulture) */
         .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; }
-        .vulture-img { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #a78bfa; margin-right: 12px; object-fit: cover; background: #0f172a; }
+        .vulture-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #a78bfa; margin-right: 12px; object-fit: cover; background: #0f172a; }
         .vulture-name { color: #e2e8f0; font-weight: 700; font-size: 13px; line-height: 1.2; }
         .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+        
         .stat-box { display: flex; gap: 12px; text-align: center; }
         .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; }
         .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; }
         .c-pts { color: #4ade80; } .c-reb { color: #60a5fa; } .c-ast { color: #facc15; }
+        
         .dna-badge { background: #6D28D9; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
         .fallback-badge { background: #F59E0B; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
     </style>
@@ -1444,21 +1480,17 @@ def show_blowout_hunter_page():
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 3. CORE: LEITURA DO ARQUIVO V44 ---
-    # Tenta carregar especificamente o arquivo v44
+    # --- 3. CORE: LEITURA DO ARQUIVO V44 (Lógica Original Mantida) ---
     data_source = "CACHE"
     try:
-        # Tenta pelo nome exato do cache
         fresh_inj = get_data_universal('injuries_cache_v44')
         if not fresh_inj:
-             # Tenta fallback para nome sem 'cache'
              fresh_inj = get_data_universal('injuries_v44')
         
         if fresh_inj: 
             st.session_state['injuries_data'] = fresh_inj
             data_source = "SUPABASE_V44"
         else:
-            # Última tentativa: chave genérica
             generic = get_data_universal('injuries_data')
             if generic:
                 st.session_state['injuries_data'] = generic
@@ -1470,8 +1502,6 @@ def show_blowout_hunter_page():
 
     try:
         raw_inj_source = st.session_state.get('injuries_data', [])
-        
-        # Flattening
         flat_inj = []
         if isinstance(raw_inj_source, dict):
             for t in raw_inj_source.values(): 
@@ -1480,14 +1510,11 @@ def show_blowout_hunter_page():
             flat_inj = raw_inj_source
         
         raw_inj_debug = flat_inj[:3]
-
         EXCLUSION_KEYWORDS = ['OUT', 'DOUBT', 'SURG', 'INJUR', 'PROTOCOL', 'DAY', 'DTD', 'QUEST', 'GTD']
         
         for item in flat_inj:
             p_name = ""
             status = ""
-            
-            # Polimorfismo
             if isinstance(item, dict):
                 p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
                 status = str(item.get('status', '')).upper()
@@ -1498,7 +1525,6 @@ def show_blowout_hunter_page():
             
             if p_name:
                 norm_name = normalize_str(p_name)
-                # Verifica status E se o nome não está vazio
                 if norm_name and any(x in status for x in EXCLUSION_KEYWORDS):
                     banned_players.add(norm_name)
     except Exception as e:
@@ -1506,7 +1532,7 @@ def show_blowout_hunter_page():
 
     # --- 4. CONFIGURAÇÃO ---
     KEY_LOGS = "real_game_logs"
-    KEY_DNA = "rotation_dna_v27" # Cache novo
+    KEY_DNA = "rotation_dna_v27"
 
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
@@ -1519,7 +1545,7 @@ def show_blowout_hunter_page():
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 5. ENGINE AUTO-RUN ---
+    # --- 5. ENGINE AUTO-RUN (Lógica Original Mantida) ---
     if 'dna_final_v27' not in st.session_state:
         with st.spinner("🤖 Processando rotações com V44 Injury Data..."):
             try:
@@ -1628,7 +1654,7 @@ def show_blowout_hunter_page():
 
     DNA_DB = st.session_state.get('dna_final_v27', {})
 
-    # --- 6. EXIBIÇÃO ---
+    # --- 6. EXIBIÇÃO (VISUAL UPGRADE) ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Aguardando jogos...")
@@ -1639,14 +1665,7 @@ def show_blowout_hunter_page():
     with c_sim:
         force_spread = st.slider("🎛️ Simular Cenário de Blowout (Spread):", 0, 30, 0)
 
-    ALIAS_MAP = {
-        "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
-        "NO": "NOP", "NOP": "NOP", "SA": "SAS", "SAS": "SAS",
-        "UTAH": "UTA", "UTA": "UTA", "PHO": "PHX", "PHX": "PHX",
-        "WSH": "WAS", "WAS": "WAS", "BRK": "BKN", "BKN": "BKN",
-        "CHO": "CHA", "CHA": "CHA", "LAL": "LAL", "LAC": "LAC",
-        "DET": "DET", "OKC": "OKC"
-    }
+    ALIAS_MAP = LOGO_MAP # Reusa o mapa de logos para busca de dados
 
     def get_team_data(query):
         q = str(query).upper().strip()
@@ -1674,10 +1693,19 @@ def show_blowout_hunter_page():
             risk_cls, risk_txt = "risk-low", "JOGO EQUILIBRADO"
             show_players = False
         
+        # URLs dos logos do Matchup
+        logo_away = get_logo_url(g['away'])
+        logo_home = get_logo_url(g['home'])
+
+        # Header do Matchup com Logos
         st.markdown(f"""
         <div class="match-container">
             <div class="risk-header {risk_cls}">
-                <div class="game-matchup">{g['away']} @ {g['home']}</div>
+                <div class="game-matchup-box">
+                    <img src="{logo_away}" class="match-logo">
+                    <span class="game-matchup-text">{g['away']} @ {g['home']}</span>
+                    <img src="{logo_home}" class="match-logo">
+                </div>
                 <div class="game-meta">
                     <div class="risk-label">{risk_txt}</div>
                     <span class="spread-tag">SPREAD: {final_spread}</span>
@@ -1690,10 +1718,16 @@ def show_blowout_hunter_page():
             
             def render_team_col(col, t_name):
                 data = get_team_data(t_name)
+                t_logo = get_logo_url(t_name)
+                
                 with col:
+                    # Cabeçalho da Coluna com Logo
                     st.markdown(f"""
                     <div class="players-area">
-                        <div class="team-label">{t_name} RESERVES</div>
+                        <div class="team-col-header">
+                            <img src="{t_logo}" class="team-col-logo">
+                            <div class="team-col-text">{t_name} RESERVES</div>
+                        </div>
                     """, unsafe_allow_html=True)
                     
                     if data:
@@ -1705,9 +1739,10 @@ def show_blowout_hunter_page():
                         
                         if active_players:
                             for p in active_players[:3]:
-                                photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                                # Lógica da Foto com Fallback
+                                photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                                 if p.get('id') and p['id'] != 0:
-                                    photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
+                                    photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
                                 
                                 badge_cls = "dna-badge" if p.get('type') == 'SNIPER' else "fallback-badge"
                                 badge_txt = "SNIPER" if p.get('type') == 'SNIPER' else "CEILING"
@@ -1715,7 +1750,7 @@ def show_blowout_hunter_page():
                                 st.markdown(f"""
                                 <div class="vulture-row">
                                     <div style="display:flex; align-items:center;">
-                                        <img src="{photo}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                                        <img src="{photo_url}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
                                         <div class="vulture-info">
                                             <div class="vulture-name">{p['name']} <span class="{badge_cls}">{badge_txt}</span></div>
                                             <div class="vulture-role">
@@ -1733,7 +1768,7 @@ def show_blowout_hunter_page():
                         else:
                             st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Reservas listados estão lesionados.</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados.</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados de reservas.</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
             render_team_col(c1, g['away'])
@@ -1747,7 +1782,7 @@ def show_blowout_hunter_page():
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- 7. DEBUG FINAL (PARA VOCÊ TESTAR) ---
+    # --- 7. DEBUG FINAL (MANTIDO) ---
     with st.expander(f"🔍 Debug V44 (Fonte: {data_source})", expanded=False):
         st.write(f"Banidos Carregados: {len(banned_players)}")
         st.write(f"Amostra de Lesão V44: {raw_inj_debug}")
@@ -8906,6 +8941,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
