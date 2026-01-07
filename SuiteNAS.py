@@ -8499,6 +8499,9 @@ def show_narrative_lab():
         render_list(c1, rosters["away"], "left")
         render_list(c2, rosters["home"], "right")
 
+# ============================================================================
+# PÁGINA: DASHBOARD (CORRIGIDA - BLINDAGEM DE COLUNAS)
+# ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
     st.markdown("""
@@ -8512,19 +8515,45 @@ def show_dashboard_page():
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     games = get_scoreboard_data()
     
-    if df_l5.empty:
+    if df_l5 is None or df_l5.empty:
         st.warning("⚠️ Base de dados L5 vazia.")
         return
+
+    # ========================================================================
+    # 🛠️ FIX: NORMALIZAÇÃO DE COLUNAS (CORREÇÃO DO KEYERROR 'TEAM')
+    # ========================================================================
+    # 1. Garante colunas em maiúsculo e sem espaços
+    df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+
+    # 2. Garante que a coluna 'TEAM' exista
+    if 'TEAM' not in df_l5.columns:
+        if 'TEAM_ABBREVIATION' in df_l5.columns:
+            df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION']
+        elif 'TEAM_CODE' in df_l5.columns:
+            df_l5['TEAM'] = df_l5['TEAM_CODE']
+        elif 'TEAM_ID' in df_l5.columns:
+            # Fallback extremo: se só tiver ID, cria TEAM como 'UNK' para não quebrar
+            # (O ideal seria mapear ID -> Nome, mas isso evita o crash imediato)
+            df_l5['TEAM'] = 'UNK'
+        else:
+            # Se não tem nada de time, cria coluna vazia
+            df_l5['TEAM'] = 'UNK'
+    # ========================================================================
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
     if not games.empty:
-        teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
+        # Normaliza as siglas dos jogos de hoje para garantir match
+        teams_playing_today = set(
+            [str(x).upper() for x in games['home'].tolist()] + 
+            [str(x).upper() for x in games['away'].tolist()]
+        )
     
     if not teams_playing_today:
         st.info("Nenhum jogo identificado para hoje.")
         df_today = pd.DataFrame()
     else:
+        # Agora é seguro fazer o filtro
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
 
     # ========================================================================
@@ -8540,10 +8569,17 @@ def show_dashboard_page():
         return name[:limit]
 
     if df_today.empty:
-        st.warning("Nenhum jogador da base L5 joga hoje.")
+        st.warning("Nenhum jogador da base L5 joga hoje (ou as siglas dos times não coincidem).")
     else:
         def get_top_n(df, col, n=3):
+            # Garante que a coluna de stat existe antes de ordenar
+            if col not in df.columns: return pd.DataFrame()
             return df.nlargest(n, col)[['PLAYER', 'TEAM', col, 'PLAYER_ID']]
+
+        # Verifica se as colunas de média existem, senão usa 0
+        if 'PTS_AVG' not in df_today.columns: df_today['PTS_AVG'] = 0
+        if 'AST_AVG' not in df_today.columns: df_today['AST_AVG'] = 0
+        if 'REB_AVG' not in df_today.columns: df_today['REB_AVG'] = 0
 
         top_pts = get_top_n(df_today, 'PTS_AVG')
         top_ast = get_top_n(df_today, 'AST_AVG')
@@ -8552,19 +8588,23 @@ def show_dashboard_page():
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
-            p_id = king['PLAYER_ID']
-            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{int(p_id)}.png"
+            
+            # Tratamento seguro do ID
+            try: p_id = int(float(king.get('PLAYER_ID', 0)))
+            except: p_id = 0
+                
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
             val = king[df_top.columns[2]] 
             
             row2_html = ""
             if len(df_top) > 1:
                 p2 = df_top.iloc[1]
-                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2['PLAYER'])}</span><span style="color:{color}">{p2[df_top.columns[2]]:.1f}</span></div>"""
+                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{p2[df_top.columns[2]]:.1f}</span></div>"""
             
             row3_html = ""
             if len(df_top) > 2:
                 p3 = df_top.iloc[2]
-                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3['PLAYER'])}</span><span style="color:{color}">{p3[df_top.columns[2]]:.1f}</span></div>"""
+                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{p3[df_top.columns[2]]:.1f}</span></div>"""
 
             st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid {color}; border-radius: 12px; overflow: hidden; height: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
@@ -8572,10 +8612,10 @@ def show_dashboard_page():
                     {icon} {title}
                 </div>
                 <div style="padding: 12px; display: flex; align-items: center;">
-                    <img src="{photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 12px;">
+                    <img src="{photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 12px;" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                     <div style="overflow: hidden;">
-                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king['PLAYER'])}</div>
-                        <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald' !important;">{king['TEAM']}</div>
+                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king.get('PLAYER', 'UNK'))}</div>
+                        <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald' !important;">{king.get('TEAM', 'UNK')}</div>
                         <div style="color: {color}; font-size: 20px; font-family: 'Oswald' !important; font-weight: bold;">{val:.1f}</div>
                     </div>
                 </div>
@@ -8606,8 +8646,8 @@ def show_dashboard_page():
         for i, (index, game) in enumerate(games.iterrows()):
             with rows[i % 2]:
                 render_game_card(
-                    away_team=game['away'],
-                    home_team=game['home'],
+                    away_team=game.get('away', 'UNK'),
+                    home_team=game.get('home', 'UNK'),
                     game_data=game,
                     odds_map=odds_cache
                 )
@@ -8738,6 +8778,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
