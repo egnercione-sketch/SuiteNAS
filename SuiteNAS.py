@@ -5296,27 +5296,25 @@ def show_config_page():
     st.markdown("---")
 
 # --- BOTÃO DE ATUALIZAÇÃO GERAL ---
-        if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
-            try:
-                # 1. Atualiza Médias L5 (Forçando Update)
-                # O force_update=True é CRUCIAL: ele ignora o cache antigo e baixa tudo fresco da NBA.
-                st.write("📊 Baixando TODOS os dados L5 (Atualizando médias recentes)...")
-                new_l5 = get_players_l5(progress_ui=True, force_update=True)
-                st.session_state.df_l5 = new_l5
-                
-                # 2. Atualiza Logs Brutos (Com a correção do Bug 19.0)
-                # Baixa os logs detalhados, limpa os decimais e envia pro Supabase.
-                st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
-                fetch_and_upload_real_game_logs(progress_ui=True)
-                
-                # 3. Finalização
-                st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
-                time.sleep(2)
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"❌ Erro crítico no processo: {e}")
-                print(f"Erro Update Full: {e}")
+    if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
+        try:
+            # 1. Atualiza Médias L5 (Forçando Update)
+            st.write("📊 Baixando TODOS os dados L5 (Atualizando médias recentes)...")
+            new_l5 = get_players_l5(progress_ui=True, force_update=True)
+            st.session_state.df_l5 = new_l5
+            
+            # 2. Atualiza Logs Brutos (Com a correção do Bug 19.0)
+            st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
+            fetch_and_upload_real_game_logs(progress_ui=True)
+            
+            # 3. Finalização
+            st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
+            time.sleep(2)
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Erro crítico no processo: {e}")
+            print(f"Erro Update Full: {e}")
                         
 # --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
@@ -8586,6 +8584,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
