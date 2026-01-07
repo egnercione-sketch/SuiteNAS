@@ -2577,25 +2577,13 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (ESTILO GOLDEN CARD / DASHBOARD ADAPTADO)
+# PÁGINA: NEXUS PAGE (V8.0 - ESTRUTURA BLINDADA / CSS INLINE)
 # ============================================================================
 def show_nexus_page():
-    # --- CSS GLOBAL PARA OS CARDS ---
+    # --- CSS GLOBAL (Apenas Fontes) ---
     st.markdown("""
     <style>
-        /* Importando Oswald para garantir a fonte do Dashboard */
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
-        
-        .nx-header-title { font-family: 'Oswald', sans-serif; font-size: 32px; color: #FFFFFF; text-align: center; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
-        .nx-header-sub { font-family: monospace; font-size: 12px; color: #94A3B8; text-align: center; margin-bottom: 30px; letter-spacing: 3px; }
-
-        /* Classes Utilitárias de Cor */
-        .text-pts { color: #FBBF24; }
-        .text-ast { color: #38BDF8; }
-        .text-reb { color: #F87171; }
-        .text-def { color: #A3E635; }
-        .text-gray { color: #94a3b8; }
-        .text-white { color: #ffffff; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -2603,9 +2591,13 @@ def show_nexus_page():
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
 
-    # Header
-    st.markdown('<div class="nx-header-title">NEXUS INTELLIGENCE</div>', unsafe_allow_html=True)
-    st.markdown('<div class="nx-header-sub">SISTEMA TÁTICO • ONLINE</div>', unsafe_allow_html=True)
+    # Header Clean
+    st.markdown("""
+    <div style="text-align:center; padding-bottom:20px;">
+        <h1 style="font-family:'Oswald', sans-serif; font-size:36px; color:white; margin:0;">NEXUS HUD</h1>
+        <div style="font-family:monospace; color:#64748b; letter-spacing:2px; font-size:12px;">INTELLIGENCE SYSTEM • ONLINE</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if not full_cache:
         st.info("ℹ️ Aguardando dados...")
@@ -2630,17 +2622,17 @@ def show_nexus_page():
         st.info("Nenhuma oportunidade encontrada.")
         return
 
-    # Helper de Cores para Stats
+    # Helper de Cores
     def get_stat_color(stat_name):
         s = str(stat_name).upper()
         if 'PTS' in s: return "#FBBF24" # Amarelo
         if 'AST' in s: return "#38BDF8" # Azul
         if 'REB' in s: return "#F87171" # Vermelho
-        return "#A3E635" # Verde (Defesa/Outros)
+        return "#A3E635" # Verde
 
-    # 3. RENDERIZAÇÃO (CARD HTML PURO - ESTILO DASHBOARD)
+    # 3. RENDERIZAÇÃO
     for op in opportunities:
-        # Variáveis Seguras
+        # --- PREPARAÇÃO DOS DADOS (PYTHON) ---
         score = op.get('score', 0)
         color = op.get('color', '#38BDF8')
         raw_title = op.get('title', 'OPORTUNIDADE')
@@ -2650,166 +2642,118 @@ def show_nexus_page():
         # Configuração Visual
         if is_sgp:
             main_title = "SINERGIA"
-            center_icon = "⚡" # Raio
-            center_label = "" 
+            center_icon = "⚡"
+            center_txt = "" 
         else:
             main_title = str(raw_title).replace("VÁCUO DE REBOTE", "VÁCUO TÁTICO")
-            center_icon = "⚔️" # Espadas
-            center_label = "VS"
+            center_icon = "⚔️"
+            center_txt = "VS"
 
-        # --- HERO DATA ---
+        # Hero (Esquerda)
         hero = op.get('hero', {}) or {}
-        h_name = hero.get('name', 'Jogador')
+        h_name = hero.get('name', 'Unknown')
         h_photo = hero.get('photo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
         h_logo = hero.get('logo', '')
         h_role = hero.get('role', 'PLAYER') 
         h_target = hero.get('target', '-')
         h_stat = hero.get('stat', '')
-        h_stat_color = get_stat_color(h_stat)
+        h_color = get_stat_color(h_stat)
 
-        # --- TARGET DATA ---
-        target_html_block = ""
-        
+        # Target (Direita)
         if is_sgp:
-            # Parceiro
             partner = op.get('partner', {}) or {}
             t_name = partner.get('name', 'Parceiro')
             t_photo = partner.get('photo', h_photo)
             t_logo = partner.get('logo', '')
-            t_role = "PARCEIRO"
-            p_target = partner.get('target', '-')
-            p_stat = partner.get('stat', '')
-            p_stat_color = get_stat_color(p_stat)
-            
-            # Layout Direita (Sinergia)
-            target_html_block = f"""
-            <div style="display: flex; align-items: center; justify-content: flex-end; text-align: right;">
-                <div style="margin-right: 12px;">
-                    <div style="color: #fff; font-weight: bold; font-size: 14px; font-family: 'Oswald'; line-height: 1.1;">{t_name}</div>
-                    <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald'; margin-bottom: 2px;">{t_role}</div>
-                    <div style="color: {p_stat_color}; font-size: 16px; font-family: 'Oswald'; font-weight: bold;">{p_target} <span style="font-size:10px; color:#64748b;">{p_stat}</span></div>
-                </div>
-                <div style="position: relative; width: 50px; height: 50px;">
-                    <img src="{t_photo}" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
-                    <img src="{t_logo}" style="position: absolute; bottom: -2px; right: -2px; width: 18px; height: 18px; border-radius: 50%; background: #000; border: 1px solid #475569; padding: 1px;">
-                </div>
-            </div>
-            """
+            t_line1 = "PARCEIRO"
+            t_line2 = f"<span style='color:{get_stat_color(partner.get('stat'))}; font-size:18px; font-weight:bold;'>{partner.get('target')}</span> <span style='font-size:10px; color:#94a3b8;'>{partner.get('stat')}</span>"
+            t_img_block = f"""
+                <div style="position:relative; width:50px; height:50px;">
+                    <img src="{t_photo}" style="width:50px; height:50px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
+                    <img src="{t_logo}" style="position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%; background:#000; border:1px solid #fff;">
+                </div>"""
         else:
-            # Defesa (Vácuo)
             villain = op.get('villain', {}) or {}
             t_name = villain.get('name', 'Adversário')
-            v_status = villain.get('status', '') 
-            t_logo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
-            
-            status_alert = f"<span style='color:#F87171; font-weight:bold; background:rgba(248, 113, 113, 0.1); padding:1px 4px; border-radius:3px;'>🚨 {v_status}</span>" if v_status else ""
-            
-            # Layout Direita (Defesa)
-            target_html_block = f"""
-            <div style="display: flex; align-items: center; justify-content: flex-end; text-align: right;">
-                <div style="margin-right: 12px;">
-                    <div style="color: #fff; font-weight: bold; font-size: 16px; font-family: 'Oswald'; line-height: 1.1;">{t_name}</div>
-                    <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald';">DEFESA</div>
-                    <div style="font-size: 10px; margin-top: 4px;">{status_alert}</div>
-                </div>
-                <img src="{t_logo}" style="width: 45px; height: 45px; border-radius: 4px; border: 1px solid #475569; object-fit: contain; background: #000;">
-            </div>
-            """
+            t_logo = villain.get('logo', '')
+            v_status = villain.get('status', '')
+            t_line1 = "DEFESA"
+            t_line2 = f"<span style='color:#F87171; background:rgba(248,113,113,0.1); padding:2px 4px; border-radius:4px; font-size:11px; font-weight:bold;'>🚨 {v_status}</span>" if v_status else ""
+            t_img_block = f"""
+                <div style="width:50px; height:50px;">
+                    <img src="{t_logo}" style="width:50px; height:50px; border-radius:4px; border:1px solid #475569; object-fit:contain; background:#000;">
+                </div>"""
 
-        # --- LADDER & IMPACTO ---
+        # Ladder & Impacto
         ladder_raw = op.get('ladder', []) or []
-        ladder_clean = []
-        for l in ladder_raw:
-            clean = str(l).replace("✅", "").replace("❌", "").replace("💰", "").replace("🚀", "").split(":")[-1].strip()
-            if clean: ladder_clean.append(clean)
-            
+        ladder_clean = [str(l).split(":")[-1].strip() for l in ladder_raw if ":" in str(l)]
+        
         ladder_html = ""
         if len(ladder_clean) >= 3:
-            # Ladder Colorida e Delicada
             ladder_html = f"""
-            <span style="color:#94a3b8">Base</span> <span style="color:#fff; font-weight:bold">{ladder_clean[0]}</span>
-            <span style="color:#334155; margin:0 5px;">|</span>
-            <span style="color:#FBBF24">Alvo</span> <span style="color:#FBBF24; font-weight:bold; font-size:1.1em">{ladder_clean[1]}</span>
-            <span style="color:#334155; margin:0 5px;">|</span>
-            <span style="color:#94a3b8">Teto</span> <span style="color:#fff; font-weight:bold">{ladder_clean[2]}</span>
+            <span style='color:#64748b;'>Base</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[0]}</span>
+            <span style='color:#334155; margin:0 4px;'>|</span>
+            <span style='color:#FBBF24;'>Alvo</span> <span style='color:#FBBF24; font-weight:bold;'>{ladder_clean[1]}</span>
+            <span style='color:#334155; margin:0 4px;'>|</span>
+            <span style='color:#64748b;'>Teto</span> <span style='color:#fff; font-weight:bold;'>{ladder_clean[2]}</span>
             """
         elif len(ladder_clean) > 0:
             ladder_html = " | ".join(ladder_clean)
+            
+        impact_txt = op.get('impact', '...')
 
-        impact_txt = op.get('impact', 'Análise indisponível')
-
-        # --- HTML CARD FINAL (ESTRUTURA IGUAL AO DASHBOARD) ---
-        card_html = f"""
-        <div style="
-            background: #0f172a; 
-            border: 1px solid {color}; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            margin-bottom: 20px;
-            font-family: 'Oswald', sans-serif;
-        ">
-            <div style="
-                background: {color}20; 
-                padding: 8px 15px; 
-                display: flex; 
-                justify-content: space-between; 
-                align-items: center; 
-                border-bottom: 1px solid {color}40;
-            ">
-                <div style="color: {color}; font-size: 14px; letter-spacing: 1px;">
-                    {center_icon} {main_title}
+        # --- HTML BLINDADO ---
+        # Usamos estilos inline para garantir que o Streamlit não quebre
+        html_card = f"""
+        <div style="background-color:#0f172a; border:1px solid {color}; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 6px rgba(0,0,0,0.3); overflow:hidden; font-family:'Oswald', sans-serif;">
+            
+            <div style="background-color:{color}15; padding:8px 15px; border-bottom:1px solid {color}30; display:flex; justify-content:space-between; align-items:center;">
+                <div style="color:{color}; font-size:14px; letter-spacing:1px; display:flex; align-items:center; gap:6px;">
+                    <span>{center_icon}</span> <span>{main_title}</span>
                 </div>
-                <div style="
-                    background: #000; 
-                    color: #FBBF24; 
-                    font-size: 12px; 
-                    padding: 2px 8px; 
-                    border-radius: 4px; 
-                    border: 1px solid #334155;
-                ">SCORE {score}</div>
+                <div style="background:#000; color:#FBBF24; border:1px solid #334155; padding:2px 8px; border-radius:4px; font-size:12px; font-family:monospace;">
+                    SCORE {score}
+                </div>
             </div>
 
-            <div style="padding: 15px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display:flex; align-items:center; padding:15px; width:100%; box-sizing:border-box;">
                 
-                <div style="display: flex; align-items: center; flex: 1;">
-                    <div style="position: relative; width: 55px; height: 55px; margin-right: 12px;">
-                        <img src="{h_photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000;">
-                        <img src="{h_logo}" style="position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; border-radius: 50%; background: #000; border: 1px solid #475569; padding: 1px;">
+                <div style="flex:1; display:flex; align-items:center; gap:10px; min-width:0;">
+                    <div style="position:relative; width:50px; height:50px; flex-shrink:0;">
+                        <img src="{h_photo}" style="width:50px; height:50px; border-radius:50%; border:2px solid {color}; object-fit:cover;">
+                        <img src="{h_logo}" style="position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%; background:#000; border:1px solid #fff;">
                     </div>
-                    <div>
-                        <div style="color: #fff; font-weight: bold; font-size: 16px; line-height: 1.1;">{h_name}</div>
-                        <div style="color: #94a3b8; font-size: 10px; margin-bottom: 2px;">{h_role}</div>
-                        <div style="color: {h_stat_color}; font-size: 20px; font-weight: bold; line-height: 1;">{h_target} <span style="font-size:11px; color:#64748b;">{h_stat}</span></div>
+                    <div style="min-width:0;">
+                        <div style="color:#fff; font-size:15px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{h_name}</div>
+                        <div style="color:#64748b; font-size:10px; margin-bottom:2px;">{h_role}</div>
+                        <div style="color:{h_color}; font-size:18px; font-weight:bold; line-height:1;">{h_target} <span style="font-size:10px; color:#64748b;">{h_stat}</span></div>
                     </div>
                 </div>
 
-                <div style="flex: 0 0 40px; text-align: center; color: #475569; font-size: 12px; font-weight: bold;">
-                    {center_label}
+                <div style="width:40px; text-align:center; flex-shrink:0; color:#475569; font-weight:bold; font-size:12px;">
+                    {center_txt}
                 </div>
 
-                <div style="flex: 1;">
-                    {target_html_block}
+                <div style="flex:1; display:flex; align-items:center; justify-content:flex-end; gap:10px; min-width:0; text-align:right;">
+                    <div style="min-width:0;">
+                        <div style="color:#fff; font-size:15px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{t_name}</div>
+                        <div style="color:#64748b; font-size:10px; margin-bottom:2px;">{t_line1}</div>
+                        <div>{t_line2}</div>
+                    </div>
+                    <div style="flex-shrink:0;">
+                        {t_img_block}
+                    </div>
                 </div>
             </div>
 
-            <div style="
-                background: rgba(0,0,0,0.2); 
-                padding: 8px 15px; 
-                border-top: 1px dashed #334155; 
-                display: flex; 
-                justify-content: space-between; 
-                align-items: center;
-                font-family: sans-serif;
-                font-size: 11px;
-            ">
-                <div style="color: #cbd5e1;">{ladder_html}</div>
-                <div style="color: #94a3b8; font-style: italic; text-align: right; max-width: 40%;">IMPACTO: {impact_txt}</div>
+            <div style="background-color:rgba(0,0,0,0.2); border-top:1px dashed #334155; padding:8px 15px; display:flex; justify-content:space-between; align-items:center; font-family:sans-serif; font-size:11px;">
+                <div style="color:#cbd5e1;">{ladder_html}</div>
+                <div style="color:#94a3b8; font-style:italic;">{impact_txt}</div>
             </div>
+
         </div>
         """
-
-        st.markdown(card_html, unsafe_allow_html=True)
+        st.markdown(html_card, unsafe_allow_html=True)
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
 # ============================================================================
@@ -8946,6 +8890,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
