@@ -8296,10 +8296,7 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V4.1 - LOOP FIX & CLEAN UI)
-# ============================================================================
-# ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (V4.2 - DEBUG & TEAM FIX)
+# PÁGINA: LAB DE NARRATIVAS (V4.3 - CORREÇÃO DE COLUNAS CRÍTICA)
 # ============================================================================
 def show_narrative_lab():
     import time
@@ -8347,8 +8344,22 @@ def show_narrative_lab():
         st.info("ℹ️ Aguardando dados...")
         return
 
-    # --- FIX 1: NORMALIZAÇÃO AGRESSIVA DOS TIMES ---
-    # Garante que GS vire GSW, NY vire NYK, etc na base inteira
+    # --- FIX CRÍTICO DE COLUNAS (AQUI ESTAVA O ERRO) ---
+    # 1. Normaliza nomes das colunas (Tudo maiúsculo e sem espaços)
+    df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+
+    # 2. Cria PTS_AVG se não existir
+    if 'PTS_AVG' not in df_l5.columns:
+        if 'PTS' in df_l5.columns:
+            df_l5['PTS_AVG'] = df_l5['PTS'] # Copia de PTS
+        else:
+            # Se não tiver nem PTS, cria zerado pra não quebrar
+            df_l5['PTS_AVG'] = 0.0
+
+    # 3. Garante que é número
+    df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
+
+    # 4. Normaliza Times (Mapas de nomes)
     TEAM_MAP_FIX = {
         'GS': 'GSW', 'GOLDEN STATE': 'GSW', 'NO': 'NOP', 'NEW ORLEANS': 'NOP',
         'NY': 'NYK', 'NEW YORK': 'NYK', 'SA': 'SAS', 'SAN ANTONIO': 'SAS',
@@ -8356,54 +8367,45 @@ def show_narrative_lab():
         'WSH': 'WAS', 'WASHINGTON': 'WAS', 'BKN': 'BKN', 'BROOKLYN': 'BKN',
         'LAL': 'LAL', 'LAC': 'LAC', 'NOP': 'NOP', 'SAS': 'SAS', 'GSW': 'GSW'
     }
-    
-    # Função segura
     def normalize_t(x):
         x = str(x).upper().strip()
         return TEAM_MAP_FIX.get(x, x)
 
-    # Aplica na base de dados
-    if 'TEAM' in df_l5.columns:
-        df_l5['TEAM'] = df_l5['TEAM'].apply(normalize_t)
-    elif 'TEAM_ABBREVIATION' in df_l5.columns:
-        df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION'].apply(normalize_t)
+    # Aplica normalização de time
+    col_team = 'TEAM' if 'TEAM' in df_l5.columns else ('TEAM_ABBREVIATION' if 'TEAM_ABBREVIATION' in df_l5.columns else None)
+    if col_team:
+        df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
     else:
-        st.error("Coluna de Time não encontrada no L5.")
+        st.error("Erro: Coluna de Time não encontrada no banco de dados.")
+        st.write("Colunas disponíveis:", df_l5.columns.tolist())
         return
 
-    # Garante PTS_AVG como float
-    if 'PTS_AVG' in df_l5.columns:
-        df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
-
     # 2. SCAN
-    if "narrative_cache_v4" not in st.session_state:
-        st.session_state.narrative_cache_v4 = {}
+    if "narrative_cache_v5" not in st.session_state:
+        st.session_state.narrative_cache_v5 = {}
 
     cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
-    scan_results = st.session_state.narrative_cache_v4.get(cache_key)
-
-    debug_logs = [] # Para armazenar logs de erro
+    scan_results = st.session_state.narrative_cache_v5.get(cache_key)
+    debug_logs = []
 
     if scan_results is None:
         loading_ph = st.empty()
         with loading_ph.container():
-            st.write("📡 Escaneando histórico...")
+            st.write("📡 Iniciando Varredura Tática (V4.3)...")
             prog = st.progress(0)
             scan_results = []
             
             for i, game in enumerate(games):
                 try:
-                    # Normaliza os times do Placar também
                     away_raw = normalize_t(game['away'])
                     home_raw = normalize_t(game['home'])
                     
-                    # Filtra Base
-                    r_away = df_l5[df_l5['TEAM'] == away_raw].sort_values('PTS_AVG', ascending=False).head(8)
-                    r_home = df_l5[df_l5['TEAM'] == home_raw].sort_values('PTS_AVG', ascending=False).head(8)
+                    # Filtra usando a coluna normalizada
+                    r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].sort_values('PTS_AVG', ascending=False).head(8)
+                    r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].sort_values('PTS_AVG', ascending=False).head(8)
 
-                    # DEBUG LOG
-                    if r_away.empty: debug_logs.append(f"⚠️ Zero jogadores encontrados para {away_raw}")
-                    if r_home.empty: debug_logs.append(f"⚠️ Zero jogadores encontrados para {home_raw}")
+                    if r_away.empty: debug_logs.append(f"⚠️ {away_raw}: Zero jogadores (Verificar Sigla)")
+                    if r_home.empty: debug_logs.append(f"⚠️ {home_raw}: Zero jogadores (Verificar Sigla)")
 
                     def analyze_player(row, opp_team, my_team):
                         try:
@@ -8411,7 +8413,7 @@ def show_narrative_lab():
                             pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
-                            # Filtro: Média mínima de 8 pts (baixei um pouco)
+                            # Filtro Média
                             if avg_pts < 8: return
 
                             # Engine
@@ -8420,7 +8422,6 @@ def show_narrative_lab():
                             if data and 'comparison' in data:
                                 diff = data['comparison'].get('diff_pct', 0)
                                 
-                                # Classificação
                                 n_type = "NEUTRAL"
                                 if diff >= 15: n_type = "KILLER"
                                 elif diff <= -15: n_type = "COLD"
@@ -8429,6 +8430,7 @@ def show_narrative_lab():
                                     scan_results.append({
                                         "game_id": f"{away_raw} @ {home_raw}",
                                         "player": pname,
+                                        "team": my_team,
                                         "opponent": opp_team,
                                         "diff": diff,
                                         "avg": avg_pts,
@@ -8436,43 +8438,28 @@ def show_narrative_lab():
                                         "pid": pid,
                                         "badge": data.get('badge', 'H2H')
                                     })
-                        except: pass
+                        except Exception as e:
+                            pass # Ignora erro individual de jogador
 
                     for _, p in r_away.iterrows(): analyze_player(p, home_raw, away_raw)
                     for _, p in r_home.iterrows(): analyze_player(p, away_raw, home_raw)
                     
                     prog.progress((i+1)/len(games))
                 except Exception as e:
-                    debug_logs.append(f"Erro no jogo {game}: {str(e)}")
+                    debug_logs.append(f"Erro Jogo {game.get('away')} vs {game.get('home')}: {e}")
             
-            st.session_state.narrative_cache_v4[cache_key] = scan_results
+            st.session_state.narrative_cache_v5[cache_key] = scan_results
         loading_ph.empty()
 
     # 3. RESULTADOS
     if not scan_results:
         st.warning("Nenhuma anomalia crítica detectada.")
-        
-        # --- ÁREA DE DEBUG (CLIQUE PARA VER O PORQUÊ) ---
-        with st.expander("🕵️ DETETIVE DE ERROS (Clique aqui)", expanded=False):
-            st.write("**Diagnóstico:**")
-            st.write(f"Total de jogos analisados: {len(games)}")
-            
-            # Mostra quais times o sistema enxergou
-            if not games:
-                st.error("Lista de jogos (games) vazia.")
-            else:
-                teams_game = [f"{g['away']}@{g['home']}" for g in games]
-                st.write(f"Jogos no Placar: {teams_game}")
-            
-            # Mostra quais times existem no L5
-            st.write(f"Times disponíveis no Banco de Dados (L5): {df_l5['TEAM'].unique().tolist()}")
-            
-            # Logs específicos
+        with st.expander("🕵️ DETETIVE DE DADOS (Debug)", expanded=True):
+            st.write(f"Colunas no DB: {df_l5.columns.tolist()}")
             if debug_logs:
-                st.write("Logs de Aviso:")
-                for log in debug_logs: st.warning(log)
+                for l in debug_logs: st.warning(l)
             else:
-                st.success("Nenhum erro técnico detectado. Talvez os jogadores hoje sejam apenas 'normais' (Médias < 8pts ou Diff < 15%).")
+                st.success("O sistema rodou liso, mas os jogadores hoje estão 'normais'.")
         return
 
     # UI: TOP THREATS
@@ -8909,6 +8896,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
