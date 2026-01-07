@@ -6640,7 +6640,7 @@ def show_audit_page():
 </div>
 """, unsafe_allow_html=True)
 # ============================================================================
-# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (ATUALIZADA v2.0 - TIME & REAL DATA)
+# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (CORRIGIDA: ST.MARKDOWN)
 # ============================================================================
 def render_game_card(away_team, home_team, game_data, odds_map=None):
     import dateutil.parser
@@ -6692,10 +6692,13 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
     else:
         pace_color, pace_icon = "#9CA3AF", "⚖️"
 
-    blowout = calculate_blowout_risk(spread_val)
+    # Função de risco (precisa estar definida no escopo ou importada, se não tiver, use fallback)
+    try:
+        blowout = calculate_blowout_risk(spread_val)
+    except:
+        blowout = {"color": "#9CA3AF", "desc": "-", "icon": "", "nivel": "-"}
 
     # --- 3. HTML DO CARD (AJUSTADO) ---
-    # Mudanças: Fontes menores (-20%), Logo menor, Spread Dourado (#FFD700)
     card_html = f"""
     <div style="
         background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
@@ -6750,8 +6753,9 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
       </div>
     </div>
     """
-    components.html(card_html, height=210, scrolling=False)
-
+    
+    # --- CORREÇÃO AQUI: USAR st.markdown EM VEZ DE components.html ---
+    st.markdown(card_html, unsafe_allow_html=True)
 # ============================================================================
 # RENDERIZADORES VISUAIS 
 # ============================================================================
@@ -8778,6 +8782,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
