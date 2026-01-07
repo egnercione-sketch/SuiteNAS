@@ -6640,9 +6640,12 @@ def show_audit_page():
 </div>
 """, unsafe_allow_html=True)
 # ============================================================================
-# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (CORRIGIDA: ST.MARKDOWN)
+# FUNÇÃO DE RENDERIZAÇÃO DO CARD DE JOGO (REVERTIDO PARA COMPONENTS)
 # ============================================================================
 def render_game_card(away_team, home_team, game_data, odds_map=None):
+    # --- CORREÇÃO DO NAMEERROR ---
+    # Importamos aqui para garantir que funcione sem mexer no topo do arquivo
+    import streamlit.components.v1 as components 
     import dateutil.parser
     import pytz
     
@@ -6655,13 +6658,12 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
     try:
         raw_time = game_data.get("startTimeUTC") or game_data.get("date")
         if raw_time:
-            # Parseia UTC e converte para SP
             dt_utc = dateutil.parser.parse(raw_time)
             dt_br = dt_utc.astimezone(pytz.timezone('America/Sao_Paulo'))
             game_time = dt_br.strftime("%H:%M")
     except: pass
 
-    # Odds (Spread & Total)
+    # Odds
     spread_display = game_data.get("odds_spread", "N/A")
     total_display = game_data.get("odds_total", "N/A")
     spread_val = 0.0
@@ -6673,7 +6675,7 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
     status = game_data.get('status', 'Agendado')
     if "Final" in status: status = "FIM"
 
-    # --- 2. PACE REAL ---
+    # --- 2. PACE & DADOS ---
     adv_stats = st.session_state.get('team_advanced', {})
     def get_team_pace(abbr):
         t_data = adv_stats.get(abbr, {})
@@ -6684,78 +6686,78 @@ def render_game_card(away_team, home_team, game_data, odds_map=None):
     pace_away = get_team_pace(away_team)
     avg_pace = (pace_home + pace_away) / 2
     
-    # Classificação Visual do Pace
-    if avg_pace >= 101.5:
-        pace_color, pace_icon = "#00FF9C", "⚡"
-    elif avg_pace <= 98.5:
-        pace_color, pace_icon = "#FFA500", "🐌"
-    else:
-        pace_color, pace_icon = "#9CA3AF", "⚖️"
+    if avg_pace >= 101.5: pace_color, pace_icon = "#00FF9C", "⚡"
+    elif avg_pace <= 98.5: pace_color, pace_icon = "#FFA500", "🐌"
+    else: pace_color, pace_icon = "#9CA3AF", "⚖️"
 
-    # Função de risco (precisa estar definida no escopo ou importada, se não tiver, use fallback)
+    # Tenta calcular blowout se a função existir, senão usa padrão
     try:
         blowout = calculate_blowout_risk(spread_val)
     except:
         blowout = {"color": "#9CA3AF", "desc": "-", "icon": "", "nivel": "-"}
 
-    # --- 3. HTML DO CARD (AJUSTADO) ---
+    # --- 3. HTML DO CARD (ESTRUTURA ISOLADA) ---
+    # Adicionei imports de fonte dentro do HTML para garantir o visual no iframe
     card_html = f"""
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <div style="
         background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 12px;
-        margin-bottom: 12px;
         border: 1px solid #334155;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         font-family: 'Inter', sans-serif;
-        position: relative;
+        box-sizing: border-box;
+        height: 190px;
+        overflow: hidden;
     ">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
-        <div style="background: rgba(30, 144, 255, 0.1); color: #60A5FA; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+        <div style="background: rgba(30, 144, 255, 0.15); color: #60A5FA; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase;">
             {status}
         </div>
-        <div style="font-family: 'Oswald', sans-serif; font-size: 12px; color: #E2E8F0;">
-            🕒 {game_time} (BR)
+        <div style="font-family: 'Oswald', sans-serif; font-size: 12px; color: #E2E8F0; letter-spacing: 0.5px;">
+            🕒 {game_time} BR
         </div>
       </div>
 
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <div style="text-align: center; width: 35%;">
-            <img src="{get_logo(away_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
-            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="text-align: center; width: 30%;">
+            <img src="{get_logo(away_team)}" style="width: 40px; height: 40px; margin-bottom: 2px; object-fit: contain;">
+            <div style="font-weight: 800; font-size: 14px; color: #F1F5F9; font-family: 'Oswald';">{away_team}</div>
             <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_away)}</div>
           </div>
           
-          <div style="text-align: center; width: 30%;">
+          <div style="text-align: center; width: 34%; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 4px 0;">
             <div style="font-size: 9px; color: #64748B; font-weight: 600;">SPREAD</div>
-            <div style="font-size: 13px; color: #FFD700; font-weight: bold; font-family: 'Oswald'; margin-bottom: 4px; text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);">{spread_display}</div>
+            <div style="font-size: 14px; color: #FFD700; font-weight: bold; font-family: 'Oswald'; margin-bottom: 2px;">{spread_display}</div>
             <div style="font-size: 9px; color: #64748B; font-weight: 600;">TOTAL</div>
-            <div style="font-size: 13px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
+            <div style="font-size: 14px; color: #E2E8F0; font-weight: bold; font-family: 'Oswald';">{total_display}</div>
           </div>
           
-          <div style="text-align: center; width: 35%;">
-            <img src="{get_logo(home_team)}" style="width: 36px; height: 36px; margin-bottom: 4px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));">
-            <div style="font-weight: 800; font-size: 13px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
+          <div style="text-align: center; width: 30%;">
+            <img src="{get_logo(home_team)}" style="width: 40px; height: 40px; margin-bottom: 2px; object-fit: contain;">
+            <div style="font-weight: 800; font-size: 14px; color: #F1F5F9; font-family: 'Oswald';">{home_team}</div>
             <div style="font-size: 9px; color: #94A3B8;">PACE: {int(pace_home)}</div>
           </div>
       </div>
 
-      <div style="background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 6px; display: flex; justify-content: space-around; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
+      <div style="background: rgba(255, 255, 255, 0.03); border-radius: 6px; padding: 5px; display: flex; justify-content: space-around; align-items: center; border: 1px solid rgba(255,255,255,0.05);">
         <div style="text-align: center;">
-            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RITMO ({int(avg_pace)})</div>
-            <div style="color: {pace_color}; font-weight: bold; font-size: 10px;">{pace_icon}</div>
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600; text-transform: uppercase;">Ritmo Est. ({int(avg_pace)})</div>
+            <div style="color: {pace_color}; font-weight: bold; font-size: 11px;">{pace_icon}</div>
         </div>
         <div style="width: 1px; height: 15px; background: rgba(255,255,255,0.1);"></div>
         <div style="text-align: center;">
-            <div style="font-size: 8px; color: #94A3B8; font-weight: 600;">RISCO</div>
-            <div style="color: {blowout['color']}; font-weight: bold; font-size: 10px;" title="{blowout['desc']}">{blowout['icon']} {blowout['nivel']}</div>
+            <div style="font-size: 8px; color: #94A3B8; font-weight: 600; text-transform: uppercase;">Risco Blowout</div>
+            <div style="color: {blowout['color']}; font-weight: bold; font-size: 11px;">{blowout['icon']} {blowout['nivel']}</div>
         </div>
       </div>
     </div>
     """
     
-    # --- CORREÇÃO AQUI: USAR st.markdown EM VEZ DE components.html ---
-    st.markdown(card_html, unsafe_allow_html=True)
+    # --- VOLTANDO AO ORIGINAL ---
+    # Usando components.html para isolar o layout (iframe)
+    # Altura fixa de 210px evita barras de rolagem
+    components.html(card_html, height=210, scrolling=False)
 # ============================================================================
 # RENDERIZADORES VISUAIS 
 # ============================================================================
@@ -8782,6 +8784,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
