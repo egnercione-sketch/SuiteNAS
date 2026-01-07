@@ -8661,35 +8661,88 @@ def show_dashboard_page():
 # EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
-    # --- BLOCO DE EMERGÊNCIA: POPULAR SUPABASE ---
+# --- BLOCO DE EMERGÊNCIA: POPULAR SUPABASE (COM DEBUG) ---
     # Coloque isso logo no começo da def main()
     
     st.sidebar.markdown("---")
-    st.sidebar.warning("⚠️ MODO DE RECUPERAÇÃO")
+    st.sidebar.error("⚠️ ZONA DE PERIGO")
     
-    if st.sidebar.button("🚀 INICIALIZAR BANCO DE DADOS (CLIQUE UMA VEZ)"):
-        status = st.status("🛠️ Populando Banco de Dados na Nuvem...", expanded=True)
-        
-        # 1. Popula L5 (Base de Jogadores)
-        status.write("1️⃣ Baixando Jogadores L5...")
-        try:
-            # Força o update para baixar da NBA e salvar no Supabase
-            df_l5 = get_players_l5(progress_ui=False, force_update=True)
-            status.write(f"✅ L5 Salvo: {len(df_l5)} jogadores.")
-        except Exception as e:
-            status.error(f"❌ Erro L5: {e}")
+    # Checkbox para evitar clique acidental
+    if st.sidebar.checkbox("Ativar Modo Recuperação"):
+        if st.sidebar.button("🚀 INICIALIZAR BANCO (DEBUG MODE)"):
             
-        # 2. Popula Logs (Game Logs)
-        status.write("2️⃣ Baixando Logs de Jogos (Isso demora um pouco)...")
-        try:
-            logs = fetch_and_upload_real_game_logs(progress_ui=False)
-            status.write(f"✅ Logs Salvos: {len(logs)} registros.")
-        except Exception as e:
-            status.error(f"❌ Erro Logs: {e}")
+            # Container principal de logs
+            log_container = st.container()
             
-        status.update(label="🏁 Processo Finalizado! Recarregue a página.", state="complete")
-        time.sleep(2)
-        st.rerun()
+            with log_container:
+                st.info("🕵️‍♂️ Iniciando Diagnóstico de Rede e Banco...")
+                
+                # 1. TESTE DE CONEXÃO (PING)
+                try:
+                    if not db or not db.connected:
+                        st.error("❌ CRÍTICO: Objeto 'db' não existe ou não conectou. Verifique secrets.")
+                        st.stop()
+                    
+                    # Tenta um select bobo só pra ver se a API responde
+                    st.write("📡 Testando conexão com Supabase...")
+                    db.client.table("app_cache").select("key").limit(1).execute()
+                    st.success("✅ Conexão Supabase: OK (Latência baixa)")
+                except Exception as e:
+                    st.error(f"❌ Falha de Conexão: {e}")
+                    st.stop()
+
+                # 2. POPULA L5 (Jogadores)
+                st.divider()
+                st.markdown("### 1️⃣ Fase 1: Base de Jogadores (L5)")
+                start_l5 = time.time()
+                
+                try:
+                    # ATENÇÃO: progress_ui=True para você ver a barra andando!
+                    df_l5 = get_players_l5(progress_ui=True, force_update=True)
+                    
+                    tempo_l5 = time.time() - start_l5
+                    st.success(f"✅ Download e Upload Concluídos em {tempo_l5:.1f}s")
+                    st.json({"Jogadores": len(df_l5), "Colunas": list(df_l5.columns[:5])}, expanded=False)
+                    
+                    # Validação de Leitura
+                    val_check = db.get_data("l5_stats")
+                    if val_check:
+                        st.caption(f"🔍 Validação Nuvem: O Supabase confirmou que tem {val_check.get('count', '?')} registros salvos.")
+                    else:
+                        st.warning("⚠️ Salvei, mas não consegui ler de volta. Estranho...")
+
+                except Exception as e:
+                    st.error(f"❌ Erro Fatal na Fase 1: {e}")
+                    st.stop()
+
+                # 3. POPULA LOGS (A parte demorada)
+                st.divider()
+                st.markdown("### 2️⃣ Fase 2: Game Logs (L30)")
+                st.warning("☕ Pode pegar um café. Isso baixa ~300 requisições da NBA.")
+                start_logs = time.time()
+
+                try:
+                    # progress_ui=True mostra a barra de progresso real
+                    logs = fetch_and_upload_real_game_logs(progress_ui=True)
+                    
+                    tempo_logs = time.time() - start_logs
+                    st.success(f"✅ Logs Sincronizados em {tempo_logs:.1f}s")
+                    st.write(f"📊 Total de Jogadores com Logs: {len(logs)}")
+                    
+                    # Validação
+                    log_check = db.get_data("real_game_logs")
+                    if log_check:
+                         st.caption("🔍 Validação Nuvem: Logs acessíveis via Supabase.")
+
+                except Exception as e:
+                    st.error(f"❌ Erro Fatal na Fase 2: {e}")
+                
+                st.divider()
+                st.balloons()
+                st.success("🏁 PROCESSO FINALIZADO! O sistema deve estar 100% operacional.")
+                
+                if st.button("🔄 Recarregar App Agora"):
+                    st.rerun()
     # -----------------------------------------------
 
 
@@ -8819,6 +8872,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
