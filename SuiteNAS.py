@@ -9,7 +9,7 @@ import json
 import re
 import random
 import logging
-import streamlit.components.v1 as components  # <--- ADICIONE ISTO URGENTE
+import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 from itertools import combinations
 
@@ -1395,7 +1395,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V30.0 - LIVE FILTER & ID RECOVERY)
+# PÁGINA: BLOWOUT RADAR (V31.0 - HYBRID PHOTO FIX)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1407,14 +1407,17 @@ def show_blowout_hunter_page():
     
     # --- 1. FUNÇÕES AUXILIARES ---
     def normalize_str(text):
-        """Limpa texto para comparação (Remove acentos, uppercase)."""
+        """Limpa texto para comparação (Remove acentos, uppercase, sufixos)."""
         if not text: return ""
         try:
             text = str(text)
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-            # Remove sufixos comuns para aumentar chance de match
-            text = text.replace(" JR.", "").replace(" SR.", "").replace(" III", "").replace(" II", "").replace(" IV", "")
-            return text.upper().strip()
+            text = text.upper().strip()
+            # Remove sufixos comuns que atrapalham o match
+            for suffix in [" JR.", " SR.", " III", " II", " IV"]:
+                if text.endswith(suffix):
+                    text = text.replace(suffix, "")
+            return text.strip()
         except: return ""
 
     LOGO_MAP = {
@@ -1463,26 +1466,23 @@ def show_blowout_hunter_page():
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 3. CARREGAMENTO DE DADOS (CRUCIAL PARA ID e LESÃO) ---
-    
-    # A) Mapeamento de IDs (Usado para recuperar fotos perdidas)
+    # --- 3. MAPEAMENTO DE IDs & LESÕES ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     
     if not df_l5.empty:
         try:
-            # Garante coluna normalizada no DF auxiliar
+            # Cria um mapa robusto: Nome Normalizado -> ID
             df_l5['PLAYER_NORM_MAP'] = df_l5['PLAYER'].apply(normalize_str)
-            # Remove duplicatas mantendo o ID
-            temp_df = df_l5.drop_duplicates(subset=['PLAYER_NORM_MAP'])
-            PLAYER_ID_MAP = dict(zip(temp_df['PLAYER_NORM_MAP'], temp_df['PLAYER_ID']))
+            # Remove duplicatas e zeros
+            valid_ids = df_l5[df_l5['PLAYER_ID'] != 0]
+            PLAYER_ID_MAP = dict(zip(valid_ids['PLAYER_NORM_MAP'], valid_ids['PLAYER_ID']))
         except: pass
 
-    # B) Monitor de Lesões (Lista Negra)
+    # Monitor de Lesões
     banned_players = set()
     EXCLUSION_KEYWORDS = ['OUT', 'DOUBTFUL', 'SURGERY', 'INJURED', 'PROTOCOL', 'SUSPENDED', 'G LEAGUE', 'PERSONAL']
-
-    # Tenta pegar a tabela oficial 'injuries' do Supabase
+    
     raw_inj_source = get_data_universal('injuries')
     if not raw_inj_source: raw_inj_source = st.session_state.get('injuries_data', [])
 
@@ -1508,26 +1508,17 @@ def show_blowout_hunter_page():
                 
                 if p_name:
                     norm = normalize_str(p_name)
-                    # Se tiver status ruim, adiciona na lista negra
                     if norm and any(x in status for x in EXCLUSION_KEYWORDS):
                         banned_players.add(norm)
             except: continue
 
-    # --- 4. ENGINE DE BLOWOUT (ROTATION DNA) ---
-    KEY_DNA = "rotation_dna_v27"
-    
-    # Se não tiver DNA carregado, tenta carregar ou calcular
-    if 'dna_final_v27' not in st.session_state:
-        # Tenta carregar do cache
-        cloud_dna = get_data_universal(KEY_DNA)
-        
-        # Se vazio, calcula (Lógica simplificada para brevidade, pois já temos em cache geralmente)
-        # O importante aqui é que vamos filtrar NA EXIBIÇÃO também
-        st.session_state['dna_final_v27'] = cloud_dna if cloud_dna else {}
-
+    # --- 4. ENGINE (CACHE) ---
     DNA_DB = st.session_state.get('dna_final_v27', {})
+    if not DNA_DB:
+        DNA_DB = get_data_universal("rotation_dna_v27") or {}
+        st.session_state['dna_final_v27'] = DNA_DB
 
-    # --- 5. EXIBIÇÃO (COM RE-FILTRAGEM AO VIVO) ---
+    # --- 5. EXIBIÇÃO ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.info("Aguardando jogos...")
@@ -1541,19 +1532,15 @@ def show_blowout_hunter_page():
     # Função Inteligente de Busca de Time
     def get_team_data(query):
         q = str(query).upper().strip()
-        # Tenta mapeamento direto
         if q in LOGO_MAP:
             target = LOGO_MAP[q]
             if target in DNA_DB: return DNA_DB[target]
-        # Tenta chave direta
         if q in DNA_DB: return DNA_DB[q]
-        # Tenta busca parcial
         for k in DNA_DB.keys():
             if q in k or k in q: return DNA_DB[k]
         return []
 
     for g in games:
-        # Lógica de Spread
         raw_s = g.get('odds_spread', '0')
         try: real_s = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_s))[-1]))
         except: real_s = 0.0
@@ -1572,7 +1559,6 @@ def show_blowout_hunter_page():
         logo_away = get_logo_url(g['away'])
         logo_home = get_logo_url(g['home'])
 
-        # Renderiza Header do Jogo
         st.markdown(f"""
         <div class="match-container">
             <div class="risk-header {risk_cls}">
@@ -1591,7 +1577,6 @@ def show_blowout_hunter_page():
         if show_players:
             c1, c2 = st.columns(2)
             
-            # Função de Renderização da Coluna
             def render_team_col(col, t_name):
                 data = get_team_data(t_name)
                 t_logo = get_logo_url(t_name)
@@ -1606,39 +1591,42 @@ def show_blowout_hunter_page():
                     """, unsafe_allow_html=True)
                     
                     if data:
-                        # --- O SEGREDO ESTÁ AQUI: RE-FILTRAGEM AO VIVO ---
                         valid_players = []
                         for p in data:
-                            p_clean = p.get('clean_name') or normalize_str(p['name'])
+                            p_clean = normalize_str(p.get('clean_name') or p['name'])
                             
-                            # 1. Filtro de Lesão (Check-Mate)
-                            if p_clean in banned_players:
-                                continue 
+                            # 1. Filtro Lesão
+                            if p_clean in banned_players: continue 
                             
-                            # 2. Recuperação de ID (Se estiver faltando)
-                            current_id = int(p.get('id', 0))
-                            if current_id == 0:
-                                # Tenta salvar a foto buscando no mapa mestre
-                                recovered_id = PLAYER_ID_MAP.get(p_clean, 0)
-                                p['id'] = recovered_id
+                            # 2. Recuperação de ID FORÇADA (Ignora cache, busca fresco)
+                            # Isso garante que se o cache tinha 0, agora pegamos o certo
+                            fresh_id = PLAYER_ID_MAP.get(p_clean, 0)
+                            if fresh_id != 0:
+                                p['id'] = fresh_id
                             
                             valid_players.append(p)
                         
-                        # Renderiza os Top 3 Válidos
                         if valid_players:
                             for p in valid_players[:3]:
-                                pid = p.get('id', 0)
-                                photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                                if pid > 0:
-                                    photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+                                pid = int(p.get('id', 0))
                                 
+                                # URLs Híbridas (NBA vs ESPN)
+                                nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+                                espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
+                                fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
                                 badge_cls = "dna-badge" if p.get('type') == 'SNIPER' else "fallback-badge"
                                 badge_txt = "SNIPER" if p.get('type') == 'SNIPER' else "CEILING"
                                 
+                                # HTML IMG Híbrido: Tenta NBA, se falhar tenta ESPN, se falhar usa Fallback
+                                img_html = f"""<img src="{nba_url}" class="vulture-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
+                                if pid == 0:
+                                     img_html = f"""<img src="{fallback_url}" class="vulture-img">"""
+
                                 st.markdown(f"""
                                 <div class="vulture-row">
                                     <div style="display:flex; align-items:center;">
-                                        <img src="{photo_url}" class="vulture-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
+                                        {img_html}
                                         <div class="vulture-info">
                                             <div class="vulture-name">{p['name']} <span class="{badge_cls}">{badge_txt}</span></div>
                                             <div class="vulture-role">
@@ -1654,9 +1642,9 @@ def show_blowout_hunter_page():
                                 </div>
                                 """, unsafe_allow_html=True)
                         else:
-                            st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Todos os reservas chave estão listados como OUT.</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#e11d48;'>Reservas listados estão lesionados.</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados históricos suficientes.</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='text-align:center; padding:10px; font-size:11px; color:#64748b;'>Sem dados de reservas.</div>", unsafe_allow_html=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
             render_team_col(c1, g['away'])
@@ -1669,11 +1657,6 @@ def show_blowout_hunter_page():
             """, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
-
-    # Debug Opcional (Pode remover depois)
-    # with st.expander("🛠️ Debug Lesões"):
-    #    st.write(f"Jogadores Banidos: {len(banned_players)}")
-    #    st.write(list(banned_players)[:10])
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.2 - FIX COLUMNS & UNK)
 # ============================================================================
@@ -8824,6 +8807,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
