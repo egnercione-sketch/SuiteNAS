@@ -105,52 +105,71 @@ def get_data_universal(key_db, file_fallback=None):
     
     return data
 
+# ============================================================================
+# FUNÇÃO DE SALVAMENTO BLINDADA (NUCLEAR CLEANER)
+# ============================================================================
 def save_data_universal(key_db, data, file_path=None):
     """
-    Salva no Supabase E no arquivo local (Backup).
-    VERSÃO DEBUG: Mostra tamanho do payload e erros detalhados.
+    Salva no Supabase E no arquivo local.
+    INCLUI LIMPEZA FORÇADA DE JSON (Remove NaNs e Infinity).
     """
+    import json
+    import time
+    
     sucesso_nuvem = False
     
-    # Prepara dados para análise de tamanho
+    # --- 1. LIMPEZA NUCLEAR DOS DADOS ---
+    # O Supabase rejeita NaN e Infinity. O JSON padrão também não gosta.
+    # Esta rotina converte tudo para string JSON segura e depois carrega de volta.
     try:
-        # Serialização de teste para ver tamanho
-        payload_str = json.dumps(data, default=str)
-        size_kb = len(payload_str) / 1024
-        print(f"📦 [PREPARING] '{key_db}': Tamanho estimado {size_kb:.2f} KB")
+        # Dumps com default=str trata datas e tipos estranhos
+        # Replace remove os NaNs que o Pandas deixa passar
+        json_str = json.dumps(data, default=str).replace("NaN", "null").replace("Infinity", "null").replace("-Infinity", "null")
+        
+        # Carrega de volta para um objeto Python limpo (dict/list)
+        clean_data = json.loads(json_str)
+        
+        # Calcula tamanho para debug
+        size_kb = len(json_str) / 1024
+        print(f"📦 [CLEAN] '{key_db}': {size_kb:.2f} KB (Limpo e Pronto)")
+        
     except Exception as e:
-        print(f"⚠️ Erro ao serializar '{key_db}' para debug: {e}")
+        print(f"⚠️ Erro ao limpar dados '{key_db}': {e}")
+        # Se falhar a limpeza, tenta enviar o original (risco de falha)
+        clean_data = data
         size_kb = 0
 
-    # 1. Salva na Nuvem (Supabase)
+    # --- 2. SALVA NA NUVEM (SUPABASE) ---
     if db:
         try:
-            # Tenta salvar
             start_time = time.time()
-            db.save_data(key_db, data)
+            # Usa os dados LIMPOS
+            db.save_data(key_db, clean_data)
             duration = time.time() - start_time
             
-            msg = f"☁️ [UPLOAD] '{key_db}' salvo no Supabase! ({duration:.2f}s)"
-            print(msg)
-            
-            # Avisa visualmente se for algo demorado ou crítico
+            print(f"☁️ [UPLOAD] '{key_db}' salvo com sucesso! ({duration:.2f}s)")
             if size_kb > 10: 
-                st.toast(f"Salvo na Nuvem: {key_db} ({size_kb:.0f}KB)", icon="☁️")
+                st.toast(f"Nuvem: {key_db} salvo ({size_kb:.0f}KB)", icon="☁️")
             
             sucesso_nuvem = True
+            
         except Exception as e:
             err_msg = str(e)
             print(f"❌ [ERRO UPLOAD] '{key_db}': {err_msg}")
+            # Não mostra erro na tela para coisas pequenas, apenas logs
             if "413" in err_msg:
-                st.error(f"Erro ao salvar '{key_db}': Arquivo muito grande para o Supabase!")
+                st.error(f"Erro '{key_db}': Arquivo muito grande para o Supabase!")
+            elif "400" in err_msg:
+                st.error(f"Erro '{key_db}': Formato de dados inválido (400).")
             else:
                 st.warning(f"Falha ao salvar '{key_db}' na nuvem.")
 
-    # 2. Salva Local (Backup obrigatório)
+    # --- 3. SALVA LOCAL (BACKUP) ---
     if file_path:
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, default=str) # default=str ajuda com datas
+                # Usa json_str que já está pronto e limpo
+                f.write(json_str)
         except: pass
     
     return sucesso_nuvem
@@ -8872,6 +8891,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
