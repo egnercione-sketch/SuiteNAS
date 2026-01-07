@@ -428,109 +428,114 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# FUNÇÃO LOGS: SUPABASE + SMART FILTER
+# FUNÇÃO LOGS: MODO TURBO (BULK FETCH - 1 REQUISIÇÃO)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
-    import concurrent.futures
+    from nba_api.stats.endpoints import leaguegamelog
     import pandas as pd
-    import time
-    from nba_api.stats.endpoints import playergamelog
+    import json
+    from datetime import datetime
     
     SEASON_CURRENT = "2025-26"
-    MAX_WORKERS = 10 
-    KEY_LOGS = "real_game_logs" # <--- Chave correta do Supabase conforme você falou
+    KEY_LOGS = "real_game_logs"
 
-    # 1. Pega lista de quem JOGA (baseado no L5 carregado na memória)
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    
-    if df_l5.empty:
-        if progress_ui: st.error("⚠️ Base L5 vazia. Carregue o L5 primeiro para saber quem baixar.")
-        return {}
-        
-    # Extrai IDs únicos (apenas jogadores relevantes)
-    target_ids = []
-    if 'PLAYER_ID' in df_l5.columns:
-        target_ids = df_l5['PLAYER_ID'].unique().tolist()
-    
-    # Fallback se não achou coluna
-    if not target_ids and 'ID' in df_l5.columns:
-         target_ids = df_l5['ID'].unique().tolist()
-         
-    if not target_ids:
-        if progress_ui: st.warning("Nenhum jogador encontrado no L5.")
-        return {}
-
-    # Metadados para enriquecer o JSON
-    player_meta = {}
-    for _, row in df_l5.iterrows():
-        pid = row.get('PLAYER_ID') or row.get('ID')
-        if pid:
-            player_meta[pid] = {
-                'name': row.get('PLAYER_NAME', row.get('PLAYER', 'Unknown')),
-                'team': row.get('TEAM_ABBREVIATION', row.get('TEAM', 'UNK'))
-            }
-
-    total = len(target_ids)
-    results = {}
-    
     if progress_ui:
-        status_box = st.status(f"📊 Sincronizando Logs (L30) para {total} atletas...", expanded=True)
-        p_bar = status_box.progress(0)
-        txt = status_box.empty()
+        status_box = st.status("🚀 MODO TURBO: Baixando temporada inteira...", expanded=True)
+        status_box.write("📡 Conectando ao servidor da NBA (LeagueGameLog)...")
 
-    def fetch_log(pid):
-        try:
-            time.sleep(0.15) # Delay anti-ban
-            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=8)
-            df = log.get_data_frames()[0]
+    try:
+        # --- O PULO DO GATO: 1 Requisição para a Liga Inteira ---
+        # Em vez de pedir jogador por jogador, pedimos tudo de uma vez.
+        logs_api = leaguegamelog.LeagueGameLog(
+            season=SEASON_CURRENT,
+            player_or_team_abbreviation='P', # P = Player
+            direction='DESC', # Mais recentes primeiro
+            sorter='DATE'
+        )
+        df_all = logs_api.get_data_frames()[0]
+        
+        if df_all.empty:
+            if progress_ui: status_box.error("A API retornou vazio.")
+            return {}
+
+        if progress_ui: status_box.write(f"📦 Processando {len(df_all)} registros de jogos...")
+
+        # --- PROCESSAMENTO LOCAL (PANDAS É RÁPIDO) ---
+        # Garante tipos numéricos
+        cols_int = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M', 'TOV', 'PF']
+        for c in cols_int:
+            if c in df_all.columns: df_all[c] = df_all[c].fillna(0).astype(int)
+
+        # Agrupa por Jogador e pega os últimos 30 jogos
+        # Como pedimos 'DESC' na API, já deve vir ordenado, mas garantimos:
+        df_all['GAME_DATE'] = pd.to_datetime(df_all['GAME_DATE'])
+        df_all = df_all.sort_values(by=['PLAYER_ID', 'GAME_DATE'], ascending=[True, False])
+
+        # Dicionário final
+        results = {}
+        
+        # Pega lista de jogadores únicos
+        unique_players = df_all['PLAYER_ID'].unique()
+        total_p = len(unique_players)
+        
+        # Itera localmente (muito mais rápido que requisição de rede)
+        processed_count = 0
+        
+        # Para barra de progresso visual
+        bar = status_box.progress(0)
+        
+        for pid in unique_players:
+            # Filtra os jogos desse jogador
+            player_games = df_all[df_all['PLAYER_ID'] == pid].head(30) # L30
             
-            if df.empty: return None
-
-            df = df.head(30) # Pega últimos 30 jogos
-
-            # Limpa tipos de dados (int64)
-            int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M']
+            if player_games.empty: continue
+            
+            p_name = player_games.iloc[0]['PLAYER_NAME']
+            p_team = player_games.iloc[0]['TEAM_ABBREVIATION']
+            
+            # Monta estrutura de logs
             clean_logs = {}
-            for col in int_cols:
-                if col in df.columns:
-                    clean_logs[col] = df[col].fillna(0).astype('int64').tolist()
+            for col in cols_int:
+                if col in player_games.columns:
+                    clean_logs[col] = player_games[col].tolist()
             
-            # Minutos
-            if 'MIN' in df.columns:
-                clean_logs['MIN'] = df['MIN'].astype(str).apply(lambda x: float(x.split(':')[0]) + float(x.split(':')[1])/60 if ':' in x else (float(x) if x else 0)).round(1).tolist()
+            # Minutos (Tratamento especial)
+            if 'MIN' in player_games.columns:
+                # A API LeagueGameLog geralmente manda MIN como float (ex: 24.0), 
+                # mas as vezes como string. Garantimos float.
+                def parse_min(x):
+                    try: return float(x)
+                    except: return 0.0
+                clean_logs['MIN'] = player_games['MIN'].apply(parse_min).tolist()
 
-            meta = player_meta.get(pid, {})
-            
-            return {
-                "name": meta.get('name', 'Unknown'),
+            results[p_name] = {
+                "name": p_name,
                 "id": int(pid),
-                "team": meta.get('team', "UNK"),
+                "team": p_team,
                 "logs": clean_logs,
                 "updated_at": datetime.now().strftime("%Y-%m-%d")
             }
-        except: return None
-
-    # Download Paralelo
-    count = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_pid = {executor.submit(fetch_log, pid): pid for pid in target_ids}
-        for future in concurrent.futures.as_completed(future_to_pid):
-            res = future.result()
-            if res: results[res['name']] = res
-            count += 1
-            if progress_ui: 
-                p_bar.progress(count / total)
-                txt.write(f"Processando: {count}/{total}")
-
-    # Salva no Supabase
-    if results:
-        txt.write("☁️ Enviando para Supabase...")
-        save_data_universal(KEY_LOGS, results)
-        
-        if progress_ui:
-            status_box.update(label=f"✅ Logs atualizados: {len(results)} jogadores.", state="complete", expanded=False)
             
-    return results
+            processed_count += 1
+            if progress_ui and processed_count % 50 == 0:
+                bar.progress(processed_count / total_p)
+
+        # --- SALVA NO SUPABASE ---
+        if results:
+            if progress_ui: status_box.write("☁️ Enviando pacote compactado para Nuvem...")
+            
+            # Chama sua função save blindada
+            save_data_universal(KEY_LOGS, results)
+            
+            if progress_ui:
+                status_box.update(label=f"⚡ TURBO COMPLETO! {len(results)} jogadores atualizados.", state="complete", expanded=False)
+        
+        return results
+
+    except Exception as e:
+        print(f"Erro Turbo: {e}")
+        if progress_ui: status_box.error(f"Erro no Modo Turbo: {e}")
+        return {}
     
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
@@ -8891,6 +8896,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
