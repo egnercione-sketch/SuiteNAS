@@ -5085,7 +5085,7 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
     return None
 
 # ============================================================================
-# FUNÇÃO L5: FOCADA NO SUPABASE (SEM ARQUIVO LOCAL)
+# FUNÇÃO L5: FOCADA NO SUPABASE (CORRIGIDA - DEDUPLICAÇÃO DE COLUNAS)
 # ============================================================================
 def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     from nba_api.stats.static import players
@@ -5106,30 +5106,26 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     
     if not force_update:
         try:
-            # Tenta puxar direto da função universal
             cloud_data = get_data_universal(KEY_L5) 
             
-            # Verifica se veio algo
             if cloud_data:
-                # Se veio formato { "records": [...] }
                 if isinstance(cloud_data, dict) and "records" in cloud_data:
                     df_cached = pd.DataFrame.from_records(cloud_data["records"])
                     print(f"✅ [SUPABASE] L5 carregado: {len(df_cached)} linhas.")
-                # Se veio lista direta
                 elif isinstance(cloud_data, list):
                     df_cached = pd.DataFrame.from_records(cloud_data)
                     print(f"✅ [SUPABASE] L5 carregado (lista): {len(df_cached)} linhas.")
                 
                 if not df_cached.empty:
-                    # Normaliza colunas
                     df_cached.columns = [str(c).upper().strip() for c in df_cached.columns]
+                    # Remove duplicatas ao carregar também
+                    df_cached = df_cached.loc[:, ~df_cached.columns.duplicated()]
             else:
                 print("⚠️ [SUPABASE] Retornou vazio para l5_stats.")
                 
         except Exception as e:
             print(f"❌ [SUPABASE ERROR] Falha ao ler L5: {e}")
 
-    # Se já temos dados e não é update forçado, retorna o que temos
     if not df_cached.empty and not force_update and not incremental:
         return df_cached
 
@@ -5138,12 +5134,10 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
 
     act_players = players.get_active_players()
     
-    # Define quem precisa baixar
     pending_players = []
     if force_update or df_cached.empty:
         pending_players = act_players
     elif incremental and not df_cached.empty:
-        # Lógica incremental simples: baixa quem jogou ontem/hoje
         dates_to_check = [datetime.now().strftime('%Y-%m-%d')]
         target_team_ids = set()
         for d in dates_to_check:
@@ -5153,9 +5147,8 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
                     target_team_ids.update(board['HOME_TEAM_ID'].tolist() + board['VISITOR_TEAM_ID'].tolist())
             except: pass
         
-        # Filtra ids
         existing_ids = set(df_cached["PLAYER_ID"].unique()) if 'PLAYER_ID' in df_cached.columns else set()
-        pending_players = [p for p in act_players if p['id'] not in existing_ids] # Baixa novos
+        pending_players = [p for p in act_players if p['id'] not in existing_ids]
 
     total_needed = len(pending_players)
     if total_needed == 0:
@@ -5171,7 +5164,7 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
-            time.sleep(0.1) # Evita block
+            time.sleep(0.1)
             log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=10)
             df = log.get_data_frames()[0]
             if not df.empty:
@@ -5182,7 +5175,7 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
                 
                 df_l5['PLAYER_NAME'] = pname
                 df_l5['PLAYER_ID'] = pid
-                # Garante TEAM ID
+                
                 if 'Team_ID' in df.columns: df_l5['TEAM_ID'] = df['Team_ID']
                 elif 'TEAM_ID' in df.columns: df_l5['TEAM_ID'] = df['TEAM_ID']
                 
@@ -5205,32 +5198,40 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     # Merge Final
     if not df_new_batch.empty:
         if not df_cached.empty:
-            # Remove antigos para atualizar
-            upd_ids = df_new_batch['PLAYER_ID'].unique()
-            df_cached = df_cached[~df_cached['PLAYER_ID'].isin(upd_ids)]
+            # Remove antigos para atualizar (se a coluna PLAYER_ID existir)
+            if 'PLAYER_ID' in df_cached.columns:
+                upd_ids = df_new_batch['PLAYER_ID'].unique()
+                df_cached = df_cached[~df_cached['PLAYER_ID'].isin(upd_ids)]
         df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
     else:
         df_final = df_cached
 
-    # --- 3. SALVA NO SUPABASE ---
+    # --- 3. SALVA NO SUPABASE (COM A CORREÇÃO DE DUPLICATAS) ---
     if not df_final.empty:
+        # 1. Normaliza para Maiúsculo
         df_final.columns = [str(c).upper().strip() for c in df_final.columns]
         
-        # Converte para JSON puro
-        records = json.loads(df_final.to_json(orient="records", date_format="iso"))
-        payload = {
-            "records": records,
-            "count": len(records),
-            "last_update": datetime.now().isoformat()
-        }
+        # 2. REMOVE DUPLICATAS DE COLUNA (FIX DO ERRO)
+        # Isso remove colunas como "TEAM_ID" se ela aparecer 2 vezes
+        df_final = df_final.loc[:, ~df_final.columns.duplicated()]
         
-        if progress_ui: status_box.write("💾 Enviando para Supabase...")
-        
-        # CHAMA O SAVE UNIVERSAL (Sem arquivo local)
-        save_data_universal(KEY_L5, payload)
-        
-        if progress_ui:
-            status_box.update(label=f"✅ Sucesso! {len(df_final)} jogadores salvos na nuvem.", state="complete", expanded=False)
+        # 3. Converte para JSON puro
+        try:
+            records = json.loads(df_final.to_json(orient="records", date_format="iso"))
+            payload = {
+                "records": records,
+                "count": len(records),
+                "last_update": datetime.now().isoformat()
+            }
+            
+            if progress_ui: status_box.write("💾 Enviando para Supabase...")
+            save_data_universal(KEY_L5, payload)
+            
+            if progress_ui:
+                status_box.update(label=f"✅ Sucesso! {len(df_final)} jogadores salvos.", state="complete", expanded=False)
+        except Exception as e:
+            print(f"❌ Erro ao converter JSON L5: {e}")
+            if progress_ui: status_box.error(f"Erro JSON: {e}")
             
     return df_final
 # ============================================================================
@@ -8818,6 +8819,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
