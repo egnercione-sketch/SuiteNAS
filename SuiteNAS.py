@@ -7542,7 +7542,7 @@ def show_escalacoes():
                 st.error(f"Erro ao gerar insights: {e}")
 
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (V45.0 - HOSPITAL HUB ROBUSTO)
+# PÁGINA: DEPTO MÉDICO (V46.0 - JSON WRAPPER FIX)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -7558,14 +7558,13 @@ def show_depto_medico():
             text = str(text)
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
             text = text.upper().strip()
-            # Remove sufixos comuns
             for suffix in [" JR.", " SR.", " III", " II", " IV"]:
                 if text.endswith(suffix):
                     text = text.replace(suffix, "")
             return text.strip()
         except: return ""
 
-    # --- 2. CSS ESTILIZADO (VISUAL UTI) ---
+    # --- 2. CSS ESTILIZADO ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
@@ -7574,7 +7573,6 @@ def show_depto_medico():
         .bio-header { border-bottom: 1px solid #334155; margin-bottom: 20px; padding-bottom: 10px; }
         .bio-title { font-family: 'Oswald'; font-size: 28px; color: #fff; margin: 0; letter-spacing: 1px; }
         
-        /* Card do Hospital Ward (Topo - Estrelas) */
         .hosp-card {
             background: #0f172a; border-radius: 8px; overflow: hidden; height: 100%;
             border: 1px solid #334155; display: flex; flex-direction: column;
@@ -7590,7 +7588,6 @@ def show_depto_medico():
         .hc-name { color: #fff; font-weight: bold; font-size: 15px; font-family:'Oswald'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
         .hc-meta { color: #94a3b8; font-size: 11px; font-family: 'Inter'; margin-top: 2px; }
 
-        /* Lista Geral (Baixo) */
         .list-row {
             display: flex; align-items: center; justify-content: space-between;
             background: rgba(30, 41, 59, 0.4); border-bottom: 1px solid #334155;
@@ -7610,73 +7607,66 @@ def show_depto_medico():
 
     st.markdown('<div class="bio-header"><h1 class="bio-title">🚑 HOSPITAL HUB <span style="font-size:14px; color:#ef4444; margin-left:10px;">LIVE MONITOR</span></h1></div>', unsafe_allow_html=True)
 
-    # --- 3. FETCH E PROCESSAMENTO DE DADOS (SUPABASE ROBUSTO) ---
-    # Tenta pegar a fonte oficial 'injuries'
+    # --- 3. FETCH E PROCESSAMENTO (CORREÇÃO DO WRAPPER "TEAMS") ---
     raw_data = get_data_universal('injuries')
-    # Fallback para caches antigos se falhar
     if not raw_data: raw_data = get_data_universal('injuries_data')
     if not raw_data: raw_data = st.session_state.get('injuries_data', [])
 
     if not raw_data:
-        st.info("ℹ️ Nenhuma atualização de lesão encontrada no momento.")
+        st.info("ℹ️ Nenhuma atualização de lesão encontrada.")
         return
 
-    # Flattening data (lida com qualquer estrutura)
+    # >>> FIX: DESEMBRULHA O JSON SE TIVER A CHAVE "TEAMS" <<<
+    if isinstance(raw_data, dict) and 'teams' in raw_data:
+        raw_data = raw_data['teams']
+
+    # Flattening data
     injuries_flat = []
     stack = [raw_data]
     
     while stack:
         curr = stack.pop()
         if isinstance(curr, list):
-            # Se for uma lista de dicionários com 'player', é dado real
-            if curr and isinstance(curr[0], dict) and ('player' in curr[0] or 'name' in curr[0]):
+            # Verifica se é lista de objetos de lesão
+            if curr and isinstance(curr[0], dict) and ('name' in curr[0] or 'player' in curr[0]):
                 injuries_flat.extend(curr)
             else:
                 stack.extend(curr)
         elif isinstance(curr, dict):
-            # Se for dicionário, extrai os valores (que podem ser listas)
             for k, v in curr.items():
-                # Dica de time (ex: "LAL": [...])
                 hint = k if len(k) <= 3 and k.isupper() else None
                 if isinstance(v, list):
                     for item in v:
                         if isinstance(item, dict): 
-                            if hint: item['_hint'] = hint # Guarda a chave como dica de time
+                            if hint: item['_hint'] = hint
                             # Padroniza chaves
                             if 'name' in item and 'player' not in item: item['player'] = item['name']
                             if 'status' not in item and 'notes' in item: item['status'] = 'Unknown'
                     stack.append(v)
+                elif isinstance(v, dict):
+                    # Se for dict aninhado, joga no stack também
+                    stack.append(v)
 
-    # --- 4. ENRIQUECIMENTO COM FOTOS E DADOS DA L5 ---
+    # --- 4. MAPA DE FOTOS E DADOS (L5) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    
-    PHOTO_MAP = {}
-    TEAM_MAP = {}
-    MIN_MAP = {}
+    PHOTO_MAP, TEAM_MAP, MIN_MAP = {}, {}, {}
 
     if not df_l5.empty:
         try:
-            # Cria mapa robusto
             df_norm = df_l5.copy()
-            # Padroniza colunas
             df_norm.columns = [str(c).upper().strip() for c in df_norm.columns]
             
-            # Identifica colunas
             c_player = 'PLAYER' if 'PLAYER' in df_norm.columns else 'PLAYER_NAME'
             c_id = 'PLAYER_ID' if 'PLAYER_ID' in df_norm.columns else 'ID'
             c_team = 'TEAM' if 'TEAM' in df_norm.columns else 'TEAM_ABBREVIATION'
             c_min = 'MIN_AVG' if 'MIN_AVG' in df_norm.columns else 'MIN'
 
-            # Normaliza nome para chave
             df_norm['KEY'] = df_norm[c_player].apply(normalize_key)
-            # Remove duplicatas e zeros
             df_norm = df_norm[df_norm[c_id] != 0].drop_duplicates(subset=['KEY'])
             
-            # Preenche mapas
             PHOTO_MAP = dict(zip(df_norm['KEY'], df_norm[c_id]))
             TEAM_MAP = dict(zip(df_norm['KEY'], df_norm[c_team]))
             
-            # Minutos (trata erro de conversão)
             df_norm[c_min] = pd.to_numeric(df_norm[c_min], errors='coerce').fillna(0)
             MIN_MAP = dict(zip(df_norm['KEY'], df_norm[c_min]))
         except: pass
@@ -7689,49 +7679,45 @@ def show_depto_medico():
         raw_name = p.get('player') or p.get('name') or "Unknown"
         if raw_name == "Unknown": continue
 
-        # Normaliza
         key = normalize_key(raw_name)
         if key in seen_players: continue
         seen_players.add(key)
 
-        # Busca Dados Enriquecidos
+        # Dados Enriquecidos
         pid = PHOTO_MAP.get(key, 0)
         real_team = TEAM_MAP.get(key, "UNK")
         real_min = MIN_MAP.get(key, 0.0)
 
-        # Se não achou ID direto, tenta sobrenome (Fallback)
+        # Fallback Sobrenome
         if pid == 0:
             parts = raw_name.split()
             if len(parts) > 1:
                 last_key = normalize_key(parts[-1])
                 pid = PHOTO_MAP.get(last_key, 0)
-                if pid > 0: # Se achou pelo sobrenome, usa dados dele
+                if pid > 0:
                     real_team = TEAM_MAP.get(last_key, "UNK")
                     real_min = MIN_MAP.get(last_key, 0.0)
 
-        # Fallback de Time (se veio da API de lesão)
+        # Fallback Team
         if real_team == "UNK":
             real_team = str(p.get('_hint') or p.get('team') or "UNK").upper()
 
-        # Classificação de Impacto
+        # Impacto
         impact = 0
         if real_min >= 28: impact = 2 # Estrela
         elif real_min >= 15: impact = 1 # Rotação
 
-        # Status Padronizado
+        # Status
         status_raw = str(p.get('status', '')).upper()
         if "OUT" in status_raw: status_code = "OUT"
-        elif any(x in status_raw for x in ["GTD", "QUEST", "DOUBT"]): status_code = "GTD"
-        elif "DAY" in status_raw: status_code = "DTD"
-        else: status_code = "INFO"
+        elif any(x in status_raw for x in ["GTD", "QUEST", "DOUBT", "DAY"]): status_code = "GTD"
+        else: status_code = "DTD"
 
-        # Descrição Limpa
-        desc = p.get('description') or p.get('details') or p.get('return_date') or ""
-        desc = re.sub(r'<[^>]*>', '', str(desc)) # Remove HTML
+        # Descrição
+        desc = p.get('details') or p.get('description') or p.get('notes') or ""
+        desc = re.sub(r'<[^>]*>', '', str(desc))
 
-        # Filtro de Relevância (Ignora "Available" puro)
-        if "AVAILABLE" in status_raw and "NOT" not in status_raw:
-            continue
+        if "AVAILABLE" in status_raw and "NOT" not in status_raw: continue
 
         final_roster.append({
             "name": raw_name,
@@ -7743,30 +7729,29 @@ def show_depto_medico():
             "desc": desc
         })
 
-    # --- 6. RENDERIZAÇÃO: UTI DE ESTRELAS (TOPO) ---
-    ward_stars = [x for x in final_roster if x['impact'] == 2 and x['status'] in ['OUT', 'GTD']]
+    # --- 6. RENDERIZAÇÃO: UTI DE ESTRELAS ---
+    # Mostra apenas impacto 2 (Estrelas)
+    ward_stars = [x for x in final_roster if x['impact'] == 2]
     
     if ward_stars:
         st.markdown(f"""
         <div style="background:rgba(239, 68, 68, 0.1); border:1px solid #ef4444; border-radius:8px; padding:10px; margin-bottom:20px;">
-            <div style="color:#ef4444; font-family:'Oswald'; font-size:16px; margin-bottom:10px;">🚨 URGENTE: ESTRELAS FORA OU DÚVIDA</div>
+            <div style="color:#ef4444; font-family:'Oswald'; font-size:16px; margin-bottom:10px;">🚨 URGENTE: ESTRELAS IMPACTADAS</div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Grid Responsivo
         cols = st.columns(4)
         for i, star in enumerate(ward_stars):
             col = cols[i % 4]
             with col:
                 color = "#ef4444" if star['status'] == "OUT" else "#f97316"
                 
-                # Foto com Fallback Híbrido (NBA -> ESPN -> Boneco)
+                # FOTO HÍBRIDA (NBA/ESPN/FALLBACK)
                 pid = int(star['id'])
                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
                 espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
                 fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 
-                # HTML de Imagem Inteligente
                 img_html = f"""<img src="{nba_url}" class="hc-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
                 if pid == 0: img_html = f"""<img src="{fallback_url}" class="hc-img">"""
 
@@ -7793,7 +7778,6 @@ def show_depto_medico():
         if t not in teams_dict: teams_dict[t] = []
         teams_dict[t].append(p)
 
-    # Ordena times por Gravidade (Soma de impacto dos lesionados)
     sorted_teams = sorted(teams_dict.items(), key=lambda item: sum(x['impact'] for x in item[1]), reverse=True)
 
     row_cols = st.columns(2)
@@ -7802,8 +7786,6 @@ def show_depto_medico():
         
         with row_cols[idx % 2]:
             impact_score = sum(p['impact'] for p in players)
-            
-            # Cor do Header baseada na gravidade
             header_color = "#ef4444" if impact_score >= 4 else ("#f97316" if impact_score >= 2 else "#3b82f6")
             
             st.markdown(f"""
@@ -7813,11 +7795,9 @@ def show_depto_medico():
             </div>
             """, unsafe_allow_html=True)
 
-            # Ordena jogadores do time (Impacto > Status)
             players.sort(key=lambda x: (x['impact'], 1 if x['status']=='OUT' else 0), reverse=True)
 
             for p in players:
-                # Foto Lista
                 pid = int(p['id'])
                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
                 fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
@@ -8798,6 +8778,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
