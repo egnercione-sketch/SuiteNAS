@@ -1,13 +1,15 @@
-# injuries.py — OFF RADAR v52.0 (BACK TO BASICS + CLOUD)
-# Módulo Híbrido: Lógica confiável da v47 + Salvamento em Nuvem.
-# FIXED: Usa API JSON (mais estável que HTML).
-# FIXED: Integração direta com db_manager para Supabase.
+# injuries.py — OFF RADAR v52.1 (REFINED & ROBUST)
+# Módulo Híbrido: Lógica confiável + Salvamento em Nuvem + Anti-Block.
+# FIXED: Adicionado Delay para evitar bloqueio de IP da ESPN.
+# FIXED: Matching de nomes mais flexível (Fuzzy Logic simples).
 
 import os
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import requests
+import unicodedata
+import re
 
 # Tenta importar o gerenciador de banco
 try:
@@ -16,16 +18,14 @@ except ImportError:
     db = None
     print("⚠️ [Injuries] db_manager não encontrado. Rodando em modo local.")
 
-# Ajuste conforme seu projeto
+# Configurações de Diretório
 BASE_DIR = os.path.dirname(__file__)
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Default path
 DEFAULT_CACHE_FILE = os.path.join(CACHE_DIR, "injuries_cache_v44.json")
-CACHE_TTL_HOURS = 3
 
-# HEADERS DE NAVEGADOR (Anti-Bloqueio)
+# HEADERS (Anti-Bloqueio)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
@@ -33,38 +33,29 @@ HEADERS = {
     "Origin": "https://www.espn.com"
 }
 
-# --- MAPA DE TRADUÇÃO (NBA STANDARD -> ESPN URL CODE) ---
+# MAPA: NBA STANDARD -> ESPN URL CODE
 NBA_TO_ESPN_MAP = {
-    "UTA": "utah", "UTAH": "utah",
-    "NOP": "no", "NO": "no",
-    "NYK": "ny", "NY": "ny",
-    "GSW": "gs", "GS": "gs",
-    "SAS": "sa", "SA": "sa",
-    "PHX": "pho", "PHO": "pho",
-    "WAS": "wsh", "WSH": "wsh",
-    "BKN": "bkn", "BRK": "bkn"
+    "UTA": "utah", "UTAH": "utah", "NOP": "no", "NO": "no",
+    "NYK": "ny", "NY": "ny", "GSW": "gs", "GS": "gs",
+    "SAS": "sa", "SA": "sa", "PHX": "pho", "PHO": "pho",
+    "WAS": "wsh", "WSH": "wsh", "BKN": "bkn", "BRK": "bkn"
 }
 
-# --- MAPA DE RETORNO (ESPN -> NBA STANDARD) ---
+# MAPA INVERSO: ESPN -> NBA STANDARD
 ESPN_TO_NBA_STANDARD = {
-    "utah": "UTA", "UTAH": "UTA",
-    "gs": "GSW", "GS": "GSW",
-    "no": "NOP", "NO": "NOP",
-    "ny": "NYK", "NY": "NYK",
-    "sa": "SAS", "SA": "SAS",
-    "pho": "PHX", "PHO": "PHX",
-    "wsh": "WAS", "WSH": "WAS"
+    "utah": "UTA", "gs": "GSW", "no": "NOP", "ny": "NYK",
+    "sa": "SAS", "pho": "PHX", "wsh": "WAS"
 }
 
 def normalize_name(n: str) -> str:
-    import re, unicodedata
+    """Normaliza nomes removendo acentos, sufixos e pontuação."""
     if not n: return ""
     n = str(n).lower()
     n = n.replace(".", " ").replace(",", " ").replace("-", " ")
+    # Remove sufixos comuns
     n = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", n)
     n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
-    n = " ".join(n.split())
-    return n
+    return " ".join(n.split())
 
 def save_json(path, obj):
     try:
@@ -82,31 +73,31 @@ class InjuryMonitor:
     def __init__(self, cache_file=None):
         self.cache_path = cache_file if cache_file else DEFAULT_CACHE_FILE
         self.cache = self._load_cache()
+        
+        # Garante estrutura mínima
+        if "teams" not in self.cache:
+            self.cache["teams"] = {}
 
     def _load_cache(self):
-        """
-        Estratégia Cloud-First:
-        1. Tenta Supabase.
-        2. Se falhar, tenta arquivo local.
-        """
-        # 1. Tenta Nuvem
+        """Estratégia Cloud-First com Fallback Local."""
+        # 1. Tenta Nuvem (Supabase)
         if db:
             try:
                 cloud_data = db.get_data("injuries")
-                if cloud_data and "teams" in cloud_data:
-                    # print("☁️ [Injuries] Cache carregado do Supabase.")
+                if cloud_data and isinstance(cloud_data, dict) and "teams" in cloud_data:
                     return cloud_data
             except Exception as e:
-                print(f"⚠️ Erro leitura nuvem: {e}")
+                print(f"⚠️ [InjuryMonitor] Falha leitura nuvem: {e}")
 
         # 2. Tenta Local
         data = load_json(self.cache_path)
         return data if data else {"updated_at": None, "teams": {}}
 
     def fetch_injuries_for_team(self, team_abbr):
-        """
-        Busca lesões de UM time específico (Lógica v47).
-        """
+        """Busca lesões na API da ESPN."""
+        # Delay de segurança (Anti-Throttle)
+        time.sleep(0.2)
+        
         espn_code = NBA_TO_ESPN_MAP.get(team_abbr.upper(), team_abbr.lower())
         url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{espn_code}/roster"
         
@@ -116,23 +107,23 @@ class InjuryMonitor:
                 data = r.json()
                 team_injuries = []
                 
-                # Busca recursiva de atletas
+                # Busca recursiva de atletas no JSON aninhado
                 athletes = self._extract_list_recursive(data)
 
                 for ath in athletes:
-                    # Verifica lesões
                     inj = ath.get("injuries", [])
                     status_generic = ath.get("status", {}).get("type", {}).get("name", "")
                     
-                    # Se tiver lista de injuries OU status não for Active
+                    # Lógica de Detecção de Lesão
                     is_hurt = False
                     st_lower = str(status_generic).lower()
 
                     if inj: is_hurt = True
                     elif status_generic and "active" not in st_lower: is_hurt = True
-                    elif "day" in st_lower or "quest" in st_lower or "doubt" in st_lower: is_hurt = True
+                    elif any(x in st_lower for x in ["day", "quest", "doubt", "out"]): is_hurt = True
 
                     if is_hurt:
+                        # Prioriza info específica da lesão, senão usa status genérico
                         status_txt = status_generic
                         details = ""
                         date_str = datetime.now().strftime("%Y-%m-%d")
@@ -151,41 +142,46 @@ class InjuryMonitor:
                             "date": date_str
                         })
                 
-                # Atualiza Cache em Memória
+                # Normaliza sigla para padrão NBA e salva
                 nba_std = ESPN_TO_NBA_STANDARD.get(espn_code.upper(), team_abbr.upper())
-                
-                if "teams" not in self.cache: self.cache["teams"] = {}
                 self.cache["teams"][nba_std] = team_injuries
-                
-                # OBS: Não salvamos na nuvem a cada time para não spammar o banco.
-                # O salvamento ocorre no final do loop no arquivo principal ou chamando save_cache()
                 return True
             else:
-                print(f"❌ Erro HTTP {r.status_code} para {team_abbr}")
+                print(f"❌ [InjuryMonitor] Erro HTTP {r.status_code} para {team_abbr}")
                 
         except Exception as e:
-            print(f"⚠️ Exception {team_abbr}: {e}")
+            print(f"⚠️ [InjuryMonitor] Exception {team_abbr}: {e}")
             return False
         
         return False
 
+    def update_all_teams(self, team_list):
+        """Atualiza a liga toda e salva uma vez no final."""
+        print(f"🔄 [InjuryMonitor] Atualizando {len(team_list)} times...")
+        count = 0
+        for team in team_list:
+            if self.fetch_injuries_for_team(team):
+                count += 1
+        
+        if count > 0:
+            self.save_cache()
+            return True
+        return False
+
     def save_cache(self):
-        """
-        Salva no Arquivo Local E na Nuvem.
-        """
+        """Salva Local e Nuvem."""
         self.cache["updated_at"] = datetime.now().isoformat()
         
         # 1. Local
         save_json(self.cache_path, self.cache)
         
-        # 2. Nuvem (Supabase)
+        # 2. Nuvem
         if db:
             try:
-                # print("☁️ [Injuries] Enviando para Supabase...")
                 db.save_data("injuries", self.cache)
-                print("✅ [Injuries] Salvo na nuvem com sucesso.")
+                # print("✅ [InjuryMonitor] Sincronizado com Supabase.")
             except Exception as e:
-                print(f"❌ [Injuries] Erro upload: {e}")
+                print(f"❌ [InjuryMonitor] Erro upload: {e}")
         
         return True
 
@@ -195,33 +191,31 @@ class InjuryMonitor:
     def get_all_injuries(self) -> dict:
         return self.cache.get("teams", {})
 
-    def is_player_out(self, player_name: str, team_abbr: str) -> bool:
-        name_norm = normalize_name(player_name)
-        team_list = self.get_team_injuries(team_abbr)
-        for item in team_list:
-            if item.get("name_norm") == name_norm:
-                st = str(item.get("status", "")).lower()
-                if "out" in st or "inj" in st: return True
-        return False
-
     def is_player_blocked(self, player_name: str, team_abbr: str) -> bool:
+        """
+        Verifica se o jogador está bloqueado (OUT, DOUBTFUL, ETC).
+        Usa Fuzzy Match: Se 'Luka' estiver na lista, bloqueia 'Luka Doncic'.
+        """
         name_norm = normalize_name(player_name)
         team_list = self.get_team_injuries(team_abbr)
+        
+        blocked_keywords = ['out', 'doubt', 'quest', 'day', 'injur', 'surg']
+        
         for item in team_list:
-            if name_norm in item.get("name_norm", "") or item.get("name_norm", "") in name_norm:
+            item_name = str(item.get("name_norm", ""))
+            
+            # Match flexível (um contém o outro)
+            if name_norm in item_name or item_name in name_norm:
                 st = str(item.get("status", "")).lower()
-                if any(x in st for x in ['out', 'doubt', 'quest', 'day']):
+                if any(x in st for x in blocked_keywords):
                     return True
         return False
 
     def _extract_list_recursive(self, data):
-        """Helper para achar lista de atletas em JSONs aninhados"""
+        """Encontra listas de atletas em JSONs complexos da ESPN."""
         if isinstance(data, dict):
-            # Prioridade para chaves conhecidas
-            if "athletes" in data and isinstance(data["athletes"], list):
-                return data["athletes"]
-            if "items" in data and isinstance(data["items"], list): # ESPN as vezes usa 'items'
-                return data["items"]
+            if "athletes" in data and isinstance(data["athletes"], list): return data["athletes"]
+            if "items" in data and isinstance(data["items"], list): return data["items"]
             
             for v in data.values():
                 res = self._extract_list_recursive(v)
