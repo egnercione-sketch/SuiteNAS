@@ -1,5 +1,5 @@
 # ============================================================================
-# DB MANAGER (VERSÃO OFICIAL SUPABASE - CORRIGIDA)
+# DB MANAGER (CORRIGIDO PARA LER SECRETS DIRETAS)
 # ============================================================================
 import streamlit as st
 from supabase import create_client, Client
@@ -9,24 +9,31 @@ class DatabaseHandler:
     def __init__(self):
         self.client = None
         self.connected = False
+        
+        # Tenta conectar usando as chaves configuradas
         try:
-            # Tenta pegar as credenciais do secrets
-            if "supabase" in st.secrets:
-                # Suporta tanto st.secrets["supabase"]["url"] quanto st.secrets["SUPABASE_URL"]
-                try:
-                    url = st.secrets["supabase"]["url"]
-                    key = st.secrets["supabase"]["key"]
-                except:
-                    url = st.secrets["SUPABASE_URL"]
-                    key = st.secrets["SUPABASE_KEY"]
-                
-                self.client: Client = create_client(url, key)
-                self.connected = True
-                print("🔌 Supabase (Handler) Conectado com Sucesso!")
+            # 1. Tenta ler chaves diretas (Formato que você está usando)
+            if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
+                url = st.secrets["SUPABASE_URL"]
+                key = st.secrets["SUPABASE_KEY"]
+            
+            # 2. Fallback: Tenta ler chaves aninhadas (Formato TOML [supabase])
+            elif "supabase" in st.secrets:
+                url = st.secrets["supabase"]["url"]
+                key = st.secrets["supabase"]["key"]
+            
             else:
-                print("⚠️ Secrets do Supabase não encontrados.")
+                print("⚠️ Secrets do Supabase NÃO encontradas. Configure SUPABASE_URL e SUPABASE_KEY.")
+                return
+
+            # Cria o cliente
+            self.client: Client = create_client(url, key)
+            self.connected = True
+            print("🔌 Supabase Conectado com Sucesso!")
+            
         except Exception as e:
-            print(f"❌ Erro ao conectar Supabase: {e}")
+            print(f"❌ Erro Crítico ao conectar Supabase: {e}")
+            self.connected = False
 
     def get_data(self, key):
         """Busca o valor JSON dentro da tabela app_cache pela chave"""
@@ -54,17 +61,19 @@ class DatabaseHandler:
                 "value": value,
                 "last_updated": datetime.now().isoformat()
             }
-            # UPSERT (Atualiza se existir, cria se não existir)
+            # UPSERT
             self.client.table("app_cache").upsert(payload).execute()
             return True
         except Exception as e:
             print(f"❌ Erro Supabase Save: {e}")
             raise e
 
-# Instância única para ser importada
+# Instância única para ser importada pelo SuiteNAS.py
 try:
     db = DatabaseHandler()
     if not db.connected:
+        print("⚠️ Aviso: DatabaseHandler falhou na inicialização.")
         db = None
-except:
+except Exception as e:
+    print(f"❌ Erro fatal ao instanciar DatabaseHandler: {e}")
     db = None
