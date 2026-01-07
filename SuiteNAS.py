@@ -5025,10 +5025,15 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
         time.sleep(delay*(attempt+1))
     return None
 
-def get_players_l5(progress_ui=True):
+# ============================================================================
+# FUNÇÃO REVISADA: GET PLAYERS L5 (COM FORCE UPDATE + CORREÇÃO DECIMAL)
+# ============================================================================
+def get_players_l5(progress_ui=True, force_update=False):
     """
-    Baixa estatísticas L5 em PARALELO (Turbo Mode 🚀).
-    Usa 8 threads simultâneas para reduzir o tempo de horas para minutos.
+    Baixa estatísticas L5 (Últimos 5 Jogos).
+    
+    force_update=True -> Ignora o cache e baixa tudo do zero (Para o botão Atualizar).
+    force_update=False -> Só baixa jogadores novos que não estão na lista (Para carregamento rápido).
     """
     from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog
@@ -5037,56 +5042,66 @@ def get_players_l5(progress_ui=True):
     import json
     import pandas as pd
     
-    # --- CONFIGURAÇÕES TURBO ---
-    MAX_WORKERS = 8       # Baixa 8 jogadores ao mesmo tempo (Seguro para NBA.com)
-    BATCH_SAVE_SIZE = 20  # Salva no Supabase a cada 20 jogadores prontos
-    
-    # 1. Carrega o que já temos na Nuvem
+    # Configurações
+    SEASON_CURRENT = "2024-25" 
+    MAX_WORKERS = 8 
+    BATCH_SAVE_SIZE = 20 
+    KEY_L5 = "l5_stats" # Nome da chave no Supabase
+
+    # 1. Carrega o Cache Atual (se não for forçar update)
     df_cached = pd.DataFrame()
-    cloud_data = get_data_universal(KEY_L5) # Usa sua chave definida no inicio
+    if not force_update:
+        cloud_data = get_data_universal(KEY_L5)
+        if cloud_data and "records" in cloud_data:
+            try:
+                df_cached = pd.DataFrame.from_records(cloud_data["records"])
+            except: pass
     
-    if cloud_data and "records" in cloud_data:
-        try:
-            df_cached = pd.DataFrame.from_records(cloud_data["records"])
-            if not df_cached.empty and "PLAYER_ID" in df_cached.columns:
-                df_cached["PLAYER_ID"] = df_cached["PLAYER_ID"].astype(int)
-        except: pass
-
-    # 2. Identifica Pendentes
-    existing_ids = set()
-    if not df_cached.empty:
-        existing_ids = set(df_cached["PLAYER_ID"].unique())
-
+    # 2. Define quem precisa ser baixado
     act_players = players.get_active_players()
-    # Filtra quem falta
-    pending_players = [p for p in act_players if p['id'] not in existing_ids]
     
+    # Se force_update é True, pendentes = TODOS. Se não, apenas os novos.
+    if force_update:
+        pending_players = act_players
+        df_cached = pd.DataFrame() # Zera o cache para reconstruir limpo
+        if progress_ui: st.toast("🔄 Modo Forçado: Baixando TODOS os jogadores...", icon="🚀")
+    else:
+        existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty and "PLAYER_ID" in df_cached.columns else set()
+        pending_players = [p for p in act_players if p['id'] not in existing_ids]
+
     total_needed = len(pending_players)
-    total_already = len(existing_ids)
     
     if total_needed == 0:
-        if progress_ui: st.success(f"✅ Todos os {total_already} jogadores já estão na nuvem!")
+        if progress_ui: st.success(f"✅ Base L5 já está atualizada ({len(df_cached)} registros).")
         return df_cached
 
     # 3. UI
     if progress_ui:
-        status_box = st.status(f"🚀 Iniciando Lote L5 TURBO (8x Rápido)...", expanded=True)
+        status_box = st.status(f"🚀 Baixando L5 ({total_needed} jogadores)...", expanded=True)
         p_bar = status_box.progress(0)
         metric_ph = status_box.empty()
     
-    # Função auxiliar para ser rodada em paralelo
+    # Função Worker
     def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
-            # Tenta baixar o log (Retry simples interno)
-            time.sleep(0.1) # Pequena pausa para não tomar block
-            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON, season_type_all_star="Regular Season", timeout=10)
+            time.sleep(0.05) 
+            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=10)
             df = log.get_data_frames()[0]
+            
             if not df.empty:
-                # Pega só os últimos 5 jogos
+                # Pega últimos 5
                 df_l5 = df.head(5).copy()
-                # Adiciona metadados
+                
+                # === SANITIZAÇÃO DE INTEIROS (Igual ao real_game_logs) ===
+                # Garante que PTS, REB, etc sejam inteiros puros (19) e não float (19.0)
+                int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FGM', 'FG3M', 'FG3A', 'TOV', 'PF']
+                for col in int_cols:
+                    if col in df_l5.columns:
+                        df_l5[col] = df_l5[col].fillna(0).astype('int64') # Força Inteiro
+
+                # Metadados
                 df_l5['PLAYER_NAME'] = pname
                 df_l5['PLAYER_ID'] = pid
                 return df_l5
@@ -5094,13 +5109,11 @@ def get_players_l5(progress_ui=True):
             return None
         return None
 
-    # 4. O MOTOR PARALELO
+    # 4. Execução Paralela
     df_new_batch = pd.DataFrame()
     results_count = 0
     
-    # Gerenciador de Threads
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Mapeia cada jogador para uma tarefa futura
         future_to_player = {executor.submit(fetch_one_player, p): p for p in pending_players}
         
         for i, future in enumerate(concurrent.futures.as_completed(future_to_player)):
@@ -5111,44 +5124,35 @@ def get_players_l5(progress_ui=True):
             
             results_count += 1
             
-            # Atualiza UI
             if progress_ui:
                 pct = (i + 1) / total_needed
                 p_bar.progress(min(pct, 1.0))
-                metric_ph.write(f"⚡ Processando: {results_count}/{total_needed} jogadores... (Coletados: {len(df_new_batch)})")
+                metric_ph.write(f"Processando: {results_count}/{total_needed}")
 
-            # 5. CHECKPOINT DE SALVAMENTO (Incremental)
-            if results_count % BATCH_SAVE_SIZE == 0:
-                # Junta o antigo (df_cached) com o novo (df_new_batch)
-                df_total_now = pd.concat([df_cached, df_new_batch], ignore_index=True)
-                
-                # Sanitização JSON (Aquela correção que fizemos antes)
-                records_sanitized = json.loads(df_total_now.to_json(orient="records", date_format="iso"))
-                
-                json_payload = {
-                    "records": records_sanitized,
-                    "timestamp": datetime.now().isoformat(),
-                    "count": len(df_total_now)
-                }
-                
-                # Salva sem bloquear a UI
-                if save_data_universal(KEY_L5, json_payload):
-                     if progress_ui: status_box.write(f"💾 Checkpoint: {len(df_total_now)} salvos na nuvem.")
+            # Salva parciais (Checkpoint) a cada 50 para não perder tudo se cair
+            if results_count % 50 == 0:
+                df_partial = pd.concat([df_cached, df_new_batch], ignore_index=True)
+                # Converte para JSON compatível
+                records = json.loads(df_partial.to_json(orient="records", date_format="iso"))
+                save_data_universal(KEY_L5, {"records": records})
 
-    # 6. Salvamento Final
+    # 5. Finalização
     df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
-    records_sanitized = json.loads(df_final.to_json(orient="records", date_format="iso"))
     
-    json_payload = {
-        "records": records_sanitized,
+    # Sanitiza NaN para None (JSON Standard)
+    records_final = json.loads(df_final.to_json(orient="records", date_format="iso"))
+    
+    payload = {
+        "records": records_final,
         "timestamp": datetime.now().isoformat(),
         "count": len(df_final)
     }
-    save_data_universal(KEY_L5, json_payload)
+    
+    save_data_universal(KEY_L5, payload)
     
     if progress_ui:
-        status_box.update(label=f"✅ Turbo Finalizado! Total: {len(df_final)} jogadores.", state="complete", expanded=False)
-            
+        status_box.update(label=f"✅ L5 Atualizado! Total de linhas: {len(df_final)}", state="complete", expanded=False)
+        
     return df_final
 
 # ============================================================================
@@ -5291,32 +5295,28 @@ def show_config_page():
     render_mini_status(c4, "Auditoria", audit_ok)
     st.markdown("---")
 
-    # ==============================================================================
-    # 2. AÇÕES DE DADOS
-    # ==============================================================================
-    st.subheader("🔄 Sincronização de Dados")
-    col_act1, col_act2 = st.columns(2)
-    
-    with col_act1:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**1. Estatísticas & Jogadores**")
-        
-if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
+# --- BOTÃO DE ATUALIZAÇÃO GERAL ---
+        if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
             try:
-                # 1. Atualiza Médias L5 (Rápido)
-                st.write("📊 Calculando médias L5...")
-                new_l5 = get_players_l5(progress_ui=True)
+                # 1. Atualiza Médias L5 (Forçando Update)
+                # O force_update=True é CRUCIAL: ele ignora o cache antigo e baixa tudo fresco da NBA.
+                st.write("📊 Baixando TODOS os dados L5 (Atualizando médias recentes)...")
+                new_l5 = get_players_l5(progress_ui=True, force_update=True)
                 st.session_state.df_l5 = new_l5
                 
-                # 2. Atualiza Logs Brutos (Lento e Pesado -> Agora corrigido)
-                st.write("📝 Baixando Logs Detalhados (Correção Int)...")
+                # 2. Atualiza Logs Brutos (Com a correção do Bug 19.0)
+                # Baixa os logs detalhados, limpa os decimais e envia pro Supabase.
+                st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
                 fetch_and_upload_real_game_logs(progress_ui=True)
                 
-                st.success("✅ Tudo atualizado! Inteiros corrigidos.")
+                # 3. Finalização
+                st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
                 time.sleep(2)
                 st.rerun()
+                
             except Exception as e:
-                st.error(f"Erro no processo: {e}")
+                st.error(f"❌ Erro crítico no processo: {e}")
+                print(f"Erro Update Full: {e}")
                         
 # --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
@@ -8586,6 +8586,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
