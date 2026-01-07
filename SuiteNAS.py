@@ -413,7 +413,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
     
     # --- CORREÇÃO AQUI ---
     SEASON_CURRENT = "2025-26"  # <--- ALTERADO PARA A TEMPORADA ATUAL
-    MAX_WORKERS = 8 
+    MAX_WORKERS = 30 
     
     # 2. Obter lista de jogadores ativos
     try:
@@ -8549,7 +8549,7 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (VISUAL DO MENU AJUSTADO)
+# EXECUÇÃO PRINCIPAL (VISUAL DO MENU CORRIGIDO - ALTO CONTRASTE)
 # ============================================================================
 def main():
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
@@ -8592,8 +8592,8 @@ def main():
                 
                 /* --- AQUI ESTÁ A CORREÇÃO DE VISIBILIDADE --- */
                 font-size: 0.95rem !important;
-                color: #ffffff !important; /* Antes era #cbd5e1 (cinza), agora é BRANCO */
-                font-weight: 500 !important; /* Um pouco mais encorpado para ler melhor no preto */
+                color: #ffffff !important; /* MUDADO PARA BRANCO PURO */
+                font-weight: 500 !important; /* AUMENTADO O PESO PARA LEGIBILIDADE */
                 /* -------------------------------------------- */
                 
                 border-radius: 8px !important;
@@ -8613,7 +8613,7 @@ def main():
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
 
             /* 6. SEPARADORES DE MENU (CSS INDEXING - TITULOS MAIS CLAROS) */
-            /* Clareamos também os títulos (ex: #94a3b8) para não sumirem no preto */
+            /* Clareamos os títulos para #94a3b8 (Slate-400) para aparecerem no fundo preto */
             
             div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
@@ -8680,119 +8680,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                
