@@ -1859,92 +1859,6 @@ def show_momentum_page():
                 
 
 # ============================================================================
-# TRINITY CLUB ENGINE v6 (MULTI-WINDOW SUPPORT)
-# ============================================================================
-
-class TrinityEngine:
-    def __init__(self, logs_cache, games):
-        self.logs = logs_cache
-        self.games_map = self._map_games(games)
-        
-    def _normalize_team(self, team_code):
-        mapping = {
-            "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
-            "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"
-        }
-        return mapping.get(team_code, team_code)
-
-    def _map_games(self, games):
-        mapping = {}
-        for g in games:
-            home = self._normalize_team(g.get('home'))
-            away = self._normalize_team(g.get('away'))
-            gid = g.get('game_id') or g.get('id') or "UNK"
-            if home and away:
-                mapping[home] = {"opp": away, "is_home": True, "game_str": f"{away} @ {home}", "game_id": gid}
-                mapping[away] = {"opp": home, "is_home": False, "game_str": f"{away} @ {home}", "game_id": gid}
-        return mapping
-
-    def scan_market(self, window=10):
-        """
-        Escaneia o mercado com uma janela temporal específica (L5, L10, L15).
-        """
-        candidates = []
-        if not self.logs: return []
-
-        for player_name, data in self.logs.items():
-            raw_team = data.get('team')
-            if not raw_team: continue
-            team = self._normalize_team(raw_team)
-            if team not in self.games_map: continue
-            
-            logs = data.get('logs', {})
-            if not logs: continue
-            ctx = self.games_map[team]
-            
-            for stat in ['PTS', 'REB', 'AST']:
-                values = logs.get(stat, [])
-                if len(values) < window: continue 
-                
-                # --- LÓGICA DE JANELA TEMPORAL ---
-                current_window_values = values[:window]
-                
-                # O Piso da Janela (Forma)
-                floor_form = min(current_window_values)
-                
-                # Proxies para Venue e H2H baseados na Janela Atual
-                # (Idealmente seriam filtrados, mas mantemos a heurística conservadora que funcionou)
-                floor_venue = floor_form 
-                floor_h2h = int(floor_form * 0.9)
-                
-                # Piso de Segurança Final
-                safe_floor = min(floor_form, floor_venue, floor_h2h)
-                
-                # Filtros Mínimos de Relevância
-                min_req = 10 if stat == 'PTS' else 4
-                
-                if safe_floor >= min_req:
-                    candidates.append({
-                        "player": player_name,
-                        "team": raw_team,
-                        "opp": ctx['opp'],
-                        "stat": stat,
-                        "line": safe_floor - 1, # Alvo Sugerido
-                        "floors": {
-                            "Form": floor_form,
-                            "Venue": floor_venue,
-                            "H2H": floor_h2h
-                        },
-                        "score": safe_floor,
-                        "game_str": ctx['game_str'],
-                        "game_id": ctx['game_id'],
-                        "window": f"L{window}"
-                    })
-                        
-        return sorted(candidates, key=lambda x: x['score'], reverse=True)
-
-
-# ============================================================================
 # CLASSE NEXUS ENGINE (v10.1 - SINTAXE CORRIGIDA & VARREDURA TOTAL)
 # ============================================================================
 import math
@@ -2220,7 +2134,7 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (V14.0 - PHOTO FIX & VISUAL UPGRADE)
+# PÁGINA: TRINITY CLUB (V14.1 - INTEGRATED ENGINE & PHOTO FIX)
 # ============================================================================
 def show_trinity_club_page():
     import os
@@ -2302,7 +2216,7 @@ def show_trinity_club_page():
         st.warning("Aguardando dados...")
         return
 
-    # Função de Normalização Robusta (Igual V31)
+    # Função de Normalização Robusta
     def normalize_key(text):
         if not text: return ""
         try:
@@ -2351,20 +2265,82 @@ def show_trinity_club_page():
                 except: continue
         except: pass
 
-    # --- 3. ENGINE TRIPLE SCAN ---
-    try:
-        if 'trinity_engine' not in st.session_state:
-            from modules.trinity_engine import TrinityEngine # Import tardio para evitar ciclo
-            st.session_state.trinity_engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
-        
-        engine = st.session_state.trinity_engine
-        
-        res_l5 = engine.scan_market(window=5)
-        res_l10 = engine.scan_market(window=10)
-        res_l15 = engine.scan_market(window=15)
-    except Exception as e:
-        st.error(f"Erro na Engine Trinity: {e}")
-        return
+    # --- 3. ENGINE TRIPLE SCAN (EMBUTIDA) ---
+    class TrinityEngine:
+        def __init__(self, logs_cache, games):
+            self.logs = logs_cache
+            self.games_map = self._map_games(games)
+            
+        def _normalize_team(self, team_code):
+            mapping = {
+                "NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS",
+                "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"
+            }
+            return mapping.get(team_code, team_code)
+
+        def _map_games(self, games):
+            mapping = {}
+            for g in games:
+                home = self._normalize_team(g.get('home'))
+                away = self._normalize_team(g.get('away'))
+                gid = g.get('game_id') or g.get('id') or "UNK"
+                if home and away:
+                    mapping[home] = {"opp": away, "is_home": True, "game_str": f"{away} @ {home}", "game_id": gid}
+                    mapping[away] = {"opp": home, "is_home": False, "game_str": f"{away} @ {home}", "game_id": gid}
+            return mapping
+
+        def scan_market(self, window=10):
+            candidates = []
+            if not self.logs: return []
+
+            for player_name, data in self.logs.items():
+                raw_team = data.get('team')
+                if not raw_team: continue
+                team = self._normalize_team(raw_team)
+                if team not in self.games_map: continue
+                
+                logs = data.get('logs', {})
+                if not logs: continue
+                ctx = self.games_map[team]
+                
+                for stat in ['PTS', 'REB', 'AST']:
+                    values = logs.get(stat, [])
+                    if len(values) < window: continue 
+                    
+                    current_window_values = values[:window]
+                    floor_form = min(current_window_values)
+                    floor_venue = floor_form 
+                    floor_h2h = int(floor_form * 0.9)
+                    safe_floor = min(floor_form, floor_venue, floor_h2h)
+                    
+                    min_req = 10 if stat == 'PTS' else 4
+                    
+                    if safe_floor >= min_req:
+                        candidates.append({
+                            "player": player_name,
+                            "team": raw_team,
+                            "opp": ctx['opp'],
+                            "stat": stat,
+                            "line": safe_floor - 1,
+                            "floors": {
+                                "Form": floor_form,
+                                "Venue": floor_venue,
+                                "H2H": floor_h2h
+                            },
+                            "score": safe_floor,
+                            "game_str": ctx['game_str'],
+                            "game_id": ctx['game_id'],
+                            "window": f"L{window}"
+                        })
+                            
+            return sorted(candidates, key=lambda x: x['score'], reverse=True)
+
+    # Executa Engine Local
+    engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
+    
+    res_l5 = engine.scan_market(window=5)
+    res_l10 = engine.scan_market(window=10)
+    res_l15 = engine.scan_market(window=15)
 
     # Consolidação
     games_dict = {}
@@ -8781,6 +8757,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
