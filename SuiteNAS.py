@@ -2577,115 +2577,382 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE
-# ============================================================================        
+# PÁGINA: NEXUS PAGE (DESIGN TÁTICO / HUD v2.0)
+# ============================================================================
 def show_nexus_page():
-    # Dados
+    # --- CSS TÁTICO ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        /* Título Principal */
+        .nexus-header {
+            text-align: center;
+            padding: 30px 0;
+            background: radial-gradient(circle at center, rgba(56, 189, 248, 0.1) 0%, rgba(0,0,0,0) 70%);
+            margin-bottom: 20px;
+        }
+        .nexus-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: #FFFFFF;
+            letter-spacing: 4px;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            margin: 0;
+            line-height: 1;
+        }
+        .nexus-subtitle {
+            font-family: 'JetBrains Mono', monospace;
+            color: #94A3B8;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+        .status-dot {
+            height: 8px; width: 8px;
+            background-color: #10B981;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #10B981;
+        }
+
+        /* Card HUD */
+        .hud-card {
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+            transition: transform 0.2s;
+        }
+        .hud-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Faixa Superior Colorida */
+        .hud-top-bar {
+            height: 4px;
+            width: 100%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Header do Card */
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .hud-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #E2E8F0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hud-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: bold;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #000;
+            border: 1px solid #334155;
+            color: #FBBF24;
+        }
+
+        /* Corpo do Card */
+        .hud-body {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        /* Colunas Internas */
+        .col-hero { flex: 1; display: flex; align-items: center; gap: 15px; }
+        .col-vs { width: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .col-target { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 15px; text-align: right; }
+
+        /* Imagens com Logo Sobreposto */
+        .avatar-container {
+            position: relative;
+            width: 70px;
+            height: 70px;
+        }
+        .player-img {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #334155;
+            background: #020617;
+        }
+        .team-logo-mini {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            width: 28px;
+            height: 28px;
+            background: #0f172a;
+            border-radius: 50%;
+            padding: 2px;
+            border: 1px solid #475569;
+        }
+
+        /* Textos */
+        .player-name {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.2rem;
+            color: white;
+            line-height: 1.1;
+        }
+        .player-role {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: #94A3B8;
+            text-transform: uppercase;
+        }
+
+        /* Stat Principal (O ALVO) */
+        .stat-box {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid; /* Cor definida inline */
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-align: center;
+            min-width: 100px;
+        }
+        .stat-val {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            line-height: 1;
+        }
+        .stat-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        /* Conector Central */
+        .vs-line {
+            height: 2px;
+            width: 100%;
+            background: repeating-linear-gradient(90deg, #334155, #334155 4px, transparent 4px, transparent 8px);
+            position: absolute;
+            top: 50%;
+            left: 0;
+            z-index: 0;
+        }
+        .vs-badge {
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: #94A3B8;
+            font-size: 0.7rem;
+            padding: 4px;
+            border-radius: 50%;
+            z-index: 1;
+            position: relative;
+            width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold;
+        }
+
+        /* Footer / Badges */
+        .hud-footer {
+            background: rgba(0,0,0,0.3);
+            padding: 10px 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            align-items: center;
+        }
+        .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .tag-green { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .tag-yellow { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .tag-red { background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .impact-score { margin-left: auto; font-family: 'Oswald'; color: #64748b; font-size: 0.9rem; }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 1. Dados
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
     
-    # Header
+    # 2. Header Nexus
     st.markdown("""
-    <div style="text-align: center; padding: 20px;">
-        <h1 style="color: white; font-size: 3rem; margin:0; font-family:sans-serif;">🧠 NEXUS INTELLIGENCE</h1>
-        <p style="color: #94a3b8; font-weight: bold; letter-spacing: 3px;">MODO PREDADOR • PRECISÃO CIRÚRGICA</p>
+    <div class="nexus-header">
+        <h1 class="nexus-title">NEXUS INTELLIGENCE</h1>
+        <div class="nexus-subtitle">
+            <span class="status-dot"></span>SYSTEM ONLINE • PREDADOR MODE ACTIVE
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     if not full_cache:
-        st.error("❌ Logs vazios.")
+        st.error("❌ Logs vazios. Sistema offline.")
         return
 
-    # Engine
+    # 3. Engine
     nexus = NexusEngine(full_cache, scoreboard or [])
-    min_score = st.sidebar.slider("🎚️ Score Mínimo", 50, 100, 60)
+    
+    # Filtro discreto
+    col_filter, _ = st.columns([1, 3])
+    with col_filter:
+        min_score = st.slider("🎚️ Sensibilidade do Radar (Score Mínimo)", 50, 100, 65)
 
     try:
         all_ops = nexus.run_nexus_scan()
         opportunities = [op for op in all_ops if op['score'] >= min_score]
     except Exception as e:
-        st.error(f"Erro no Scan: {e}")
+        st.error(f"Erro Crítico no Scan: {e}")
         return
 
     if not opportunities:
-        st.info("Nenhuma oportunidade encontrada.")
+        st.info("Nenhuma oportunidade tática identificada com os parâmetros atuais.")
         return
 
-    # Render
+    # 4. Renderização dos Cards (HUD)
     for op in opportunities:
         is_sgp = (op['type'] == 'SGP')
-        color = op['color']
-        icon = "⚡" if is_sgp else "🌪️"
+        color = op['color'] # Hex code vindo do nexus
+        icon = "⚡" if is_sgp else "🎯"
         
-        with st.container():
-            # Linha Topo
-            st.markdown(f"""<div style="border-top: 4px solid {color}; margin-top: 15px; margin-bottom: 5px;"></div>""", unsafe_allow_html=True)
-            
-            # Cabeçalho
-            c1, c2 = st.columns([3, 1])
-            c1.markdown(f"### {icon} {op['title']}")
-            c2.markdown(f"<div style='background:{color}; color:black; font-weight:bold; padding:5px; text-align:center; border-radius:5px;'>SCORE {op['score']}</div>", unsafe_allow_html=True)
-            
-            col_hero, col_mid, col_target = st.columns([1, 0.4, 1])
-            
-            # --- HEROI ---
-            with col_hero:
-                ci1, ci2 = st.columns([0.4, 1])
-                with ci1: st.image(op['hero']['logo'], width=40)
-                with ci2: st.image(op['hero']['photo'], width=70)
-                
-                st.markdown(f"**{op['hero']['name']}**")
-                st.caption(f"{op['hero'].get('role', op['hero'].get('status'))}")
-                
-                t_val = op['hero'].get('target', '')
-                t_stat = op['hero'].get('stat', '')
-                st.markdown(f"<div style='border:1px solid {color}; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{t_val}</b> {t_stat}</div>", unsafe_allow_html=True)
+        # Dados do Heroi
+        h_name = op['hero']['name']
+        h_role = op['hero'].get('role', 'PLAYER')
+        h_photo = op['hero']['photo']
+        h_logo = op['hero']['logo']
+        h_target = op['hero'].get('target', '-')
+        h_stat = op['hero'].get('stat', '')
 
-            # --- MEIO ---
-            with col_mid:
-                st.markdown("<br><br>", unsafe_allow_html=True)
-                if is_sgp:
-                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>🔗</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#94a3b8;'>{op.get('synergy_txt', '')}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='text-align:center; font-size:1.5rem;'>⚔️</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#f87171;'>VS DEFESA</div>", unsafe_allow_html=True)
-
-            # --- ALVO ---
-            with col_target:
-                if is_sgp:
-                    ci3, ci4 = st.columns([1, 0.4])
-                    with ci3: st.image(op['partner']['photo'], width=70)
-                    with ci4: st.image(op['partner']['logo'], width=40)
-                    
-                    st.markdown(f"**{op['partner']['name']}**")
-                    st.caption(f"{op['partner']['role']}")
-                    
-                    p_val = op['partner']['target']
-                    p_stat = op['partner']['stat']
-                    st.markdown(f"<div style='border:1px solid white; padding:2px; text-align:center; border-radius:5px; background:#1e293b;'><b>{p_val}</b> {p_stat}</div>", unsafe_allow_html=True)
-                else:
-                    cv1, cv2 = st.columns([0.4, 1])
-                    with cv1: st.image(op['villain']['logo'], width=40)
-                    with cv2: 
-                        st.markdown(f"**{op['villain']['name']}**")
-                        st.caption("Adversário")
-                    
-                    st.markdown(f"🚨 <span style='color:#f87171; font-weight:bold'>{op['villain']['status']}</span>", unsafe_allow_html=True)
-                    st.caption(f"Sem: {op['villain']['missing']}")
-
-            # --- RODAPÉ ---
-            st.divider()
-            if is_sgp:
-                st.caption(" | ".join([f"✅ {b}" for b in op['badges']]))
+        # Dados do Alvo (Direita)
+        if is_sgp:
+            t_name = op['partner']['name']
+            t_role = "PARCEIRO"
+            t_photo = op['partner']['photo']
+            t_logo = op['partner']['logo']
+            t_val = op['partner']['target']
+            t_stat_label = op['partner']['stat']
+            t_status_html = "" # Sem status de defesa pra parceiro
+            conn_icon = "🔗"
+        else:
+            t_name = op['villain']['name']
+            t_role = "DEFESA"
+            t_photo = op['villain']['logo'] # Usa logo grande pra defesa
+            t_logo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png" # Logo vazio ou do time
+            t_val = "VS"
+            t_stat_label = op['villain']['name'] # Nome do time no lugar do stat
+            conn_icon = "⚔️"
+            
+            # Status da Defesa (ex: Desfalcada)
+            missing = op['villain'].get('missing', '')
+            status_txt = op['villain'].get('status', '')
+            if status_txt:
+                t_status_html = f'<div style="color:#F87171; font-size:0.7rem; font-weight:bold; margin-top:4px;">🚨 {status_txt}</div>'
+                if missing: t_status_html += f'<div style="color:#64748b; font-size:0.65rem;">Sem: {missing}</div>'
             else:
-                l1, l2, l3 = st.columns(3)
-                for i, s in enumerate(op['ladder']):
-                    s = s.replace(":", "")
-                    if i==0: l1.info(s)
-                    if i==1: l2.success(s)
-                    if i==2: l3.warning(s)
-                st.caption(f"📉 {op['impact']}")
+                t_status_html = ""
+
+        # Badges do Footer
+        badges_html = ""
+        if is_sgp:
+            for b in op['badges']:
+                badges_html += f'<span class="tag tag-yellow">{b}</span>'
+        else:
+            # Ladder Colorida
+            colors = ["tag-red", "tag-yellow", "tag-green"]
+            for i, s in enumerate(op['ladder']):
+                s = s.replace(":", "")
+                c_class = "tag-green" if "✅" in s else ("tag-red" if "❌" in s else "tag-yellow")
+                badges_html += f'<span class="tag {c_class}">{s}</span>'
+
+        # --- CONSTRUÇÃO DO HTML DO CARD ---
+        html_card = f"""
+        <div class="hud-card">
+            <div class="hud-top-bar" style="background: {color};"></div>
+            
+            <div class="hud-header">
+                <div class="hud-title">
+                    <span style="color:{color}; font-size:1.2rem;">{icon}</span>
+                    {op['title']}
+                </div>
+                <div class="hud-score">SCORE {op['score']}</div>
+            </div>
+            
+            <div class="hud-body">
+                <div class="vs-line"></div>
+                
+                <div class="col-hero" style="z-index:2;">
+                    <div class="avatar-container">
+                        <img src="{h_photo}" class="player-img" style="border-color: {color};">
+                        <img src="{h_logo}" class="team-logo-mini">
+                    </div>
+                    <div>
+                        <div class="player-name">{h_name}</div>
+                        <div class="player-role">{h_role}</div>
+                        
+                        <div style="margin-top:8px; display:inline-block;">
+                            <div class="stat-box" style="border-color: {color}; background: linear-gradient(180deg, {color}10 0%, {color}00 100%);">
+                                <div class="stat-val" style="color:{color}; text-shadow: 0 0 10px {color}60;">{h_target}</div>
+                                <div class="stat-label" style="color:{color};">{h_stat}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-vs">
+                    <div class="vs-badge">{conn_icon}</div>
+                </div>
+                
+                <div class="col-target" style="z-index:2;">
+                    <div style="text-align:right;">
+                        <div class="player-name" style="font-size:1rem;">{t_name}</div>
+                        <div class="player-role">{t_role}</div>
+                        {t_status_html}
+                        
+                        {f'''
+                        <div style="margin-top:5px; font-family:'Oswald'; color:#E2E8F0;">
+                            <b>{t_val}</b> <span style="font-size:0.8rem; color:#94A3B8;">{t_stat_label}</span>
+                        </div>
+                        ''' if is_sgp else ''}
+                        
+                    </div>
+                    <div class="avatar-container">
+                        <img src="{t_photo}" class="player-img" style="border-color: #475569;">
+                        {f'<img src="{t_logo}" class="team-logo-mini">' if is_sgp else ''}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="hud-footer">
+                {badges_html}
+                <div class="impact-score">IMPACTO: {op['impact']}</div>
+            </div>
+        </div>
+        """
+        
+        st.markdown(html_card, unsafe_allow_html=True)
 
 
 
@@ -8825,6 +9092,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
