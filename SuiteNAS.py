@@ -3572,7 +3572,7 @@ def update_batch_cache(games_list):
         return (p_name, get_player_logs(p_name))
 
     # Executa o download em paralelo
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         futures = {executor.submit(fetch_task, p): p for p in pending}
         completed = 0
         for f in concurrent.futures.as_completed(futures):
@@ -5138,7 +5138,7 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     
     # --- CONFIGURAÇÃO DA TEMPORADA ATUAL ---
     SEASON_CURRENT = "2025-26" 
-    MAX_WORKERS = 8 
+    MAX_WORKERS = 20 
     KEY_L5 = "l5_stats"
 
     # 1. Carrega o Cache Atual
@@ -8852,6 +8852,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
