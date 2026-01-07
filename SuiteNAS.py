@@ -3079,11 +3079,9 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V48.2 - AUTO-DOWNLOAD FIX
+# ☢️ HIT PROP HUNTER V48.4 - CLOUD PURE EDITION (SUPABASE ONLY)
 # ==============================================================================
 
-import os
-import json
 import time
 import hashlib
 import statistics
@@ -3135,7 +3133,7 @@ def get_game_info_map(games):
     return info_map
 
 # ==============================================================================
-# 1. DATA FETCHING (CRÍTICO: FUNÇÕES REAIS)
+# 1. DATA FETCHING (CLOUD PURE)
 # ==============================================================================
 def get_player_logs(name):
     """Busca logs reais da NBA API."""
@@ -3147,7 +3145,6 @@ def get_player_logs(name):
         # Busca temporada atual
         df = playergamelog.PlayerGameLog(player_id=p[0]['id'], season='2025-26').get_data_frames()[0].head(25)
         
-        # Helper de minutos
         def parse_min(m):
             if ':' in str(m):
                 parts = str(m).split(':')
@@ -3164,113 +3161,119 @@ def get_player_logs(name):
     except: return None 
 
 def update_batch_cache(games_list):
-    """Baixa dados de todos os jogadores dos jogos de hoje."""
-    full_cache = {}
-    # Tenta carregar existente para não baixar tudo de novo
-    if os.path.exists("cache/real_game_logs.json"):
+    """
+    Sincronização 100% via Nuvem (get_data_universal/save_data_universal).
+    """
+    KEY_LOGS = "real_game_logs"
+    
+    # 1. Carrega Estado Atual da Nuvem
+    full_cache = get_data_universal(KEY_LOGS) or {}
+    
+    status = st.status("☁️ Sincronizando nuvem...", expanded=True)
+    
+    # 2. Identifica Elencos (Tenta usar Odds carregadas ou L5 para rapidez)
+    players_needed = set()
+    
+    # Tenta pegar das Odds (Jogadores listados nas casas de aposta jogam hoje)
+    odds_data = get_data_universal("pinnacle_cache") or {}
+    if odds_data.get('props'):
+        for p_name in odds_data['props'].keys():
+            players_needed.add(p_name)
+
+    # Fallback: Se não tiver odds, usa DF_L5
+    if not players_needed and 'df_l5' in st.session_state:
+        df = st.session_state['df_l5']
+        if not df.empty:
+            for p in df['PLAYER'].unique():
+                players_needed.add(p)
+
+    # 3. Filtra Delta (Quem falta ou está velho)
+    pending = []
+    now = datetime.now()
+    
+    for p_name in players_needed:
+        if p_name not in full_cache:
+            pending.append(p_name)
+            continue
+            
+        last_up = full_cache[p_name].get('updated', '2000-01-01')
         try:
-            with open("cache/real_game_logs.json", 'r') as f: full_cache = json.load(f)
-        except: pass
+            dt_last = datetime.fromisoformat(last_up)
+            if (now - dt_last).total_seconds() > 86400: # 24h TTL
+                pending.append(p_name)
+        except:
+            pending.append(p_name)
 
-    status = st.status("🔄 Conectando aos satélites da NBA...", expanded=True)
-    
-    # 1. Identifica jogadores (Mock rápido via API da ESPN para pegar rosters)
-    players_queue = set()
-    for g in games_list:
-        # Adiciona estrelas conhecidas para garantir (Fallback se API de roster falhar)
-        # Em produção, usaria commonteamroster da NBA API, mas é lento.
-        # Vamos confiar que o usuário clicou em "Atualizar Stats" na Config antes, 
-        # ou vamos forçar alguns nomes chave aqui se estiver vazio.
-        pass 
-
-    # Se estiver vazio (primeira vez), precisamos popular com ALGO.
-    # Vamos usar uma lista estática de Top Players se não conseguirmos varrer rosters agora
-    # para evitar que o código quebre.
-    # O ideal é usar a nba_api para pegar os rosters.
-    
-    try:
-        from nba_api.stats.static import teams
-        from nba_api.stats.endpoints import commonteamroster
-        
-        status.write("📋 Listando elencos...")
-        nba_teams = teams.get_teams()
-        
-        for g in games_list:
-            for side in ['home', 'away']:
-                t_abbr = fix_team_abbr(g[side])
-                t_id = next((t['id'] for t in nba_teams if t['abbreviation'] == t_abbr), None)
-                if t_id:
-                    roster = commonteamroster.CommonTeamRoster(team_id=t_id, season='2025-26').get_data_frames()[0]
-                    for _, row in roster.iterrows():
-                        pname = row['PLAYER']
-                        # Só baixa se não tiver ou se for velho (> 12h)
-                        if pname not in full_cache:
-                            players_queue.add((pname, t_abbr))
-    except Exception as e:
-        status.write(f"⚠️ Erro ao listar elencos: {e}")
-    
-    pending = list(players_queue)
     if not pending:
-        status.update(label="✅ Nada novo para baixar.", state="complete", expanded=False)
+        status.update(label="✅ Nuvem Sincronizada!", state="complete", expanded=False)
         return
 
-    status.write(f"⚡ Baixando dados de {len(pending)} jogadores...")
+    # 4. Download Paralelo
+    status.write(f"⚡ Atualizando {len(pending)} jogadores na nuvem...")
     bar = status.progress(0)
     
-    def fetch_task(item):
-        name, team = item
-        return (name, team, get_player_logs(name))
+    def fetch_task(name):
+        return (name, get_player_logs(name))
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [executor.submit(fetch_task, p) for p in pending]
-        completed = 0
-        for f in concurrent.futures.as_completed(futures):
-            name, team, logs = f.result()
-            if logs:
-                full_cache[name] = {
-                    "name": name, "team": team, "logs": logs, 
-                    "updated": str(datetime.now())
-                }
-            completed += 1
-            bar.progress(completed / len(pending))
+    batch_size = 15
+    chunks = [pending[i:i + batch_size] for i in range(0, len(pending), batch_size)]
+    
+    completed = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        for chunk in chunks:
+            futures = [executor.submit(fetch_task, p) for p in chunk]
+            for f in concurrent.futures.as_completed(futures):
+                name, logs = f.result()
+                if logs:
+                    full_cache[name] = {
+                        "name": name, "team": "UNK", "logs": logs, 
+                        "updated": str(datetime.now())
+                    }
+                completed += 1
+                bar.progress(min(completed / len(pending), 1.0))
+            time.sleep(0.2)
             
-    # Salva
-    with open("cache/real_game_logs.json", 'w') as f:
-        json.dump(full_cache, f)
-        
-    status.update(label="✅ Dados Atualizados!", state="complete", expanded=False)
+    # 5. Salva na Nuvem
+    save_data_universal(KEY_LOGS, full_cache)
+    status.update(label="✅ Upload Concluído!", state="complete", expanded=False)
     time.sleep(1)
 
 # ==============================================================================
-# 2. ENGINES (ODDS, MATRIX, TRIDENT)
+# 2. ENGINES (ODDS, MATRIX, TRIDENT) - CLOUD ADAPTED
 # ==============================================================================
 class OddsManager:
     def __init__(self):
-        base = os.path.dirname(__file__) if '__file__' in globals() else os.getcwd()
-        self.cache_file = os.path.join(base, "cache", "pinnacle_cache.json")
-        if not os.path.exists(os.path.dirname(self.cache_file)): os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+        self.KEY = "pinnacle_cache"
         self._memory_cache = {}
 
     def load_odds(self):
+        """Lê do Supabase/Cache Universal."""
         if self._memory_cache: return self._memory_cache
-        try:
-            with open(self.cache_file, 'r') as f:
-                data = json.load(f)
-                self._memory_cache = data.get('props', {})
-                return self._memory_cache
-        except: return {}
+        data = get_data_universal(self.KEY) or {}
+        self._memory_cache = data.get('props', {})
+        return self._memory_cache
+
+    def force_update(self):
+        """Simula atualização e salva na nuvem (Placeholder para lógica real)."""
+        # Aqui entraria a chamada para PinnacleClient se disponível
+        # Como é exemplo, vamos apenas retornar status
+        return False, "Requer integração PinnacleClient ativa."
 
     def match_odds(self, player_name, stat, target_line):
         props_db = self.load_odds()
         n_name = normalize_name(player_name)
+        
+        # Fuzzy
         player_data = props_db.get(n_name)
         if not player_data:
             for k in props_db.keys():
                 if (len(n_name) > 3 and n_name in k) or (len(k) > 3 and k in n_name):
                     player_data = props_db[k]; break
+        
         if not player_data: return 1.0, 0
         lines = player_data.get(stat, [])
         if not lines: return 1.0, 0
+        
         best_match = None; min_diff = 999
         for item in lines:
             mkt_line = item['line']
@@ -3495,17 +3498,17 @@ def generate_sniper_data(cache_data, games):
     return sorted(snipers, key=lambda x: x['line'], reverse=True)
 
 # ==============================================================================
-# 4. SYSTEM AUTOMATION & UTILS
+# 4. AUDITORIA (CLOUD PURE)
 # ==============================================================================
 def save_audit_ticket(ticket_data):
+    """Salva bilhete na nuvem (Supabase)."""
     try:
-        base_dir = os.path.dirname(__file__) if '__file__' in globals() else os.getcwd()
-        path = os.path.join(base_dir, "cache", "audit_trixies.json")
-        current = []
-        if os.path.exists(path):
-            try: 
-                with open(path, 'r') as f: current = json.load(f)
-            except: pass
+        KEY_AUDIT = "audit_trixies"
+        current = get_data_universal(KEY_AUDIT) or []
+        
+        # Garante que seja lista
+        if not isinstance(current, list): current = []
+        
         new_ticket = {
             "id": f"TKT_{int(time.time())}_{str(uuid.uuid4())[:6]}", 
             "created_at": datetime.now().isoformat(),
@@ -3515,7 +3518,7 @@ def save_audit_ticket(ticket_data):
             "legs": ticket_data.get('legs', [])
         }
         current.append(new_ticket)
-        with open(path, 'w') as f: json.dump(current, f, indent=2)
+        save_data_universal(KEY_AUDIT, current)
         return True
     except: return False
 
@@ -3537,11 +3540,12 @@ def auto_update_system():
             st.session_state['scoreboard'] = games
         except: st.session_state['scoreboard'] = []
     
-    # 2. DADOS (CACHE CHECK)
-    cache_path = "cache/real_game_logs.json"
-    if not os.path.exists(cache_path):
+    # 2. DADOS (CLOUD CHECK)
+    # Verifica se já temos dados carregados na nuvem
+    data = get_data_universal("real_game_logs")
+    if not data:
         with status_ph.container():
-            st.warning("⚠️ Cache vazio. Baixando dados dos jogadores (1x)...")
+            st.warning("⚠️ Cache de Nuvem vazio. Baixando dados dos jogadores...")
             games = st.session_state.get('scoreboard', [])
             if games: update_batch_cache(games)
     
@@ -3610,13 +3614,11 @@ def show_hit_prop_page():
         if pid == 0: return f"<img src='{fb}' class='player-img'>"
         return f"""<img src='{nba}' class='player-img' onerror="this.src='{espn}'; this.onerror=function(){{this.src='{fb}'}};">"""
 
-    # 3. LOAD DATA
-    try:
-        with open("cache/real_game_logs.json", 'r') as f: cache_data = json.load(f)
-    except: cache_data = {}
+    # 3. LOAD DATA (FROM CLOUD)
+    cache_data = get_data_universal("real_game_logs") or {}
 
     if not cache_data:
-        st.error("❌ Erro ao carregar dados. Tente recarregar a página.")
+        st.error("❌ Dados de jogadores não encontrados na nuvem.")
         return
 
     # 4. RUN ENGINES
@@ -3630,7 +3632,7 @@ def show_hit_prop_page():
 
     # 5. RENDER UI
     st.markdown('<div class="prop-title">☢️ HIT PROP <span style="color:#ef4444">HUNTER</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">ECOSYSTEM AUTO-PILOT • V48.2</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">ECOSYSTEM AUTO-PILOT • V48.4 (Cloud Pure)</div>', unsafe_allow_html=True)
 
     tab_matrix, tab_sniper, tab_sgp, tab_list = st.tabs(["🧬 MÚLTIPLAS", "💎 SNIPER GEMS", "🧪 SGP LAB", "📋 LISTA GERAL"])
 
@@ -8201,6 +8203,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
