@@ -59,12 +59,72 @@ AUDIT_CACHE_FILE = os.path.join(CACHE_DIR, "audit_trixies.json")
 FEATURE_STORE_FILE = os.path.join(CACHE_DIR, "feature_store.json")
 LOGS_CACHE_FILE = os.path.join(CACHE_DIR, "real_game_logs.json")
 
-# --- Importação do Gerenciador de Nuvem ---
+# ============================================================================
+# 1. CONEXÃO SUPABASE (MOTOR DO BANCO DE DADOS)
+# ============================================================================
+import streamlit as st
+from supabase import create_client, Client
+
+class DatabaseHandler:
+    def __init__(self):
+        self.client = None
+        self.connected = False
+        try:
+            # Tenta pegar as credenciais do secrets
+            if "supabase" in st.secrets:
+                url = st.secrets["supabase"]["url"]
+                key = st.secrets["supabase"]["key"]
+                self.client: Client = create_client(url, key)
+                self.connected = True
+                print("🔌 Supabase Conectado com Sucesso!")
+            else:
+                print("⚠️ Secrets do Supabase não encontrados.")
+        except Exception as e:
+            print(f"❌ Erro ao conectar Supabase: {e}")
+
+    def get_data(self, key):
+        """Busca o valor JSON dentro da tabela app_cache pela chave"""
+        if not self.connected: return None
+        try:
+            # SELECT value FROM app_cache WHERE key = 'chave'
+            response = self.client.table("app_cache").select("value").eq("key", key).execute()
+            
+            # Verifica se retornou dados
+            if response.data and len(response.data) > 0:
+                # O Supabase retorna uma lista de dicionários [{'value': {...}}]
+                return response.data[0]['value']
+            else:
+                return None
+        except Exception as e:
+            print(f"⚠️ Erro ao buscar '{key}' no DB: {e}")
+            return None
+
+    def save_data(self, key, value):
+        """Salva (Upsert) o valor JSON na tabela app_cache"""
+        if not self.connected: return False
+        try:
+            # Prepara o payload no formato da tabela
+            # A tabela deve ter colunas: key (text, PK), value (jsonb), last_updated (timestamp)
+            payload = {
+                "key": key,
+                "value": value,
+                "last_updated": datetime.now().isoformat()
+            }
+            # UPSERT (Atualiza se existir, cria se não existir)
+            self.client.table("app_cache").upsert(payload).execute()
+            return True
+        except Exception as e:
+            # Levanta o erro para ser pego pelo save_data_universal e mostrar o log detalhado
+            raise e 
+
+# --- INICIALIZAÇÃO DO OBJETO GLOBAL 'db' ---
+# Isso cria a variável 'db' que suas funções universal usam
 try:
-    from db_manager import db
-except ImportError:
+    db = DatabaseHandler()
+    if not db.connected:
+        db = None # Garante que é None se falhar, pro código usar fallback
+except:
     db = None
-    # st.warning("Aviso: db_manager.py não encontrado. Usando apenas modo local.")
 
 # ============================================================================
 # 2. FUNÇÕES DE DADOS HÍBRIDOS (CLOUD FIRST)
@@ -399,150 +459,107 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# NOVA FUNÇÃO: FETCH REAL GAME LOGS (CORREÇÃO DE TEMPORADA)
+# FUNÇÃO LOGS: SUPABASE + SMART FILTER
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
-    """
-    Baixa logs da NBA, FORÇA a conversão de floats (19.0) para inteiros (19)
-    e salva na nuvem via save_data_universal.
-    """
     import concurrent.futures
     import pandas as pd
     import time
-    from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog
     
-    # --- CORREÇÃO AQUI ---
-    SEASON_CURRENT = "2025-26"  # <--- ALTERADO PARA A TEMPORADA ATUAL
-    MAX_WORKERS = 30 
+    SEASON_CURRENT = "2025-26"
+    MAX_WORKERS = 10 
+    KEY_LOGS = "real_games_logs" # <--- Chave correta do Supabase conforme você falou
+
+    # 1. Pega lista de quem JOGA (baseado no L5 carregado na memória)
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # 2. Obter lista de jogadores ativos
-    try:
-        active_players = players.get_active_players()
-    except Exception as e:
-        if progress_ui: st.error(f"Erro ao buscar lista de jogadores: {e}")
+    if df_l5.empty:
+        if progress_ui: st.error("⚠️ Base L5 vazia. Carregue o L5 primeiro para saber quem baixar.")
         return {}
+        
+    # Extrai IDs únicos (apenas jogadores relevantes)
+    target_ids = []
+    if 'PLAYER_ID' in df_l5.columns:
+        target_ids = df_l5['PLAYER_ID'].unique().tolist()
     
-    total = len(active_players)
+    # Fallback se não achou coluna
+    if not target_ids and 'ID' in df_l5.columns:
+         target_ids = df_l5['ID'].unique().tolist()
+         
+    if not target_ids:
+        if progress_ui: st.warning("Nenhum jogador encontrado no L5.")
+        return {}
+
+    # Metadados para enriquecer o JSON
+    player_meta = {}
+    for _, row in df_l5.iterrows():
+        pid = row.get('PLAYER_ID') or row.get('ID')
+        if pid:
+            player_meta[pid] = {
+                'name': row.get('PLAYER_NAME', row.get('PLAYER', 'Unknown')),
+                'team': row.get('TEAM_ABBREVIATION', row.get('TEAM', 'UNK'))
+            }
+
+    total = len(target_ids)
     results = {}
     
-    # 3. Interface Visual (Streamlit)
     if progress_ui:
-        status_box = st.status(f"🏀 Baixando Real Game Logs ({SEASON_CURRENT})...", expanded=True)
+        status_box = st.status(f"📊 Sincronizando Logs (L30) para {total} atletas...", expanded=True)
         p_bar = status_box.progress(0)
-        text_ph = status_box.empty()
+        txt = status_box.empty()
 
-    # --- FUNÇÃO INTERNA DE WORKER ---
-    def fetch_one_player_log(p):
+    def fetch_log(pid):
         try:
-            time.sleep(0.05)
-            # Chama API com a temporada certa
-            log = playergamelog.PlayerGameLog(player_id=p['id'], season=SEASON_CURRENT)
+            time.sleep(0.15) # Delay anti-ban
+            log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=8)
             df = log.get_data_frames()[0]
             
             if df.empty: return None
 
-            df = df.head(30) # L30 Jogos
+            df = df.head(30) # Pega últimos 30 jogos
 
-            # === SANITIZAÇÃO DE DADOS ===
-            int_cols = [
-                'PTS', 'REB', 'AST', 'STL', 'BLK', 
-                'FGA', 'FGM', 'FG3M', 'FG3A', 'FTM', 'FTA', 
-                'TOV', 'PF'
-            ]
-            
+            # Limpa tipos de dados (int64)
+            int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M']
             clean_logs = {}
             for col in int_cols:
                 if col in df.columns:
                     clean_logs[col] = df[col].fillna(0).astype('int64').tolist()
             
+            # Minutos
             if 'MIN' in df.columns:
-                def clean_min_val(val):
-                    try:
-                        val_str = str(val)
-                        if ":" in val_str:
-                            parts = val_str.split(":")
-                            return float(int(parts[0]) + int(parts[1])/60)
-                        return float(val)
-                    except: return 0.0
-                clean_logs['MIN'] = df['MIN'].apply(clean_min_val).round(1).tolist()
+                clean_logs['MIN'] = df['MIN'].astype(str).apply(lambda x: float(x.split(':')[0]) + float(x.split(':')[1])/60 if ':' in x else (float(x) if x else 0)).round(1).tolist()
 
+            meta = player_meta.get(pid, {})
+            
             return {
-                "name": p['full_name'],
-                "id": p['id'],
-                "team": df['TEAM_ABBREVIATION'].iloc[0] if 'TEAM_ABBREVIATION' in df.columns else "UNK",
+                "name": meta.get('name', 'Unknown'),
+                "id": int(pid),
+                "team": meta.get('team', "UNK"),
                 "logs": clean_logs,
-                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "updated_at": datetime.now().strftime("%Y-%m-%d")
             }
-        except Exception:
-            return None
-    # --------------------------------
+        except: return None
 
+    # Download Paralelo
     count = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_player = {executor.submit(fetch_one_player_log, p): p for p in active_players}
-        
-        for future in concurrent.futures.as_completed(future_to_player):
+        future_to_pid = {executor.submit(fetch_log, pid): pid for pid in target_ids}
+        for future in concurrent.futures.as_completed(future_to_pid):
             res = future.result()
-            if res:
-                results[res['name']] = res
-            
+            if res: results[res['name']] = res
             count += 1
-            if progress_ui:
-                pct = count / total
-                p_bar.progress(min(pct, 1.0))
-                current_p = res['name'] if res else "..."
-                text_ph.write(f"Processando {count}/{total}: {current_p}")
+            if progress_ui: 
+                p_bar.progress(count / total)
+                txt.write(f"Processando: {count}/{total}")
 
+    # Salva no Supabase
     if results:
-        if progress_ui: text_ph.write("☁️ Enviando para Supabase (Sanitizado)...")
-        sucesso = save_data_universal("real_game_logs", results, os.path.join("cache", "real_game_logs.json"))
+        txt.write("☁️ Enviando para Supabase...")
+        save_data_universal(KEY_LOGS, results)
         
         if progress_ui:
-            if sucesso:
-                status_box.update(label=f"✅ Sucesso! {len(results)} logs ({SEASON_CURRENT}) sincronizados.", state="complete", expanded=False)
-            else:
-                status_box.update(label=f"⚠️ Salvo localmente, mas erro na nuvem.", state="error", expanded=True)
-            
-    return results
-    
-    # --------------------------------
-
-    # 4. Execução Paralela (ThreadPool)
-    count = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Mapeia futures
-        future_to_player = {executor.submit(fetch_one_player_log, p): p for p in active_players}
-        
-        for future in concurrent.futures.as_completed(future_to_player):
-            res = future.result()
-            if res:
-                # Usa o nome como chave principal
-                results[res['name']] = res
-            
-            count += 1
-            if progress_ui:
-                pct = count / total
-                p_bar.progress(min(pct, 1.0))
-                
-                # Mostra o nome do jogador atual para dar feedback visual
-                current_p = res['name'] if res else "..."
-                text_ph.write(f"Processando {count}/{total}: {current_p}")
-
-    # 5. Salvar Universalmente (Local + Supabase)
-    if results:
-        if progress_ui: 
-            text_ph.write("☁️ Enviando para Supabase (Sanitizado)...")
-        
-        # Aqui usamos sua função existente que sabe lidar com o Supabase
-        # O JSON agora contém inteiros puros (19), então o Postgres aceitará.
-        sucesso = save_data_universal("real_game_logs", results, os.path.join("cache", "real_game_logs.json"))
-        
-        if progress_ui:
-            if sucesso:
-                status_box.update(label=f"✅ Sucesso! {len(results)} logs sincronizados e limpos.", state="complete", expanded=False)
-            else:
-                status_box.update(label=f"⚠️ Salvo localmente, mas erro na nuvem.", state="error", expanded=True)
+            status_box.update(label=f"✅ Logs atualizados: {len(results)} jogadores.", state="complete", expanded=False)
             
     return results
     
@@ -5118,16 +5135,9 @@ def try_fetch_with_retry(pid, name, tries=3, delay=0.6):
     return None
 
 # ============================================================================
-# FUNÇÃO REVISADA: GET PLAYERS L5 (COM SMART UPDATE INCREMENTAL)
+# FUNÇÃO L5: FOCADA NO SUPABASE (SEM ARQUIVO LOCAL)
 # ============================================================================
 def get_players_l5(progress_ui=True, force_update=False, incremental=False):
-    """
-    Baixa estatísticas L5.
-    
-    - force_update=True: Baixa TUDO do zero (Lento ~5min). Use 1x na semana.
-    - incremental=True: Baixa apenas times que jogaram ONTEM e HOJE (Rápido ~30s). Use todo dia.
-    - Padrão: Baixa apenas jogadores novos (novas contratações).
-    """
     from nba_api.stats.static import players
     from nba_api.stats.endpoints import playergamelog, scoreboardv2
     import concurrent.futures
@@ -5136,171 +5146,142 @@ def get_players_l5(progress_ui=True, force_update=False, incremental=False):
     import pandas as pd
     from datetime import datetime, timedelta
     
-    # --- CONFIGURAÇÃO DA TEMPORADA ATUAL ---
+    # CONSTANTES
     SEASON_CURRENT = "2025-26" 
-    MAX_WORKERS = 20 
-    KEY_L5 = "l5_stats"
+    MAX_WORKERS = 8 
+    KEY_L5 = "l5_stats" # Nome exato da chave no Supabase
 
-    # 1. Carrega o Cache Atual
+    # --- 1. TENTA CARREGAR DO SUPABASE ---
     df_cached = pd.DataFrame()
-    cloud_data = get_data_universal(KEY_L5)
-    if cloud_data and "records" in cloud_data:
-        try:
-            df_cached = pd.DataFrame.from_records(cloud_data["records"])
-            # Normaliza nomes de colunas para garantir filtro correto
-            df_cached.columns = [str(c).upper().strip() for c in df_cached.columns]
-        except: pass
     
-    # Se for Force Update, ignoramos o cache
-    if force_update:
-        df_cached = pd.DataFrame()
-        if progress_ui: st.toast(f"☢️ Modo Force: Apagando cache e baixando TUDO...", icon="⚠️")
+    if not force_update:
+        try:
+            # Tenta puxar direto da função universal
+            cloud_data = get_data_universal(KEY_L5) 
+            
+            # Verifica se veio algo
+            if cloud_data:
+                # Se veio formato { "records": [...] }
+                if isinstance(cloud_data, dict) and "records" in cloud_data:
+                    df_cached = pd.DataFrame.from_records(cloud_data["records"])
+                    print(f"✅ [SUPABASE] L5 carregado: {len(df_cached)} linhas.")
+                # Se veio lista direta
+                elif isinstance(cloud_data, list):
+                    df_cached = pd.DataFrame.from_records(cloud_data)
+                    print(f"✅ [SUPABASE] L5 carregado (lista): {len(df_cached)} linhas.")
+                
+                if not df_cached.empty:
+                    # Normaliza colunas
+                    df_cached.columns = [str(c).upper().strip() for c in df_cached.columns]
+            else:
+                print("⚠️ [SUPABASE] Retornou vazio para l5_stats.")
+                
+        except Exception as e:
+            print(f"❌ [SUPABASE ERROR] Falha ao ler L5: {e}")
+
+    # Se já temos dados e não é update forçado, retorna o que temos
+    if not df_cached.empty and not force_update and not incremental:
+        return df_cached
+
+    # --- 2. SE PRECISAR BAIXAR (FORCE OU VAZIO) ---
+    if progress_ui: st.toast("Iniciando download da NBA API...", icon="🏀")
 
     act_players = players.get_active_players()
-    pending_players = []
-
-    # 2. LÓGICA DE SELEÇÃO (QUEM VAMOS BAIXAR?)
     
-    if force_update:
-        # BAIXA TODO MUNDO
+    # Define quem precisa baixar
+    pending_players = []
+    if force_update or df_cached.empty:
         pending_players = act_players
-        
-    elif incremental:
-        # SMART UPDATE: Só quem jogou Ontem ou Hoje
-        if progress_ui: st.toast("🧠 Calculando times recentes...", icon="📅")
-        
-        # Datas de interesse: Ontem e Hoje
-        dates_to_check = [
-            datetime.now().strftime('%Y-%m-%d'), 
-            (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-        ]
-        
+    elif incremental and not df_cached.empty:
+        # Lógica incremental simples: baixa quem jogou ontem/hoje
+        dates_to_check = [datetime.now().strftime('%Y-%m-%d')]
         target_team_ids = set()
-        
-        # Pega Scoreboard para descobrir quais times jogaram
         for d in dates_to_check:
             try:
                 board = scoreboardv2.ScoreboardV2(game_date=d).get_data_frames()[0]
                 if not board.empty:
-                    target_team_ids.update(board['HOME_TEAM_ID'].tolist())
-                    target_team_ids.update(board['VISITOR_TEAM_ID'].tolist())
+                    target_team_ids.update(board['HOME_TEAM_ID'].tolist() + board['VISITOR_TEAM_ID'].tolist())
             except: pass
-            
-        if not target_team_ids:
-            if progress_ui: st.warning("⚠️ Não encontrei jogos recentes para atualizar.")
-            return df_cached
-
-        # Filtra o Cache: Quais jogadores pertencem a esses times?
-        # (Precisamos confiar que o 'TEAM_ID' ou 'TEAM' no cache está certo)
-        ids_to_update = set()
         
-        # Tenta filtrar pelo ID do Time se tiver no cache, ou pela sigla
-        if not df_cached.empty:
-            # Se tivermos a coluna TEAM_ID
-            col_tid = next((c for c in df_cached.columns if 'TEAM_ID' in c), None)
-            if col_tid:
-                ids_to_update = set(df_cached[df_cached[col_tid].isin(target_team_ids)]['PLAYER_ID'])
-            else:
-                # Se não tiver TEAM_ID, vamos ter que baixar os 'novos' ou usar force na duvida.
-                # Fallback: Baixa quem não tem dados atualizados recentemente (logica complexa),
-                # então vamos simplificar: se não achar TEAM_ID, avisa pra rodar full.
-                if progress_ui: st.warning("Cache antigo sem ID de time. Rode o FULL UPDATE uma vez.")
-                return df_cached
-        
-        # Cria a lista final de players para baixar
-        # 1. Jogadores dos times alvo
-        # 2. Jogadores que nem estão no cache ainda (novos)
-        existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty else set()
-        
-        pending_players = [
-            p for p in act_players 
-            if p['id'] in ids_to_update or p['id'] not in existing_ids
-        ]
-        
-        if progress_ui: st.toast(f"🎯 Alvo: {len(pending_players)} jogadores de times recentes.", icon="⚡")
-
-    else:
-        # PADRÃO: Só baixa quem não existe no cache (Novos contratados)
-        existing_ids = set(df_cached["PLAYER_ID"].unique()) if not df_cached.empty and "PLAYER_ID" in df_cached.columns else set()
-        pending_players = [p for p in act_players if p['id'] not in existing_ids]
-
-    # --- FIM DA LÓGICA DE SELEÇÃO ---
+        # Filtra ids
+        existing_ids = set(df_cached["PLAYER_ID"].unique()) if 'PLAYER_ID' in df_cached.columns else set()
+        pending_players = [p for p in act_players if p['id'] not in existing_ids] # Baixa novos
 
     total_needed = len(pending_players)
     if total_needed == 0:
-        if progress_ui: st.success(f"✅ Nada para atualizar.")
         return df_cached
 
-    # 3. UI
+    # UI
     if progress_ui:
-        label_mode = "INCREMENTAL" if incremental else ("FULL" if force_update else "NOVOS")
-        status_box = st.status(f"🚀 Baixando L5 [{label_mode}] ({total_needed} jogadores)...", expanded=True)
+        status_box = st.status(f"☁️ Atualizando Nuvem ({total_needed} jogadores)...", expanded=True)
         p_bar = status_box.progress(0)
-        metric_ph = status_box.empty()
-    
-    # Worker (Intacto)
+        
+    # WORKER FETCH
     def fetch_one_player(player_info):
         pid = player_info['id']
         pname = player_info['full_name']
         try:
-            time.sleep(0.05) 
+            time.sleep(0.1) # Evita block
             log = playergamelog.PlayerGameLog(player_id=pid, season=SEASON_CURRENT, timeout=10)
             df = log.get_data_frames()[0]
-            
             if not df.empty:
                 df_l5 = df.head(5).copy()
-                int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FGM', 'FG3M', 'FG3A', 'TOV', 'PF']
+                int_cols = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'TOV']
                 for col in int_cols:
-                    if col in df_l5.columns:
-                        df_l5[col] = df_l5[col].fillna(0).astype('int64')
+                    if col in df_l5.columns: df_l5[col] = df_l5[col].fillna(0).astype('int64')
                 
-                # Garante que temos o TEAM_ID para o próximo incremental funcionar
-                if 'Team_ID' in df.columns: df_l5['TEAM_ID'] = df['Team_ID']
-                elif 'TEAM_ID' in df.columns: df_l5['TEAM_ID'] = df['TEAM_ID']
-
                 df_l5['PLAYER_NAME'] = pname
                 df_l5['PLAYER_ID'] = pid
+                # Garante TEAM ID
+                if 'Team_ID' in df.columns: df_l5['TEAM_ID'] = df['Team_ID']
+                elif 'TEAM_ID' in df.columns: df_l5['TEAM_ID'] = df['TEAM_ID']
+                
                 return df_l5
-        except Exception:
-            return None
+        except: return None
         return None
 
-    # 4. Execução
+    # Execução Paralela
     df_new_batch = pd.DataFrame()
-    results_count = 0
-    
+    count = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_player = {executor.submit(fetch_one_player, p): p for p in pending_players}
-        for i, future in enumerate(concurrent.futures.as_completed(future_to_player)):
-            player_data = future.result()
-            if player_data is not None and not player_data.empty:
-                df_new_batch = pd.concat([df_new_batch, player_data], ignore_index=True)
-            results_count += 1
-            if progress_ui:
-                pct = (i + 1) / total_needed
-                p_bar.progress(min(pct, 1.0))
-                metric_ph.write(f"Processando: {results_count}/{total_needed}")
+        future_to_p = {executor.submit(fetch_one_player, p): p for p in pending_players}
+        for future in concurrent.futures.as_completed(future_to_p):
+            res = future.result()
+            if res is not None:
+                df_new_batch = pd.concat([df_new_batch, res], ignore_index=True)
+            count += 1
+            if progress_ui: p_bar.progress(count / total_needed)
 
-    # 5. MERGE INTELIGENTE (Crucial para o Incremental)
+    # Merge Final
     if not df_new_batch.empty:
-        # Se temos cache, removemos os jogadores antigos que acabamos de baixar atualizados
         if not df_cached.empty:
-            updated_ids = df_new_batch['PLAYER_ID'].unique()
-            df_cached = df_cached[~df_cached['PLAYER_ID'].isin(updated_ids)]
-        
-        # Junta o cache antigo (sem os desatualizados) com o lote novo
+            # Remove antigos para atualizar
+            upd_ids = df_new_batch['PLAYER_ID'].unique()
+            df_cached = df_cached[~df_cached['PLAYER_ID'].isin(upd_ids)]
         df_final = pd.concat([df_cached, df_new_batch], ignore_index=True)
     else:
         df_final = df_cached
 
-    # Salva
-    records_final = json.loads(df_final.to_json(orient="records", date_format="iso"))
-    payload = { "records": records_final, "timestamp": datetime.now().isoformat(), "count": len(df_final) }
-    save_data_universal(KEY_L5, payload)
-    
-    if progress_ui:
-        status_box.update(label=f"✅ L5 Atualizado! Total na base: {len(df_final)}", state="complete", expanded=False)
+    # --- 3. SALVA NO SUPABASE ---
+    if not df_final.empty:
+        df_final.columns = [str(c).upper().strip() for c in df_final.columns]
         
+        # Converte para JSON puro
+        records = json.loads(df_final.to_json(orient="records", date_format="iso"))
+        payload = {
+            "records": records,
+            "count": len(records),
+            "last_update": datetime.now().isoformat()
+        }
+        
+        if progress_ui: status_box.write("💾 Enviando para Supabase...")
+        
+        # CHAMA O SAVE UNIVERSAL (Sem arquivo local)
+        save_data_universal(KEY_L5, payload)
+        
+        if progress_ui:
+            status_box.update(label=f"✅ Sucesso! {len(df_final)} jogadores salvos na nuvem.", state="complete", expanded=False)
+            
     return df_final
 # ============================================================================
 # FUNÇÃO PARA CALCULAR RISCO DE BLOWOUT (ADICIONE ESTA FUNÇÃO)
@@ -8852,6 +8833,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
