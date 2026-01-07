@@ -8296,12 +8296,12 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V4.0 - NATIVE & BULLETPROOF)
+# PÁGINA: LAB DE NARRATIVAS (WAR ROOM V4.1 - LOOP FIX & CLEAN UI)
 # ============================================================================
 def show_narrative_lab():
     import time
     
-    # --- CSS TÁTICO (Apenas Tipografia e Tabelas) ---
+    # --- CSS TÁTICO ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
@@ -8332,15 +8332,13 @@ def show_narrative_lab():
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. SETUP & ENGINE
+    # 1. SETUP
     try:
-        # Tenta carregar a engine se existir
         if "narrative_engine" not in st.session_state:
             from modules.new_modules.narrative_intelligence import NarrativeIntelligence
             st.session_state.narrative_engine = NarrativeIntelligence()
         engine = st.session_state.narrative_engine
     except:
-        # Fallback simples caso a engine não esteja carregada
         st.error("⚠️ Módulo de Inteligência não detectado.")
         return
 
@@ -8355,23 +8353,31 @@ def show_narrative_lab():
         st.info("ℹ️ Aguardando dados para iniciar varredura...")
         return
 
-    # Limpeza de colunas duplicadas
+    # Limpeza
     df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
 
-    # 2. PROCESSAMENTO (SCAN)
+    # 2. LÓGICA DE CACHE E PROCESSAMENTO (SEM LOOP)
     if "narrative_cache_v4" not in st.session_state:
         st.session_state.narrative_cache_v4 = {}
 
+    # Chave única baseada no número de jogos e hora atual (evita recálculo constante)
     cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
+    
+    # Tenta pegar do cache
     scan_results = st.session_state.narrative_cache_v4.get(cache_key)
 
-    if not scan_results:
-        with st.status("📡 Rastreando Anomalias H2H...", expanded=True) as status:
+    # Se não tiver cache, calcula AGORA (sem rerun)
+    if scan_results is None:
+        # Placeholder para mostrar progresso e DEPOIS SUMIR
+        loading_ph = st.empty()
+        
+        with loading_ph.container():
+            st.write("📡 Escaneando histórico de confrontos...")
+            prog_bar = st.progress(0)
+            
             scan_results = []
-            # Mapa simples de times para normalizar nomes
             ESPN_MAP = {"SA": "SAS", "NY": "NYK", "NO": "NOP", "UTAH": "UTA", "GS": "GSW", "WSH": "WAS", "PHO": "PHX", "BRK": "BKN", "NOR": "NOP"}
             
-            prog = st.progress(0)
             total_steps = len(games)
             
             for i, game in enumerate(games):
@@ -8380,29 +8386,27 @@ def show_narrative_lab():
                     away_n = ESPN_MAP.get(away_raw, away_raw)
                     home_n = ESPN_MAP.get(home_raw, home_raw)
                     
-                    # Top 8 scorers apenas (Filtro de Relevância)
+                    # Top 8 scorers
                     r_away = df_l5[df_l5['TEAM'] == away_n].sort_values('PTS_AVG', ascending=False).head(8)
                     r_home = df_l5[df_l5['TEAM'] == home_n].sort_values('PTS_AVG', ascending=False).head(8)
 
                     def analyze_player(row, opp_team, my_team):
                         try:
-                            # ID Seguro
                             pid = int(float(row.get('PLAYER_ID', 0)))
                             if pid == 0: return
 
                             pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
-                            # FILTRO "BAGRE": Ignora jogadores com média < 10pts
+                            # Filtro Bagre
                             if avg_pts < 10: return
 
-                            # Chama Engine
+                            # Engine Call
                             data = engine.get_player_matchup_history(pid, pname, opp_team)
                             
                             if data and 'comparison' in data:
                                 diff = data['comparison'].get('diff_pct', 0)
                                 
-                                # Classificação
                                 n_type = "NEUTRAL"
                                 if diff >= 15: n_type = "KILLER"
                                 elif diff <= -15: n_type = "COLD"
@@ -8410,7 +8414,6 @@ def show_narrative_lab():
                                 if n_type != "NEUTRAL":
                                     scan_results.append({
                                         "game_id": f"{away_raw} @ {home_raw}",
-                                        "game_display": f"{away_raw} vs {home_raw}",
                                         "player": pname,
                                         "team": my_team,
                                         "opponent": opp_team,
@@ -8422,17 +8425,19 @@ def show_narrative_lab():
                                     })
                         except: pass
 
-                    # Executa análise
                     for _, p in r_away.iterrows(): analyze_player(p, home_n, away_raw)
                     for _, p in r_home.iterrows(): analyze_player(p, away_n, home_raw)
                     
-                    prog.progress((i+1)/total_steps)
+                    prog_bar.progress((i+1)/total_steps)
                 except: continue
             
+            # Salva no cache
             st.session_state.narrative_cache_v4[cache_key] = scan_results
-            status.update(label="✅ Scan Tático Completo!", state="complete", expanded=False)
-            time.sleep(0.5)
-            st.rerun()
+            
+        # LIMPA O PROGRESSO VISUALMENTE
+        loading_ph.empty()
+
+    # --- FIM DO CÁLCULO, AGORA EXIBE (SEM RERUN) ---
 
     if not scan_results:
         st.success("Nenhuma anomalia crítica detectada hoje. Jogos equilibrados.")
@@ -8455,7 +8460,91 @@ def show_narrative_lab():
                     with c_img:
                         photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png"
                         st.markdown(f"<img src='{photo_url}' style='width:55px; height:55px; border-radius:50%; border:2px solid #F87171; object-fit:cover;'>", unsafe_allow_html=True)
+                    
+                    with c_info:
+                        st.markdown(f"""
+                        <div style='line-height:1.1'>
+                            <div style='font-family:Oswald; font-size:14px; color:#fff; white-space:nowrap; overflow:hidden;'>{t['player']}</div>
+                            <div style='font-size:10px; color:#94a3b8;'>vs {t['opponent']}</div>
+                            <div style='color:#F87171; font-weight:bold; font-size:20px; font-family:Oswald;'>+{t['diff']:.0f}%</div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
+    # 4. UI: WAR ZONE (LISTA DE JOGOS)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 ARQUIVOS DE CONFRONTO</div>", unsafe_allow_html=True)
+
+    # Agrupa por jogo
+    games_dict = {}
+    for item in scan_results:
+        gid = item['game_id']
+        if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
+        
+        if item['type'] == "KILLER":
+            games_dict[gid]["killers"].append(item)
+        else:
+            games_dict[gid]["cold"].append(item)
+
+    # Renderiza Expanders
+    for gid, rosters in games_dict.items():
+        n_killers = len(rosters['killers'])
+        n_cold = len(rosters['cold'])
+        
+        # Título do Expander
+        label = f"{gid}"
+        if n_killers > 0: label += f" | 🚨 {n_killers} Killers"
+        if n_cold > 0: label += f" | ❄️ {n_cold} Cold"
+
+        with st.expander(label, expanded=False):
+            c_kill, c_cold = st.columns(2)
+            
+            # ESQUERDA: KILLERS
+            with c_kill:
+                st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS (+15%)</div>", unsafe_allow_html=True)
+                if not rosters['killers']:
+                    st.caption("Nada relevante.")
+                else:
+                    rows_html = ""
+                    for p in rosters['killers']:
+                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png"
+                        rows_html += f"""
+                        <tr>
+                            <td style="width:50px;"><img src="{photo}" class="wr-img" style="border-color:#F87171"></td>
+                            <td>
+                                <div class="wr-name">{p['player']}</div>
+                                <div class="wr-stat">Méd: {p['avg']:.1f} pts</div>
+                                <span class="wr-tag tag-killer">HISTÓRICO</span>
+                            </td>
+                            <td>
+                                <div class="wr-val-killer">+{p['diff']:.0f}%</div>
+                            </td>
+                        </tr>
+                        """
+                    st.markdown(f"<table class='wr-table'>{rows_html}</table>", unsafe_allow_html=True)
+
+            # DIREITA: COLD
+            with c_cold:
+                st.markdown("<div style='color:#00E5FF; font-family:Oswald; font-size:14px; margin-bottom:10px;'>❄️ GELADOS (-15%)</div>", unsafe_allow_html=True)
+                if not rosters['cold']:
+                    st.caption("Nada relevante.")
+                else:
+                    rows_html = ""
+                    for p in rosters['cold']:
+                        photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png"
+                        rows_html += f"""
+                        <tr>
+                            <td style="width:50px;"><img src="{photo}" class="wr-img" style="border-color:#00E5FF"></td>
+                            <td>
+                                <div class="wr-name">{p['player']}</div>
+                                <div class="wr-stat">Méd: {p['avg']:.1f} pts</div>
+                                <span class="wr-tag tag-cold">TRAUMA</span>
+                            </td>
+                            <td>
+                                <div class="wr-val-cold">{p['diff']:.0f}%</div>
+                            </td>
+                        </tr>
+                        """
+                    st.markdown(f"<table class='wr-table'>{rows_html}</table>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: DASHBOARD (CORRIGIDA - COMPLETA)
 # ============================================================================
@@ -8832,6 +8921,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
