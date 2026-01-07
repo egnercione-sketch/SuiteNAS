@@ -400,7 +400,141 @@ if 'advanced_features_config' not in st.session_state: st.session_state.advanced
 # ============================================================================
 # 7. SISTEMA DE AUTENTICAÇÃO (CORREÇÃO: PASSE MESTRE ANTI-BLOQUEIO)
 # ============================================================================
+# ============================================================================
+# NOVA FUNÇÃO: FETCH REAL GAME LOGS (CORREÇÃO DECIMAL 19.0)
+# ============================================================================
+def fetch_and_upload_real_game_logs(progress_ui=True):
+    """
+    Baixa logs da NBA, FORÇA a conversão de floats (19.0) para inteiros (19)
+    e salva na nuvem via save_data_universal.
+    
+    Correção Crítica: Resolve 'invalid input syntax for type bigint: "19.0"'
+    """
+    import concurrent.futures
+    import pandas as pd
+    import time
+    from nba_api.stats.static import players
+    from nba_api.stats.endpoints import playergamelog
+    
+    # 1. Configurações
+    # Ajuste a temporada conforme necessário (ex: "2024-25")
+    SEASON_CURRENT = "2024-25" 
+    MAX_WORKERS = 8 # Paralelismo seguro para não tomar block da NBA
+    
+    # 2. Obter lista de jogadores ativos
+    try:
+        active_players = players.get_active_players()
+    except Exception as e:
+        if progress_ui: st.error(f"Erro ao buscar lista de jogadores: {e}")
+        return {}
+    
+    total = len(active_players)
+    results = {}
+    
+    # 3. Interface Visual (Streamlit)
+    if progress_ui:
+        status_box = st.status(f"🏀 Baixando Real Game Logs ({SEASON_CURRENT})...", expanded=True)
+        p_bar = status_box.progress(0)
+        text_ph = status_box.empty()
 
+    # --- FUNÇÃO INTERNA DE WORKER ---
+    def fetch_one_player_log(p):
+        try:
+            # Pequeno delay para evitar rate limit se rodar muito rápido
+            time.sleep(0.05)
+            
+            # Chama API
+            log = playergamelog.PlayerGameLog(player_id=p['id'], season=SEASON_CURRENT)
+            df = log.get_data_frames()[0]
+            
+            if df.empty: return None
+
+            # Pegamos apenas os últimos 30 jogos para não ficar gigante
+            df = df.head(30)
+
+            # === SANITIZAÇÃO DE DADOS (A CORREÇÃO DO ERRO) ===
+            # Colunas que OBRIGATORIAMENTE precisam ser INTEIROS no Supabase (BigInt/Int8)
+            int_cols = [
+                'PTS', 'REB', 'AST', 'STL', 'BLK', 
+                'FGA', 'FGM', 'FG3M', 'FG3A', 'FTM', 'FTA', 
+                'TOV', 'PF'
+            ]
+            
+            clean_logs = {}
+            
+            # Tratamento de Inteiros
+            for col in int_cols:
+                if col in df.columns:
+                    # 1. fillna(0): Troca Nulos por 0
+                    # 2. astype(int): Remove o ponto decimal (19.0 -> 19)
+                    # 3. tolist(): Garante que seja lista Python nativa, não numpy array
+                    clean_logs[col] = df[col].fillna(0).astype(int).tolist()
+            
+            # Tratamento de Minutos (Geralmente vem como string "32:15" ou float)
+            # Vamos padronizar para Float arredondado para salvar como numeric se precisar
+            if 'MIN' in df.columns:
+                def clean_min_val(val):
+                    try:
+                        val_str = str(val)
+                        if ":" in val_str:
+                            parts = val_str.split(":")
+                            return float(int(parts[0]) + int(parts[1])/60)
+                        return float(val)
+                    except: return 0.0
+                
+                # Arredonda para 1 casa decimal para ficar limpo (ex: 32.5)
+                clean_logs['MIN'] = df['MIN'].apply(clean_min_val).round(1).tolist()
+
+            # Retorna estrutura pronta
+            return {
+                "name": p['full_name'],
+                "id": p['id'],
+                "team": df['TEAM_ABBREVIATION'].iloc[0] if 'TEAM_ABBREVIATION' in df.columns else "UNK",
+                "logs": clean_logs,
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        except Exception:
+            return None
+    # --------------------------------
+
+    # 4. Execução Paralela (ThreadPool)
+    count = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Mapeia futures
+        future_to_player = {executor.submit(fetch_one_player_log, p): p for p in active_players}
+        
+        for future in concurrent.futures.as_completed(future_to_player):
+            res = future.result()
+            if res:
+                # Usa o nome como chave principal
+                results[res['name']] = res
+            
+            count += 1
+            if progress_ui:
+                pct = count / total
+                p_bar.progress(min(pct, 1.0))
+                
+                # Mostra o nome do jogador atual para dar feedback visual
+                current_p = res['name'] if res else "..."
+                text_ph.write(f"Processando {count}/{total}: {current_p}")
+
+    # 5. Salvar Universalmente (Local + Supabase)
+    if results:
+        if progress_ui: 
+            text_ph.write("☁️ Enviando para Supabase (Sanitizado)...")
+        
+        # Aqui usamos sua função existente que sabe lidar com o Supabase
+        # O JSON agora contém inteiros puros (19), então o Postgres aceitará.
+        sucesso = save_data_universal("real_game_logs", results, os.path.join("cache", "real_game_logs.json"))
+        
+        if progress_ui:
+            if sucesso:
+                status_box.update(label=f"✅ Sucesso! {len(results)} logs sincronizados e limpos.", state="complete", expanded=False)
+            else:
+                status_box.update(label=f"⚠️ Salvo localmente, mas erro na nuvem.", state="error", expanded=True)
+            
+    return results
+    
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
 # ============================================================================
@@ -435,16 +569,6 @@ def fetch_real_time_team_stats():
         return None
 
 # Helpers de Inicialização
-def initialize_system_components():
-    comps = {}
-    if "archetype_engine" not in st.session_state and ArchetypeEngine:
-        st.session_state.archetype_engine = ArchetypeEngine()
-        comps["Archetype"] = "✅"
-    if "rotation_analyzer" not in st.session_state and RotationAnalyzer:
-        st.session_state.rotation_analyzer = RotationAnalyzer()
-        comps["Rotation"] = "✅"
-    return comps
-
 # ============================================================================
 # DIAG
 # ============================================================================
@@ -5177,15 +5301,23 @@ def show_config_page():
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.markdown("**1. Estatísticas & Jogadores**")
         
-        if st.button("🔁 ATUALIZAR L5 COMPLETO", type="primary", use_container_width=True):
-            with st.spinner("Baixando dados..."):
-                try:
-                    # Supondo que get_players_l5 esteja definida globalmente
-                    st.session_state.df_l5 = get_players_l5(progress_ui=True)
-                    st.success("✅ Atualizado!")
-                    time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Erro L5: {e}")
-        
+if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
+            try:
+                # 1. Atualiza Médias L5 (Rápido)
+                st.write("📊 Calculando médias L5...")
+                new_l5 = get_players_l5(progress_ui=True)
+                st.session_state.df_l5 = new_l5
+                
+                # 2. Atualiza Logs Brutos (Lento e Pesado -> Agora corrigido)
+                st.write("📝 Baixando Logs Detalhados (Correção Int)...")
+                fetch_and_upload_real_game_logs(progress_ui=True)
+                
+                st.success("✅ Tudo atualizado! Inteiros corrigidos.")
+                time.sleep(2)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro no processo: {e}")
+                        
 # --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
         st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
         if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
@@ -8454,6 +8586,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
