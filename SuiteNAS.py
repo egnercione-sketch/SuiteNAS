@@ -1395,7 +1395,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V28.0 - VISUAL UPGRADE: LOGOS & PHOTOS)
+# PÁGINA: BLOWOUT RADAR (V29.0 - INJURY FILTER FIX)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1411,11 +1411,13 @@ def show_blowout_hunter_page():
         if not text: return ""
         try:
             text = str(text)
+            # Normalização Unicode para remover acentos
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+            # Remove sufixos comuns de nomes Jr., III, etc para facilitar match
+            text = text.replace(" JR.", "").replace(" SR.", "").replace(" III", "").replace(" II", "").replace(" IV", "")
             return text.upper().strip()
         except: return ""
 
-    # Mapeamento para garantir URLs de logo corretas (ESPN IDs)
     LOGO_MAP = {
         "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
         "NO": "NOP", "NOP": "NOP", "SA": "SAS", "SAS": "SAS",
@@ -1426,53 +1428,35 @@ def show_blowout_hunter_page():
     }
 
     def get_logo_url(team_abbr):
-        """Retorna URL do logo da ESPN baseado na sigla."""
         clean_abbr = LOGO_MAP.get(team_abbr.upper(), team_abbr.upper())
         return f"https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/{clean_abbr.lower()}.png"
 
-    # --- 2. ESTILO VISUAL (ATUALIZADO PARA IMAGENS) ---
+    # --- 2. ESTILO VISUAL ---
     st.markdown("""
     <style>
         .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
-        
-        /* Container Principal */
         .match-container { background-color: #1e293b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; overflow: hidden; }
-        
-        /* Header do Jogo */
         .risk-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
         .risk-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 80%); border-left: 5px solid #EF4444; }
         .risk-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 80%); border-left: 5px solid #F59E0B; }
         .risk-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 80%); border-left: 5px solid #10B981; }
-        
         .game-matchup-box { display: flex; align-items: center; gap: 10px; }
         .match-logo { width: 35px; height: 35px; object-fit: contain; }
         .game-matchup-text { font-family: 'Oswald'; font-size: 20px; color: #fff; letter-spacing: 1px; }
-        
         .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-        
-        /* Área de Jogadores */
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
-        
-        /* Header da Coluna (Logo do Time + Texto) */
-        .team-col-header { 
-            display: flex; align-items: center; gap: 8px; 
-            border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; 
-        }
+        .team-col-header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; }
         .team-col-logo { width: 24px; height: 24px; object-fit: contain; }
         .team-col-text { color: #94a3b8; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
-        
-        /* Card do Jogador (Vulture) */
         .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; }
         .vulture-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #a78bfa; margin-right: 12px; object-fit: cover; background: #0f172a; }
         .vulture-name { color: #e2e8f0; font-weight: 700; font-size: 13px; line-height: 1.2; }
         .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
-        
         .stat-box { display: flex; gap: 12px; text-align: center; }
         .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; }
         .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; }
         .c-pts { color: #4ade80; } .c-reb { color: #60a5fa; } .c-ast { color: #facc15; }
-        
         .dna-badge { background: #6D28D9; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
         .fallback-badge { background: #F59E0B; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
     </style>
@@ -1480,77 +1464,82 @@ def show_blowout_hunter_page():
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 3. CORE: LEITURA DO ARQUIVO V44 (Lógica Original Mantida) ---
-    data_source = "CACHE"
-    try:
-        fresh_inj = get_data_universal('injuries_cache_v44')
-        if not fresh_inj:
-             fresh_inj = get_data_universal('injuries_v44')
-        
-        if fresh_inj: 
-            st.session_state['injuries_data'] = fresh_inj
-            data_source = "SUPABASE_V44"
-        else:
-            generic = get_data_universal('injuries_data')
-            if generic:
-                st.session_state['injuries_data'] = generic
-                data_source = "SUPABASE_GENERIC"
-    except: pass
-
+    # --- 3. CORE: LEITURA E FILTRAGEM DE LESÕES (SUPABASE FIX) ---
     banned_players = set()
-    raw_inj_debug = []
+    
+    # Palavras-chave que indicam que o jogador NÃO joga
+    # (Adicionamos GTD/QUEST se quisermos ser conservadores no Blowout, já que GTD raramente joga garbage time)
+    EXCLUSION_KEYWORDS = ['OUT', 'DOUBTFUL', 'SURGERY', 'INJURED', 'PROTOCOL', 'SUSPENDED', 'G LEAGUE', 'PERSONAL']
 
-    try:
-        raw_inj_source = st.session_state.get('injuries_data', [])
+    # 1. Tenta pegar a tabela 'injuries' (Padrão Supabase/InjuryMonitor)
+    raw_inj_source = get_data_universal('injuries')
+    
+    # 2. Se falhar, tenta caches alternativos
+    if not raw_inj_source: raw_inj_source = get_data_universal('injuries_data')
+    if not raw_inj_source: raw_inj_source = st.session_state.get('injuries_data', [])
+
+    # Processamento e Normalização da Lista Negra
+    if raw_inj_source:
         flat_inj = []
+        # Flattening (caso venha como dicionário {Team: [List]})
         if isinstance(raw_inj_source, dict):
-            for t in raw_inj_source.values(): 
+            for t in raw_inj_source.values():
                 if isinstance(t, list): flat_inj.extend(t)
         elif isinstance(raw_inj_source, list):
             flat_inj = raw_inj_source
-        
-        raw_inj_debug = flat_inj[:3]
-        EXCLUSION_KEYWORDS = ['OUT', 'DOUBT', 'SURG', 'INJUR', 'PROTOCOL', 'DAY', 'DTD', 'QUEST', 'GTD']
-        
-        for item in flat_inj:
-            p_name = ""
-            status = ""
-            if isinstance(item, dict):
-                p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
-                status = str(item.get('status', '')).upper()
-            elif isinstance(item, str):
-                parts = str(item).split('-')
-                p_name = parts[0]
-                status = str(item).upper()
             
-            if p_name:
-                norm_name = normalize_str(p_name)
-                if norm_name and any(x in status for x in EXCLUSION_KEYWORDS):
-                    banned_players.add(norm_name)
-    except Exception as e:
-        print(f"Erro processando v44: {e}")
+        for item in flat_inj:
+            try:
+                p_name = ""
+                status = ""
+                
+                # Extrai nome e status dependendo do formato do objeto
+                if isinstance(item, dict):
+                    p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
+                    status = str(item.get('status', '')).upper()
+                    # Se tiver campo 'return_date' ou 'note', pode ajudar, mas 'status' é o principal
+                elif isinstance(item, str):
+                    # Formato simples "Nome - Status"
+                    parts = str(item).split('-')
+                    p_name = parts[0]
+                    status = str(item).upper()
+                
+                if p_name:
+                    norm_name = normalize_str(p_name)
+                    # Se o status contiver qualquer palavra de exclusão, bane o jogador
+                    if norm_name and any(x in status for x in EXCLUSION_KEYWORDS):
+                        banned_players.add(norm_name)
+            except: continue
+    
+    # Debug Opcional (Comente em produção)
+    # st.write(f"DEBUG: {len(banned_players)} jogadores banidos por lesão carregados.")
 
-    # --- 4. CONFIGURAÇÃO ---
+    # --- 4. CONFIGURAÇÃO DO ENGINE ---
     KEY_LOGS = "real_game_logs"
     KEY_DNA = "rotation_dna_v27"
 
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     PLAYER_TEAM_MAP = {}
+    
     if not df_l5.empty:
         try:
             df_norm = df_l5.copy()
             df_norm['PLAYER_NORM'] = df_norm['PLAYER'].apply(normalize_str)
+            # Remove duplicatas para evitar IDs errados
+            df_norm = df_norm.drop_duplicates(subset=['PLAYER_NORM'])
             PLAYER_ID_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['PLAYER_ID']))
             PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
         except: pass
 
-    # --- 5. ENGINE AUTO-RUN (Lógica Original Mantida) ---
+    # --- 5. ENGINE DE ROTAÇÃO (COM FILTRAGEM PRÉVIA) ---
     if 'dna_final_v27' not in st.session_state:
-        with st.spinner("🤖 Processando rotações com V44 Injury Data..."):
+        with st.spinner("🤖 Calculando rotações e aplicando filtros médicos..."):
             try:
+                # Tenta cache primeiro
                 cloud_dna = get_data_universal(KEY_DNA)
                 
+                # Se não tiver cache, calcula na hora
                 if not cloud_dna:
                     raw_data = get_data_universal(KEY_LOGS)
                     if raw_data:
@@ -1564,7 +1553,14 @@ def show_blowout_hunter_page():
                         for p_name, p_data in raw_data.items():
                             if not isinstance(p_data, dict): continue
                             
+                            # NORMALIZA E CHECA LESÃO IMEDIATAMENTE
                             norm_name = normalize_str(p_name)
+                            
+                            # --- FILTRO CRÍTICO AQUI ---
+                            if norm_name in banned_players:
+                                continue # Pula jogador lesionado
+                            # ---------------------------
+
                             p_id = PLAYER_ID_MAP.get(norm_name, 0)
                             
                             team = str(p_data.get('team', 'UNK')).upper().strip()
@@ -1585,15 +1581,17 @@ def show_blowout_hunter_page():
                                 avg_min = p_data.get('logs', {}).get('MIN_AVG', 0)
                                 if avg_min == 0 and min_list: avg_min = sum(min_list) / len(min_list)
                                 
+                                # Filtra Titulares (Queremos apenas reservas < 26 min)
                                 if avg_min > 26: continue
 
                                 is_qualified = False
                                 b_pts, b_reb, b_ast, b_min = 0,0,0,0
                                 logic_type = "REGULAR"
 
-                                # Sniper
+                                # Lógica Sniper (Minutagem sobe em blowout)
                                 if min_list and len(min_list) == len(pts_list):
                                     arr_min = np.array(min_list)
+                                    # Detecta jogos onde jogou o dobro da média ou > 12min
                                     mask = arr_min >= max(12.0, avg_min * 2.0)
                                     if np.any(mask):
                                         is_qualified = True
@@ -1606,7 +1604,7 @@ def show_blowout_hunter_page():
                                         b_ast = np.mean(arr_ast[mask])
                                         b_min = np.mean(arr_min[mask])
 
-                                # Fallback
+                                # Lógica Ceiling (Teto nos últimos jogos)
                                 if not is_qualified and avg_min > 8.0:
                                     limit = len(pts_list)
                                     p = np.array(pts_list[:limit])
@@ -1654,7 +1652,7 @@ def show_blowout_hunter_page():
 
     DNA_DB = st.session_state.get('dna_final_v27', {})
 
-    # --- 6. EXIBIÇÃO (VISUAL UPGRADE) ---
+    # --- 6. EXIBIÇÃO (VISUAL) ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.warning("Aguardando jogos...")
@@ -1665,7 +1663,7 @@ def show_blowout_hunter_page():
     with c_sim:
         force_spread = st.slider("🎛️ Simular Cenário de Blowout (Spread):", 0, 30, 0)
 
-    ALIAS_MAP = LOGO_MAP # Reusa o mapa de logos para busca de dados
+    ALIAS_MAP = LOGO_MAP
 
     def get_team_data(query):
         q = str(query).upper().strip()
@@ -1693,11 +1691,9 @@ def show_blowout_hunter_page():
             risk_cls, risk_txt = "risk-low", "JOGO EQUILIBRADO"
             show_players = False
         
-        # URLs dos logos do Matchup
         logo_away = get_logo_url(g['away'])
         logo_home = get_logo_url(g['home'])
 
-        # Header do Matchup com Logos
         st.markdown(f"""
         <div class="match-container">
             <div class="risk-header {risk_cls}">
@@ -1721,7 +1717,6 @@ def show_blowout_hunter_page():
                 t_logo = get_logo_url(t_name)
                 
                 with col:
-                    # Cabeçalho da Coluna com Logo
                     st.markdown(f"""
                     <div class="players-area">
                         <div class="team-col-header">
@@ -1734,12 +1729,13 @@ def show_blowout_hunter_page():
                         active_players = []
                         for p in data:
                             p_clean = p.get('clean_name') or normalize_str(p['name'])
+                            
+                            # --- DUPLA CHECAGEM DE SEGURANÇA NA EXIBIÇÃO ---
                             if p_clean not in banned_players:
                                 active_players.append(p)
                         
                         if active_players:
                             for p in active_players[:3]:
-                                # Lógica da Foto com Fallback
                                 photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                                 if p.get('id') and p['id'] != 0:
                                     photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
@@ -1781,16 +1777,6 @@ def show_blowout_hunter_page():
             """, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
-
-    # --- 7. DEBUG FINAL (MANTIDO) ---
-    with st.expander(f"🔍 Debug V44 (Fonte: {data_source})", expanded=False):
-        st.write(f"Banidos Carregados: {len(banned_players)}")
-        st.write(f"Amostra de Lesão V44: {raw_inj_debug}")
-        
-        check = st.text_input("Testar:", "VALANCIUNAS")
-        if check:
-            nm = normalize_str(check)
-            st.write(f"Status '{nm}': {'⛔ BANIDO' if nm in banned_players else '✅ JOGANDO'}")
 # ============================================================================
 # PÁGINA: MOMENTUM (V5.2 - FIX COLUMNS & UNK)
 # ============================================================================
@@ -8941,6 +8927,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
