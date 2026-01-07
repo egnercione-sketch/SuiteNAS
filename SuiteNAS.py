@@ -582,10 +582,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V6 (COMPACTO + SNAPSHOT + FOTO FIX)
-# ============================================================================
-# ============================================================================
-# PÁGINA: ORÁCULO V9 (DIAGNOSTIC EDITION)
+# PÁGINA: ORÁCULO V10 (VARREDURA INTELIGENTE DE COLUNAS + SNAPSHOT)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -613,7 +610,6 @@ def show_oracle_page():
         .stat-val { font-family: 'Oswald'; font-size: 18px; font-weight: bold; line-height: 1; }
         .stat-lbl { font-family: 'Inter'; font-size: 8px; color: #64748b; font-weight: 700; margin-top: -2px; }
         .c-gold { color: #fbbf24; } .c-red { color: #f87171; } .c-blue { color: #60a5fa; } .c-green { color: #4ade80; }
-        .debug-box { background: #334155; color: #fff; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 10px; margin-top: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -639,119 +635,132 @@ def show_oracle_page():
         st.warning("⚠️ Aguardando dados...")
         return
 
-    # --- 4. FUNÇÃO DE LIMPEZA (CORE) ---
+    # FUNÇÃO DE LIMPEZA ABSOLUTA
     def clean_key(text):
         if not text: return ""
         try:
-            # Normaliza Unicode (Jokić -> Jokic)
+            # Força string e remove Nones
             t = str(text)
+            if t.lower() == 'nan' or t.lower() == 'none' or t.lower() == 'null': return ""
+            # Normaliza Unicode
             nfkd = unicodedata.normalize('NFKD', t)
             t = "".join([c for c in nfkd if not unicodedata.combining(c)])
-            # Upper e Remove tudo que não é letra
+            # Upper e Apenas Letras
             return re.sub(r'[^A-Z]', '', t.upper())
         except: return ""
 
-    # --- 5. INDEXAÇÃO DO L5 (FONTE DA VERDADE) ---
-    MASTER_DB = {} # Chave: NOME_LIMPO -> Dados
-    DEBUG_KEYS = [] # Para mostrar no debug
+    # --- 4. INDEXAÇÃO INTELIGENTE (VARREDURA DE COLUNAS) ---
+    MASTER_DB = {}
+    DEBUG_LOG = []
 
     if not df_l5.empty:
         try:
-            # Normaliza nomes das colunas (Trim e Upper)
+            # 1. Normaliza nomes das colunas do DataFrame
             df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+            cols = df_l5.columns
             
-            # Localiza colunas com flexibilidade
-            col_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            col_name = next((c for c in df_l5.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME', 'FULL_NAME']), 'PLAYER')
-            col_team = next((c for c in df_l5.columns if c in ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_ID']), 'TEAM')
+            # 2. DETECÇÃO INTELIGENTE DE COLUNAS
+            # Prioriza PLAYER_NAME porque vimos no seu log que PLAYER pode ser null
+            col_name_candidates = ['PLAYER_NAME', 'PLAYER', 'NAME', 'FULL_NAME']
+            col_id_candidates = ['PLAYER_ID', 'ID', 'PERSON_ID']
+            col_team_candidates = ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_ID', 'TEAM_NAME']
 
-            for _, row in df_l5.iterrows():
-                try:
-                    raw_id = row.get(col_id, 0)
-                    pid = int(float(raw_id)) # Garante ID
-                    
-                    if pid > 0:
-                        raw_name = str(row.get(col_name, ''))
-                        # Correção do Bug UNK: .strip() remove espaços extras
-                        raw_team = str(row.get(col_team, 'UNK')).strip().upper()
+            c_name = next((c for c in col_name_candidates if c in cols), None)
+            c_id = next((c for c in col_id_candidates if c in cols), None)
+            c_team = next((c for c in col_team_candidates if c in cols), None)
+            
+            # Debug das colunas encontradas
+            DEBUG_LOG.append(f"Colunas usadas -> Nome: {c_name} | ID: {c_id} | Time: {c_team}")
+
+            if c_name and c_id:
+                for _, row in df_l5.iterrows():
+                    try:
+                        # Extrai ID
+                        raw_id = row.get(c_id, 0)
+                        pid = int(float(raw_id)) if pd.notnull(raw_id) else 0
                         
-                        key = clean_key(raw_name)
-                        entry = {'id': pid, 'team': raw_team, 'real_name': raw_name}
+                        # Extrai Nome (Ignora se for None/Null)
+                        raw_name = row.get(c_name, '')
+                        if pd.isna(raw_name): continue
+                        raw_name = str(raw_name)
+
+                        # Extrai Time
+                        raw_team = str(row.get(c_team, 'UNK')).strip().upper()
                         
-                        MASTER_DB[key] = entry
-                        DEBUG_KEYS.append(f"{raw_name} -> {key}") # Log para debug
-                        
-                        # Indexa Sobrenome (Fallback)
-                        parts = raw_name.split()
-                        if len(parts) > 1:
-                            lname = clean_key(parts[-1])
-                            if lname not in MASTER_DB: MASTER_DB[lname] = entry
-                except: continue
+                        if pid > 0 and len(raw_name) > 2:
+                            key = clean_key(raw_name)
+                            if key:
+                                entry = {'id': pid, 'team': raw_team, 'real_name': raw_name}
+                                MASTER_DB[key] = entry
+                                
+                                # Indexa Sobrenome
+                                parts = raw_name.split()
+                                if len(parts) > 1:
+                                    lname = clean_key(parts[-1])
+                                    if lname not in MASTER_DB: MASTER_DB[lname] = entry
+                    except: continue
         except Exception as e:
             st.error(f"Erro Indexação: {e}")
 
-    # --- 6. ENGINE PROJEÇÕES ---
+    # --- 5. ENGINE ---
     engine = OracleEngine(full_cache, injuries_data)
-    projections = engine.generate_projections(limit=12)
+    projections = engine.generate_projections(limit=10)
 
     if not projections:
         st.info("Calibrando...")
         return
 
-    # --- 7. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
     st.markdown("""<div style="display:flex; justify-content:flex-end; padding-right:15px; margin-bottom:5px; font-family:'Oswald'; font-size:10px; color:#64748b; gap:40px;"><span>PTS</span> <span>REB</span> <span>AST</span> <span>3PM</span></div>""", unsafe_allow_html=True)
 
     snapshot_list = []
 
     for p in projections:
-        raw_proj_name = p['name']
-        search_key = clean_key(raw_proj_name)
+        raw_name = p['name']
+        search_key = clean_key(raw_name)
         
-        # 1. Busca Exata
+        # BUSCA
         match = MASTER_DB.get(search_key)
         
-        # 2. Busca Sobrenome
+        # Fallback Sobrenome
         if not match:
-            parts = raw_proj_name.split()
+            parts = raw_name.split()
             if len(parts) > 1: match = MASTER_DB.get(clean_key(parts[-1]))
             
-        # 3. Busca Parcial (Contém) - Para casos como "Jalen Marquis Brunson"
+        # Fallback "Contém"
         if not match:
-            for db_key, db_val in MASTER_DB.items():
-                if len(db_key) > 4 and (db_key in search_key or search_key in db_key):
-                    match = db_val
-                    break
+             for k, v in MASTER_DB.items():
+                 if len(k) > 4 and k in search_key:
+                     match = v
+                     break
 
-        # Define Dados Finais
         if match:
             final_id = match['id']
             final_team = match['team']
             final_name = match['real_name']
         else:
             final_id = 0
-            # Fallback Time e Correção UNK
-            final_team = str(p['team']).strip().upper()
-            if len(final_team) > 3: final_team = "UNK" 
-            final_name = raw_proj_name
+            final_team = str(p['team']).upper()
+            if len(final_team) > 3: final_team = "UNK"
+            final_name = raw_name
 
-        # URL Foto
+        # URL
         if final_id > 0:
             photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{final_id}.png"
         else:
             photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-        # URL Logo
+        # Logo
         tm_low = final_team.lower()
         if tm_low == "uta": tm_low = "utah"
         elif tm_low == "nop": tm_low = "no"
         elif tm_low == "phx": tm_low = "pho"
         elif tm_low == "was": tm_low = "wsh"
         logo_url = f"{logo_base}/{tm_low}.png"
-        
+
         snapshot_list.append({'name': final_name, 'team': final_team, 'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM']})
 
-        # Card
         with st.container(border=True):
             c_img, c_info, c1, c2, c3, c4 = st.columns([1, 3, 1.2, 1.2, 1.2, 1.2])
             with c_img: st.image(photo_url, use_container_width=True)
@@ -763,30 +772,18 @@ def show_oracle_page():
             with c3: st.markdown(f'<div class="stat-box"><div class="stat-val c-blue">{p["AST"]:.1f}</div><div class="stat-lbl">AST</div></div>', unsafe_allow_html=True)
             with c4: st.markdown(f'<div class="stat-box"><div class="stat-val c-green">{p["3PM"]:.1f}</div><div class="stat-lbl">3PM</div></div>', unsafe_allow_html=True)
 
-    # --- 8. ÁREA DE DIAGNÓSTICO (DEBUG) ---
-    st.markdown("---")
-    with st.expander("🕵️‍♂️ ÁREA DE DIAGNÓSTICO (DEBUG - CLIQUE AQUI SE AS FOTOS FALHAREM)", expanded=False):
-        st.write("Use este campo para verificar como o nome do jogador está escrito no arquivo L5:")
-        search_debug = st.text_input("Buscar Jogador no Cache L5:", "").upper()
-        
-        if search_debug:
-            results = [k for k in DEBUG_KEYS if search_debug in k.upper()]
-            if results:
-                st.success(f"Encontrados {len(results)} registros:")
-                for r in results[:10]:
-                    st.code(r)
-            else:
-                st.error("Jogador não encontrado no cache L5. Se ele não estiver aqui, não teremos ID nem Foto.")
-        
-        st.markdown("---")
-        st.write(f"**Total de Jogadores no Cache L5:** {len(MASTER_DB)}")
-        st.write("**Colunas detectadas no arquivo L5:**")
-        if not df_l5.empty:
-            st.code(list(df_l5.columns))
-        else:
-            st.error("Dataframe L5 está vazio!")
+    # --- 7. DIAGNÓSTICO ---
+    with st.expander("🛠️ DIAGNÓSTICO (DEBUG)", expanded=False):
+        st.write(DEBUG_LOG)
+        st.write(f"Total Jogadores Indexados: {len(MASTER_DB)}")
+        test_search = st.text_input("Testar nome no cache L5:").upper()
+        if test_search:
+            k = clean_key(test_search)
+            res = MASTER_DB.get(k)
+            st.write(f"Chave gerada: {k}")
+            st.write(f"Resultado: {res}")
 
-    # Snapshot Engine (Omitida para brevidade, mantenha a função create_snapshot da V7 aqui)
+    # --- 8. SNAPSHOT ENGINE ---
     def create_snapshot(data):
         fig, ax = plt.subplots(figsize=(8, 10))
         fig.patch.set_facecolor('#0f172a')
@@ -8482,6 +8479,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
