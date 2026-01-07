@@ -8296,7 +8296,7 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (V4.3 - CORREÇÃO DE COLUNAS CRÍTICA)
+# PÁGINA: LAB DE NARRATIVAS (V5.0 - FULL OPEN / SEM CLIQUES)
 # ============================================================================
 def show_narrative_lab():
     import time
@@ -8320,6 +8320,7 @@ def show_narrative_lab():
         .tag-killer { background: rgba(248, 113, 113, 0.15); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
         .tag-cold { background: rgba(6, 182, 212, 0.15); color: #00E5FF; border: 1px solid rgba(6, 182, 212, 0.3); }
         .wr-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; display: block; }
+        .wr-game-title { font-family: 'Oswald', sans-serif; font-size: 18px; color: #E2E8F0; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -8344,22 +8345,16 @@ def show_narrative_lab():
         st.info("ℹ️ Aguardando dados...")
         return
 
-    # --- FIX CRÍTICO DE COLUNAS (AQUI ESTAVA O ERRO) ---
-    # 1. Normaliza nomes das colunas (Tudo maiúsculo e sem espaços)
+    # --- CORREÇÃO DE COLUNAS ---
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-
-    # 2. Cria PTS_AVG se não existir
+    
     if 'PTS_AVG' not in df_l5.columns:
-        if 'PTS' in df_l5.columns:
-            df_l5['PTS_AVG'] = df_l5['PTS'] # Copia de PTS
-        else:
-            # Se não tiver nem PTS, cria zerado pra não quebrar
-            df_l5['PTS_AVG'] = 0.0
-
-    # 3. Garante que é número
+        if 'PTS' in df_l5.columns: df_l5['PTS_AVG'] = df_l5['PTS']
+        else: df_l5['PTS_AVG'] = 0.0
+    
     df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
 
-    # 4. Normaliza Times (Mapas de nomes)
+    # Normaliza Times
     TEAM_MAP_FIX = {
         'GS': 'GSW', 'GOLDEN STATE': 'GSW', 'NO': 'NOP', 'NEW ORLEANS': 'NOP',
         'NY': 'NYK', 'NEW YORK': 'NYK', 'SA': 'SAS', 'SAN ANTONIO': 'SAS',
@@ -8371,27 +8366,24 @@ def show_narrative_lab():
         x = str(x).upper().strip()
         return TEAM_MAP_FIX.get(x, x)
 
-    # Aplica normalização de time
     col_team = 'TEAM' if 'TEAM' in df_l5.columns else ('TEAM_ABBREVIATION' if 'TEAM_ABBREVIATION' in df_l5.columns else None)
     if col_team:
         df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
     else:
-        st.error("Erro: Coluna de Time não encontrada no banco de dados.")
-        st.write("Colunas disponíveis:", df_l5.columns.tolist())
+        st.error("Erro: Coluna de Time não encontrada.")
         return
 
-    # 2. SCAN
-    if "narrative_cache_v5" not in st.session_state:
-        st.session_state.narrative_cache_v5 = {}
+    # 2. SCAN INTELIGENTE
+    if "narrative_cache_v7" not in st.session_state:
+        st.session_state.narrative_cache_v7 = {}
 
     cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
-    scan_results = st.session_state.narrative_cache_v5.get(cache_key)
-    debug_logs = []
+    scan_results = st.session_state.narrative_cache_v7.get(cache_key)
 
     if scan_results is None:
         loading_ph = st.empty()
         with loading_ph.container():
-            st.write("📡 Iniciando Varredura Tática (V4.3)...")
+            st.write("📡 Analisando histórico de confrontos...")
             prog = st.progress(0)
             scan_results = []
             
@@ -8400,12 +8392,9 @@ def show_narrative_lab():
                     away_raw = normalize_t(game['away'])
                     home_raw = normalize_t(game['home'])
                     
-                    # Filtra usando a coluna normalizada
-                    r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].sort_values('PTS_AVG', ascending=False).head(8)
-                    r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].sort_values('PTS_AVG', ascending=False).head(8)
-
-                    if r_away.empty: debug_logs.append(f"⚠️ {away_raw}: Zero jogadores (Verificar Sigla)")
-                    if r_home.empty: debug_logs.append(f"⚠️ {home_raw}: Zero jogadores (Verificar Sigla)")
+                    # Deduplicação e Filtro
+                    r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].drop_duplicates(subset=['PLAYER_ID']).sort_values('PTS_AVG', ascending=False).head(10)
+                    r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].drop_duplicates(subset=['PLAYER_ID']).sort_values('PTS_AVG', ascending=False).head(10)
 
                     def analyze_player(row, opp_team, my_team):
                         try:
@@ -8413,7 +8402,6 @@ def show_narrative_lab():
                             pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
-                            # Filtro Média
                             if avg_pts < 8: return
 
                             # Engine
@@ -8421,7 +8409,6 @@ def show_narrative_lab():
                             
                             if data and 'comparison' in data:
                                 diff = data['comparison'].get('diff_pct', 0)
-                                
                                 n_type = "NEUTRAL"
                                 if diff >= 15: n_type = "KILLER"
                                 elif diff <= -15: n_type = "COLD"
@@ -8438,33 +8425,32 @@ def show_narrative_lab():
                                         "pid": pid,
                                         "badge": data.get('badge', 'H2H')
                                     })
-                        except Exception as e:
-                            pass # Ignora erro individual de jogador
+                        except: pass
 
                     for _, p in r_away.iterrows(): analyze_player(p, home_raw, away_raw)
                     for _, p in r_home.iterrows(): analyze_player(p, away_raw, home_raw)
                     
                     prog.progress((i+1)/len(games))
-                except Exception as e:
-                    debug_logs.append(f"Erro Jogo {game.get('away')} vs {game.get('home')}: {e}")
+                except: continue
             
-            st.session_state.narrative_cache_v5[cache_key] = scan_results
+            st.session_state.narrative_cache_v7[cache_key] = scan_results
         loading_ph.empty()
 
     # 3. RESULTADOS
     if not scan_results:
-        st.warning("Nenhuma anomalia crítica detectada.")
-        with st.expander("🕵️ DETETIVE DE DADOS (Debug)", expanded=True):
-            st.write(f"Colunas no DB: {df_l5.columns.tolist()}")
-            if debug_logs:
-                for l in debug_logs: st.warning(l)
-            else:
-                st.success("O sistema rodou liso, mas os jogadores hoje estão 'normais'.")
+        st.success("Nenhuma anomalia crítica detectada hoje.")
         return
 
-    # UI: TOP THREATS
+    # UI: TOP THREATS (Deduplicado)
     killers = [x for x in scan_results if x['type'] == "KILLER"]
-    top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
+    seen_pids = set()
+    unique_killers = []
+    for k in killers:
+        if k['pid'] not in seen_pids:
+            unique_killers.append(k)
+            seen_pids.add(k['pid'])
+            
+    top_threats = sorted(unique_killers, key=lambda x: x['diff'], reverse=True)[:3]
 
     if top_threats:
         st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#F87171; font-weight:bold;'>🚨 ALVOS DE ALTO VALOR (TOP 3)</div>", unsafe_allow_html=True)
@@ -8484,37 +8470,56 @@ def show_narrative_lab():
                         </div>
                         """, unsafe_allow_html=True)
 
-    # UI: WAR ZONE
+    # UI: WAR ZONE (ABERTO E DIRETO)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 ARQUIVOS DE CONFRONTO</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 RELATÓRIOS DE JOGO</div>", unsafe_allow_html=True)
 
     games_dict = {}
     for item in scan_results:
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
-        if item['type'] == "KILLER": games_dict[gid]["killers"].append(item)
-        else: games_dict[gid]["cold"].append(item)
+        
+        # Deduplicação interna
+        target_list = games_dict[gid]["killers"] if item['type'] == "KILLER" else games_dict[gid]["cold"]
+        if not any(existing['pid'] == item['pid'] for existing in target_list):
+            target_list.append(item)
 
+    # Renderiza blocos ABERTOS (Sem Expander)
     for gid, rosters in games_dict.items():
-        label = f"{gid}"
-        if len(rosters['killers']) > 0: label += f" | 🚨 {len(rosters['killers'])} Killers"
-        if len(rosters['cold']) > 0: label += f" | ❄️ {len(rosters['cold'])} Cold"
+        # Cabeçalho do Jogo
+        n_kill = len(rosters['killers'])
+        n_cold = len(rosters['cold'])
+        
+        # Só mostra se tiver algo relevante (para não poluir com blocos vazios)
+        if n_kill == 0 and n_cold == 0:
+            continue
 
-        with st.expander(label, expanded=False):
+        with st.container(border=True):
+            # Título do Card do Jogo
+            st.markdown(f"""
+            <div class="wr-game-title">
+                {gid} <span style="font-size:12px; color:#64748b; margin-left:10px;">(🚨 {n_kill} Killers | ❄️ {n_cold} Cold)</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
             c_kill, c_cold = st.columns(2)
             
+            # ESQUERDA: KILLERS
             with c_kill:
                 st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS</div>", unsafe_allow_html=True)
-                if not rosters['killers']: st.caption("Nada relevante.")
+                if not rosters['killers']: 
+                    st.markdown("<div style='font-size:12px; color:#475569;'>Nada relevante.</div>", unsafe_allow_html=True)
                 else:
                     rows = ""
                     for p in rosters['killers']:
                         rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#F87171"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-killer">HISTÓRICO</span></td><td><div class="wr-val-killer">+{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 
+            # DIREITA: COLD
             with c_cold:
                 st.markdown("<div style='color:#00E5FF; font-family:Oswald; font-size:14px; margin-bottom:10px;'>❄️ GELADOS</div>", unsafe_allow_html=True)
-                if not rosters['cold']: st.caption("Nada relevante.")
+                if not rosters['cold']: 
+                    st.markdown("<div style='font-size:12px; color:#475569;'>Nada relevante.</div>", unsafe_allow_html=True)
                 else:
                     rows = ""
                     for p in rosters['cold']:
@@ -8896,6 +8901,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
