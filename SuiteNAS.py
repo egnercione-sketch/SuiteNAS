@@ -8452,6 +8452,9 @@ def show_narrative_lab():
 # ============================================================================
 # PÁGINA: DASHBOARD (CORRIGIDA - COMPLETA)
 # ============================================================================
+# ============================================================================
+# PÁGINA: DASHBOARD (COM DEBUG E CORREÇÃO DE TIMES)
+# ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
     st.markdown("""
@@ -8471,25 +8474,34 @@ def show_dashboard_page():
         return
 
     # ========================================================================
-    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS (CRÍTICO PARA O KEYERROR)
+    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS (CRÍTICO)
     # ========================================================================
     # Converte todas as colunas para MAIÚSCULAS e remove espaços
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
 
-    # Garante que a coluna 'TEAM' exista
-    if 'TEAM' not in df_l5.columns:
-        if 'TEAM_ABBREVIATION' in df_l5.columns:
-            df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION']
-        elif 'TEAM_CODE' in df_l5.columns:
-            df_l5['TEAM'] = df_l5['TEAM_CODE']
+    # --- DETETIVE DE COLUNAS DE TIME ---
+    # Procura qual coluna realmente tem a sigla do time
+    col_team_found = None
+    possible_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM', 'ABBREVIATION']
+    
+    for c in possible_cols:
+        if c in df_l5.columns:
+            col_team_found = c
+            break
+            
+    if col_team_found:
+        df_l5['TEAM'] = df_l5[col_team_found]
+    else:
+        # Tenta extrair do Matchup (ex: "LAL @ GSW") se não tiver coluna de time
+        if 'MATCHUP' in df_l5.columns:
+            # Pega as 3 primeiras letras do matchup que costumam ser o time do jogador
+            df_l5['TEAM'] = df_l5['MATCHUP'].astype(str).str.split().str[0]
         else:
-            df_l5['TEAM'] = 'UNK' # Fallback para evitar crash
+            df_l5['TEAM'] = 'UNK'
 
     # ========================================================================
-    # 🛠️ FIX 2: PADRONIZAÇÃO DE SIGLAS (CRÍTICO PARA O FILTRO DE JOGOS)
+    # 🛠️ FIX 2: PADRONIZAÇÃO DE SIGLAS
     # ========================================================================
-    # A API da ESPN usa siglas diferentes da NBA Stats (ex: GS vs GSW).
-    # Este mapa garante que elas se encontrem.
     team_map_fix = {
         'GS': 'GSW',  'GOLDEN STATE': 'GSW',
         'NO': 'NOP',  'NEW ORLEANS': 'NOP',
@@ -8498,24 +8510,29 @@ def show_dashboard_page():
         'PHO': 'PHX', 'PHOENIX': 'PHX',
         'UTAH': 'UTA', 'UTA': 'UTA',
         'WSH': 'WAS', 'WASHINGTON': 'WAS',
-        'BKN': 'BKN', 'BROOKLYN': 'BKN'
+        'BKN': 'BKN', 'BROOKLYN': 'BKN',
+        'LAL': 'LAL', 'LAC': 'LAC'
     }
 
     def normalize_team_abbr(t):
+        if not isinstance(t, str): return "UNK"
         t = str(t).upper().strip()
         return team_map_fix.get(t, t)
 
-    # Aplica correção na base de dados
+    # Aplica correção na base de dados (Cria coluna TEAM limpa)
     df_l5['TEAM'] = df_l5['TEAM'].apply(normalize_team_abbr)
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
     
     if not games.empty:
-        # Pega times de casa e fora e normaliza
         raw_teams = games['home'].tolist() + games['away'].tolist()
         teams_playing_today = set([normalize_team_abbr(x) for x in raw_teams])
-    
+        # Ordena para ficar bonito no print
+        teams_playing_list = sorted(list(teams_playing_today))
+    else:
+        teams_playing_list = []
+
     # Cria o DataFrame Filtrado
     if not teams_playing_today:
         st.info("Nenhum jogo identificado para hoje na API.")
@@ -8524,7 +8541,24 @@ def show_dashboard_page():
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
 
     # ========================================================================
-    # 3. RENDERIZAÇÃO: DESTAQUES DO DIA (Golden Cards)
+    # 🕵️ ÁREA DE DEBUG (VERIFIQUE ISSO NA TELA)
+    # ========================================================================
+    if df_today.empty:
+        with st.expander("🕵️ DETETIVE DE DADOS (Clique aqui para descobrir o erro)", expanded=True):
+            st.error(f"❌ O filtro retornou 0 jogadores.")
+            st.write(f"**Times Jogando Hoje (API):** {teams_playing_list}")
+            
+            # Mostra quais times existem na sua base L5
+            unique_teams_l5 = sorted(df_l5['TEAM'].unique().astype(str).tolist())
+            st.write(f"**Times Encontrados na Base L5:** {unique_teams_l5}")
+            
+            st.write("**Amostra dos dados (L5):**")
+            st.dataframe(df_l5[['PLAYER_NAME', 'TEAM'] if 'PLAYER_NAME' in df_l5.columns else df_l5.columns].head())
+            
+            st.info("💡 DICA: Compare as siglas da 'API' com a 'Base L5'. Elas precisam ser IDÊNTICAS.")
+
+    # ========================================================================
+    # 3. RENDERIZAÇÃO: DESTAQUES DO DIA
     # ========================================================================
     st.markdown('<div class="dash-title gold-text">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
     
@@ -8536,24 +8570,29 @@ def show_dashboard_page():
         if len(parts) > 1: return f"{parts[0][0]}. {' '.join(parts[1:])}"[:limit]
         return name[:limit]
 
-    if df_today.empty:
-        st.warning(f"Jogos hoje: {list(teams_playing_today)}. Nenhum jogador correspondente encontrado na base L5.")
-    else:
+    if not df_today.empty:
         # Função Auxiliar para pegar Top N
         def get_top_n(df, col, n=3):
             if col not in df.columns: return pd.DataFrame()
-            # Precisamos do PLAYER_ID para a foto. Se não tiver, tentamos ID.
-            cols_to_fetch = ['PLAYER', 'TEAM', col]
-            if 'PLAYER_ID' in df.columns: cols_to_fetch.append('PLAYER_ID')
-            elif 'ID' in df.columns: cols_to_fetch.append('ID')
+            cols_to_fetch = ['PLAYER_NAME', 'PLAYER', 'TEAM', col] # Tenta pegar PLAYER_NAME tb
+            cols_exist = [c for c in cols_to_fetch if c in df.columns]
             
-            # Filtra apenas colunas existentes para não dar erro
-            cols_final = [c for c in cols_to_fetch if c in df.columns]
-            return df.nlargest(n, col)[cols_final]
+            # IDs para foto
+            if 'PLAYER_ID' in df.columns: cols_exist.append('PLAYER_ID')
+            elif 'ID' in df.columns: cols_exist.append('ID')
+            
+            return df.nlargest(n, col)[cols_exist]
 
         # Garante colunas numéricas
-        for col in ['PTS_AVG', 'AST_AVG', 'REB_AVG']:
-            if col not in df_today.columns: df_today[col] = 0
+        for col in ['PTS', 'AST', 'REB']:
+            # L5 geralmente tem as colunas puras ou com _AVG
+            # Se não tiver _AVG, tenta calcular da coluna pura se ela existir, ou usa 0
+            target = f"{col}_AVG"
+            if target not in df_today.columns:
+                if col in df_today.columns:
+                     df_today[target] = df_today[col] # Usa o valor do jogo como média se for log único
+                else:
+                    df_today[target] = 0
 
         top_pts = get_top_n(df_today, 'PTS_AVG')
         top_ast = get_top_n(df_today, 'AST_AVG')
@@ -8564,34 +8603,37 @@ def show_dashboard_page():
             if df_top.empty: return
             king = df_top.iloc[0]
             
-            # Busca ID seguro para a foto
-            p_id = 0
-            if 'PLAYER_ID' in king: p_id = king['PLAYER_ID']
-            elif 'ID' in king: p_id = king['ID']
-            
-            # Converte para int seguro
+            # Busca ID seguro
+            p_id = king.get('PLAYER_ID', king.get('ID', 0))
             try: p_id = int(float(p_id))
             except: p_id = 0
                 
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
             
-            # Valor da estatística principal (está na 3ª coluna do df_top, índice 2)
-            # Mas vamos buscar pelo nome da coluna para ser mais seguro
-            stat_col = df_top.columns[2] # Assume que a ordem é PLAYER, TEAM, STAT
-            val = king[stat_col] 
+            # Nome
+            p_name = king.get('PLAYER_NAME', king.get('PLAYER', 'UNK'))
+            
+            # Valor (Pega a última coluna numérica que é o stat)
+            stat_val = 0
+            for c in df_top.columns:
+                if "AVG" in c or c in ['PTS', 'AST', 'REB']:
+                    stat_val = king[c]
+                    break
             
             # Linhas 2 e 3
-            row2_html = ""
-            if len(df_top) > 1:
-                p2 = df_top.iloc[1]
-                val2 = p2[stat_col]
-                row2_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>2. {truncate_name(p2.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{val2:.1f}</span></div>"""
-            
-            row3_html = ""
-            if len(df_top) > 2:
-                p3 = df_top.iloc[2]
-                val3 = p3[stat_col]
-                row3_html = f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; font-family:'Oswald' !important;"><span>3. {truncate_name(p3.get('PLAYER', 'UNK'))}</span><span style="color:{color}">{val3:.1f}</span></div>"""
+            def get_sub_row(idx, rank):
+                if len(df_top) <= idx: return ""
+                p = df_top.iloc[idx]
+                nm = p.get('PLAYER_NAME', p.get('PLAYER', 'UNK'))
+                v = 0
+                for c in df_top.columns:
+                    if "AVG" in c or c in ['PTS', 'AST', 'REB']:
+                        v = p[c]
+                        break
+                return f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>{rank}. {truncate_name(nm)}</span><span style="color:{color}">{v:.1f}</span></div>"""
+
+            row2 = get_sub_row(1, 2)
+            row3 = get_sub_row(2, 3)
 
             st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid {color}; border-radius: 12px; overflow: hidden; height: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
@@ -8601,14 +8643,13 @@ def show_dashboard_page():
                 <div style="padding: 12px; display: flex; align-items: center;">
                     <img src="{photo}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid {color}; object-fit: cover; background: #000; margin-right: 12px;" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
                     <div style="overflow: hidden;">
-                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(king.get('PLAYER', 'UNK'))}</div>
+                        <div style="color: #fff; font-weight: bold; font-size: 14px; line-height: 1.1; font-family: 'Oswald' !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{truncate_name(p_name)}</div>
                         <div style="color: #94a3b8; font-size: 10px; font-family: 'Oswald' !important;">{king.get('TEAM', 'UNK')}</div>
-                        <div style="color: {color}; font-size: 20px; font-family: 'Oswald' !important; font-weight: bold;">{val:.1f}</div>
+                        <div style="color: {color}; font-size: 20px; font-family: 'Oswald' !important; font-weight: bold;">{stat_val:.1f}</div>
                     </div>
                 </div>
                 <div style="background: rgba(0,0,0,0.4); padding: 8px 12px;">
-                    {row2_html}
-                    {row3_html}
+                    {row2} {row3}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -8617,9 +8658,27 @@ def show_dashboard_page():
         with c1: render_golden_card("CESTINHAS", top_pts, "#FFD700", "🔥")
         with c2: render_golden_card("GARÇONS", top_ast, "#00E5FF", "🧠")
         with c3: render_golden_card("REBOTEIROS", top_reb, "#FF4F4F", "💪")
-
+    
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ========================================================================
+    # 4. GAME GRID (MANTIDO)
+    # ========================================================================
+    st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
+
+    if games.empty:
+        st.info("Nenhum jogo encontrado para hoje.")
+    else:
+        odds_cache = st.session_state.get("odds", {})
+        rows = st.columns(2)
+        for i, (index, game) in enumerate(games.iterrows()):
+            with rows[i % 2]:
+                render_game_card(
+                    away_team=game.get('away', 'UNK'),
+                    home_team=game.get('home', 'UNK'),
+                    game_data=game,
+                    odds_map=odds_cache
+                )
     # ========================================================================
     # 4. GAME GRID (JOGOS)
     # ========================================================================
@@ -8643,94 +8702,6 @@ def show_dashboard_page():
 # EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
-# --- BLOCO DE EMERGÊNCIA: POPULAR SUPABASE (COM DEBUG) ---
-    # Coloque isso logo no começo da def main()
-    
-    st.sidebar.markdown("---")
-    st.sidebar.error("⚠️ ZONA DE PERIGO")
-    
-    # Checkbox para evitar clique acidental
-    if st.sidebar.checkbox("Ativar Modo Recuperação"):
-        if st.sidebar.button("🚀 INICIALIZAR BANCO (DEBUG MODE)"):
-            
-            # Container principal de logs
-            log_container = st.container()
-            
-            with log_container:
-                st.info("🕵️‍♂️ Iniciando Diagnóstico de Rede e Banco...")
-                
-                # 1. TESTE DE CONEXÃO (PING)
-                try:
-                    if not db or not db.connected:
-                        st.error("❌ CRÍTICO: Objeto 'db' não existe ou não conectou. Verifique secrets.")
-                        st.stop()
-                    
-                    # Tenta um select bobo só pra ver se a API responde
-                    st.write("📡 Testando conexão com Supabase...")
-                    db.client.table("app_cache").select("key").limit(1).execute()
-                    st.success("✅ Conexão Supabase: OK (Latência baixa)")
-                except Exception as e:
-                    st.error(f"❌ Falha de Conexão: {e}")
-                    st.stop()
-
-                # 2. POPULA L5 (Jogadores)
-                st.divider()
-                st.markdown("### 1️⃣ Fase 1: Base de Jogadores (L5)")
-                start_l5 = time.time()
-                
-                try:
-                    # ATENÇÃO: progress_ui=True para você ver a barra andando!
-                    df_l5 = get_players_l5(progress_ui=True, force_update=True)
-                    
-                    tempo_l5 = time.time() - start_l5
-                    st.success(f"✅ Download e Upload Concluídos em {tempo_l5:.1f}s")
-                    st.json({"Jogadores": len(df_l5), "Colunas": list(df_l5.columns[:5])}, expanded=False)
-                    
-                    # Validação de Leitura
-                    val_check = db.get_data("l5_stats")
-                    if val_check:
-                        st.caption(f"🔍 Validação Nuvem: O Supabase confirmou que tem {val_check.get('count', '?')} registros salvos.")
-                    else:
-                        st.warning("⚠️ Salvei, mas não consegui ler de volta. Estranho...")
-
-                except Exception as e:
-                    st.error(f"❌ Erro Fatal na Fase 1: {e}")
-                    st.stop()
-
-                # 3. POPULA LOGS (A parte demorada)
-                st.divider()
-                st.markdown("### 2️⃣ Fase 2: Game Logs (L30)")
-                st.warning("☕ Pode pegar um café. Isso baixa ~300 requisições da NBA.")
-                start_logs = time.time()
-
-                try:
-                    # progress_ui=True mostra a barra de progresso real
-                    logs = fetch_and_upload_real_game_logs(progress_ui=True)
-                    
-                    tempo_logs = time.time() - start_logs
-                    st.success(f"✅ Logs Sincronizados em {tempo_logs:.1f}s")
-                    st.write(f"📊 Total de Jogadores com Logs: {len(logs)}")
-                    
-                    # Validação
-                    log_check = db.get_data("real_game_logs")
-                    if log_check:
-                         st.caption("🔍 Validação Nuvem: Logs acessíveis via Supabase.")
-
-                except Exception as e:
-                    st.error(f"❌ Erro Fatal na Fase 2: {e}")
-                
-                st.divider()
-                st.balloons()
-                st.success("🏁 PROCESSO FINALIZADO! O sistema deve estar 100% operacional.")
-                
-                if st.button("🔄 Recarregar App Agora"):
-                    st.rerun()
-    # -----------------------------------------------
-
-
-
-
-
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
     # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
@@ -8854,6 +8825,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
