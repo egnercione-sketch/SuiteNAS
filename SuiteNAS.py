@@ -3307,6 +3307,7 @@ class MatrixEngine:
         if not logs: return 0
         vals = logs.get(stat_type, [])
         if not vals or len(vals) < 5: return 0
+        
         sorted_vals = sorted(vals[:span])
         if len(sorted_vals) >= 15: core = sorted_vals[2:-2]
         elif len(sorted_vals) >= 8: core = sorted_vals[1:-1]
@@ -3317,38 +3318,66 @@ class MatrixEngine:
         om = odds_manager
         valid_teams = set()
         game_map = {}
+        
+        # --- FIX DE SEGURANÇA NO LOOP DE JOGOS ---
         for g in games:
-            h, a = fix_team_abbr(g['home']), fix_team_abbr(g['away'])
-            gid = g['game_id']
-            valid_teams.add(h); valid_teams.add(a)
-            game_map[h] = gid; game_map[a] = gid
+            # Tenta pegar chaves de forma segura (home/away/game_id)
+            h = fix_team_abbr(g.get('home', 'UNK'))
+            a = fix_team_abbr(g.get('away', 'UNK'))
+            
+            # Tenta 'game_id', se falhar tenta 'id', se falhar vira 'UNK'
+            gid = str(g.get('game_id') or g.get('id') or 'UNK')
+            
+            if h != 'UNK': 
+                valid_teams.add(h)
+                game_map[h] = gid
+            if a != 'UNK': 
+                valid_teams.add(a)
+                game_map[a] = gid
+        # -----------------------------------------
 
         anchors, boosters = [], []
-        # 1. Tridents
+        
+        # 1. PROCESSA TRIDENTS
         for t in tridents:
             legs = []
             for stat, val in t['components']:
                 ro, ml = om.match_odds(t['player'], stat, val)
                 legs.append({"stat": stat, "line": val, "real_odd": ro})
+            
             role = "ANCHOR" if t['hit_rate'] >= 0.9 else "BOOSTER"
-            obj = {"name": t['player'], "team": t['team'], "game_id": t['game_id'], "role": role, "legs": legs, "quality": 100 * t['hit_rate']}
+            obj = {
+                "name": t['player'], "team": t['team'], "game_id": t['game_id'],
+                "role": role, "legs": legs, "quality": 100 * t['hit_rate']
+            }
             if role == "ANCHOR": anchors.append(obj)
             else: boosters.append(obj)
 
-        # 2. Varredura
+        # 2. VARREDURA GERAL
         for name, data in cache_data.items():
+            if not isinstance(data, dict): continue # Proteção extra
+            
             team = fix_team_abbr(data.get('team', 'UNK'))
             if team not in valid_teams: continue
+            
             logs = data.get('logs', {})
             safe_pts = self._calculate_smart_floor(logs, 'PTS')
             if safe_pts < 6: continue
+            
             role = None
             if safe_pts >= self.min_anchor_quality: role = "ANCHOR"
             elif safe_pts >= self.min_booster_quality: role = "BOOSTER"
+            
             if role:
                 ro, line = om.match_odds(name, "PTS", safe_pts)
+                # Verifica duplicidade
                 if any(a['name'] == name for a in anchors) or any(b['name'] == name for b in boosters): continue
-                obj = {"name": name, "team": team, "game_id": game_map.get(team, "UNK"), "role": role, "quality": safe_pts, "legs": [{"stat": "PTS", "line": safe_pts, "real_odd": ro}]}
+                
+                obj = {
+                    "name": name, "team": team, "game_id": game_map.get(team, "UNK"),
+                    "role": role, "quality": safe_pts,
+                    "legs": [{"stat": "PTS", "line": safe_pts, "real_odd": ro}]
+                }
                 if role == "ANCHOR": anchors.append(obj)
                 else: boosters.append(obj)
 
@@ -3358,23 +3387,33 @@ class MatrixEngine:
 
     def generate_smart_matrix(self, pool):
         tickets = []
-        anchors = pool["ANCHORS"]
-        boosters = pool["BOOSTERS"]
+        anchors = pool.get("ANCHORS", [])
+        boosters = pool.get("BOOSTERS", [])
         used_combos = set()
         
+        # Para cada Anchor, tenta achar boosters ideais
         for i, anc in enumerate(anchors[:8]):
-            valid_boosters = [b for b in boosters if b['game_id'] != anc['game_id'] and b['name'] != anc['name']]
+            # Filtra boosters de OUTROS jogos
+            valid_boosters = [
+                b for b in boosters 
+                if str(b.get('game_id')) != str(anc.get('game_id')) and b['name'] != anc['name']
+            ]
+            
             if len(valid_boosters) < 2: continue
+            
             candidates = valid_boosters[:12]
             found_combo = False
+            
             for combo in combinations(candidates, 2):
-                if combo[0]['team'] == combo[1]['team']: continue
+                if combo[0]['team'] == combo[1]['team']: continue # Diversidade
+                
                 combo_key = tuple(sorted([anc['name'], combo[0]['name'], combo[1]['name']]))
                 if combo_key in used_combos: continue
                 
                 legs = []
                 aleg = anc['legs'][0]
                 legs.append({"player": anc['name'], "team": anc['team'], "role": "ANCHOR", "stat": aleg['stat'], "line": aleg['line'], "real_odd": aleg.get('real_odd', 1.45)})
+                
                 total_odd = aleg.get('real_odd', 1.45)
                 for b in combo:
                     bleg = b['legs'][0]
@@ -3383,10 +3422,16 @@ class MatrixEngine:
                     legs.append({"player": b['name'], "team": b['team'], "role": "BOOSTER", "stat": bleg['stat'], "line": bleg['line'], "real_odd": odd})
                 
                 if total_odd < 2.2 or total_odd > 12.0: continue
-                tickets.append({"id": f"MTX_{i}_{len(tickets)}", "title": f"🔥 {anc['name']} Protocol", "type": "ALPHA", "total_odd": round(total_odd, 2), "legs": legs})
+                
+                tickets.append({
+                    "id": f"MTX_{i}_{len(tickets)}", 
+                    "title": f"🔥 {anc['name']} Protocol", "type": "ALPHA",
+                    "total_odd": round(total_odd, 2), "legs": legs
+                })
                 used_combos.add(combo_key)
                 found_combo = True
                 if found_combo: break 
+        
         return tickets
 
 matrix_engine = MatrixEngine()
@@ -8233,6 +8278,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
