@@ -2577,7 +2577,7 @@ def show_trinity_club_page():
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
                 
 # ============================================================================
-# PÁGINA: NEXUS PAGE (V4.0 - VISUAL PREMIUM & SINERGIA CORRIGIDA)
+# PÁGINA: NEXUS PAGE (V5.0 - BLINDADA & VISUAL CORRIGIDO)
 # ============================================================================
 def show_nexus_page():
     # --- CSS ESPECÍFICO (TÁTICO & CLEAN) ---
@@ -2623,19 +2623,21 @@ def show_nexus_page():
             padding-left: 10px;
         }
 
-        /* Avatar Container (Correção Oval) */
+        /* Avatar Container (Correção Oval e Logo) */
         .nx-avatar-container {
             position: relative;
             width: 60px;
             height: 60px;
+            margin: 0 auto; /* Centraliza se necessário */
         }
         .nx-avatar-img {
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            object-fit: cover; /* ISSO CORRIGE O OVAL */
+            object-fit: cover; /* ESSENCIAL: Impede que a foto fique oval */
             border: 2px solid #334155;
             background: #0f172a;
+            display: block;
         }
         .nx-team-logo {
             position: absolute;
@@ -2656,7 +2658,7 @@ def show_nexus_page():
     full_cache = get_data_universal("real_game_logs")
     scoreboard = get_data_universal("scoreboard")
 
-    # Header Clean
+    # Header
     st.markdown('<div class="nx-header-title">NEXUS HUD</div>', unsafe_allow_html=True)
     st.markdown('<div class="nx-header-sub">INTELLIGENCE SYSTEM • ONLINE</div>', unsafe_allow_html=True)
 
@@ -2669,7 +2671,7 @@ def show_nexus_page():
     
     try:
         all_ops = nexus.run_nexus_scan()
-        # Filtro padrão fixo (sem slider) para limpar a tela
+        # Filtro padrão fixo
         min_score_default = 60 
         opportunities = sorted(
             [op for op in all_ops if op.get('score', 0) >= min_score_default],
@@ -2681,7 +2683,7 @@ def show_nexus_page():
         return
 
     if not opportunities:
-        st.info("Nenhuma oportunidade tática de alto valor encontrada hoje.")
+        st.info("Nenhuma oportunidade tática encontrada.")
         return
 
     # Helper de Cores
@@ -2694,36 +2696,41 @@ def show_nexus_page():
 
     # 3. Renderização
     for op in opportunities:
-        # Extração Segura
+        # --- DEFINIÇÃO DE VARIÁVEIS (EVITA NameError) ---
         score = op.get('score', 0)
         color = op.get('color', '#38BDF8')
         raw_title = op.get('title', 'OPORTUNIDADE')
-        op_type = op.get('type')
+        op_type = op.get('type', 'Standard')
         is_sgp = (op_type == 'SGP')
         
         # Ajuste de Títulos e Ícones
         if is_sgp:
-            main_title = "SINERGIA" # Nome novo
-            center_icon = "⚡" # Ícone de energia/link
+            main_title = "SINERGIA"
+            center_icon = "⚡"
             center_label = "" 
         else:
-            main_title = raw_title.replace("VÁCUO DE REBOTE", "VÁCUO TÁTICO")
+            main_title = str(raw_title).replace("VÁCUO DE REBOTE", "VÁCUO TÁTICO")
             center_icon = "⚔️"
             center_label = "VS"
 
-        # Hero Data
-        hero = op.get('hero', {})
-        h_name = hero.get('name', 'Unknown')
+        # Hero Data (Lado Esquerdo)
+        hero = op.get('hero', {}) or {}
+        h_name = hero.get('name', 'Jogador')
         h_photo = hero.get('photo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
         h_logo = hero.get('logo', '')
+        # Garante que h_role exista
+        h_role = hero.get('role', 'PLAYER') 
         h_target = hero.get('target', '-')
         h_stat = hero.get('stat', '')
         h_class = get_stat_class(h_stat)
 
-        # Target Data (Direita)
+        # Target Data (Lado Direito)
+        target_html = ""
+        target_img_html = ""
+
         if is_sgp:
-            # Lógica Sinergia
-            partner = op.get('partner', {})
+            # Sinergia (Parceiro)
+            partner = op.get('partner', {}) or {}
             t_name = partner.get('name', 'Parceiro')
             t_photo = partner.get('photo', h_photo)
             t_logo = partner.get('logo', '')
@@ -2733,7 +2740,6 @@ def show_nexus_page():
             p_stat = partner.get('stat', '')
             p_class = get_stat_class(p_stat)
             
-            # HTML do Alvo (Sinergia)
             target_html = f"""
             <div style="text-align:right;">
                 <div class="nx-hero-name">{t_name}</div>
@@ -2748,15 +2754,14 @@ def show_nexus_page():
             </div>
             """
         else:
-            # Lógica Defesa (Vácuo)
-            villain = op.get('villain', {})
-            t_name = villain.get('name', 'Adversário') # Nome do time (ex: LAC)
-            v_status = villain.get('status', '') # ex: OUT
-            v_missing = villain.get('missing', '') # ex: Zubac
+            # Defesa (Vácuo)
+            villain = op.get('villain', {}) or {}
+            t_name = villain.get('name', 'Adversário')
+            v_status = villain.get('status', '') 
             t_logo = villain.get('logo', 'https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png')
             
-            # HTML do Alvo (Defesa)
             status_alert = f"<span style='color:#F87171; font-weight:bold;'>🚨 {v_status}</span>" if v_status else ""
+            
             target_html = f"""
             <div style="text-align:right;">
                 <div class="nx-hero-name" style="font-size:20px;">{t_name}</div>
@@ -2770,13 +2775,12 @@ def show_nexus_page():
             </div>
             """
 
-        # Ladder Formatting (Base 10+ | Alvo 13+ | Teto 16+)
-        ladder_raw = op.get('ladder', [])
+        # Ladder Formatting
+        ladder_raw = op.get('ladder', []) or []
         ladder_clean = []
         for l in ladder_raw:
-            # Limpa emojis e textos extras, pega só o número e o '+'
             clean = str(l).replace("✅", "").replace("❌", "").replace("💰", "").replace("🚀", "").split(":")[-1].strip()
-            ladder_clean.append(clean)
+            if clean: ladder_clean.append(clean)
             
         ladder_html = ""
         if len(ladder_clean) >= 3:
@@ -2790,7 +2794,7 @@ def show_nexus_page():
 
         impact_txt = op.get('impact', 'Análise indisponível')
 
-        # --- CONTAINER PRINCIPAL (NATIVO DO STREAMLIT) ---
+        # --- CONTAINER PRINCIPAL ---
         with st.container(border=True):
             
             # Header do Card
@@ -2800,14 +2804,13 @@ def show_nexus_page():
             
             st.markdown("---")
 
-            # Corpo do Card (Grid: Hero | VS | Target)
+            # Corpo do Card
             c_hero, c_vs, c_target = st.columns([2, 0.6, 2])
             
             # Esquerda (Hero)
             with c_hero:
                 col_img_h, col_txt_h = st.columns([0.8, 2])
                 with col_img_h:
-                    # HTML Composto para Imagem + Logo
                     st.markdown(f"""
                     <div class="nx-avatar-container">
                         <img src="{h_photo}" class="nx-avatar-img" style="border-color:{color};">
@@ -2833,7 +2836,7 @@ def show_nexus_page():
                 with col_img_t:
                     st.markdown(target_img_html, unsafe_allow_html=True)
 
-            # Footer (Ladder + Impacto)
+            # Footer
             st.markdown(f"""
             <div style="margin-top:15px; padding-top:10px; border-top:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center;">
                 <div class="nx-ladder-box">{ladder_html}</div>
@@ -8976,6 +8979,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
