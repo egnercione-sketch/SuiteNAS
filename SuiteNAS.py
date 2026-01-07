@@ -8296,7 +8296,7 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (V5.0 - FULL OPEN / SEM CLIQUES)
+# PÁGINA: LAB DE NARRATIVAS (V5.1 - FIX COLUNA DE TIME)
 # ============================================================================
 def show_narrative_lab():
     import time
@@ -8345,14 +8345,25 @@ def show_narrative_lab():
         st.info("ℹ️ Aguardando dados...")
         return
 
-    # --- CORREÇÃO DE COLUNAS ---
+    # --- DIAGNÓSTICO E CORREÇÃO DE COLUNAS ---
+    # Normaliza nomes das colunas
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
     
-    if 'PTS_AVG' not in df_l5.columns:
-        if 'PTS' in df_l5.columns: df_l5['PTS_AVG'] = df_l5['PTS']
-        else: df_l5['PTS_AVG'] = 0.0
-    
-    df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
+    # Busca a coluna de Time (Tenta várias opções)
+    col_team = None
+    possible_cols = ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_NAME', 'TEAM_SLUG', 'ABBREVIATION']
+    for c in possible_cols:
+        if c in df_l5.columns:
+            col_team = c
+            break
+            
+    if not col_team:
+        # SE DER ERRO, MOSTRA O QUE TEM NO DATAFRAME
+        st.error("Erro Crítico: Coluna de Time não identificada.")
+        with st.expander("🛠️ Ver Colunas Disponíveis (Debug)"):
+            st.write(df_l5.columns.tolist())
+            st.write("Amostra dos dados:", df_l5.head(2))
+        return
 
     # Normaliza Times
     TEAM_MAP_FIX = {
@@ -8366,19 +8377,21 @@ def show_narrative_lab():
         x = str(x).upper().strip()
         return TEAM_MAP_FIX.get(x, x)
 
-    col_team = 'TEAM' if 'TEAM' in df_l5.columns else ('TEAM_ABBREVIATION' if 'TEAM_ABBREVIATION' in df_l5.columns else None)
-    if col_team:
-        df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
-    else:
-        st.error("Erro: Coluna de Time não encontrada.")
-        return
+    # Cria coluna normalizada segura
+    df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
+
+    # Cria PTS_AVG se não existir
+    if 'PTS_AVG' not in df_l5.columns:
+        if 'PTS' in df_l5.columns: df_l5['PTS_AVG'] = df_l5['PTS']
+        else: df_l5['PTS_AVG'] = 0.0
+    df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
 
     # 2. SCAN INTELIGENTE
-    if "narrative_cache_v7" not in st.session_state:
-        st.session_state.narrative_cache_v7 = {}
+    if "narrative_cache_v8" not in st.session_state:
+        st.session_state.narrative_cache_v8 = {}
 
     cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
-    scan_results = st.session_state.narrative_cache_v7.get(cache_key)
+    scan_results = st.session_state.narrative_cache_v8.get(cache_key)
 
     if scan_results is None:
         loading_ph = st.empty()
@@ -8433,7 +8446,7 @@ def show_narrative_lab():
                     prog.progress((i+1)/len(games))
                 except: continue
             
-            st.session_state.narrative_cache_v7[cache_key] = scan_results
+            st.session_state.narrative_cache_v8[cache_key] = scan_results
         loading_ph.empty()
 
     # 3. RESULTADOS
@@ -8479,23 +8492,17 @@ def show_narrative_lab():
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
         
-        # Deduplicação interna
         target_list = games_dict[gid]["killers"] if item['type'] == "KILLER" else games_dict[gid]["cold"]
         if not any(existing['pid'] == item['pid'] for existing in target_list):
             target_list.append(item)
 
-    # Renderiza blocos ABERTOS (Sem Expander)
     for gid, rosters in games_dict.items():
-        # Cabeçalho do Jogo
         n_kill = len(rosters['killers'])
         n_cold = len(rosters['cold'])
         
-        # Só mostra se tiver algo relevante (para não poluir com blocos vazios)
-        if n_kill == 0 and n_cold == 0:
-            continue
+        if n_kill == 0 and n_cold == 0: continue
 
         with st.container(border=True):
-            # Título do Card do Jogo
             st.markdown(f"""
             <div class="wr-game-title">
                 {gid} <span style="font-size:12px; color:#64748b; margin-left:10px;">(🚨 {n_kill} Killers | ❄️ {n_cold} Cold)</span>
@@ -8504,7 +8511,6 @@ def show_narrative_lab():
             
             c_kill, c_cold = st.columns(2)
             
-            # ESQUERDA: KILLERS
             with c_kill:
                 st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS</div>", unsafe_allow_html=True)
                 if not rosters['killers']: 
@@ -8515,7 +8521,6 @@ def show_narrative_lab():
                         rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#F87171"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-killer">HISTÓRICO</span></td><td><div class="wr-val-killer">+{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 
-            # DIREITA: COLD
             with c_cold:
                 st.markdown("<div style='color:#00E5FF; font-family:Oswald; font-size:14px; margin-bottom:10px;'>❄️ GELADOS</div>", unsafe_allow_html=True)
                 if not rosters['cold']: 
@@ -8901,6 +8906,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
