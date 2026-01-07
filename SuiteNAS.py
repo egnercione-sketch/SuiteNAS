@@ -2220,7 +2220,7 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (V13 - NEON EDITION & PHOTO FORCE)
+# PÁGINA: TRINITY CLUB (V14.0 - PHOTO FIX & VISUAL UPGRADE)
 # ============================================================================
 def show_trinity_club_page():
     import os
@@ -2237,7 +2237,7 @@ def show_trinity_club_page():
         /* Container Card */
         [data-testid="stVerticalBlockBorderWrapper"] {
             border: 1px solid #334155 !important;
-            background-color: #0f172a !important; /* Fundo mais escuro para contraste */
+            background-color: #0f172a !important;
             border-radius: 12px !important;
             padding: 12px !important;
             margin-bottom: 12px !important;
@@ -2248,7 +2248,7 @@ def show_trinity_club_page():
         .trin-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .trin-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
         
-        /* HEADERS DE COLUNA (O BOOM QUE VOCÊ PEDIU) */
+        /* HEADERS DE COLUNA */
         .col-header {
             text-align: center; font-family: 'Oswald'; font-size: 12px; font-weight: bold;
             padding: 4px; border-radius: 4px; margin-bottom: 8px; letter-spacing: 1px;
@@ -2282,12 +2282,19 @@ def show_trinity_club_page():
             display: flex; gap: 12px; font-family: 'Inter';
         }
         .f-val { color: #10b981; font-weight: bold; }
+        
+        /* Foto Arredondada */
+        .trin-img {
+            border-radius: 50%; border: 2px solid #334155;
+            width: 70px; height: 70px; object-fit: cover;
+            background: #0f172a;
+        }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("## 🏆 Trinity Club")
     
-    # --- 2. CARREGAMENTO E FOTOS (LÓGICA BLINDADA) ---
+    # --- 2. CARREGAMENTO E FOTOS (LÓGICA BLINDADA V31) ---
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
@@ -2295,64 +2302,69 @@ def show_trinity_club_page():
         st.warning("Aguardando dados...")
         return
 
-    # MAPA DE FOTOS (O MESMO DA ABA MOMENTUM)
-    # Estrutura: { "JOSHGIDDEY": 12345, "GIDDEY_CHI": 12345 }
-    PHOTO_DB = {} 
-    
-    def clean_key(text):
-        """Limpa string para chave de dicionário (ex: JOSHGIDDEY)"""
+    # Função de Normalização Robusta (Igual V31)
+    def normalize_key(text):
         if not text: return ""
         try:
-            t = str(text).upper().strip()
-            # Remove acentos e caracteres especiais
-            t = unicodedata.normalize('NFKD', t).encode('ASCII', 'ignore').decode('utf-8')
-            return re.sub(r'[^A-Z]', '', t)
+            text = str(text)
+            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+            text = text.upper().strip()
+            # Remove Sufixos
+            for suffix in [" JR.", " SR.", " III", " II", " IV"]:
+                if text.endswith(suffix):
+                    text = text.replace(suffix, "")
+            return text.strip()
         except: return ""
 
+    # MAPA DE FOTOS: Chave Normalizada -> ID
+    PHOTO_DB = {} 
+    
     if not df_l5.empty:
         try:
-            # Normaliza colunas para evitar erro de Key
+            # Padroniza colunas
             df_l5.columns = [c.upper().strip() for c in df_l5.columns]
-            cols = df_l5.columns
             
-            # Encontra colunas cruciais
-            c_name = next((c for c in cols if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
-            c_id = next((c for c in cols if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            c_team = next((c for c in cols if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            c_name = next((c for c in df_l5.columns if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
+            c_team = next((c for c in df_l5.columns if 'TEAM' in c and 'ID' not in c), 'TEAM')
 
+            # Preenche o mapa usando a chave normalizada
             for _, row in df_l5.iterrows():
                 try:
-                    # EXTRAÇÃO DE ID (CRÍTICO: int(float()))
                     val_id = row.get(c_id, 0)
                     pid = int(float(val_id)) 
                     
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        key = clean_key(raw_name) # Ex: LEBRONJAMES
+                        key = normalize_key(raw_name)
                         team = str(row.get(c_team, 'UNK')).upper().strip()
                         
                         # Salva Chave Completa
                         PHOTO_DB[key] = {'id': pid, 'team': team}
                         
-                        # Salva Chave Sobrenome + Time (Ex: JAMES_LAL)
+                        # Salva Chave Sobrenome (Fallback)
                         parts = raw_name.split()
                         if len(parts) > 1:
-                            lname = clean_key(parts[-1])
-                            key_sec = f"{lname}_{team}"
-                            if key_sec not in PHOTO_DB: PHOTO_DB[key_sec] = {'id': pid, 'team': team}
-                            
-                            # Salva só Sobrenome (Fallback perigoso mas útil)
-                            if lname not in PHOTO_DB: PHOTO_DB[lname] = {'id': pid, 'team': team}
-                            
+                            lname = normalize_key(parts[-1])
+                            if lname not in PHOTO_DB: 
+                                PHOTO_DB[lname] = {'id': pid, 'team': team}
                 except: continue
         except: pass
 
     # --- 3. ENGINE TRIPLE SCAN ---
-    engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
-    
-    res_l5 = engine.scan_market(window=5)
-    res_l10 = engine.scan_market(window=10)
-    res_l15 = engine.scan_market(window=15)
+    try:
+        if 'trinity_engine' not in st.session_state:
+            from modules.trinity_engine import TrinityEngine # Import tardio para evitar ciclo
+            st.session_state.trinity_engine = TrinityEngine(full_cache, st.session_state.get('scoreboard', []))
+        
+        engine = st.session_state.trinity_engine
+        
+        res_l5 = engine.scan_market(window=5)
+        res_l10 = engine.scan_market(window=10)
+        res_l15 = engine.scan_market(window=15)
+    except Exception as e:
+        st.error(f"Erro na Engine Trinity: {e}")
+        return
 
     # Consolidação
     games_dict = {}
@@ -2371,10 +2383,10 @@ def show_trinity_club_page():
     consolidate(res_l15, 'L15')
 
     if not games_dict:
-        st.info("Nenhum padrão encontrado hoje.")
+        st.info("Nenhum padrão estatístico triplo encontrado hoje.")
         return
 
-    # --- 4. RENDERIZAÇÃO (V13) ---
+    # --- 4. RENDERIZAÇÃO ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
 
     for game_name, players in games_dict.items():
@@ -2387,35 +2399,33 @@ def show_trinity_club_page():
         for p_name, data in players.items():
             meta = data['meta']
             
-            # --- CAÇA À FOTO ---
-            key_inj = clean_key(p_name)
+            # --- CAÇA À FOTO (LÓGICA V31) ---
+            key_inj = normalize_key(p_name)
             tm_inj = str(meta['team']).upper()
             
             # 1. Match Exato
             match = PHOTO_DB.get(key_inj)
             
-            # 2. Match Sobrenome + Time
+            # 2. Match Sobrenome (Fallback)
             if not match:
                 parts = p_name.split()
                 if len(parts) > 1:
-                    lname = clean_key(parts[-1])
-                    key_sec = f"{lname}_{tm_inj}"
-                    match = PHOTO_DB.get(key_sec)
-            
-            # 3. Match Sobrenome (Desespero)
-            if not match and len(parts) > 1:
-                match = PHOTO_DB.get(clean_key(parts[-1]))
+                    match = PHOTO_DB.get(normalize_key(parts[-1]))
 
             # Define ID e URL
             pid = match['id'] if match else 0
-            # Se achou no DB, usa o time do DB, senão usa o da lesão
             real_team = match['team'] if match else tm_inj
             
-            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid > 0 else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            # URL Híbrida (NBA -> ESPN -> Fallback)
+            nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+            espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
+            fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             
-            # Logo Time
+            img_html = f"""<img src="{nba_url}" class="trin-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
+            if pid == 0: img_html = f"""<img src="{fallback_url}" class="trin-img">"""
+            
+            # Logo Time (Correção ESPN)
             tm_low = real_team.lower()
-            # Mapeamento ESPN
             if tm_low == "uta": tm_low = "utah"
             elif tm_low == "nop": tm_low = "no"
             elif tm_low == "phx": tm_low = "pho"
@@ -2424,12 +2434,12 @@ def show_trinity_club_page():
 
             # === CONTAINER CARD ===
             with st.container(border=True):
-                # Colunas: [Foto 1.5] [Info 2.5] [L5 2] [L10 2] [L15 2]
+                # Colunas: [Foto 1.3] [Info 2.7] [L5 2] [L10 2] [L15 2]
                 c1, c2, c3, c4, c5 = st.columns([1.3, 2.7, 2, 2, 2])
                 
                 # C1: Foto
                 with c1:
-                    st.image(photo_url, use_container_width=True)
+                    st.markdown(f'<div style="text-align:center;">{img_html}</div>', unsafe_allow_html=True)
                 
                 # C2: Identidade
                 with c2:
@@ -2444,9 +2454,9 @@ def show_trinity_club_page():
                     floors = meta['floors']
                     st.markdown(f"""
                     <div class="footer-info">
-                        <span>Forma: <span class="f-val">{int(floors['Form'])}</span></span>
-                        <span>Local: <span class="f-val">{int(floors['Venue'])}</span></span>
-                        <span>H2H: <span class="f-val">{int(floors['H2H'])}</span></span>
+                        <span>Forma: <span class="f-val">{int(floors.get('Form', 0))}</span></span>
+                        <span>Local: <span class="f-val">{int(floors.get('Venue', 0))}</span></span>
+                        <span>H2H: <span class="f-val">{int(floors.get('H2H', 0))}</span></span>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -2459,7 +2469,6 @@ def show_trinity_club_page():
                         else:
                             for item in items:
                                 s_txt = item['stat']
-                                # Define cor baseada no stat
                                 if 'PTS' in s_txt: c_cls = "color-pts"
                                 elif 'REB' in s_txt: c_cls = "color-reb"
                                 elif 'AST' in s_txt: c_cls = "color-ast"
@@ -2472,7 +2481,7 @@ def show_trinity_club_page():
                                 </div>
                                 """, unsafe_allow_html=True)
 
-                # C3, C4, C5: Colunas Temporais (Com Badges Neon)
+                # C3, C4, C5: Colunas Temporais
                 render_col(c3, "🔥 L5", "head-l5", data['L5'])
                 render_col(c4, "⚖️ L10", "head-l10", data['L10'])
                 render_col(c5, "🏛️ L15", "head-l15", data['L15'])
@@ -8772,6 +8781,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
