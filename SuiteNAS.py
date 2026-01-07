@@ -706,7 +706,7 @@ class OracleEngine:
         return sorted(projections, key=lambda x: x['PTS'], reverse=True)[:limit]
 
 # ============================================================================
-# PÁGINA: ORÁCULO V11 (THE BUNKER - MANUAL OVERRIDE PARA ESTRELAS)
+# PÁGINA: ORACLE PROJECTIONS (V3 - PRO SNAPSHOT)
 # ============================================================================
 def show_oracle_page():
     import os
@@ -715,9 +715,13 @@ def show_oracle_page():
     import re
     import unicodedata
     import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    from matplotlib.offsetbox import OffsetImage, AnnotationBbox
     import io
+    from urllib.request import urlopen
+    from PIL import Image
 
-    # --- 1. CSS VISUAL ---
+    # --- 1. CSS VISUAL (MANTIDO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
@@ -736,6 +740,22 @@ def show_oracle_page():
         .c-gold { color: #fbbf24; } .c-red { color: #f87171; } .c-blue { color: #60a5fa; } .c-green { color: #4ade80; }
     </style>
     """, unsafe_allow_html=True)
+
+    # --- HELPERS ---
+    def clean_key(text):
+        if not text: return ""
+        try:
+            t = str(text)
+            nfkd = unicodedata.normalize('NFKD', t)
+            t = "".join([c for c in nfkd if not unicodedata.combining(c)])
+            return re.sub(r'[^A-Z]', '', t.upper())
+        except: return ""
+
+    def normalize_team_code(code):
+        if not code: return "UNK"
+        code = str(code).upper().strip()
+        map_fix = { "NO": "NOP", "NOH": "NOP", "NEW": "NOP", "UTAH": "UTA", "GS": "GSW", "PHO": "PHX", "SA": "SAS", "NY": "NYK", "WSH": "WAS", "BKN": "BKN", "BRK": "BKN" }
+        return map_fix.get(code, code)
 
     # --- 2. HEADER ---
     c1, c2 = st.columns([8, 2])
@@ -756,71 +776,36 @@ def show_oracle_page():
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
     if not full_cache:
-        st.warning("⚠️ Aguardando dados...")
+        st.warning("⚠️ Aguardando dados... Por favor, atualize o L5 na Config.")
         return
 
-    # --- 4. ENGINE DE IDENTIDADE "BUNKER" (MANUAL DE ELITE) ---
-    # Já que o L5 está quebrado (sem colunas de ID), usamos este mapa manual para as estrelas.
-    # Isso garante que os principais jogadores tenham foto HOJE.
-    ELITE_DB = {
-        "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "SHAIGILGEOUSALEXANDER": 1628983, "GIANNISANTETOKOUNMPO": 203507,
-        "JOELEMBIID": 203954, "JAYSONTATUM": 1628369, "JALENBRUNSON": 1628973, "ANTHONYEDWARDS": 1630162,
-        "STEPHENCURRY": 201939, "KEVINDURANT": 201142, "DEVINBOOKER": 1626164, "ANTHONYDAVIS": 203076,
-        "LEBRONJAMES": 2544, "TYRESEMAXEY": 1630178, "DEARRONFOX": 1628368, "DOMANTASSABONIS": 1627734,
-        "TRAEYOUNG": 1629027, "DONOVANMITCHELL": 1628378, "JAYLENBROWN": 1627759, "TYRESEHALIBURTON": 1630169,
-        "DAMIANLILLARD": 203081, "KAWHILEONARD": 202695, "PAULGEORGE": 202331, "BAMADEBAYO": 1628389,
-        "ALPERENSENGUN": 1630578, "VICTORWEMBANYAMA": 1641705, "CHETHOLMGREN": 1631096, "ZIONWILLIAMSON": 1629627,
-        "BRANDONINGRAM": 1627742, "PAOLOBANCHERO": 1631094, "SCOTTIEBARNES": 1630567, "LAMELOBALL": 1630163,
-        "JACOMPLETE": 1629630, "JIMMYBUTLER": 202710, "JULIUSERANDLE": 203944, "DERRICKWHITE": 1628401,
-        "JRUEHOLIDAY": 201950, "KRISTAPSPORZINGIS": 204001, "MYLESTURNER": 1626167, "PASCALSIAKAM": 1627783,
-        "LAURIMARKKANEN": 1628374, "DESMONDBANE": 1630217, "JARENJACKSONJR": 1628991, "DEJOUNTEMURRAY": 1627749,
-        "CADECUNNINGHAM": 1630595, "JALENJOHNSON": 1630552, "FRANZWAGNER": 1630532, "EVANMOBLEY": 1630596,
-        "JARRETTALLEN": 1628386, "DARIUSGARLAND": 1629636, "KYRIEIRVING": 202681, "JAMESHARDEN": 201935
-    }
-    
-    # Mapa manual de times para corrigir os UNK
-    TEAM_FIX = {
-        "NIKOLAJOKIC": "DEN", "LUKADONCIC": "DAL", "SHAIGILGEOUSALEXANDER": "OKC", "GIANNISANTETOKOUNMPO": "MIL",
-        "JOELEMBIID": "PHI", "JAYSONTATUM": "BOS", "JALENBRUNSON": "NYK", "ANTHONYEDWARDS": "MIN",
-        "STEPHENCURRY": "GSW", "KEVINDURANT": "PHX", "DEVINBOOKER": "PHX", "ANTHONYDAVIS": "LAL",
-        "LEBRONJAMES": "LAL", "TYRESEMAXEY": "PHI", "DEARRONFOX": "SAC", "DOMANTASSABONIS": "SAC",
-        "TRAEYOUNG": "ATL", "DONOVANMITCHELL": "CLE", "JAYLENBROWN": "BOS", "TYRESEHALIBURTON": "IND",
-        "DAMIANLILLARD": "MIL", "KAWHILEONARD": "LAC", "PAULGEORGE": "PHI", "BAMADEBAYO": "MIA",
-        "ALPERENSENGUN": "HOU", "VICTORWEMBANYAMA": "SAS", "CHETHOLMGREN": "OKC", "ZIONWILLIAMSON": "NOP",
-        "BRANDONINGRAM": "NOP", "PAOLOBANCHERO": "ORL", "SCOTTIEBARNES": "TOR", "LAMELOBALL": "CHA",
-        "CADECUNNINGHAM": "DET", "JALENJOHNSON": "ATL", "KYRIEIRVING": "DAL", "JAMESHARDEN": "LAC"
-    }
-
-    def clean_key(text):
-        if not text: return ""
-        try:
-            t = str(text)
-            nfkd = unicodedata.normalize('NFKD', t)
-            t = "".join([c for c in nfkd if not unicodedata.combining(c)])
-            return re.sub(r'[^A-Z]', '', t.upper())
-        except: return ""
-
-    # TENTA CARREGAR L5 (Se tiver colunas, ok. Se não, usa o Bunker)
-    L5_DB = {}
-    l5_valid = False
-    
+    # --- 4. MAPA DE ROSTER ---
+    roster_map = {}
     if not df_l5.empty:
         df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-        # Verifica se as colunas essenciais existem
-        if any(x in df_l5.columns for x in ['PLAYER_ID', 'ID']) and any(x in df_l5.columns for x in ['PLAYER', 'NAME', 'PLAYER_NAME']):
-            l5_valid = True
-            # (Código de indexação do L5 iria aqui, mas sabemos que está quebrado agora)
-            # Vamos pular direto para usar o Bunker se o L5 falhar.
+        col_name = next((c for c in ['PLAYER_NAME', 'PLAYER', 'NAME', 'FULL_NAME'] if c in df_l5.columns), None)
+        col_id = next((c for c in ['PLAYER_ID', 'ID', 'PERSON_ID'] if c in df_l5.columns), None)
+        col_team = next((c for c in ['TEAM_ABBREVIATION', 'TEAM', 'TEAM_ID'] if c in df_l5.columns), None)
+        
+        if col_name and col_id:
+            for _, row in df_l5.iterrows():
+                k = clean_key(row[col_name])
+                roster_map[k] = {
+                    'id': int(row[col_id]) if pd.notnull(row[col_id]) else 0,
+                    'team': normalize_team_code(row[col_team]) if col_team else "UNK"
+                }
+
+    ELITE_DB_BACKUP = { "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "SHAIGILGEOUSALEXANDER": 1628983, "GIANNISANTETOKOUNMPO": 203507, "JOELEMBIID": 203954, "STEPHENCURRY": 201939, "LEBRONJAMES": 2544, "KEVINDURANT": 201142, "JAYSONTATUM": 1628369 }
 
     # --- 5. ENGINE ---
     engine = OracleEngine(full_cache, injuries_data)
     projections = engine.generate_projections(limit=10)
 
     if not projections:
-        st.info("Calibrando...")
+        st.info("Calibrando o Oráculo...")
         return
 
-    # --- 6. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO NA TELA ---
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
     st.markdown("""<div style="display:flex; justify-content:flex-end; padding-right:15px; margin-bottom:5px; font-family:'Oswald'; font-size:10px; color:#64748b; gap:40px;"><span>PTS</span> <span>REB</span> <span>AST</span> <span>3PM</span></div>""", unsafe_allow_html=True)
 
@@ -830,38 +815,27 @@ def show_oracle_page():
         raw_name = p['name']
         search_key = clean_key(raw_name)
         
-        # 1. TENTA BUNKER (Elite DB)
-        pid = ELITE_DB.get(search_key, 0)
+        pid = 0
+        real_team = "UNK"
         
-        # Se não achou exato, tenta sobrenome no Bunker
-        if pid == 0:
-            parts = raw_name.split()
-            if len(parts) > 1:
-                pid = ELITE_DB.get(clean_key(parts[-1]), 0)
-
-        # 2. DEFINE TIME (Prioriza Fix, depois Projeção)
-        real_team = TEAM_FIX.get(search_key)
-        if not real_team:
-            real_team = str(p['team']).upper().strip()
-            if len(real_team) > 3: real_team = "UNK"
-
-        # 3. DEFINE FOTO
-        if pid > 0:
-            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        if search_key in roster_map:
+            pid = roster_map[search_key]['id']
+            real_team = roster_map[search_key]['team']
         else:
-            photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            pid = ELITE_DB_BACKUP.get(search_key, 0)
+            real_team = normalize_team_code(str(p.get('team', 'UNK')))
 
-        # Logo URL
-        tm_low = real_team.lower()
-        if tm_low == "uta": tm_low = "utah"
-        elif tm_low == "nop": tm_low = "no"
-        elif tm_low == "phx": tm_low = "pho"
-        elif tm_low == "was": tm_low = "wsh"
-        logo_url = f"{logo_base}/{tm_low}.png"
+        if pid > 0: photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        else: photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-        snapshot_list.append({'name': raw_name, 'team': real_team, 'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM']})
+        logo_url = f"{logo_base}/{real_team.lower()}.png"
 
-        # Card
+        snapshot_list.append({
+            'name': raw_name, 'team': real_team, 
+            'pts': p['PTS'], 'reb': p['REB'], 'ast': p['AST'], '3pm': p['3PM'],
+            'pid': pid # Importante para o snapshot tentar buscar foto
+        })
+
         with st.container(border=True):
             c_img, c_info, c1, c2, c3, c4 = st.columns([1, 3, 1.2, 1.2, 1.2, 1.2])
             with c_img: st.image(photo_url, use_container_width=True)
@@ -873,50 +847,99 @@ def show_oracle_page():
             with c3: st.markdown(f'<div class="stat-box"><div class="stat-val c-blue">{p["AST"]:.1f}</div><div class="stat-lbl">AST</div></div>', unsafe_allow_html=True)
             with c4: st.markdown(f'<div class="stat-box"><div class="stat-val c-green">{p["3PM"]:.1f}</div><div class="stat-lbl">3PM</div></div>', unsafe_allow_html=True)
 
-    # --- 7. DIAGNÓSTICO (MANTIDO PARA FUTURO) ---
-    with st.expander("🛠️ DIAGNÓSTICO L5 (STATUS)", expanded=False):
-        if l5_valid:
-            st.success("Arquivo L5 carregado com colunas de identidade!")
-        else:
-            st.error("⚠️ ALERTA CRÍTICO: O Arquivo L5 está carregando sem colunas de 'PLAYER_ID' ou 'PLAYER_NAME'.")
-            st.write("Colunas atuais:", list(df_l5.columns)[:10])
-            st.info("O sistema está rodando no modo 'BUNKER' (Dicionário Manual) para as estrelas.")
-
-    # --- 8. SNAPSHOT ---
-    def create_snapshot(data):
-        fig, ax = plt.subplots(figsize=(8, 10))
-        fig.patch.set_facecolor('#0f172a')
-        ax.set_facecolor('#0f172a')
+    # --- 7. SNAPSHOT PROFISSIONAL (DESIGNER MODE) ---
+    def create_professional_snapshot(data_list):
+        # Configurações de Design
+        BG_COLOR = "#0f172a"
+        CARD_BG = "#1e293b"
+        TEXT_WHITE = "#F8FAFC"
+        TEXT_GRAY = "#94A3B8"
+        COLOR_GOLD = "#FBBF24"
+        COLOR_RED = "#F87171"
+        COLOR_BLUE = "#60A5FA"
+        COLOR_GREEN = "#4ADE80"
+        
+        # Dimensões
+        num_items = len(data_list)
+        fig_height = 2 + (num_items * 1.2) # Altura dinâmica
+        fig, ax = plt.subplots(figsize=(8, fig_height))
+        
+        # Fundo Geral
+        fig.patch.set_facecolor(BG_COLOR)
+        ax.set_facecolor(BG_COLOR)
+        ax.set_xlim(0, 100)
+        ax.set_ylim(0, 100)
         ax.axis('off')
-        ax.text(0.5, 0.95, "DIGIBETS ORACLE", color='#D4AF37', fontsize=26, ha='center', weight='bold', fontname='DejaVu Sans')
-        ax.text(0.5, 0.92, "PROJEÇÕES MATEMÁTICAS (IA)", color='#94a3b8', fontsize=10, ha='center')
-        y_pos = 0.86
-        ax.text(0.05, y_pos, "JOGADOR", color='#64748b', fontsize=9, weight='bold')
-        ax.text(0.55, y_pos, "PTS", color='#fbbf24', fontsize=10, weight='bold', ha='center')
-        ax.text(0.68, y_pos, "REB", color='#f87171', fontsize=10, weight='bold', ha='center')
-        ax.text(0.81, y_pos, "AST", color='#60a5fa', fontsize=10, weight='bold', ha='center')
-        ax.text(0.94, y_pos, "3PM", color='#4ade80', fontsize=10, weight='bold', ha='center')
-        ax.plot([0.05, 0.95], [0.84, 0.84], color='#334155', lw=1)
-        y_curr = 0.80
-        for item in data:
-            ax.text(0.05, y_curr, item['name'], color='white', fontsize=12, weight='bold')
-            ax.text(0.05, y_curr-0.02, item['team'], color='#94a3b8', fontsize=9)
-            ax.text(0.55, y_curr-0.01, f"{item['pts']:.1f}", color='#fbbf24', fontsize=14, weight='bold', ha='center')
-            ax.text(0.68, y_curr-0.01, f"{item['reb']:.1f}", color='#f87171', fontsize=14, weight='bold', ha='center')
-            ax.text(0.81, y_curr-0.01, f"{item['ast']:.1f}", color='#60a5fa', fontsize=14, weight='bold', ha='center')
-            ax.text(0.94, y_curr-0.01, f"{item['3pm']:.1f}", color='#4ade80', fontsize=14, weight='bold', ha='center')
-            ax.plot([0.05, 0.95], [y_curr-0.04, y_curr-0.04], color='#1e293b', lw=0.5)
-            y_curr -= 0.075
-        ax.text(0.5, 0.02, "Gerado via DigiBets Suite", color='#475569', ha='center', fontsize=8)
+
+        # --- HEADER: LOGO E TÍTULO ---
+        # Tenta carregar logo da DigiBets
+        try:
+            logo_url = "https://i.ibb.co/TxfVPy49/Sem-t-tulo.png"
+            with urlopen(logo_url) as url:
+                logo_img = Image.open(url)
+                imagebox = OffsetImage(logo_img, zoom=0.15) # Ajuste o zoom conforme necessário
+                ab = AnnotationBbox(imagebox, (10, 95), frameon=False, box_alignment=(0, 0.5))
+                ax.add_artist(ab)
+        except: pass
+
+        # Texto do Header
+        ax.text(20, 96, "ORACLE PROJECTIONS", color=COLOR_GOLD, fontsize=20, weight='bold', fontname='DejaVu Sans')
+        ax.text(20, 92, "DIGIBETS AI PREDICTIVE MODEL", color=TEXT_GRAY, fontsize=9, fontname='DejaVu Sans')
+        
+        # Linha divisória
+        ax.plot([5, 95], [89, 89], color=TEXT_GRAY, lw=0.5, alpha=0.5)
+        
+        # Cabeçalho das Colunas
+        header_y = 86
+        ax.text(12, header_y, "PLAYER", color=TEXT_GRAY, fontsize=8, weight='bold')
+        ax.text(55, header_y, "PTS", color=COLOR_GOLD, fontsize=8, weight='bold', ha='center')
+        ax.text(68, header_y, "REB", color=COLOR_RED, fontsize=8, weight='bold', ha='center')
+        ax.text(81, header_y, "AST", color=COLOR_BLUE, fontsize=8, weight='bold', ha='center')
+        ax.text(94, header_y, "3PM", color=COLOR_GREEN, fontsize=8, weight='bold', ha='center')
+
+        # --- LOOP DOS JOGADORES ---
+        # Calcula altura de cada linha baseado no espaço disponível (aproximado)
+        # Vamos usar coordenadas fixas relativas decrescentes para controle total
+        start_y = 82
+        row_height = 8
+        
+        for i, item in enumerate(data_list):
+            y_pos = start_y - (i * row_height)
+            
+            # Fundo do Card (Retângulo Arredondado simulado)
+            # FancyBboxPatch é complexo no MPL, vamos usar Rectangle simples com cor diferente
+            rect = patches.Rectangle((5, y_pos - 3), 90, 6, linewidth=0, edgecolor='none', facecolor=CARD_BG, alpha=0.6)
+            ax.add_patch(rect)
+            
+            # Nome e Time
+            ax.text(12, y_pos + 1, item['name'], color=TEXT_WHITE, fontsize=11, weight='bold')
+            ax.text(12, y_pos - 1.5, f"{item['team']} • NBA", color=TEXT_GRAY, fontsize=7)
+            
+            # Bolinha/Ícone (Simulação de foto)
+            circle = patches.Circle((8, y_pos), 2, color='#334155')
+            ax.add_patch(circle)
+            
+            # Stats (Valores Grandes)
+            ax.text(55, y_pos - 0.5, f"{item['pts']:.1f}", color=COLOR_GOLD, fontsize=12, weight='bold', ha='center')
+            ax.text(68, y_pos - 0.5, f"{item['reb']:.1f}", color=COLOR_RED, fontsize=12, weight='bold', ha='center')
+            ax.text(81, y_pos - 0.5, f"{item['ast']:.1f}", color=COLOR_BLUE, fontsize=12, weight='bold', ha='center')
+            ax.text(94, y_pos - 0.5, f"{item['3pm']:.1f}", color=COLOR_GREEN, fontsize=12, weight='bold', ha='center')
+
+        # Footer
+        ax.text(50, 2, "Gerado automaticamente por DigiBets SuiteNAS", color=TEXT_GRAY, fontsize=6, ha='center', alpha=0.5)
+
+        # Output
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=200, bbox_inches='tight', facecolor=BG_COLOR)
         buf.seek(0)
+        plt.close(fig) # Libera memória
         return buf
 
     with c2:
         if snapshot_list:
-            img = create_snapshot(snapshot_list)
-            st.download_button("📸 Baixar Card", data=img, file_name="oracle_card.png", mime="image/png")
+            # Chama a nova função profissional
+            img = create_professional_snapshot(snapshot_list)
+            st.download_button("📸 Baixar Pro", data=img, file_name="oracle_pro_card.png", mime="image/png")
 # ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
@@ -5259,7 +5282,7 @@ def display_strategic_category(formatted_narrative, category_name, game_ctx):
 
    
 # ============================================================================
-# PÁGINA: CONFIGURAÇÕES 
+# PÁGINA: CONFIGURAÇÕES (CORRIGIDA)
 # ============================================================================
 def show_config_page():
     # --- ENFORCE: Forçar tudo ligado ---
@@ -5295,33 +5318,44 @@ def show_config_page():
     render_mini_status(c4, "Auditoria", audit_ok)
     st.markdown("---")
 
-# --- BOTÃO DE ATUALIZAÇÃO GERAL ---
-    if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
-        try:
-            # 1. Atualiza Médias L5 (Forçando Update)
-            st.write("📊 Baixando TODOS os dados L5 (Atualizando médias recentes)...")
-            new_l5 = get_players_l5(progress_ui=True, force_update=True)
-            st.session_state.df_l5 = new_l5
-            
-            # 2. Atualiza Logs Brutos (Com a correção do Bug 19.0)
-            st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
-            fetch_and_upload_real_game_logs(progress_ui=True)
-            
-            # 3. Finalização
-            st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
-            time.sleep(2)
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"❌ Erro crítico no processo: {e}")
-            print(f"Erro Update Full: {e}")
-                        
-# --- BOTÃO DE LESÕES (CLOUD NATIVE ☁️) ---
-        st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+    # ==============================================================================
+    # 2. ÁREA DE AÇÕES (Aqui estava o erro: definimos as colunas agora)
+    # ==============================================================================
+    
+    # Cria as duas colunas principais para separar as ações
+    col_act1, col_act2 = st.columns(2, gap="large")
+
+    # --- COLUNA DA ESQUERDA: DADOS PESADOS (L5 & LESÕES) ---
+    with col_act1:
+        st.subheader("📥 Ingestão de Dados")
+        
+        # 1. BOTÃO DE ATUALIZAÇÃO GERAL (L5 + LOGS)
+        if st.button("🔁 ATUALIZAR L5 COMPLETO (API + NUVEM)", type="primary", use_container_width=True):
+            try:
+                # A. Atualiza Médias L5 (Forçando Update)
+                st.write("📊 Baixando TODOS os dados L5 (Isso garante dados novos)...")
+                new_l5 = get_players_l5(progress_ui=True, force_update=True)
+                st.session_state.df_l5 = new_l5
+                
+                # B. Atualiza Logs Brutos (Com a correção do Bug 19.0)
+                st.write("📝 Baixando Logs Detalhados e Corrigindo Inteiros...")
+                fetch_and_upload_real_game_logs(progress_ui=True)
+                
+                # C. Finalização
+                st.success("✅ Base de Dados Inteira Renovada com Sucesso!")
+                time.sleep(2)
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Erro crítico no processo: {e}")
+                print(f"Erro Update Full: {e}")
+
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+        # 2. BOTÃO DE LESÕES (CLOUD NATIVE ☁️)
         if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
             with st.spinner("Conectando ao Depto. Médico (ESPN API)..."):
                 try:
-                    # 1. Instancia o Monitor
+                    # Instancia o Monitor
                     from injuries import InjuryMonitor
                     monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
                     
@@ -5331,45 +5365,37 @@ def show_config_page():
                         "OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"
                     ]
                     
-                    # 2. Varredura (Scraping)
+                    # Varredura (Scraping)
                     p = st.progress(0)
                     for i, team in enumerate(ALL_TEAMS):
-                        # O Scraper roda e guarda na memória interna dele
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
-                    
                     p.empty()
                     
-                    # 3. EXTRAÇÃO E UPLOAD (AQUI É O PULO DO GATO 🐱)
-                    # Pegamos os dados da memória do monitor
+                    # EXTRAÇÃO E UPLOAD
                     fresh_data = monitor.get_all_injuries()
                     
                     if fresh_data:
-                        # Salva no Supabase usando a função universal do SuiteNAS
-                        # (Certifique-se que KEY_INJURIES está definido no topo do SuiteNAS)
                         save_data_universal("injuries", {"teams": fresh_data, "updated_at": datetime.now().isoformat()})
-                        
-                        # Também salva local para backup (o monitor já faz isso, mas garantimos)
-                        monitor.save_cache()
+                        monitor.save_cache() # Backup local
                         
                         st.success(f"✅ Sincronizado com Supabase! {len(fresh_data)} times atualizados.")
                         
-                        # Atualiza a sessão para ver o resultado na hora
                         st.session_state.injuries_data = fresh_data 
-                        if 'injuries' in st.session_state: del st.session_state['injuries'] # Força reload visual
+                        if 'injuries' in st.session_state: del st.session_state['injuries']
                         
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.warning("⚠️ O scraper rodou mas não retornou dados. A ESPN pode ter bloqueado ou mudado o layout.")
+                        st.warning("⚠️ O scraper rodou mas não retornou dados.")
                         
                 except Exception as e:
                     st.error(f"Erro crítico no processo: {e}")
-                    
 
+    # --- COLUNA DA DIREITA: CONTEXTO (ODDS, DVP, PACE) ---
     with col_act2:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**2. Contexto de Jogo & Pace**")
+        st.subheader("⚙️ Contexto & Parâmetros")
+        
         c_a, c_b = st.columns(2)
         with c_a:
             if st.button("🎯 ATUALIZAR ODDS", use_container_width=True):
@@ -5385,9 +5411,9 @@ def show_config_page():
                     st.success("✅ DvP Atualizado!")
                 except: st.error("Erro ao carregar DvP.")
         
-        st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
-        if st.button("🔄 Sincronizar Pace (Temporada 2025-26)"):
+        if st.button("🔄 Sincronizar Pace (Temporada 2025-26)", use_container_width=True):
             with st.spinner("Conectando à API da NBA..."):
                 new_stats = fetch_real_time_team_stats()
                 
@@ -8584,6 +8610,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
