@@ -718,6 +718,9 @@ class OracleEngine:
 # ============================================================================
 # PÁGINA: ORACLE PROJECTIONS (V3.1 - FIX DUPLICATE COLS)
 # ============================================================================
+# ============================================================================
+# PÁGINA: ORACLE PROJECTIONS (V4 - ESTRELAS BLINDADAS & LOGO FIX)
+# ============================================================================
 def show_oracle_page():
     import os
     import pandas as pd
@@ -758,14 +761,32 @@ def show_oracle_page():
             t = str(text)
             nfkd = unicodedata.normalize('NFKD', t)
             t = "".join([c for c in nfkd if not unicodedata.combining(c)])
+            # Remove sufixos comuns que atrapalham o match
+            t = t.replace(" Jr.", "").replace(" Sr.", "").replace(" III", "")
             return re.sub(r'[^A-Z]', '', t.upper())
         except: return ""
 
-    def normalize_team_code(code):
-        if not code: return "UNK"
-        code = str(code).upper().strip()
-        map_fix = { "NO": "NOP", "NOH": "NOP", "NEW": "NOP", "UTAH": "UTA", "GS": "GSW", "PHO": "PHX", "SA": "SAS", "NY": "NYK", "WSH": "WAS", "BKN": "BKN", "BRK": "BKN" }
-        return map_fix.get(code, code)
+    def get_espn_logo_url(nba_code):
+        """Traduz código NBA para código de URL da ESPN"""
+        if not nba_code: return "https://a.espncdn.com/i/teamlogos/nba/500/unk.png"
+        
+        code = str(nba_code).upper().strip()
+        
+        # Mapeamento Oficial ESPN URLs
+        mapping = {
+            "UTA": "utah", "UTAH": "utah",
+            "NOP": "no", "NO": "no", "NOH": "no",
+            "GSW": "gs", "GS": "gs",
+            "NYK": "ny", "NY": "ny",
+            "SAS": "sa", "SA": "sa",
+            "PHX": "phx", "PHO": "phx",
+            "WAS": "wsh", "WSH": "wsh",
+            "BKN": "bkn", "BRK": "bkn",
+            "CHA": "cha", "CHO": "cha"
+        }
+        
+        slug = mapping.get(code, code.lower())
+        return f"https://a.espncdn.com/i/teamlogos/nba/500/{slug}.png"
 
     # --- 2. HEADER ---
     c1, c2 = st.columns([8, 2])
@@ -789,14 +810,12 @@ def show_oracle_page():
         st.warning("⚠️ Aguardando dados... Por favor, atualize o L5 na Config.")
         return
 
-    # --- 4. MAPA DE ROSTER (CORREÇÃO APLICADA AQUI) ---
+    # --- 4. MAPA DE ROSTER (DYNAMIC) ---
     roster_map = {}
     if not df_l5.empty:
-        # 1. Normaliza nomes das colunas
+        # Normaliza colunas
         df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-        
-        # 2. --- FIX CRÍTICO: REMOVE COLUNAS DUPLICADAS ---
-        # Isso impede que row['PLAYER_ID'] retorne dois valores e quebre o código
+        # Remove duplicatas
         df_l5 = df_l5.loc[:, ~df_l5.columns.duplicated()]
 
         col_name = next((c for c in ['PLAYER_NAME', 'PLAYER', 'NAME', 'FULL_NAME'] if c in df_l5.columns), None)
@@ -807,25 +826,40 @@ def show_oracle_page():
             for _, row in df_l5.iterrows():
                 try:
                     k = clean_key(row[col_name])
-                    
-                    # Garante que pegamos um valor escalar, mesmo se o Pandas tentar trair a gente
                     raw_id = row[col_id]
-                    if isinstance(raw_id, pd.Series): raw_id = raw_id.iloc[0] # Pega o primeiro se for duplicado
-                    
+                    if isinstance(raw_id, pd.Series): raw_id = raw_id.iloc[0]
                     val_id = int(raw_id) if pd.notnull(raw_id) else 0
                     
                     raw_team = row[col_team] if col_team else "UNK"
                     if isinstance(raw_team, pd.Series): raw_team = raw_team.iloc[0]
 
-                    roster_map[k] = {
-                        'id': val_id,
-                        'team': normalize_team_code(raw_team)
-                    }
+                    roster_map[k] = {'id': val_id, 'team': str(raw_team).upper()}
                 except: continue
 
-    ELITE_DB_BACKUP = { "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "SHAIGILGEOUSALEXANDER": 1628983, "GIANNISANTETOKOUNMPO": 203507, "JOELEMBIID": 203954, "STEPHENCURRY": 201939, "LEBRONJAMES": 2544, "KEVINDURANT": 201142, "JAYSONTATUM": 1628369 }
+    # --- 5. BUNKER DE ESTRELAS (STATIC BACKUP) ---
+    # IDs manuais para garantir que estrelas fora do L5 (lesionados/poupados) tenham foto
+    ELITE_DB_BACKUP = {
+        # Superstars
+        "NIKOLAJOKIC": 203999, "LUKADONCIC": 1629029, "GIANNISANTETOKOUNMPO": 203507,
+        "SHAIGILGEOUSALEXANDER": 1628983, "JOELEMBIID": 203954, "JAYSONTATUM": 1628369,
+        "STEPHENCURRY": 201939, "KEVINDURANT": 201142, "LEBRONJAMES": 2544,
+        "ANTHONYDAVIS": 203076, "DEVINBOOKER": 1626164, "ANTHONYEDWARDS": 1630162,
+        "JALENBRUNSON": 1628973, "KAWHILEONARD": 202695, "TYRESEMAXEY": 1630178,
+        "DONOVANMITCHELL": 1628378, "JAYLENBROWN": 1627759, "DAMIANLILLARD": 203081,
+        "KYRIEIRVING": 202681, "PAULGEORGE": 202331, "JAMESHARDEN": 201935,
+        "VICTORWEMBANYAMA": 1641705, "TRAEYOUNG": 1629027, "DEARRONFOX": 1628368,
+        "DOMANTASSABONIS": 1627734, "TYRESEHALIBURTON": 1630169, "BAMADEBAYO": 1628389,
+        "ZIONWILLIAMSON": 1629627, "JACOMPLETE": 1629630, "JAMORANT": 1629630,
+        "JIMMYBUTLER": 202710, "PAOLOBANCHERO": 1631094, "CHETHOLMGREN": 1631096,
+        "SCOTTIEBARNES": 1630567, "LAMELOBALL": 1630163, "ALPERENSENGUN": 1630578,
+        "JULIUSERANDLE": 203944, "PASCALSIAKAM": 1627783, "KRISTAPSPORZINGIS": 204001,
+        "JRUEHOLIDAY": 201950, "DERRICKWHITE": 1628401, "JAMALMURRAY": 1627750,
+        "KARLANTHONYTOWNS": 1626157, "RUDYGOBERT": 203497, "LAURIMARKKANEN": 1628374,
+        "DESMONDBANE": 1630217, "JARENJACKSONJR": 1628991, "DEJOUNTEMURRAY": 1627749,
+        "FRANZWAGNER": 1630532, "EVANMOBLEY": 1630596, "CADE CUNNINGHAM": 1630595
+    }
 
-    # --- 5. ENGINE ---
+    # --- 6. ENGINE ---
     try:
         engine = OracleEngine(full_cache, injuries_data)
         projections = engine.generate_projections(limit=10)
@@ -837,8 +871,7 @@ def show_oracle_page():
         st.info("Calibrando o Oráculo...")
         return
 
-    # --- 6. RENDERIZAÇÃO NA TELA ---
-    logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
+    # --- 7. RENDERIZAÇÃO NA TELA ---
     st.markdown("""<div style="display:flex; justify-content:flex-end; padding-right:15px; margin-bottom:5px; font-family:'Oswald'; font-size:10px; color:#64748b; gap:40px;"><span>PTS</span> <span>REB</span> <span>AST</span> <span>3PM</span></div>""", unsafe_allow_html=True)
 
     snapshot_list = []
@@ -850,17 +883,26 @@ def show_oracle_page():
         pid = 0
         real_team = "UNK"
         
+        # 1. Tenta Busca Dinâmica (L5)
         if search_key in roster_map:
             pid = roster_map[search_key]['id']
             real_team = roster_map[search_key]['team']
-        else:
+        
+        # 2. Se falhar ou ID for 0, tenta Backup Manual (Salva Kawhi, Edwards, etc.)
+        if pid == 0:
             pid = ELITE_DB_BACKUP.get(search_key, 0)
-            real_team = normalize_team_code(str(p.get('team', 'UNK')))
+            # Tenta pegar time da projeção se não achou no roster
+            if real_team == "UNK":
+                real_team = str(p.get('team', 'UNK')).upper()
 
-        if pid > 0: photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        else: photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        # URL FOTO
+        if pid > 0: 
+            photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        else: 
+            photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-        logo_url = f"{logo_base}/{real_team.lower()}.png"
+        # URL LOGO (USANDO O TRADUTOR ESPN)
+        logo_url = get_espn_logo_url(real_team)
 
         snapshot_list.append({
             'name': raw_name, 'team': real_team, 
@@ -870,16 +912,23 @@ def show_oracle_page():
 
         with st.container(border=True):
             c_img, c_info, c1, c2, c3, c4 = st.columns([1, 3, 1.2, 1.2, 1.2, 1.2])
-            with c_img: st.image(photo_url, use_container_width=True)
+            with c_img: 
+                st.image(photo_url, use_container_width=True)
             with c_info:
                 st.markdown(f'<div class="oracle-name">{raw_name}</div>', unsafe_allow_html=True)
-                st.markdown(f"""<div class="oracle-meta"><img src="{logo_url}" width="14" style="vertical-align:middle;"> <span style="font-size:10px; color:#cbd5e1;">{real_team}</span></div>""", unsafe_allow_html=True)
+                # Logo com onerror para esconder se falhar
+                st.markdown(f"""
+                <div class="oracle-meta">
+                    <img src="{logo_url}" width="14" style="vertical-align:middle;" onerror="this.style.display='none'"> 
+                    <span style="font-size:10px; color:#cbd5e1;">{real_team}</span>
+                </div>""", unsafe_allow_html=True)
+            
             with c1: st.markdown(f'<div class="stat-box"><div class="stat-val c-gold">{p["PTS"]:.1f}</div><div class="stat-lbl">PTS</div></div>', unsafe_allow_html=True)
             with c2: st.markdown(f'<div class="stat-box"><div class="stat-val c-red">{p["REB"]:.1f}</div><div class="stat-lbl">REB</div></div>', unsafe_allow_html=True)
             with c3: st.markdown(f'<div class="stat-box"><div class="stat-val c-blue">{p["AST"]:.1f}</div><div class="stat-lbl">AST</div></div>', unsafe_allow_html=True)
             with c4: st.markdown(f'<div class="stat-box"><div class="stat-val c-green">{p["3PM"]:.1f}</div><div class="stat-lbl">3PM</div></div>', unsafe_allow_html=True)
 
-    # --- 7. SNAPSHOT PROFISSIONAL (DESIGNER MODE) ---
+    # --- 8. SNAPSHOT PROFISSIONAL (DESIGNER MODE) ---
     def create_professional_snapshot(data_list):
         BG_COLOR = "#0f172a"
         CARD_BG = "#1e293b"
@@ -953,6 +1002,7 @@ def show_oracle_page():
         if snapshot_list:
             img = create_professional_snapshot(snapshot_list)
             st.download_button("📸 Baixar Pro", data=img, file_name="oracle_pro_card.png", mime="image/png")
+            
 # ============================================================================
 # PROPS ODDS PAGE (CORRIGIDA)
 # ============================================================================
@@ -1740,11 +1790,13 @@ def show_blowout_hunter_page():
             nm = normalize_str(check)
             st.write(f"Status '{nm}': {'⛔ BANIDO' if nm in banned_players else '✅ JOGANDO'}")
 # ============================================================================
-# PÁGINA: MOMENTUM (V5.0 - BLINDADA & VISUAL)
+# PÁGINA: MOMENTUM (V5.1 - FIX COLUMNS & SAFE CALC)
 # ============================================================================
 def show_momentum_page():
-    # --- 1. CSS SEGURO (Separado para evitar erro de decimal literal) ---
-    # Usamos uma string normal (sem 'f') para que o Python ignore os números css
+    import pandas as pd
+    import streamlit as st
+
+    # --- 1. CSS SEGURO ---
     MOMENTUM_CSS = """
     <style>
         .mom-header { 
@@ -1812,39 +1864,88 @@ def show_momentum_page():
     </style>
     """
     st.markdown(MOMENTUM_CSS, unsafe_allow_html=True)
-
-    # HTML Entity para Raio: &#9889;
     st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
     st.info("Ranking baseado na Dominância Relativa. Jogadores com performance muito acima ou muito abaixo da média da liga nos últimos 5 jogos.")
 
     # --- 2. DADOS ---
-    # Importante: .copy() para não quebrar outras páginas que usam df_l5
     original_df = st.session_state.get('df_l5', pd.DataFrame())
     
     if original_df.empty:
         st.warning("Dados insuficientes. Vá em Config > Atualizar L5.")
         return
 
+    # ==============================================================================
+    # 🚑 FIX CRÍTICO DE COLUNAS (NORMALIZAÇÃO)
+    # ==============================================================================
+    # 1. Copia para não alterar o original da sessão
+    df_calc = original_df.copy()
+    
+    # 2. Normaliza nomes para Maiúsculas
+    df_calc.columns = [str(c).upper().strip() for c in df_calc.columns]
+
+    # 3. Mapeia Colunas Essenciais (Se não tiver MIN_AVG, usa MIN)
+    # O Pandas as vezes carrega como 'MIN' e as vezes como 'MIN_AVG' dependendo da API
+    
+    # Minutos
+    if 'MIN_AVG' not in df_calc.columns:
+        if 'MIN' in df_calc.columns: df_calc['MIN_AVG'] = df_calc['MIN']
+        else: df_calc['MIN_AVG'] = 0 # Fallback
+    
+    # Pontos
+    if 'PTS_AVG' not in df_calc.columns:
+        if 'PTS' in df_calc.columns: df_calc['PTS_AVG'] = df_calc['PTS']
+        else: df_calc['PTS_AVG'] = 0
+
+    # Rebotes
+    if 'REB_AVG' not in df_calc.columns:
+        if 'REB' in df_calc.columns: df_calc['REB_AVG'] = df_calc['REB']
+        else: df_calc['REB_AVG'] = 0
+
+    # Assistências
+    if 'AST_AVG' not in df_calc.columns:
+        if 'AST' in df_calc.columns: df_calc['AST_AVG'] = df_calc['AST']
+        else: df_calc['AST_AVG'] = 0
+
+    # Player e Team (Fallback)
+    if 'PLAYER' not in df_calc.columns:
+        if 'PLAYER_NAME' in df_calc.columns: df_calc['PLAYER'] = df_calc['PLAYER_NAME']
+    
+    if 'TEAM' not in df_calc.columns:
+        if 'TEAM_ABBREVIATION' in df_calc.columns: df_calc['TEAM'] = df_calc['TEAM_ABBREVIATION']
+        else: df_calc['TEAM'] = 'UNK'
+    
+    # ID
+    if 'PLAYER_ID' not in df_calc.columns:
+        if 'ID' in df_calc.columns: df_calc['PLAYER_ID'] = df_calc['ID']
+        elif 'PERSON_ID' in df_calc.columns: df_calc['PLAYER_ID'] = df_calc['PERSON_ID']
+        else: df_calc['PLAYER_ID'] = 0
+
+    # ==============================================================================
+
     # --- 3. CÁLCULO ESTATÍSTICO (Z-SCORE) ---
-    # Filtro mínimo de minutos para evitar ruído
-    df_calc = original_df[original_df['MIN_AVG'] >= 15].copy()
+    
+    # Garante que as colunas sejam numéricas
+    cols_to_numeric = ['MIN_AVG', 'PTS_AVG', 'REB_AVG', 'AST_AVG']
+    for col in cols_to_numeric:
+        df_calc[col] = pd.to_numeric(df_calc[col], errors='coerce').fillna(0)
+
+    # Filtro mínimo de minutos
+    df_calc = df_calc[df_calc['MIN_AVG'] >= 15].copy()
     
     if df_calc.empty:
         st.warning("Nenhum jogador com mais de 15 minutos de média carregado.")
         return
 
-    # Se PRA não existir, calcula na hora
-    if 'PRA_AVG' not in df_calc.columns:
-        df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
+    # Calcula PRA (Points + Rebounds + Assists)
+    df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
 
-    # Estatísticas da Liga (Amostra Atual)
+    # Estatísticas da Liga
     mean_league = df_calc['PRA_AVG'].mean()
     std_league = df_calc['PRA_AVG'].std()
     
-    # Evita divisão por zero
     if std_league == 0: std_league = 1
 
-    # Z-Score: Quantos desvios padrão acima/abaixo da média o jogador está?
+    # Z-Score
     df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
 
     # --- 4. SEPARAÇÃO RIGOROSA HOT / COLD ---
@@ -1868,23 +1969,25 @@ def show_momentum_page():
         is_hot = type_card == "HOT"
         css_class = "border-hot" if is_hot else "border-cold"
         color = "#10B981" if is_hot else "#EF4444"
-        # HTML Entities: Chart Up (&#128200;) / Chart Down (&#128201;)
         icon_html = "&#128200;" if is_hot else "&#128201;"
         
-        pid = int(row['PLAYER_ID'])
+        try: pid = int(float(row['PLAYER_ID']))
+        except: pid = 0
+            
         name = row['PLAYER']
         team = row['TEAM']
         pra = row['PRA_AVG']
         z = row['z_score']
         
         # Foto da NBA
-        photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        if pid > 0: photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        else: photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
-        # HTML do Card (F-String segura, sem CSS complexo dentro)
+        # HTML do Card
         col.markdown(f"""
         <div class="mom-card {css_class}">
             <div class="mom-img-box">
-                <img src="{photo_url}" class="mom-img">
+                <img src="{photo_url}" class="mom-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
             </div>
             <div class="mom-info">
                 <div class="mom-team">{team}</div>
@@ -1904,7 +2007,6 @@ def show_momentum_page():
 
     # --- COLUNA HOT ---
     with c1:
-        # HTML Entity Fire: &#128293;
         st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
         if top_hot.empty:
             st.info("Nenhum destaque positivo relevante (Z > 0).")
@@ -1914,7 +2016,6 @@ def show_momentum_page():
 
     # --- COLUNA COLD ---
     with c2:
-        # HTML Entity Snow: &#10052;
         st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
         st.caption("Jogadores titulares (+24min) com performance abaixo da média.")
         if top_cold.empty:
@@ -8434,7 +8535,7 @@ def show_narrative_lab():
         render_list(c2, rosters["home"], "right")
 
 # ============================================================================
-# DASHBOARD (VISUAL ARENA V7.0 - STABLE & CLEAN)
+# DASHBOARD (VISUAL ARENA V7.1 - FIX KEYERROR & MAPPING)
 # ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
@@ -8447,22 +8548,93 @@ def show_dashboard_page():
 
     # 1. Carrega Dados
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data()
+    
+    # Tenta pegar scoreboard (suporta DataFrame ou Lista de Dicts)
+    games_data = st.session_state.get('scoreboard', [])
     
     if df_l5.empty:
-        st.warning("⚠️ Base de dados L5 vazia.")
+        st.warning("⚠️ Base de dados L5 vazia. Vá em Config e atualize.")
         return
+
+    # ==============================================================================
+    # 🚑 FIX CRÍTICO DE COLUNAS (RESOLVE O KEYERROR: 'TEAM')
+    # ==============================================================================
+    # 1. Normaliza nomes das colunas para Maiúsculas
+    df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+
+    # 2. Garante que a coluna TEAM exista
+    if 'TEAM' not in df_l5.columns:
+        if 'TEAM_ABBREVIATION' in df_l5.columns:
+            df_l5['TEAM'] = df_l5['TEAM_ABBREVIATION']
+        elif 'TEAM_ID' in df_l5.columns:
+            df_l5['TEAM'] = df_l5['TEAM_ID']
+        else:
+            df_l5['TEAM'] = 'UNK' # Fallback para não quebrar
+
+    # ==============================================================================
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
-    if not games.empty:
-        teams_playing_today = set(games['home'].tolist() + games['away'].tolist())
     
+    # Mapa de Correção de Siglas (Scoreboard -> L5)
+    # Ex: ESPN usa 'GS', NBA Stats usa 'GSW'
+    MAP_TEAMS = {
+        "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", 
+        "PHO": "PHX", "UTAH": "UTA", "WSH": "WAS", "BRK": "BKN",
+        "NOH": "NOP"
+    }
+
+    if isinstance(games_data, pd.DataFrame) and not games_data.empty:
+        # Se for DataFrame
+        raw_teams = set(games_data['home'].tolist() + games_data['away'].tolist())
+        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams]
+        
+    elif isinstance(games_data, list) and len(games_data) > 0:
+        # Se for Lista de Dicionários (comum no st.session_state['scoreboard'])
+        raw_teams = set()
+        for g in games_data:
+            raw_teams.add(g.get('home', ''))
+            raw_teams.add(g.get('away', ''))
+        teams_playing_today = [MAP_TEAMS.get(t.upper(), t.upper()) for t in raw_teams if t]
+    
+    # FILTRAGEM SEGURA
     if not teams_playing_today:
-        st.info("Nenhum jogo identificado para hoje.")
-        df_today = pd.DataFrame()
+        st.info("Nenhum jogo identificado para hoje (Scoreboard vazio ou offline).")
+        # Mostra Top Geral como fallback
+        st.caption("Mostrando Top Geral (Fallback):")
+        df_today = df_l5
     else:
+        # O erro acontecia aqui. Agora 'TEAM' existe com certeza.
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
+        
+        if df_today.empty:
+            st.warning(f"Jogos detectados: {teams_playing_today}, mas nenhum jogador encontrado no L5 com esses times.")
+            st.write("Times disponíveis no L5:", df_l5['TEAM'].unique()[:10])
+
+    # --- RENDERIZAÇÃO (Mantendo seu layout original) ---
+    if not df_today.empty:
+        st.markdown('<div class="dash-title">🔥 Destaques da Rodada (L5)</div>', unsafe_allow_html=True)
+        
+        # Seleciona colunas úteis e ordena
+        cols_to_show = ['PLAYER', 'TEAM', 'PTS', 'REB', 'AST', 'FG3M']
+        # Garante que todas existam
+        cols_final = [c for c in cols_to_show if c in df_today.columns]
+        
+        if 'PTS' in df_today.columns:
+            df_display = df_today.sort_values('PTS', ascending=False).head(10)
+        else:
+            df_display = df_today.head(10)
+            
+        st.dataframe(
+            df_display[cols_final],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "PTS": st.column_config.ProgressColumn("Pontos", format="%.1f", min_value=0, max_value=40),
+                "REB": st.column_config.NumberColumn("Reb", format="%.1f"),
+                "AST": st.column_config.NumberColumn("Ast", format="%.1f")
+            }
+        )
 
     # ========================================================================
     # 2. DESTAQUES DO DIA
@@ -8681,3 +8853,4 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
