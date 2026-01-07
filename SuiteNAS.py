@@ -419,7 +419,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
     
     SEASON_CURRENT = "2025-26"
     MAX_WORKERS = 10 
-    KEY_LOGS = "real_games_logs" # <--- Chave correta do Supabase conforme você falou
+    KEY_LOGS = "real_game_logs" # <--- Chave correta do Supabase conforme você falou
 
     # 1. Pega lista de quem JOGA (baseado no L5 carregado na memória)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
@@ -8660,6 +8660,41 @@ def show_dashboard_page():
 # EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
 # ============================================================================
 def main():
+    # --- BLOCO DE EMERGÊNCIA: POPULAR SUPABASE ---
+    # Coloque isso logo no começo da def main()
+    
+    st.sidebar.markdown("---")
+    st.sidebar.warning("⚠️ MODO DE RECUPERAÇÃO")
+    
+    if st.sidebar.button("🚀 INICIALIZAR BANCO DE DADOS (CLIQUE UMA VEZ)"):
+        status = st.status("🛠️ Populando Banco de Dados na Nuvem...", expanded=True)
+        
+        # 1. Popula L5 (Base de Jogadores)
+        status.write("1️⃣ Baixando Jogadores L5...")
+        try:
+            # Força o update para baixar da NBA e salvar no Supabase
+            df_l5 = get_players_l5(progress_ui=False, force_update=True)
+            status.write(f"✅ L5 Salvo: {len(df_l5)} jogadores.")
+        except Exception as e:
+            status.error(f"❌ Erro L5: {e}")
+            
+        # 2. Popula Logs (Game Logs)
+        status.write("2️⃣ Baixando Logs de Jogos (Isso demora um pouco)...")
+        try:
+            logs = fetch_and_upload_real_game_logs(progress_ui=False)
+            status.write(f"✅ Logs Salvos: {len(logs)} registros.")
+        except Exception as e:
+            status.error(f"❌ Erro Logs: {e}")
+            
+        status.update(label="🏁 Processo Finalizado! Recarregue a página.", state="complete")
+        time.sleep(2)
+        st.rerun()
+    # -----------------------------------------------
+
+
+
+
+
     st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
     
     # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
@@ -8783,6 +8818,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
