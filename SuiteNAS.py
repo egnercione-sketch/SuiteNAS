@@ -8007,10 +8007,7 @@ def show_narrative_lab():
                         rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 # ============================================================================
-# PÁGINA: DASHBOARD (CORRIGIDA - COMPLETA)
-# ============================================================================
-# ============================================================================
-# PÁGINA: DASHBOARD (COM DEBUG E CORREÇÃO DE TIMES)
+# PÁGINA: DASHBOARD (CORRIGIDA E LIMPA)
 # ============================================================================
 def show_dashboard_page():
     # Helper de Fontes e Cores
@@ -8021,23 +8018,32 @@ def show_dashboard_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Carrega Dados
+    # 1. Carrega Dados (Prioriza Sessão)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    games = get_scoreboard_data()
     
+    # Busca Scoreboard da Sessão (ou tenta buscar se vazio)
+    games_list = st.session_state.get('scoreboard', [])
+    if not games_list:
+        try: games_list = fetch_espn_scoreboard(False)
+        except: games_list = []
+        
+    # Converte lista de dicts para DataFrame (para manter compatibilidade com seu código antigo)
+    if games_list:
+        games = pd.DataFrame(games_list)
+    else:
+        games = pd.DataFrame()
+
     # 2. Validação Inicial
     if df_l5 is None or df_l5.empty:
-        st.warning("⚠️ Base de dados L5 vazia. Carregue os dados primeiro.")
+        st.warning("⚠️ Base de dados L5 vazia. Carregue os dados em Config > Ingestão.")
         return
 
     # ========================================================================
-    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS (CRÍTICO)
+    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS
     # ========================================================================
-    # Converte todas as colunas para MAIÚSCULAS e remove espaços
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
 
     # --- DETETIVE DE COLUNAS DE TIME ---
-    # Procura qual coluna realmente tem a sigla do time
     col_team_found = None
     possible_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM', 'ABBREVIATION']
     
@@ -8049,9 +8055,7 @@ def show_dashboard_page():
     if col_team_found:
         df_l5['TEAM'] = df_l5[col_team_found]
     else:
-        # Tenta extrair do Matchup (ex: "LAL @ GSW") se não tiver coluna de time
         if 'MATCHUP' in df_l5.columns:
-            # Pega as 3 primeiras letras do matchup que costumam ser o time do jogador
             df_l5['TEAM'] = df_l5['MATCHUP'].astype(str).str.split().str[0]
         else:
             df_l5['TEAM'] = 'UNK'
@@ -8059,60 +8063,24 @@ def show_dashboard_page():
     # ========================================================================
     # 🛠️ FIX 2: PADRONIZAÇÃO DE SIGLAS
     # ========================================================================
-    team_map_fix = {
-        'GS': 'GSW',  'GOLDEN STATE': 'GSW',
-        'NO': 'NOP',  'NEW ORLEANS': 'NOP',
-        'NY': 'NYK',  'NEW YORK': 'NYK',
-        'SA': 'SAS',  'SAN ANTONIO': 'SAS',
-        'PHO': 'PHX', 'PHOENIX': 'PHX',
-        'UTAH': 'UTA', 'UTA': 'UTA',
-        'WSH': 'WAS', 'WASHINGTON': 'WAS',
-        'BKN': 'BKN', 'BROOKLYN': 'BKN',
-        'LAL': 'LAL', 'LAC': 'LAC'
-    }
-
-    def normalize_team_abbr(t):
-        if not isinstance(t, str): return "UNK"
-        t = str(t).upper().strip()
-        return team_map_fix.get(t, t)
-
-    # Aplica correção na base de dados (Cria coluna TEAM limpa)
-    df_l5['TEAM'] = df_l5['TEAM'].apply(normalize_team_abbr)
+    # Usa a função global que já definimos no topo do arquivo
+    df_l5['TEAM'] = df_l5['TEAM'].apply(fix_team_abbr)
 
     # --- FILTRO: APENAS QUEM JOGA HOJE ---
     teams_playing_today = []
     
     if not games.empty:
-        raw_teams = games['home'].tolist() + games['away'].tolist()
-        teams_playing_today = set([normalize_team_abbr(x) for x in raw_teams])
-        # Ordena para ficar bonito no print
-        teams_playing_list = sorted(list(teams_playing_today))
-    else:
-        teams_playing_list = []
-
+        # Garante que as colunas existam no DF de jogos
+        if 'home' in games.columns and 'away' in games.columns:
+            raw_teams = games['home'].tolist() + games['away'].tolist()
+            teams_playing_today = set([fix_team_abbr(x) for x in raw_teams])
+    
     # Cria o DataFrame Filtrado
     if not teams_playing_today:
-        st.info("Nenhum jogo identificado para hoje na API.")
+        st.info("Nenhum jogo identificado para hoje (Filtro de Destaques inativo).")
         df_today = pd.DataFrame()
     else:
         df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
-
-    # ========================================================================
-    # 🕵️ ÁREA DE DEBUG (VERIFIQUE ISSO NA TELA)
-    # ========================================================================
-    if df_today.empty:
-        with st.expander("🕵️ DETETIVE DE DADOS (Clique aqui para descobrir o erro)", expanded=True):
-            st.error(f"❌ O filtro retornou 0 jogadores.")
-            st.write(f"**Times Jogando Hoje (API):** {teams_playing_list}")
-            
-            # Mostra quais times existem na sua base L5
-            unique_teams_l5 = sorted(df_l5['TEAM'].unique().astype(str).tolist())
-            st.write(f"**Times Encontrados na Base L5:** {unique_teams_l5}")
-            
-            st.write("**Amostra dos dados (L5):**")
-            st.dataframe(df_l5[['PLAYER_NAME', 'TEAM'] if 'PLAYER_NAME' in df_l5.columns else df_l5.columns].head())
-            
-            st.info("💡 DICA: Compare as siglas da 'API' com a 'Base L5'. Elas precisam ser IDÊNTICAS.")
 
     # ========================================================================
     # 3. RENDERIZAÇÃO: DESTAQUES DO DIA
@@ -8131,23 +8099,25 @@ def show_dashboard_page():
         # Função Auxiliar para pegar Top N
         def get_top_n(df, col, n=3):
             if col not in df.columns: return pd.DataFrame()
-            cols_to_fetch = ['PLAYER_NAME', 'PLAYER', 'TEAM', col] # Tenta pegar PLAYER_NAME tb
-            cols_exist = [c for c in cols_to_fetch if c in df.columns]
+            # Tenta colunas de nome
+            c_name = next((c for c in df.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
+            cols_to_fetch = [c_name, 'TEAM', col]
             
             # IDs para foto
-            if 'PLAYER_ID' in df.columns: cols_exist.append('PLAYER_ID')
-            elif 'ID' in df.columns: cols_exist.append('ID')
+            if 'PLAYER_ID' in df.columns: cols_to_fetch.append('PLAYER_ID')
+            elif 'ID' in df.columns: cols_to_fetch.append('ID')
+            elif 'PERSON_ID' in df.columns: cols_to_fetch.append('PERSON_ID')
             
-            return df.nlargest(n, col)[cols_exist]
+            # Filtra apenas colunas existentes
+            final_cols = [c for c in cols_to_fetch if c in df.columns]
+            return df.nlargest(n, col)[final_cols]
 
         # Garante colunas numéricas
         for col in ['PTS', 'AST', 'REB']:
-            # L5 geralmente tem as colunas puras ou com _AVG
-            # Se não tiver _AVG, tenta calcular da coluna pura se ela existir, ou usa 0
             target = f"{col}_AVG"
             if target not in df_today.columns:
                 if col in df_today.columns:
-                     df_today[target] = df_today[col] # Usa o valor do jogo como média se for log único
+                     df_today[target] = df_today[col]
                 else:
                     df_today[target] = 0
 
@@ -8161,32 +8131,33 @@ def show_dashboard_page():
             king = df_top.iloc[0]
             
             # Busca ID seguro
-            p_id = king.get('PLAYER_ID', king.get('ID', 0))
+            c_id = next((c for c in df_top.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
+            p_id = king[c_id] if c_id else 0
             try: p_id = int(float(p_id))
             except: p_id = 0
                 
             photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
             
             # Nome
-            p_name = king.get('PLAYER_NAME', king.get('PLAYER', 'UNK'))
+            c_name = next((c for c in df_top.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
+            p_name = king.get(c_name, 'UNK')
             
-            # Valor (Pega a última coluna numérica que é o stat)
+            # Valor
             stat_val = 0
             for c in df_top.columns:
                 if "AVG" in c or c in ['PTS', 'AST', 'REB']:
                     stat_val = king[c]
                     break
             
-            # Linhas 2 e 3
+            # Sub-linhas
             def get_sub_row(idx, rank):
                 if len(df_top) <= idx: return ""
                 p = df_top.iloc[idx]
-                nm = p.get('PLAYER_NAME', p.get('PLAYER', 'UNK'))
+                nm = p.get(c_name, 'UNK')
                 v = 0
                 for c in df_top.columns:
                     if "AVG" in c or c in ['PTS', 'AST', 'REB']:
-                        v = p[c]
-                        break
+                        v = p[c]; break
                 return f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>{rank}. {truncate_name(nm)}</span><span style="color:{color}">{v:.1f}</span></div>"""
 
             row2 = get_sub_row(1, 2)
@@ -8219,7 +8190,7 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 4. GAME GRID (MANTIDO)
+    # 4. GAME GRID (JOGOS DE HOJE)
     # ========================================================================
     st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
@@ -8236,41 +8207,19 @@ def show_dashboard_page():
                     game_data=game,
                     odds_map=odds_cache
                 )
-    # ========================================================================
-    # 4. GAME GRID (JOGOS)
-    # ========================================================================
-    st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
+# ============================================================================
+# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
+# ============================================================================
 
-    if games.empty:
-        st.info("Nenhum jogo encontrado para hoje.")
-    else:
-        odds_cache = st.session_state.get("odds", {})
-        rows = st.columns(2)
-        for i, (index, game) in enumerate(games.iterrows()):
-            with rows[i % 2]:
-                # Chama a função que já corrigimos anteriormente
-                render_game_card(
-                    away_team=game.get('away', 'UNK'),
-                    home_team=game.get('home', 'UNK'),
-                    game_data=game,
-                    odds_map=odds_cache
-                )
-# ============================================================================
-# EXECUÇÃO PRINCIPAL (V65.1 - COM SCOREBOARD INTEGRADO)
-# ============================================================================
 def main():
-    st.set_page_config(
-        page_title="DigiBets IA", 
-        layout="wide", 
-        page_icon="🏀",
-        initial_sidebar_state="expanded" # Garante menu aberto
-    )
-    
-    # CSS GLOBAL (MANTIDO EXATAMENTE IGUAL AO SEU)
+    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
+  
+
+    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
+
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
-
             /* 1. FORÇA FUNDO PRETO GLOBAL */
             .stApp { background-color: #000000 !important; }
             
@@ -8294,7 +8243,10 @@ def main():
                 border-right: 1px solid #1e293b;
             }
 
+
+
             /* 5. ESTILO MENU LATERAL (NUNITO) */
+
             div[role="radiogroup"] label {
                 background: transparent !important;
                 border: none !important;
@@ -8306,112 +8258,139 @@ def main():
                 border-radius: 8px !important;
                 transition: all 0.2s ease;
             }
+
             div[role="radiogroup"] label:hover {
                 background: rgba(34, 211, 238, 0.1) !important;
                 color: #ffffff !important;
                 padding-left: 18px !important;
             }
+
             div[role="radiogroup"] label[data-checked="true"] {
                 background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, transparent 100%) !important;
                 border-left: 4px solid #22d3ee !important;
                 color: #22d3ee !important;
                 font-weight: 700 !important;
             }
+
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
 
             /* 6. SEPARADORES DE MENU (CSS INDEXING) */
+
             div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
-
             div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
-
             div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
-
             div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
             div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
         </style>
+
     """, unsafe_allow_html=True)
-    
+  
     safe_load_initial_data()
 
-    # --- MENU LATERAL UNIFICADO ---
+
+
+    # --- MENU LATERAL (DENTRO DO MAIN PARA FUNCIONAR) ---
+
     with st.sidebar:
-        # 1. Logo e Título
+
         st.markdown(f"""
+
             <div style="text-align: center; padding-bottom: 10px;">
+
                 <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150" style="margin-bottom: 5px;">
+
                 <div style="color: #94a3b8; font-family: 'Nunito'; font-size: 0.6rem; font-style: italic; opacity: 0.8;">
+
                     O Poder da IA nas suas Apostas Esportivas
+
                 </div>
+
             </div>
+
         """, unsafe_allow_html=True)
 
-        st.divider()
 
-        # 2. SCOREBOARD INTEGRADO (MOSTRA JOGOS NA SIDEBAR)
-        st.caption("🏀 JOGOS DE HOJE")
-        # Tenta pegar da sessão
-        sb_games = st.session_state.get('scoreboard', [])
-        
-        # Se vazio, tenta buscar rapidinho (sem UI blocking)
-        if not sb_games:
-            # Chama a função fetch que já definimos antes
-            try: sb_games = fetch_espn_scoreboard(False)
-            except: pass
-            
-        if sb_games:
-            # Mostra estilo ticker compacto
-            for g in sb_games:
-                st.markdown(f"<div style='font-size:12px; color:#cbd5e1; margin-bottom:4px;'>• <b>{g['away']}</b> @ <b>{g['home']}</b></div>", unsafe_allow_html=True)
-        else:
-            st.warning("Nenhum jogo detectado.")
-            if st.button("🔄 Buscar Jogos", key="btn_sb_sidebar"):
-                fetch_espn_scoreboard(True)
-                st.rerun()
-        
-        st.divider()
 
-        # 3. NAVEGAÇÃO
         MENU_ITEMS = [
+
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
+
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
+
             "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla", "🔮 Oráculo",
+
             "🛡️ DvP Confrontos", "🏥 Depto Médico", "👥 Escalações",
+
             "⚙️ Config", "🔍 Testar Conexão Supabase"
+
         ]
+
         choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
+
         
+
         st.markdown("<br><div style='text-align: center; color: #334155; font-size: 0.6rem;'>● SYSTEM ONLINE v2.2</div>", unsafe_allow_html=True)
 
+
+
     # --- ROTEAMENTO ---
+
     if choice == "🏠 Dashboard": show_dashboard_page()
+
     elif choice == "📊 Ranking Teses": show_analytics_page()
+
     elif choice == "📋 Auditoria": show_audit_page()
+
     
+
     elif choice == "🧬 Sinergia & Vácuo": show_nexus_page()
+
     elif choice == "⚔️ Lab Narrativas": show_narrative_lab()
+
     elif choice == "⚡ Momentum": show_momentum_page()
+
     elif choice == "🔥 Las Vegas Sync": show_props_odds_page()
+
     elif choice == "🌪️ Blowout Hunter": show_blowout_hunter_page()
+
     elif choice == "🏆 Trinity Club": show_trinity_club_page()
+
     
+
     elif choice == "🔥 Hot Streaks": show_hit_prop_page()
+
     elif choice == "📊 Matriz 5-7-10": show_matriz_5_7_10_page()
+
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
+
     elif choice == "🔮 Oráculo": show_oracle_page()
+
     
+
+    
+
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
+
     elif choice == "🏥 Depto Médico": show_depto_medico()
+
     elif choice == "👥 Escalações": show_escalacoes()
+
     
+
     elif choice == "⚙️ Config": show_config_page()
+
     elif choice == "🔍 Testar Conexão Supabase": show_cloud_diagnostics()
 
+
+
 if __name__ == "__main__":
+
     main()
                 
+
 
 
 
