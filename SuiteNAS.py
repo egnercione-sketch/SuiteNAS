@@ -3360,18 +3360,16 @@ def update_batch_cache(games_list, force_all=False):
 # 2. ENGINES (MANTIDOS E INTEGRADOS)
 # ==============================================================================
 
-# --- 1. ATOMIC GENERATOR (Base L5/L10) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
     
-    # 1. Mapeia times que jogam hoje com sigla corrigida
+    # 1. Mapeia times que jogam hoje
     for g in games:
-        # Usa fix_team_abbr se disponível, senão tenta string direto
         try:
             h = fix_team_abbr(g.get('home', 'UNK'))
             a = fix_team_abbr(g.get('away', 'UNK'))
-        except NameError:
+        except:
             h = str(g.get('home')).upper()
             a = str(g.get('away')).upper()
 
@@ -3386,39 +3384,56 @@ def generate_atomic_props(cache_data, games):
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
         
-        # Pega o time do jogador e corrige a sigla
+        # Pega time e corrige
         raw_team = data.get('team', 'UNK')
         try: team = fix_team_abbr(raw_team)
         except: team = raw_team
         
-        # --- O FILTRO CRÍTICO ---
-        if team not in teams_active: 
-            continue # Se o time não bate com o scoreboard, ele pula o jogador
-        
-        g_info = game_info_map.get(team)
+        # --- CORREÇÃO CRÍTICA AQUI ---
+        # Se for UNK, permitimos passar para Debug, mas marcamos como sem jogo.
+        # Se tiver time definido mas não joga hoje, aí sim filtramos.
+        if team != 'UNK' and team not in teams_active: 
+            continue 
+            
+        # Define info do jogo (ou placeholder se for UNK)
+        if team == 'UNK':
+            g_info = {"game_str": "Time Desconhecido (UNK)", "game_id": "0"}
+        else:
+            g_info = game_info_map.get(team, {})
+
         logs = data.get('logs', {})
         pid = data.get('id', 0)
         
         for stat, min_req in min_thresholds.items():
             vals = logs.get(stat, [])
-            if not vals: continue
             
-            # Checa L5 e L10 para consistência 100%
+            # Proteção contra listas vazias ou nulas (Max Strus)
+            if not vals or len(vals) == 0: 
+                continue
+            
+            # Loop de períodos (5 e 10 jogos)
             for period in [5, 10]:
+                # Proteção para jogadores com poucos jogos (Kam Jones tem 7, falharia no L10)
                 if len(vals) >= period:
                     cut = vals[:period]
-                    floor = min(cut)
+                    floor = min(cut) # Seguro pois len >= period
+                    
                     if floor >= min_req:
                         atomic_props.append({
-                            "player": name, "team": team, "stat": stat, "line": int(floor),
+                            "player": name, 
+                            "team": team, 
+                            "stat": stat, 
+                            "line": int(floor),
                             "record_str": f"{period}/{period}", 
                             "streak_val": period, 
-                            "game_info": g_info, "game_display": g_info.get('game_str'), 
+                            "game_info": g_info, 
+                            "game_display": g_info.get('game_str'), 
                             "game_id": g_info.get('game_id'),
                             "player_id": pid
                         })
+                        
     return sorted(atomic_props, key=lambda x: (x['streak_val'], x['line']), reverse=True)
-
+    
 # --- 2. STREAK ENGINE ---
 def calculate_active_streak(vals, threshold):
     streak = 0
@@ -3438,21 +3453,27 @@ def generate_iron_streaks(cache_data, games):
     
     team_opp_map = {}
     for g in games:
-        # Tenta usar fix_team_abbr, fallback para string normal
         try:
-            h = fix_team_abbr(g.get('home'))
-            a = fix_team_abbr(g.get('away'))
+            h = fix_team_abbr(g.get('home', 'UNK'))
+            a = fix_team_abbr(g.get('away', 'UNK'))
         except:
-            h = g.get('home'); a = g.get('away')
-        team_opp_map[h] = a; team_opp_map[a] = h
+            h = str(g.get('home')).upper()
+            a = str(g.get('away')).upper()
+        if h != "UNK" and a != "UNK":
+            team_opp_map[h] = a
+            team_opp_map[a] = h
         
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
+        
         raw_team = data.get('team', 'UNK')
         try: team = fix_team_abbr(raw_team)
         except: team = raw_team
         
-        if team not in team_opp_map: continue
+        # Se for UNK, pulamos no Streaks (pois precisa de oponente pra fazer sentido)
+        # Se não tiver oponente hoje, também pula.
+        if team not in team_opp_map: 
+            continue
         
         opp = team_opp_map[team]
         logs = data.get('logs', {})
@@ -3460,7 +3481,9 @@ def generate_iron_streaks(cache_data, games):
         
         for stat, levels in ladders.items():
             vals = logs.get(stat, [])
-            if not vals: continue
+            # Proteção: precisa de pelo menos 7 jogos para uma streak de 7
+            if not vals or len(vals) < 7: 
+                continue
             
             best_streak = 0
             best_line = 0
@@ -8296,6 +8319,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
