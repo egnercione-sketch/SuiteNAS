@@ -3890,7 +3890,17 @@ def show_hit_prop_page():
     with tab_radar:
         if atomic_props:
             df = pd.DataFrame(atomic_props)
-            st.dataframe(df[['player', 'team', 'stat', 'line', 'record_str']], use_container_width=True)
+            
+            # Formatação visual para destacar quem joga hoje
+            st.info("ℹ️ Mostrando todos os jogadores do cache (Ativos e Inativos). Verifique a coluna 'JOGO'.")
+            
+            # Seleciona e renomeia colunas para ficar bonito
+            df_display = df[['player', 'team', 'game_display', 'stat', 'line', 'record_str']].copy()
+            df_display.columns = ['JOGADOR', 'TIME', 'JOGO (HOJE)', 'STAT', 'LINHA MÍNIMA', 'RECORD']
+            
+            st.dataframe(df_display, use_container_width=True)
+        else:
+            st.warning("Nenhum dado encontrado no cache L25.")
             
 #============================================================================
 # DEFINIÇÕES E NORMALIZAÇÕES
@@ -8329,6 +8339,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
