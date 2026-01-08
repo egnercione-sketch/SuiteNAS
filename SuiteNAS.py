@@ -529,8 +529,8 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
 
 def get_player_logs_hit_prop(name):
     """
-    Fetcher específico para o Radar Consistência.
-    Foca em obter FG3A (Tentativas de 3) que muitas vezes faltam no log padrão.
+    Fetcher V64: Baixa a TEMPORADA INTEIRA (até 82 jogos).
+    Removemos o .head(30) para pegar sequências longas reais.
     """
     try:
         from nba_api.stats.endpoints import playergamelog
@@ -541,10 +541,11 @@ def get_player_logs_hit_prop(name):
         if not p_list: return None
         pid = p_list[0]['id']
         
-        # Baixa Logs (30 jogos)
-        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26').get_data_frames()[0].head(30)
+        # Baixa Logs (SEM LIMITES DE HEAD)
+        # season='2025-26' pega todos os jogos jogados até agora
+        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5).get_data_frames()[0]
         
-        # Garante colunas críticas para o Sniper
+        # Garante colunas críticas
         if 'FG3M' not in df.columns: df['FG3M'] = 0
         if 'FG3A' not in df.columns: df['FG3A'] = 0 
         
@@ -554,11 +555,11 @@ def get_player_logs_hit_prop(name):
             "REB": df['REB'].tolist(), 
             "AST": df['AST'].tolist(),
             "3PM": df['FG3M'].tolist(), 
-            "3PA": df['FG3A'].tolist(), # Salva tentativas
+            "3PA": df['FG3A'].tolist(),
             "STL": df['STL'].tolist(), 
             "BLK": df['BLK'].tolist()
         }
-    except: return None 
+    except: return None
 
 def normalize_cache_keys(cache_data):
     """Normaliza chaves antigas se existirem no JSON."""
@@ -8375,6 +8376,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
