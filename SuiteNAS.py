@@ -553,7 +553,6 @@ def normalize_cache_keys(cache_data):
 def update_batch_cache(games_list, force_all=False):
     """
     Função Mestra de Atualização do Radar Consistência.
-    Chamada pela Aba Config e pela Própria Página.
     """
     KEY_LOGS = "real_game_logs"
     
@@ -568,7 +567,7 @@ def update_batch_cache(games_list, force_all=False):
     if 'df_l5' in st.session_state:
         df = st.session_state['df_l5']
         if not df.empty:
-            # Normaliza nomes das colunas para evitar KeyError 'PLAYER'
+            # Normaliza nomes das colunas
             df.columns = [str(c).upper().strip() for c in df.columns]
             
             # Busca dinâmica da coluna de nome
@@ -594,7 +593,7 @@ def update_batch_cache(games_list, force_all=False):
         if p_name not in full_cache: 
             pending.append(p_name); continue
             
-        # Verifica se tem a chave nova 3PA (Volume de 3)
+        # Verifica se tem a chave nova 3PA
         if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
             pending.append(p_name); continue
 
@@ -607,7 +606,7 @@ def update_batch_cache(games_list, force_all=False):
     if not pending:
         status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
 
-    status.write(f"⚡ Baixando {len(pending)} perfis completos (incluindo volume de 3pts)...")
+    status.write(f"⚡ Baixando {len(pending)} perfis completos...")
     
     # Download Paralelo
     def fetch_task(name): return (name, get_player_logs_hit_prop(name))
@@ -622,14 +621,13 @@ def update_batch_cache(games_list, force_all=False):
                 pid = logs.pop('id', 0)
                 full_cache[name] = {"name": name, "team": "UNK", "id": pid, "logs": logs, "updated": str(datetime.now())}
             completed += 1
-            if completed % 10 == 0: 
+            if completed % 5 == 0: 
                 status.write(f"Progresso: {completed}/{len(pending)}")
             
-    # Salva na Nuvem (Usando sua função save_data_universal existente)
+    # Salva na Nuvem
     save_data_universal(KEY_LOGS, full_cache)
     status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
     time.sleep(1)
-
     
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
@@ -8262,6 +8260,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
