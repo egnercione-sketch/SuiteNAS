@@ -562,68 +562,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
 
 # ==============================================================================
 # 8. DATA FETCHING & NORMALIZATION (ATUALIZADO V59.0)
-# ==============================================================================
-
-def get_player_logs_hit_prop(name):
-    """
-    Fetcher V66.4 (Sherlock): Tenta descobrir o time por 3 métodos diferentes.
-    Se falhar na coluna oficial, tenta ler o confronto (MATCHUP).
-    """
-    try:
-        from nba_api.stats.endpoints import playergamelog
-        from nba_api.stats.static import players
-        
-        # 1. Busca ID
-        p_list = players.find_players_by_full_name(name)
-        if not p_list: return None
-        pid = p_list[0]['id']
-        
-        # 2. Baixa Logs
-        # Timeout um pouco maior para garantir dados completos
-        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=10).get_data_frames()[0]
-        
-        # Garante colunas críticas de stats
-        if 'FG3M' not in df.columns: df['FG3M'] = 0
-        if 'FG3A' not in df.columns: df['FG3A'] = 0 
-        
-        # --- DETECÇÃO DE TIME AVANÇADA (SHERLOCK) ---
-        detected_team = "UNK"
-        
-        if not df.empty:
-            # TENTATIVA 1: Coluna Padrão (TEAM_ABBREVIATION)
-            if 'TEAM_ABBREVIATION' in df.columns:
-                detected_team = str(df.iloc[0]['TEAM_ABBREVIATION'])
-            
-            # TENTATIVA 2: Nome do time (TEAM_NAME) - As vezes vem o nome completo
-            elif 'TEAM_NAME' in df.columns and detected_team == "UNK":
-                # Mapeamento rápido de emergência se vier nome completo
-                t_name = str(df.iloc[0]['TEAM_NAME']).upper()
-                # (Simplificação: Se cair aqui, a normalização global deve resolver depois se for sigla)
-                detected_team = t_name 
-
-            # TENTATIVA 3 (INFALÍVEL): Roubar do MATCHUP (Ex: "LAL @ BOS")
-            # O Matchup sempre começa com o time do jogador
-            if detected_team == "UNK" and 'MATCHUP' in df.columns:
-                matchup = str(df.iloc[0]['MATCHUP']) # Ex: "GSW vs. LAL" ou "BOS @ MIA"
-                # Pega a primeira palavra (GSW, BOS, etc)
-                detected_team = matchup.split(' ')[0].strip()
-                print(f"🕵️ Sherlock: Descobri que {name} é do {detected_team} pelo Matchup!")
-
-        return {
-            "id": pid,
-            "team_detected": detected_team, 
-            "PTS": df['PTS'].tolist(), 
-            "REB": df['REB'].tolist(), 
-            "AST": df['AST'].tolist(),
-            "3PM": df['FG3M'].tolist(), 
-            "3PA": df['FG3A'].tolist(), 
-            "STL": df['STL'].tolist(), 
-            "BLK": df['BLK'].tolist()
-        }
-    except Exception as e:
-        print(f"⚠️ Erro ao baixar {name}: {e}")
-        return None
-
+# ==============================================================================    
 def normalize_cache_keys(cache_data):
     """Normaliza chaves antigas se existirem no JSON."""
     if not cache_data: return {}
@@ -3264,41 +3203,60 @@ def normalize_team_signature(abbr):
 
 def get_player_logs_hit_prop(name):
     """
-    Fetcher V66: Baixa a temporada INTEIRA e identifica o time automaticamente.
+    Fetcher V66.5 (Bala de Prata): 
+    1. Tenta pegar stats do GameLog.
+    2. Se não descobrir o time (ex: jogador não jogou ainda), consulta o CommonPlayerInfo.
     """
     try:
-        from nba_api.stats.endpoints import playergamelog
+        from nba_api.stats.endpoints import playergamelog, commonplayerinfo
         from nba_api.stats.static import players
         
-        # Busca ID
+        # 1. Busca ID
         p_list = players.find_players_by_full_name(name)
         if not p_list: return None
         pid = p_list[0]['id']
         
-        # Baixa Logs (Season Full)
-        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5).get_data_frames()[0]
+        # 2. Baixa Logs (Season 2025-26)
+        game_log = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5)
+        df = game_log.get_data_frames()[0]
         
-        # Garante colunas críticas
+        # --- DETECÇÃO DE TIME (LÓGICA BLINDADA) ---
+        detected_team = "UNK"
+        
+        # Tentativa 1: Via GameLog (Melhor pois reflete o time do último jogo jogado)
+        if not df.empty:
+            if 'TEAM_ABBREVIATION' in df.columns:
+                detected_team = str(df.iloc[0]['TEAM_ABBREVIATION'])
+            elif 'MATCHUP' in df.columns:
+                # Fallback: Rouba do Matchup (ex: "LAL @ BOS")
+                detected_team = str(df.iloc[0]['MATCHUP']).split(' ')[0]
+
+        # Tentativa 2: Se ainda for UNK (Jogador não jogou na temporada ou erro), vai na Ficha Cadastral
+        if detected_team == "UNK":
+            try:
+                # Chama a ficha do jogador (sempre tem o time atual)
+                info = commonplayerinfo.CommonPlayerInfo(player_id=pid, timeout=5).get_data_frames()[0]
+                if not info.empty and 'TEAM_ABBREVIATION' in info.columns:
+                    detected_team = str(info.iloc[0]['TEAM_ABBREVIATION'])
+            except:
+                pass # Se falhar aqui, realmente é um fantasma
+
+        # 3. Prepara retorno (mesmo vazios se não jogou)
         if 'FG3M' not in df.columns: df['FG3M'] = 0
         if 'FG3A' not in df.columns: df['FG3A'] = 0 
-        
-        # --- AUTO-DETECÇÃO DE TIME ---
-        detected_team = "UNK"
-        if not df.empty and 'TEAM_ABBREVIATION' in df.columns:
-            detected_team = str(df.iloc[0]['TEAM_ABBREVIATION'])
         
         return {
             "id": pid,
             "team_detected": detected_team, 
-            "PTS": df['PTS'].tolist(), 
-            "REB": df['REB'].tolist(), 
-            "AST": df['AST'].tolist(),
-            "3PM": df['FG3M'].tolist(), 
-            "3PA": df['FG3A'].tolist(), 
-            "STL": df['STL'].tolist(), 
-            "BLK": df['BLK'].tolist()
+            "PTS": df['PTS'].tolist() if not df.empty else [],
+            "REB": df['REB'].tolist() if not df.empty else [],
+            "AST": df['AST'].tolist() if not df.empty else [],
+            "3PM": df['FG3M'].tolist() if not df.empty else [],
+            "3PA": df['FG3A'].tolist() if not df.empty else [],
+            "STL": df['STL'].tolist() if not df.empty else [],
+            "BLK": df['BLK'].tolist() if not df.empty else []
         }
-    except: return None 
+    except: return None
 
 def normalize_cache_keys(cache_data):
     """Normaliza chaves antigas."""
@@ -8356,6 +8314,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
