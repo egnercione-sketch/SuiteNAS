@@ -3362,6 +3362,7 @@ def update_batch_cache(games_list, force_all=False):
 # ==============================================================================
 
 # --- 1. ATOMIC GENERATOR (PERMISSIVO PARA DEBUG) ---
+# --- 1. ATOMIC GENERATOR (MODO 80% CONFIDENCE) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
@@ -3380,16 +3381,16 @@ def generate_atomic_props(cache_data, games):
             except: continue
 
     teams_active = set(game_info_map.keys())
-    min_thresholds = {"PTS": 10, "REB": 4, "AST": 3, "3PM": 1, "STL": 1, "BLK": 1}
+    
+    # Reduzi levemente os gatilhos mínimos para capturar mais volume
+    min_thresholds = {"PTS": 8, "REB": 3, "AST": 2, "3PM": 1, "STL": 1, "BLK": 1}
     
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
         
-        # Pega time do cache e normaliza
         raw_team = data.get('team', 'UNK')
         team = normalize_team_signature(raw_team)
         
-        # Verifica se joga hoje
         is_active = team in teams_active
         
         if is_active:
@@ -3397,7 +3398,6 @@ def generate_atomic_props(cache_data, games):
             g_str = g_info.get('game_str')
             g_id = g_info.get('game_id')
         else:
-            # Mostra no radar geral mesmo se não jogar, mas marcado
             g_info = {}
             g_str = "OFF / NO GAME"
             g_id = "0"
@@ -3409,24 +3409,45 @@ def generate_atomic_props(cache_data, games):
             vals = logs.get(stat, [])
             if not vals: continue
             
+            # Analisa L5 e L10 com tolerância de erro
             for period in [5, 10]:
                 if len(vals) >= period:
                     cut = vals[:period]
-                    floor = min(cut)
                     
-                    if floor >= min_req:
+                    # --- A MÁGICA DOS 80% ---
+                    # Ordena os valores do menor para o maior
+                    sorted_cut = sorted(cut)
+                    
+                    # Se for L5, permitimos 1 erro. Pegamos o 2º menor valor (índice 1)
+                    # Ex: [2, 10, 12, 15, 20] -> O piso ajustado é 10 (ignoramos o 2)
+                    if period == 5:
+                        adjusted_floor = sorted_cut[1] # Ignora o pior jogo (4/5 hit)
+                        hit_rate = "80%"
+                    
+                    # Se for L10, permitimos 2 erros. Pegamos o 3º menor valor (índice 2)
+                    # Ex: 8/10 hit
+                    elif period == 10:
+                        adjusted_floor = sorted_cut[2] # Ignora os 2 piores
+                        hit_rate = "80%"
+                    
+                    # Se o piso ajustado (excluindo o pior jogo) bater a meta:
+                    if adjusted_floor >= min_req:
+                        # Verifica se é 100% ou 80% para rotular
+                        real_min = min(cut)
+                        tag = "💎 100%" if real_min >= adjusted_floor else f"⚠️ {hit_rate}"
+                        
                         atomic_props.append({
                             "player": name, 
                             "team": team, 
                             "stat": stat, 
-                            "line": int(floor),
-                            "record_str": f"{period}/{period}", 
-                            "streak_val": period, 
+                            "line": int(adjusted_floor),
+                            "record_str": f"{tag} L{period}", 
+                            "streak_val": period if real_min >= adjusted_floor else period - 0.5, # Penaliza levemente na ordenação
                             "game_info": g_info, 
                             "game_display": g_str, 
                             "game_id": g_id,
                             "player_id": pid,
-                            "active": is_active # Flag para ordenação
+                            "active": is_active
                         })
                         
     return sorted(atomic_props, key=lambda x: (x['active'], x['streak_val'], x['line']), reverse=True)
@@ -8314,6 +8335,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
