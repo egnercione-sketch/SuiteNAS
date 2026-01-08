@@ -3236,52 +3236,59 @@ def normalize_cache_keys(cache_data):
 
 def update_batch_cache(games_list, force_all=False):
     """
-    Função Mestra de Atualização do Radar Consistência.
+    Função Mestra de Atualização (V60.1 - Migração Total).
+    Se force_all=True, atualiza TODO MUNDO que está no banco.
     """
     KEY_LOGS = "real_game_logs"
     
-    # 1. Carrega Cache Atual (Nuvem)
+    # 1. Carrega Cache Atual
     full_cache = get_data_universal(KEY_LOGS) or {}
     if not isinstance(full_cache, dict): full_cache = {}
     
     status = st.status("☁️ Sincronizando Radar Consistência...", expanded=True)
     players_needed = set()
     
-    # --- FIX CRÍTICO DATAFRAME L5 ---
+    # A. Adiciona jogadores da base L5 (se houver)
     if 'df_l5' in st.session_state:
         df = st.session_state['df_l5']
         if not df.empty:
-            # Normaliza nomes das colunas
             df.columns = [str(c).upper().strip() for c in df.columns]
-            
-            # Busca dinâmica da coluna de nome
             name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
-            
             if name_col:
                 for p in df[name_col].unique(): 
                     if p: players_needed.add(str(p))
-    # -----------------------------
+
+    # B. Adiciona jogadores dos jogos de hoje (Scoreboard)
+    for g in games_list:
+        # Aqui seria ideal ter os rosters, mas vamos confiar no L5 e Cache
+        pass
+
+    # --- O PULO DO GATO (MIGRAÇÃO) ---
+    # Se for Forçar Update, adiciona TODOS os nomes que já estão no cache.
+    # Isso garante que o Curry e outros sejam atualizados para o novo formato.
+    if force_all:
+        players_needed.update(full_cache.keys())
+    # ---------------------------------
     
     if not players_needed:
-        # Fallback de segurança
         players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
 
     pending = []
     now = datetime.now()
     
     for p_name in players_needed:
-        # Se FORCE_ALL, ignora cache e baixa de novo
+        # Se force_all, baixa de novo SEMPRE
         if force_all:
             pending.append(p_name); continue
             
         if p_name not in full_cache: 
             pending.append(p_name); continue
             
-        # Verifica se tem a chave nova 3PA
+        # Se tem cache mas falta a chave nova 3PA, baixa de novo
         if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
             pending.append(p_name); continue
 
-        # Verifica validade (24h)
+        # Validade 24h
         try:
             dt_last = datetime.fromisoformat(full_cache[p_name].get('updated', '2000-01-01'))
             if (now - dt_last).total_seconds() > 86400: pending.append(p_name)
@@ -3290,29 +3297,28 @@ def update_batch_cache(games_list, force_all=False):
     if not pending:
         status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
 
-    status.write(f"⚡ Baixando {len(pending)} perfis completos...")
+    status.write(f"⚡ Baixando {len(pending)} perfis completos (Migração de Schema)...")
     
-    # Download Paralelo
     def fetch_task(name): return (name, get_player_logs_hit_prop(name))
     
     import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    # Aumentei workers para 8 para ir mais rápido
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(fetch_task, p) for p in pending]
         completed = 0
         for f in concurrent.futures.as_completed(futures):
             name, logs = f.result()
             if logs:
                 pid = logs.pop('id', 0)
+                # Sobrescreve com o novo formato
                 full_cache[name] = {"name": name, "team": "UNK", "id": pid, "logs": logs, "updated": str(datetime.now())}
             completed += 1
-            if completed % 5 == 0: 
+            if completed % 10 == 0: 
                 status.write(f"Progresso: {completed}/{len(pending)}")
             
-    # Salva na Nuvem
     save_data_universal(KEY_LOGS, full_cache)
     status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
     time.sleep(1)
-
 # ==============================================================================
 # 2. ENGINES (CORRECTED)
 # ==============================================================================
@@ -8216,6 +8222,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
