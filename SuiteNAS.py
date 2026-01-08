@@ -105,7 +105,8 @@ def fetch_espn_scoreboard(progress_ui=False):
         return games
         
     except Exception as e:
-        if progress
+        if progress_ui: st.error(f"Erro Scoreboard: {e}")
+        return []
         
     
 
@@ -8367,6 +8368,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
