@@ -56,6 +56,48 @@ def normalize_name(n):
     n = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", n)
     n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
     return " ".join(n.split())
+
+def fetch_espn_scoreboard(progress_ui=False):
+    """Busca jogos de hoje na API da ESPN e salva na Sessão."""
+    import requests
+    try:
+        if progress_ui: st.toast("Buscando jogos na ESPN...", icon="🏀")
+        
+        # URL da API pública da ESPN
+        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        
+        resp = requests.get(url, headers=headers, timeout=5)
+        data = resp.json()
+        
+        games = []
+        for event in data.get('events', []):
+            try:
+                comp = event['competitions'][0]
+                home = comp['competitors'][0]['team']['abbreviation']
+                away = comp['competitors'][1]['team']['abbreviation']
+                gid = event['id']
+                
+                # Normaliza nomes (NY -> NYK, UT -> UTA)
+                home = fix_team_abbr(home)
+                away = fix_team_abbr(away)
+                
+                games.append({
+                    "home": home,
+                    "away": away,
+                    "game_id": str(gid),
+                    "game_str": f"{away} @ {home}"
+                })
+            except: continue
+            
+        # Salva na sessão
+        st.session_state['scoreboard'] = games
+        return games
+        
+    except Exception as e:
+        if progress_ui: st.error(f"Erro ao buscar jogos: {e}")
+        return []
+        
     
 
 # ============================================================================
@@ -4898,9 +4940,6 @@ def display_strategic_category(formatted_narrative, category_name, game_ctx):
             st.dataframe(table_df)
 
    
-# ============================================================================
-# PÁGINA: CONFIGURAÇÕES (V59.0 - CENTRAL COMMAND)
-# ============================================================================
 def show_config_page():
     # --- ENFORCE: Forçar tudo ligado ---
     st.session_state.use_advanced_features = True
@@ -4909,12 +4948,10 @@ def show_config_page():
     import requests
     from datetime import datetime
     
-    # (Removido: Lógica de INJURIES_CACHE_FILE local)
-
     st.header("⚙️ PAINEL DE CONTROLE (CLOUD NATIVE)")
     
     # ==============================================================================
-    # 1. STATUS DO SISTEMA (CLOUD MONITOR)
+    # 1. STATUS DO SISTEMA
     # ==============================================================================
     st.markdown("### 📡 Status da Nuvem")
     c1, c2, c3, c4 = st.columns(4)
@@ -4922,31 +4959,32 @@ def show_config_page():
     # A. Base L5 (Memória RAM)
     l5_ok = not st.session_state.get('df_l5', pd.DataFrame()).empty
     
-    # B. Props Cache (Supabase/Cloud)
+    # B. Scoreboard (Jogos de Hoje) - CRÍTICO PARA EXIBIR DADOS
+    sb_len = len(st.session_state.get('scoreboard', []))
+    sb_ok = sb_len > 0
+    
+    # C. Props Cache
     props_cache = get_data_universal("real_game_logs")
     props_ok = props_cache is not None and len(props_cache) > 0
     
-    # C. Injuries DB (Supabase/Cloud)
+    # D. Injuries
     inj_cache = get_data_universal("injuries")
     inj_ok = inj_cache is not None and len(inj_cache.get('teams', {})) > 0
     
-    # D. Auditoria (Supabase/Cloud)
-    audit_ok = get_data_universal("audit_trixies") is not None
-    
-    def render_mini_status(col, label, is_ok):
+    def render_mini_status(col, label, is_ok, extra_text=""):
         color = "#00FF9C" if is_ok else "#FF4F4F"
         icon = "🟢 ONLINE" if is_ok else "🔴 OFFLINE"
         col.markdown(f"""
         <div style="border:1px solid {color}40; background:rgba(0,0,0,0.2); padding:10px; border-radius:8px; text-align:center;">
             <div style="font-weight:bold; color:#E2E8F0; font-size:14px;">{label}</div>
-            <div style="color:{color}; font-size:11px; font-weight:bold; margin-top:5px;">{icon}</div>
+            <div style="color:{color}; font-size:11px; font-weight:bold; margin-top:5px;">{icon} {extra_text}</div>
         </div>
         """, unsafe_allow_html=True)
 
     render_mini_status(c1, "RAM: L5 Base", l5_ok)
-    render_mini_status(c2, "Cloud: Props", props_ok)
-    render_mini_status(c3, "Cloud: Lesões", inj_ok)
-    render_mini_status(c4, "Cloud: Audit", audit_ok)
+    render_mini_status(c2, "Jogos Hoje", sb_ok, f"({sb_len})")
+    render_mini_status(c3, "Cloud: Props", props_ok)
+    render_mini_status(c4, "Cloud: Lesões", inj_ok)
     st.markdown("---")
 
     # ==============================================================================
@@ -4958,102 +4996,110 @@ def show_config_page():
     with col_act1:
         st.subheader("📥 Ingestão de Dados")
         
-        # A. DADOS GERAIS (L5)
-        st.markdown("##### 1. Base Geral (L5)")
-        bt1, bt2 = st.columns(2)
-        with bt1:
-            if st.button("⚡ UPDATE RÁPIDO\n(Ontem/Hoje)", use_container_width=True):
-                try:
-                    with st.spinner("Atualizando L5 Incremental..."):
-                        new_l5 = get_players_l5(progress_ui=True, incremental=True)
-                        st.session_state.df_l5 = new_l5
-                        st.success("✅ L5 Atualizado!")
-                        time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Erro: {e}")
-
-        with bt2:
-            if st.button("🐢 FULL RESET\n(Recriar Base)", use_container_width=True):
-                try:
-                    with st.spinner("Baixando tudo do zero..."):
-                        new_l5 = get_players_l5(progress_ui=True, force_update=True)
-                        st.session_state.df_l5 = new_l5
-                        st.success("✅ Base L5 Recriada!")
-                        time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Erro: {e}")
+        # A. JOGOS (SCOREBOARD) - NOVO BOTÃO CRÍTICO
+        if st.button("🏀 ATUALIZAR JOGOS DE HOJE (SCOREBOARD)", use_container_width=True):
+            games = fetch_espn_scoreboard(progress_ui=True)
+            if games:
+                st.success(f"✅ {len(games)} Jogos encontrados!")
+                time.sleep(1); st.rerun()
+            else:
+                st.warning("Nenhum jogo encontrado ou erro na API.")
 
         st.divider()
 
-        st.markdown("##### 2. Motores Estatísticos (Radar/Trinity)")
+        # B. MOTORES ESTATÍSTICOS
+        st.markdown("##### 2. Motores Estatísticos")
 
-        # BOTÃO 1: RECONSTRUIR
+        # BOTÃO 1: RECONSTRUIR (Agora força a atualização dos jogos antes)
         if st.button("🔄 RECONSTRUIR CACHE DE PROPS", type="primary", use_container_width=True):
             try:
-                # Mesmo sem jogos no scoreboard, mandamos uma lista vazia 
-                # porque o force_all=True agora busca a lista mestre internamente.
-                games = st.session_state.get('scoreboard', [])
+                # 1. FORÇA ATUALIZAÇÃO DO SCOREBOARD PRIMEIRO
+                st.toast("Atualizando lista de jogos...", icon="🏀")
+                games = fetch_espn_scoreboard()
                 
-                # CHAMA A NOVA VERSÃO V65
+                if not games:
+                    st.error("❌ Não foi possível encontrar jogos hoje. O cache será atualizado, mas as abas ficarão vazias até haver jogos.")
+                
+                # 2. Roda o Update V65 (Master Roster)
+                # Passamos force_all=True para baixar a liga toda
                 update_batch_cache(games, force_all=True)
                 
-                st.success("✅ Cache Recalibrado! Base completa da NBA baixada.")
+                st.success("✅ Cache Recalibrado com Sucesso!")
                 time.sleep(1)
                 st.rerun()
                     
             except Exception as e:
                 st.error(f"Erro crítico: {e}")
 
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        # BOTÃO 2: HARD RESET
+        if st.button("🧨 APAGAR CACHE DE PROPS (HARD RESET)", use_container_width=True):
+            try:
+                if "real_game_logs" in st.session_state:
+                    del st.session_state["real_game_logs"]
+                save_data_universal("real_game_logs", {})
+                st.warning("⚠️ Cache apagado!")
+                time.sleep(1); st.rerun()
+            except Exception as e:
+                st.error(f"Erro: {e}")
 
-        # C. LESÕES (CLOUD ONLY)
-        if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
+    # --- COLUNA DA DIREITA: MANUTENÇÃO ---
+    with col_act2:
+        st.subheader("⚙️ Manutenção")
+        
+        # Botões de L5 (Movidos para cá para limpar a esquerda)
+        c_l5_1, c_l5_2 = st.columns(2)
+        with c_l5_1:
+            if st.button("⚡ UPDATE L5", use_container_width=True):
+                try:
+                    with st.spinner("Atualizando L5..."):
+                        new_l5 = get_players_l5(progress_ui=True, incremental=True)
+                        st.session_state.df_l5 = new_l5
+                        st.success("OK!")
+                except: pass
+        with c_l5_2:
+            if st.button("🐢 RESET L5", use_container_width=True):
+                try:
+                    with st.spinner("Baixando L5 Zero..."):
+                        new_l5 = get_players_l5(progress_ui=True, force_update=True)
+                        st.session_state.df_l5 = new_l5
+                        st.success("OK!")
+                except: pass
+
+        st.divider()
+        
+        if st.button("🗑️ LIMPAR MEMÓRIA (RAM)", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("✅ Memória Cache limpa!")
+            time.sleep(1); st.rerun()
+
+        st.divider()
+        
+        c_a, c_b = st.columns(2)
+        with c_a:
+            if st.button("🔄 SYNC PACE", use_container_width=True):
+                st.info("Cloud Mode Ativo.")
+        with c_b:
+            if st.button("🛡️ SYNC DVP", use_container_width=True):
+                st.info("Cloud Mode Ativo.")
+        
+        if st.button("🚑 ATUALIZAR LESÕES", use_container_width=True):
             with st.spinner("Consultando Depto. Médico..."):
                 try:
                     from injuries import InjuryMonitor
-                    # Sem argumento cache_file = Modo Cloud Puro
                     monitor = InjuryMonitor() 
-                    
                     ALL_TEAMS = ["ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW","HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK","OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"]
-                    
                     p = st.progress(0)
                     for i, team in enumerate(ALL_TEAMS):
                         monitor.fetch_injuries_for_team(team)
                         p.progress((i+1)/len(ALL_TEAMS))
                     p.empty()
-                    
                     fresh_data = monitor.get_all_injuries()
                     if fresh_data:
                         save_data_universal("injuries", {"teams": fresh_data, "updated_at": datetime.now().isoformat()})
-                        st.success(f"✅ Lesões Atualizadas! ({len(fresh_data)} times)")
                         st.session_state.injuries_data = fresh_data 
-                except Exception as e:
-                    st.error(f"Erro nas lesões: {e}")
-
-    # --- COLUNA DA DIREITA: CONTEXTO & MANUTENÇÃO ---
-    with col_act2:
-        st.subheader("⚙️ Manutenção")
-        
-        st.markdown("##### 3. Limpeza de Sessão")
-        if st.button("🗑️ LIMPAR MEMÓRIA (RAM)", use_container_width=True):
-            try:
-                # Limpa apenas chaves de sessão não essenciais se necessário
-                st.cache_data.clear()
-                st.cache_resource.clear()
-                st.success("✅ Memória Cache limpa!")
-                time.sleep(1)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao limpar: {e}")
-
-        st.divider()
-        
-        st.markdown("##### 4. Contexto de Jogo")
-        c_a, c_b = st.columns(2)
-        with c_a:
-            if st.button("🔄 SYNC PACE", use_container_width=True):
-                st.info("Pace Adjuster: Cloud Mode Ativo.")
-        with c_b:
-            if st.button("🛡️ SYNC DVP", use_container_width=True):
-                st.info("DvP Analyzer: Cloud Mode Ativo.")
+                        st.success("✅ Lesões Atualizadas!")
+                except Exception as e: st.error(f"Erro: {e}")
 
     # ==============================================================================
     # 3. DASHBOARD DE VOLUMETRIA
@@ -8351,6 +8397,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
