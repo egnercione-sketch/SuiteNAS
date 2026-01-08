@@ -550,6 +550,62 @@ def normalize_cache_keys(cache_data):
         data['logs'] = logs
     return cache_data
 
+# ============================================================================
+# 8.1. MOTORES DE DADOS (RADAR CONSISTÊNCIA / HIT PROP) - VERSÃO CORRIGIDA
+# ============================================================================
+
+def get_player_logs_hit_prop(name):
+    """
+    Fetcher específico para o Radar Consistência.
+    Foca em obter FG3A (Tentativas de 3) que muitas vezes faltam no log padrão.
+    """
+    try:
+        from nba_api.stats.endpoints import playergamelog
+        from nba_api.stats.static import players
+        
+        # Busca ID
+        p_list = players.find_players_by_full_name(name)
+        if not p_list: return None
+        pid = p_list[0]['id']
+        
+        # Baixa Logs (30 jogos)
+        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26').get_data_frames()[0].head(30)
+        
+        # Garante colunas críticas para o Sniper
+        if 'FG3M' not in df.columns: df['FG3M'] = 0
+        if 'FG3A' not in df.columns: df['FG3A'] = 0 
+        
+        return {
+            "id": pid,
+            "PTS": df['PTS'].tolist(), 
+            "REB": df['REB'].tolist(), 
+            "AST": df['AST'].tolist(),
+            "3PM": df['FG3M'].tolist(), 
+            "3PA": df['FG3A'].tolist(), # Salva tentativas
+            "STL": df['STL'].tolist(), 
+            "BLK": df['BLK'].tolist()
+        }
+    except: return None 
+
+def normalize_cache_keys(cache_data):
+    """Normaliza chaves antigas se existirem no JSON."""
+    if not cache_data: return {}
+    for name, data in cache_data.items():
+        if 'logs' not in data: continue
+        logs = data['logs']
+        
+        # Mapeamento
+        if 'FG3M' in logs and '3PM' not in logs: logs['3PM'] = logs['FG3M']
+        if 'FG3A' in logs and '3PA' not in logs: logs['3PA'] = logs['FG3A']
+        
+        # Fallback se FG3A não existir (usa FGA como proxy aproximado ou 0)
+        if '3PA' not in logs: 
+            logs['3PA'] = logs.get('FGA', [0]*len(logs.get('PTS', [])))
+        
+        data['logs'] = logs
+    return cache_data
+
+# AQUI ESTAVA O ERRO: Adicionamos force_all=False nos argumentos
 def update_batch_cache(games_list, force_all=False):
     """
     Função Mestra de Atualização do Radar Consistência.
@@ -580,14 +636,14 @@ def update_batch_cache(games_list, force_all=False):
     # -----------------------------
     
     if not players_needed:
-        # Fallback de segurança
+        # Fallback de segurança para não quebrar se o L5 falhar
         players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
 
     pending = []
     now = datetime.now()
     
     for p_name in players_needed:
-        # Se FORCE_ALL, ignora cache e baixa de novo
+        # Se FORCE_ALL for True, baixa de novo independente de ter cache
         if force_all:
             pending.append(p_name); continue
             
@@ -625,11 +681,10 @@ def update_batch_cache(games_list, force_all=False):
             if completed % 10 == 0: 
                 status.write(f"Progresso: {completed}/{len(pending)}")
             
-    # Salva na Nuvem (Usando sua função save_data_universal existente)
+    # Salva na Nuvem
     save_data_universal(KEY_LOGS, full_cache)
     status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
     time.sleep(1)
-
 
     
 # ============================================================================
@@ -8263,6 +8318,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
