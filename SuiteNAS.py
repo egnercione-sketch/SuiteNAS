@@ -3296,6 +3296,7 @@ def update_batch_cache(games_list, force_all=False):
         # B. Modo Incremental
         if 'df_l5' in st.session_state and not st.session_state['df_l5'].empty:
             df = st.session_state['df_l5']
+            # Tenta pegar coluna de nome normalizada
             name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
             if name_col:
                 for p in df[name_col].unique(): players_needed.add(str(p))
@@ -8296,6 +8297,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
