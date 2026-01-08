@@ -18,6 +18,12 @@ import requests
 import pandas as pd
 import numpy as np
 import streamlit as st
+
+st.set_page_config(
+    page_title="NBA SuiteNAS",
+    layout="wide",
+    initial_sidebar_state="expanded"  # <--- ISSO FORÇA O MENU ABRIR
+)
 # import streamlit_authenticator as stauth # (Descomente se for usar)
 
 # --- Configuração de Logger ---
@@ -8376,6 +8382,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
