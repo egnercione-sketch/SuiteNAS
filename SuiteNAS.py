@@ -24,6 +24,34 @@ import streamlit as st
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# HELPER FUNCTIONS (COLE ISTO NO INÍCIO OU ANTES DA SEÇÃO HIT PROP)
+# ==============================================================================
+
+def fix_team_abbr(abbr):
+    """Normaliza abreviações de times para o padrão 3 letras."""
+    if not abbr: return "UNK"
+    abbr = str(abbr).upper().strip()
+    
+    # Mapeamento de correções comuns
+    mapping = {
+        'GS': 'GSW', 'NO': 'NOP', 'NY': 'NYK', 'SA': 'SAS', 
+        'PHO': 'PHX', 'WSH': 'WAS', 'BK': 'BKN', 'UTA': 'UTA',
+        'UTAH': 'UTA', 'NOR': 'NOP'
+    }
+    return mapping.get(abbr, abbr)
+
+def normalize_name(n):
+    """Normaliza nomes de jogadores para busca."""
+    import unicodedata
+    import re
+    if not n: return ""
+    n = str(n).lower().replace(".", " ").replace(",", " ").replace("-", " ")
+    n = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", n)
+    n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
+    return " ".join(n.split())
+    
+
 # ============================================================================
 # 0. CONFIGURAÇÕES GLOBAIS E CONSTANTES
 # ============================================================================
@@ -8332,6 +8360,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
