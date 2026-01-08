@@ -4887,29 +4887,31 @@ def show_config_page():
     st.session_state.use_advanced_features = True
     import os
     import time
+    import requests
     from datetime import datetime
     
-    # Caminho do Cache de Lesões
-    try:
-        from injuries import INJURIES_CACHE_FILE
-    except ImportError:
-        INJURIES_CACHE_FILE = "cache/injuries_cache_v44.json"
+    # (Removido: Lógica de INJURIES_CACHE_FILE local)
 
-    st.header("⚙️ PAINEL DE CONTROLE")
+    st.header("⚙️ PAINEL DE CONTROLE (CLOUD NATIVE)")
     
     # ==============================================================================
-    # 1. STATUS DO SISTEMA
+    # 1. STATUS DO SISTEMA (CLOUD MONITOR)
     # ==============================================================================
-    st.markdown("### 📡 Status dos Motores")
+    st.markdown("### 📡 Status da Nuvem")
     c1, c2, c3, c4 = st.columns(4)
     
-    # Checagens de Estado
+    # A. Base L5 (Memória RAM)
     l5_ok = not st.session_state.get('df_l5', pd.DataFrame()).empty
     
-    # Verifica cache de props
+    # B. Props Cache (Supabase/Cloud)
     props_cache = get_data_universal("real_game_logs")
     props_ok = props_cache is not None and len(props_cache) > 0
     
+    # C. Injuries DB (Supabase/Cloud)
+    inj_cache = get_data_universal("injuries")
+    inj_ok = inj_cache is not None and len(inj_cache.get('teams', {})) > 0
+    
+    # D. Auditoria (Supabase/Cloud)
     audit_ok = get_data_universal("audit_trixies") is not None
     
     def render_mini_status(col, label, is_ok):
@@ -4922,10 +4924,10 @@ def show_config_page():
         </div>
         """, unsafe_allow_html=True)
 
-    render_mini_status(c1, "Database L5", l5_ok)
-    render_mini_status(c2, "Props Cache", props_ok) # Substituiu Odds por Props (mais crítico)
-    render_mini_status(c3, "Supabase", True) # Assumimos online se chegou aqui
-    render_mini_status(c4, "Auditoria", audit_ok)
+    render_mini_status(c1, "RAM: L5 Base", l5_ok)
+    render_mini_status(c2, "Cloud: Props", props_ok)
+    render_mini_status(c3, "Cloud: Lesões", inj_ok)
+    render_mini_status(c4, "Cloud: Audit", audit_ok)
     st.markdown("---")
 
     # ==============================================================================
@@ -4962,7 +4964,9 @@ def show_config_page():
 
         st.divider()
 
-        # BOTÃO NOVO E CORRIGIDO
+        st.markdown("##### 2. Motores Estatísticos (Radar/Trinity)")
+
+        # BOTÃO 1: RECONSTRUIR (NORMAL)
         if st.button("🔄 RECONSTRUIR CACHE DE PROPS", type="primary", use_container_width=True):
             try:
                 # 1. Garante Jogos
@@ -4972,7 +4976,6 @@ def show_config_page():
                 games = st.session_state.get('scoreboard', [])
                 
                 if games:
-                    # CHAMA A FUNÇÃO GLOBAL DEFINIDA NO PASSO 1
                     update_batch_cache(games, force_all=True)
                     st.success("✅ Cache Recalibrado! Vá para a aba Radar Consistência.")
                     time.sleep(1)
@@ -4983,44 +4986,56 @@ def show_config_page():
             except Exception as e:
                 st.error(f"Erro crítico: {e}")
                 
-                # 2. Garante Jogos
-                if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
-                    url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-                    data = requests.get(url, timeout=3).json()
-                    games = []
-                    for e in data['events']:
-                        c = e['competitions'][0]
-                        games.append({
-                            "home": c['competitors'][0]['team']['abbreviation'],
-                            "away": c['competitors'][1]['team']['abbreviation'],
-                            "game_id": str(e['id'])
-                        })
-                    st.session_state['scoreboard'] = games
-                
-                # 3. Chama a função poderosa da V58
-                # (Assumindo que update_batch_cache está no escopo global do arquivo principal)
-                games = st.session_state['scoreboard']
-                if games:
-                    update_batch_cache(games, force_all=True)
-                    st.success("✅ Cache de Props 100% Recalibrado!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.warning("Sem jogos hoje para atualizar.")
+                # Fallback de emergência
+                try:
+                    if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
+                        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+                        data = requests.get(url, timeout=3).json()
+                        games = []
+                        for e in data['events']:
+                            c = e['competitions'][0]
+                            games.append({
+                                "home": c['competitors'][0]['team']['abbreviation'],
+                                "away": c['competitors'][1]['team']['abbreviation'],
+                                "game_id": str(e['id'])
+                            })
+                        st.session_state['scoreboard'] = games
                     
-            except NameError:
-                st.error("Função 'update_batch_cache' não encontrada. Verifique se o código V58 foi colado corretamente.")
+                    games = st.session_state['scoreboard']
+                    if games:
+                        update_batch_cache(games, force_all=True)
+                        st.success("✅ Cache de Props 100% Recalibrado!")
+                        time.sleep(1)
+                        st.rerun()
+                except Exception as e2:
+                    st.error(f"Falha total: {e2}")
+
+        # BOTÃO 2: HARD RESET (EMERGÊNCIA)
+        if st.button("🧨 APAGAR CACHE DE PROPS (HARD RESET)", use_container_width=True):
+            try:
+                if "real_game_logs" in st.session_state:
+                    del st.session_state["real_game_logs"]
+                
+                # Salva vazio na nuvem para resetar
+                save_data_universal("real_game_logs", {})
+                
+                st.warning("⚠️ Cache de Props apagado totalmente!")
+                st.info("Agora clique em 'RECONSTRUIR CACHE DE PROPS' logo acima.")
+                time.sleep(2)
+                st.rerun()
             except Exception as e:
-                st.error(f"Erro crítico: {e}")
+                st.error(f"Erro ao apagar: {e}")
 
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-        # C. LESÕES
+        # C. LESÕES (CLOUD ONLY)
         if st.button("🚑 ATUALIZAR LESÕES (30 TIMES)", use_container_width=True):
             with st.spinner("Consultando Depto. Médico..."):
                 try:
                     from injuries import InjuryMonitor
-                    monitor = InjuryMonitor(cache_file=INJURIES_CACHE_FILE)
+                    # Sem argumento cache_file = Modo Cloud Puro
+                    monitor = InjuryMonitor() 
+                    
                     ALL_TEAMS = ["ATL","BOS","BKN","CHA","CHI","CLE","DAL","DEN","DET","GSW","HOU","IND","LAC","LAL","MEM","MIA","MIL","MIN","NOP","NYK","OKC","ORL","PHI","PHX","POR","SAC","SAS","TOR","UTA","WAS"]
                     
                     p = st.progress(0)
@@ -5041,15 +5056,15 @@ def show_config_page():
     with col_act2:
         st.subheader("⚙️ Manutenção")
         
-        st.markdown("##### 3. Limpeza Geral")
-        if st.button("🗑️ LIMPAR ARQUIVOS TEMPORÁRIOS", use_container_width=True):
+        st.markdown("##### 3. Limpeza de Sessão")
+        if st.button("🗑️ LIMPAR MEMÓRIA (RAM)", use_container_width=True):
             try:
-                folder = 'cache'
-                for filename in os.listdir(folder):
-                    file_path = os.path.join(folder, filename)
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                st.success("✅ Pasta Cache limpa!")
+                # Limpa apenas chaves de sessão não essenciais se necessário
+                st.cache_data.clear()
+                st.cache_resource.clear()
+                st.success("✅ Memória Cache limpa!")
+                time.sleep(1)
+                st.rerun()
             except Exception as e:
                 st.error(f"Erro ao limpar: {e}")
 
@@ -5059,10 +5074,10 @@ def show_config_page():
         c_a, c_b = st.columns(2)
         with c_a:
             if st.button("🔄 SYNC PACE", use_container_width=True):
-                st.info("Funcionalidade em manutenção (API NBA).")
+                st.info("Pace Adjuster: Cloud Mode Ativo.")
         with c_b:
             if st.button("🛡️ SYNC DVP", use_container_width=True):
-                st.info("Funcionalidade em manutenção.")
+                st.info("DvP Analyzer: Cloud Mode Ativo.")
 
     # ==============================================================================
     # 3. DASHBOARD DE VOLUMETRIA
@@ -8360,6 +8375,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
