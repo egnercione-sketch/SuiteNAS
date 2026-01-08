@@ -3234,47 +3234,58 @@ def normalize_cache_keys(cache_data):
 
 def update_batch_cache(games_list, force_all=False):
     """
-    Função Mestra de Atualização (V63.1 - Migração de Schema).
-    Se force_all=True, atualiza TODO MUNDO que está no banco para corrigir o 3PA.
+    Função Mestra V65 (MASTER ROSTER).
+    Se force_all=True, ignora o L5 e busca a lista de TODOS os jogadores ativos na NBA API.
+    Isso resolve o problema de baixar apenas 54 jogadores.
     """
     KEY_LOGS = "real_game_logs"
+    from nba_api.stats.static import players
     
     # 1. Carrega Cache Atual
     full_cache = get_data_universal(KEY_LOGS) or {}
     if not isinstance(full_cache, dict): full_cache = {}
     
-    status = st.status("☁️ Sincronizando Central de Comando...", expanded=True)
+    status = st.status("☁️ Conectando à Central da NBA...", expanded=True)
     players_needed = set()
     
-    # A. Adiciona jogadores da base L5 (se houver)
-    if 'df_l5' in st.session_state:
-        df = st.session_state['df_l5']
-        if not df.empty:
-            df.columns = [str(c).upper().strip() for c in df.columns]
+    # --- MUDANÇA CRÍTICA V65 ---
+    if force_all:
+        status.write("📋 Baixando lista mestre de jogadores ativos (League Wide)...")
+        try:
+            # Pega TODOS os jogadores ativos da liga (aprox. 550)
+            active_dict = players.get_active_players()
+            for p in active_dict:
+                players_needed.add(p['full_name'])
+            status.write(f"✅ Lista Mestre carregada: {len(players_needed)} jogadores encontrados.")
+        except Exception as e:
+            status.error(f"Erro ao buscar lista mestre: {e}")
+            # Fallback para as estrelas se a API de lista falhar
+            players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic", "Jayson Tatum", "Giannis Antetokounmpo"}
+    else:
+        # Modo Incremental (Só os jogos de hoje)
+        # Tenta pegar do DF L5 ou dos jogos
+        if 'df_l5' in st.session_state and not st.session_state['df_l5'].empty:
+            df = st.session_state['df_l5']
             name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
             if name_col:
-                for p in df[name_col].unique(): 
-                    if p: players_needed.add(str(p))
-
-    # B. Se for Forçar Update, adiciona TODOS os nomes que já estão no cache.
-    if force_all:
+                for p in df[name_col].unique(): players_needed.add(str(p))
+        
+        # Adiciona quem já está no cache para manter atualizado
         players_needed.update(full_cache.keys())
-    
-    if not players_needed:
-        players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
 
+    # Filtragem de quem realmente precisa baixar
     pending = []
     now = datetime.now()
     
     for p_name in players_needed:
-        # Se force_all, baixa de novo SEMPRE
+        # Se force_all, baixa de novo SEMPRE (para corrigir bugs de volume/sequencia)
         if force_all:
             pending.append(p_name); continue
             
         if p_name not in full_cache: 
             pending.append(p_name); continue
             
-        # Se tem cache mas falta a chave 3PA real, baixa de novo
+        # Verifica integridade (Se falta 3PA)
         if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
             pending.append(p_name); continue
 
@@ -3287,12 +3298,13 @@ def update_batch_cache(games_list, force_all=False):
     if not pending:
         status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
 
-    status.write(f"⚡ Baixando {len(pending)} perfis completos (Correção de Volume)...")
+    status.write(f"⚡ Baixando {len(pending)} perfis completos (Season Full)...")
     
     def fetch_task(name): return (name, get_player_logs_hit_prop(name))
     
     import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    # Max Workers otimizado
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_task, p) for p in pending]
         completed = 0
         for f in concurrent.futures.as_completed(futures):
@@ -4973,65 +4985,22 @@ def show_config_page():
 
         st.markdown("##### 2. Motores Estatísticos (Radar/Trinity)")
 
-        # BOTÃO 1: RECONSTRUIR (NORMAL)
+        # BOTÃO 1: RECONSTRUIR
         if st.button("🔄 RECONSTRUIR CACHE DE PROPS", type="primary", use_container_width=True):
             try:
-                # 1. Garante Jogos
-                if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
-                    st.session_state.scoreboard = fetch_espn_scoreboard(progress_ui=False)
-                
+                # Mesmo sem jogos no scoreboard, mandamos uma lista vazia 
+                # porque o force_all=True agora busca a lista mestre internamente.
                 games = st.session_state.get('scoreboard', [])
                 
-                if games:
-                    update_batch_cache(games, force_all=True)
-                    st.success("✅ Cache Recalibrado! Vá para a aba Radar Consistência.")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.warning("Sem jogos hoje para atualizar.")
+                # CHAMA A NOVA VERSÃO V65
+                update_batch_cache(games, force_all=True)
+                
+                st.success("✅ Cache Recalibrado! Base completa da NBA baixada.")
+                time.sleep(1)
+                st.rerun()
                     
             except Exception as e:
                 st.error(f"Erro crítico: {e}")
-                
-                # Fallback de emergência
-                try:
-                    if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
-                        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-                        data = requests.get(url, timeout=3).json()
-                        games = []
-                        for e in data['events']:
-                            c = e['competitions'][0]
-                            games.append({
-                                "home": c['competitors'][0]['team']['abbreviation'],
-                                "away": c['competitors'][1]['team']['abbreviation'],
-                                "game_id": str(e['id'])
-                            })
-                        st.session_state['scoreboard'] = games
-                    
-                    games = st.session_state['scoreboard']
-                    if games:
-                        update_batch_cache(games, force_all=True)
-                        st.success("✅ Cache de Props 100% Recalibrado!")
-                        time.sleep(1)
-                        st.rerun()
-                except Exception as e2:
-                    st.error(f"Falha total: {e2}")
-
-        # BOTÃO 2: HARD RESET (EMERGÊNCIA)
-        if st.button("🧨 APAGAR CACHE DE PROPS (HARD RESET)", use_container_width=True):
-            try:
-                if "real_game_logs" in st.session_state:
-                    del st.session_state["real_game_logs"]
-                
-                # Salva vazio na nuvem para resetar
-                save_data_universal("real_game_logs", {})
-                
-                st.warning("⚠️ Cache de Props apagado totalmente!")
-                st.info("Agora clique em 'RECONSTRUIR CACHE DE PROPS' logo acima.")
-                time.sleep(2)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao apagar: {e}")
 
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
@@ -8382,6 +8351,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
