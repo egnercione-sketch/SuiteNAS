@@ -3199,7 +3199,7 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V66.2 - COMMAND CENTER (FINAL STABLE & NORMALIZED)
+# ☢️ HIT PROP HUNTER V66.3 - COMMAND CENTER (GOLD MASTER & SCOPE FIX)
 # ==============================================================================
 
 import concurrent.futures
@@ -3213,13 +3213,32 @@ from itertools import combinations
 from datetime import datetime
 
 # ==============================================================================
-# 1. DATA FETCHING & NORMALIZATION (COM AUTO-DETECÇÃO DE TIME)
+# 0. HELPER GLOBAL (CRÍTICO: DEVE FICAR NO TOPO)
+# ==============================================================================
+
+def normalize_team_signature(abbr):
+    """
+    Garante que siglas da ESPN (ex: GS, NO, NY) batam com as da NBA API (GSW, NOP, NYK).
+    Definida no topo para garantir acesso global (Fetcher + Engines).
+    """
+    if not abbr: return "UNK"
+    abbr = str(abbr).upper().strip()
+    
+    mapping = {
+        "GS": "GSW", "PHX": "PHX", "PHO": "PHX", "NO": "NOP", "NOP": "NOP",
+        "NY": "NYK", "NYK": "NYK", "SA": "SAS", "SAS": "SAS", "UTAH": "UTA",
+        "UTA": "UTA", "WSH": "WAS", "WAS": "WAS", "BK": "BKN", "BKN": "BKN",
+        "CHA": "CHA", "CHO": "CHA"
+    }
+    return mapping.get(abbr, abbr)
+
+# ==============================================================================
+# 1. DATA FETCHING (COM AUTO-DETECÇÃO E NORMALIZAÇÃO IMEDIATA)
 # ==============================================================================
 
 def get_player_logs_hit_prop(name):
     """
     Fetcher V66: Baixa a temporada INTEIRA e identifica o time automaticamente.
-    Isso corrige o bug de 'Radar Vazio' ao garantir que sabemos o time do jogador (ex: LAL, GSW).
     """
     try:
         from nba_api.stats.endpoints import playergamelog
@@ -3230,28 +3249,26 @@ def get_player_logs_hit_prop(name):
         if not p_list: return None
         pid = p_list[0]['id']
         
-        # Baixa Logs (Season Full - Sem Limite .head)
-        # Timeout curto para agilidade
+        # Baixa Logs (Season Full)
         df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5).get_data_frames()[0]
         
         # Garante colunas críticas
         if 'FG3M' not in df.columns: df['FG3M'] = 0
         if 'FG3A' not in df.columns: df['FG3A'] = 0 
         
-        # --- AUTO-DETECÇÃO DE TIME (CRÍTICO) ---
-        # Pega a sigla do time do jogo mais recente
+        # --- AUTO-DETECÇÃO DE TIME ---
         detected_team = "UNK"
         if not df.empty and 'TEAM_ABBREVIATION' in df.columns:
             detected_team = str(df.iloc[0]['TEAM_ABBREVIATION'])
         
         return {
             "id": pid,
-            "team_detected": detected_team, # <--- O SEGREDO: Enviamos o time descoberto para o cache
+            "team_detected": detected_team, 
             "PTS": df['PTS'].tolist(), 
             "REB": df['REB'].tolist(), 
             "AST": df['AST'].tolist(),
             "3PM": df['FG3M'].tolist(), 
-            "3PA": df['FG3A'].tolist(), # Volume Real
+            "3PA": df['FG3A'].tolist(), 
             "STL": df['STL'].tolist(), 
             "BLK": df['BLK'].tolist()
         }
@@ -3288,7 +3305,7 @@ def update_batch_cache(games_list, force_all=False):
     status = st.status("☁️ Sincronizando Central da NBA...", expanded=True)
     players_needed = set()
     
-    # A. Lista Mestre (Se force_all)
+    # A. Lista Mestre
     if force_all:
         status.write("📋 Baixando lista mestre (Active Roster)...")
         try:
@@ -3300,7 +3317,6 @@ def update_batch_cache(games_list, force_all=False):
         # B. Modo Incremental
         if 'df_l5' in st.session_state and not st.session_state['df_l5'].empty:
             df = st.session_state['df_l5']
-            # Tenta pegar coluna de nome normalizada
             name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
             if name_col:
                 for p in df[name_col].unique(): players_needed.add(str(p))
@@ -3310,11 +3326,10 @@ def update_batch_cache(games_list, force_all=False):
     now = datetime.now()
     
     for p_name in players_needed:
-        # Força update se: (1) Force All, (2) Não existe, (3) Time é UNK, (4) Cache velho
         if force_all: pending.append(p_name); continue
         if p_name not in full_cache: pending.append(p_name); continue
         
-        # CORREÇÃO CRÍTICA: Se o time for UNK, baixa de novo pra descobrir
+        # CORREÇÃO: Se time for UNK, força update
         if full_cache[p_name].get('team') == 'UNK':
              pending.append(p_name); continue
 
@@ -3330,7 +3345,6 @@ def update_batch_cache(games_list, force_all=False):
     
     def fetch_task(name): return (name, get_player_logs_hit_prop(name))
     
-    import concurrent.futures
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(fetch_task, p) for p in pending]
         completed = 0
@@ -3338,16 +3352,15 @@ def update_batch_cache(games_list, force_all=False):
             name, logs = f.result()
             if logs:
                 pid = logs.pop('id', 0)
-                # Pega o time que o fetcher descobriu
                 real_team = logs.pop('team_detected', 'UNK')
                 
-                # Normaliza (GS -> GSW) por garantia
+                # NORMALIZAÇÃO IMEDIATA (Segura pois a função está no topo)
                 try: real_team = normalize_team_signature(real_team)
                 except: pass
 
                 full_cache[name] = {
                     "name": name, 
-                    "team": real_team, # <--- SALVA O TIME CORRETO!
+                    "team": real_team, # <--- SALVA O TIME CORRETO (ex: GSW)!
                     "id": pid, 
                     "logs": logs, 
                     "updated": str(datetime.now())
@@ -3361,33 +3374,15 @@ def update_batch_cache(games_list, force_all=False):
     time.sleep(1)
 
 # ==============================================================================
-# 2. ENGINES (CORRIGIDOS COM NORMALIZAÇÃO DE SIGLAS)
+# 2. ENGINES (TODOS USANDO A NORMALIZAÇÃO GLOBAL)
 # ==============================================================================
 
-# --- HELPER CRÍTICO: TRADUÇÃO DE TIMES ---
-def normalize_team_signature(abbr):
-    """
-    Garante que siglas da ESPN (ex: GS, NO, NY) batam com as da NBA API (GSW, NOP, NYK).
-    Isso conserta o bug de abas vazias.
-    """
-    if not abbr: return "UNK"
-    abbr = str(abbr).upper().strip()
-    
-    mapping = {
-        "GS": "GSW", "PHX": "PHX", "PHO": "PHX", "NO": "NOP", "NOP": "NOP",
-        "NY": "NYK", "NYK": "NYK", "SA": "SAS", "SAS": "SAS", "UTAH": "UTA",
-        "UTA": "UTA", "WSH": "WAS", "WAS": "WAS", "BK": "BKN", "BKN": "BKN",
-        "CHA": "CHA", "CHO": "CHA"
-    }
-    return mapping.get(abbr, abbr)
-
-# --- 1. ATOMIC GENERATOR (VERSÃO PERMISSIVA - MOSTRA TUDO) ---
+# --- 1. ATOMIC GENERATOR (PERMISSIVO PARA DEBUG) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
     
     # 1. Mapeia times que jogam hoje
-    # Se a lista de jogos estiver vazia, não tem problema, o mapa fica vazio
     if games:
         for g in games:
             try:
@@ -3410,7 +3405,7 @@ def generate_atomic_props(cache_data, games):
         raw_team = data.get('team', 'UNK')
         team = normalize_team_signature(raw_team)
         
-        # --- MUDANÇA AQUI: NÃO PULAMOS MAIS O JOGADOR ---
+        # Verifica se joga hoje
         is_active = team in teams_active
         
         if is_active:
@@ -3418,12 +3413,10 @@ def generate_atomic_props(cache_data, games):
             g_str = g_info.get('game_str')
             g_id = g_info.get('game_id')
         else:
-            # Se não joga hoje, mostramos mesmo assim, mas marcado como OFF
+            # Mostra no radar geral mesmo se não jogar, mas marcado
             g_info = {}
             g_str = "OFF / NO GAME"
             g_id = "0"
-            # Opcional: Se quiser esconder quem não joga, descomente a linha abaixo:
-            # continue 
 
         logs = data.get('logs', {})
         pid = data.get('id', 0)
@@ -3449,7 +3442,7 @@ def generate_atomic_props(cache_data, games):
                             "game_display": g_str, 
                             "game_id": g_id,
                             "player_id": pid,
-                            "active": is_active # Marcador pra UI saber se pinta de cinza ou não
+                            "active": is_active # Flag para ordenação
                         })
                         
     return sorted(atomic_props, key=lambda x: (x['active'], x['streak_val'], x['line']), reverse=True)
@@ -3472,7 +3465,6 @@ def generate_iron_streaks(cache_data, games):
     }
     
     team_opp_map = {}
-    # Mapa de Oponentes (COM NORMALIZAÇÃO)
     for g in games:
         h = normalize_team_signature(g.get('home'))
         a = normalize_team_signature(g.get('away'))
@@ -3530,8 +3522,8 @@ def organize_sgp_lab(atomic_props):
     
     for p in deduplicated:
         game_key = p.get('game_display', 'UNK')
-        # Filtra jogos inválidos
-        if 'UNK' in game_key and 'Time Desconhecido' in game_key: 
+        # Filtra jogos inválidos ou OFF
+        if 'UNK' in game_key or 'OFF' in game_key: 
             continue
             
         if game_key not in sgp_structure: sgp_structure[game_key] = []
@@ -3695,7 +3687,6 @@ def generate_specialties(cache_data, games):
     specs_def = []
     active_teams = set()
     
-    # Lista de Times Ativos (COM NORMALIZAÇÃO)
     for g in games:
         active_teams.add(normalize_team_signature(g.get('home')))
         active_teams.add(normalize_team_signature(g.get('away')))
@@ -3746,7 +3737,7 @@ def generate_specialties(cache_data, games):
             "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
 # ==============================================================================
-# PÁGINA: RADAR CONSISTÊNCIA (V66.2 - UI)
+# PÁGINA: RADAR CONSISTÊNCIA (V66.3 - UI FINAL)
 # ==============================================================================
 def show_hit_prop_page():
     # --- CSS ---
@@ -3821,7 +3812,7 @@ def show_hit_prop_page():
 
     # 4. RENDER UI
     st.markdown('<div class="prop-title">RADAR <span style="color:#ef4444">CONSISTÊNCIA</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.2 (Normalized)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.3 (Gold Master)</div>', unsafe_allow_html=True)
 
     tab_combos, tab_streaks, tab_specs, tab_sgp, tab_radar = st.tabs([
         "🧬 COMBOS", "🛡️ SEQUÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
@@ -8339,6 +8330,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
