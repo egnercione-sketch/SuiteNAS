@@ -566,37 +566,63 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
 
 def get_player_logs_hit_prop(name):
     """
-    Fetcher V64: Baixa a TEMPORADA INTEIRA (até 82 jogos).
-    Removemos o .head(30) para pegar sequências longas reais.
+    Fetcher V66.4 (Sherlock): Tenta descobrir o time por 3 métodos diferentes.
+    Se falhar na coluna oficial, tenta ler o confronto (MATCHUP).
     """
     try:
         from nba_api.stats.endpoints import playergamelog
         from nba_api.stats.static import players
         
-        # Busca ID
+        # 1. Busca ID
         p_list = players.find_players_by_full_name(name)
         if not p_list: return None
         pid = p_list[0]['id']
         
-        # Baixa Logs (SEM LIMITES DE HEAD)
-        # season='2025-26' pega todos os jogos jogados até agora
-        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5).get_data_frames()[0]
+        # 2. Baixa Logs
+        # Timeout um pouco maior para garantir dados completos
+        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=10).get_data_frames()[0]
         
-        # Garante colunas críticas
+        # Garante colunas críticas de stats
         if 'FG3M' not in df.columns: df['FG3M'] = 0
         if 'FG3A' not in df.columns: df['FG3A'] = 0 
         
+        # --- DETECÇÃO DE TIME AVANÇADA (SHERLOCK) ---
+        detected_team = "UNK"
+        
+        if not df.empty:
+            # TENTATIVA 1: Coluna Padrão (TEAM_ABBREVIATION)
+            if 'TEAM_ABBREVIATION' in df.columns:
+                detected_team = str(df.iloc[0]['TEAM_ABBREVIATION'])
+            
+            # TENTATIVA 2: Nome do time (TEAM_NAME) - As vezes vem o nome completo
+            elif 'TEAM_NAME' in df.columns and detected_team == "UNK":
+                # Mapeamento rápido de emergência se vier nome completo
+                t_name = str(df.iloc[0]['TEAM_NAME']).upper()
+                # (Simplificação: Se cair aqui, a normalização global deve resolver depois se for sigla)
+                detected_team = t_name 
+
+            # TENTATIVA 3 (INFALÍVEL): Roubar do MATCHUP (Ex: "LAL @ BOS")
+            # O Matchup sempre começa com o time do jogador
+            if detected_team == "UNK" and 'MATCHUP' in df.columns:
+                matchup = str(df.iloc[0]['MATCHUP']) # Ex: "GSW vs. LAL" ou "BOS @ MIA"
+                # Pega a primeira palavra (GSW, BOS, etc)
+                detected_team = matchup.split(' ')[0].strip()
+                print(f"🕵️ Sherlock: Descobri que {name} é do {detected_team} pelo Matchup!")
+
         return {
             "id": pid,
+            "team_detected": detected_team, 
             "PTS": df['PTS'].tolist(), 
             "REB": df['REB'].tolist(), 
             "AST": df['AST'].tolist(),
             "3PM": df['FG3M'].tolist(), 
-            "3PA": df['FG3A'].tolist(),
+            "3PA": df['FG3A'].tolist(), 
             "STL": df['STL'].tolist(), 
             "BLK": df['BLK'].tolist()
         }
-    except: return None
+    except Exception as e:
+        print(f"⚠️ Erro ao baixar {name}: {e}")
+        return None
 
 def normalize_cache_keys(cache_data):
     """Normaliza chaves antigas se existirem no JSON."""
@@ -8330,6 +8356,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
