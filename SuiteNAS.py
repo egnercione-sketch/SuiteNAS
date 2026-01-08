@@ -3133,111 +3133,74 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V56.0 - FINAL FIX (NO CRASH & DATA NORM)
+# ☢️ HIT PROP HUNTER V63.0 - COMMAND CENTER (FINAL STABLE)
 # ==============================================================================
 
-import os
-import json
-import time
-import hashlib
-import statistics
 import concurrent.futures
-import requests
-import random
-import uuid
-import unicodedata
-import re
+import statistics
 from itertools import combinations
-from datetime import datetime, timedelta
-
-# --- UI FALLBACK ---
-try:
-    import streamlit as st
-    import pandas as pd
-except ImportError:
-    class _MockSt:
-        def __getattr__(self, name): return lambda *a, **k: None
-    st = _MockSt()
-    pd = None
 
 # ==============================================================================
-# 0. STYLE & HELPERS
+# 1. DATA FETCHING & NORMALIZATION (CORREÇÃO DE VOLUME 3PM)
 # ==============================================================================
-def normalize_name(n: str) -> str:
-    if not n: return ""
-    n = str(n).lower().replace(".", " ").replace(",", " ").replace("-", " ")
-    n = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", n)
-    n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
-    return " ".join(n.split())
 
-def fix_team_abbr(abbr):
-    if not abbr: return "UNK"
-    abbr = abbr.upper().strip()
-    mapping = {'GS': 'GSW', 'NO': 'NOP', 'NY': 'NYK', 'SA': 'SAS', 'PHO': 'PHX', 'WSH': 'WAS', 'BK': 'BKN', 'UTA': 'UTA'}
-    return mapping.get(abbr, abbr)
-
-def generate_stable_key(prefix, player, extra=""):
-    return hashlib.md5(f"{prefix}_{player}_{extra}".encode()).hexdigest()
-
-def get_game_info_map(games):
-    info_map = {}
-    for g in games:
-        h = fix_team_abbr(g.get('home', 'UNK')); a = fix_team_abbr(g.get('away', 'UNK'))
-        gid = str(g.get('game_id') or g.get('id') or 'UNK')
-        info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
-        if h != "UNK": info_map[h] = info
-        if a != "UNK": info_map[a] = info
-    return info_map
-
-# ==============================================================================
-# 1. DATA FETCHING & NORMALIZATION (CRITICAL FIX)
-# ==============================================================================
-def get_player_logs(name):
-    # Simula chamada NBA API (Em produção, isso conecta na lib real)
+def get_player_logs_hit_prop(name):
+    """
+    Fetcher específico para o Radar Consistência.
+    Foca em obter FG3A (Tentativas de 3) para cálculo correto de volume.
+    """
     try:
         from nba_api.stats.endpoints import playergamelog
         from nba_api.stats.static import players
-        p = players.find_players_by_full_name(name)
-        if not p: return None
-        pid = p[0]['id']
-        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26').get_data_frames()[0].head(30)
         
-        def parse_min(m):
-            return float(m)
-
-        # Conversão de Chaves NBA -> Chaves Internas
+        # Busca ID
+        p_list = players.find_players_by_full_name(name)
+        if not p_list: return None
+        pid = p_list[0]['id']
+        
+        # Baixa Logs (30 jogos)
+        # Timeout curto para não travar a thread
+        df = playergamelog.PlayerGameLog(player_id=pid, season='2025-26', timeout=5).get_data_frames()[0].head(30)
+        
+        # Garante colunas críticas
+        if 'FG3M' not in df.columns: df['FG3M'] = 0
+        if 'FG3A' not in df.columns: df['FG3A'] = 0 
+        
         return {
             "id": pid,
             "PTS": df['PTS'].tolist(), 
             "REB": df['REB'].tolist(), 
             "AST": df['AST'].tolist(),
-            "3PM": df['FG3M'].tolist(), # Mapeia FG3M -> 3PM
-            "3PA": df['FG3A'].tolist(), # Mapeia FG3A -> 3PA
+            "3PM": df['FG3M'].tolist(), 
+            "3PA": df['FG3A'].tolist(), # <--- AQUI ESTÁ O SEGREDO (Tentativas REAIS)
             "STL": df['STL'].tolist(), 
             "BLK": df['BLK'].tolist()
         }
     except: return None 
 
 def normalize_cache_keys(cache_data):
-    """Garante que as chaves do JSON estejam padronizadas para os motores."""
+    """Normaliza chaves antigas e REMOVE O FALLBACK QUE CAUSAVA ERRO DE VOLUME."""
+    if not cache_data: return {}
     for name, data in cache_data.items():
         if 'logs' not in data: continue
         logs = data['logs']
         
-        # Mapeamento Crítico para Sniper
+        # Mapeamento NBA -> Interno
         if 'FG3M' in logs and '3PM' not in logs: logs['3PM'] = logs['FG3M']
         if 'FG3A' in logs and '3PA' not in logs: logs['3PA'] = logs['FG3A']
         
-        # Fallback se FG3A não existir (usa FGA como proxy aproximado ou 0)
-        if '3PA' not in logs: logs['3PA'] = logs.get('FGA', [])
+        # --- CORREÇÃO CRÍTICA V63 ---
+        # REMOVIDO: logs['3PA'] = logs.get('FGA') 
+        # Motivo: Usar FGA inflava o volume de 3 pontos (Ex: Curry 20.0 tentativas).
+        # Agora, se não tiver 3PA, fica sem (0), forçando o update correto.
         
         data['logs'] = logs
     return cache_data
 
 def update_batch_cache(games_list, force_all=False):
     """
-    Função Mestra de Atualização (V60.1 - Migração Total).
-    Se force_all=True, atualiza TODO MUNDO que está no banco.
+    Função Mestra de Atualização (V63.1 - Migração de Schema).
+    Se force_all=True, atualiza TODO MUNDO que está no banco para corrigir o 3PA.
     """
     KEY_LOGS = "real_game_logs"
     
@@ -3245,7 +3208,7 @@ def update_batch_cache(games_list, force_all=False):
     full_cache = get_data_universal(KEY_LOGS) or {}
     if not isinstance(full_cache, dict): full_cache = {}
     
-    status = st.status("☁️ Sincronizando Radar Consistência...", expanded=True)
+    status = st.status("☁️ Sincronizando Central de Comando...", expanded=True)
     players_needed = set()
     
     # A. Adiciona jogadores da base L5 (se houver)
@@ -3258,17 +3221,9 @@ def update_batch_cache(games_list, force_all=False):
                 for p in df[name_col].unique(): 
                     if p: players_needed.add(str(p))
 
-    # B. Adiciona jogadores dos jogos de hoje (Scoreboard)
-    for g in games_list:
-        # Aqui seria ideal ter os rosters, mas vamos confiar no L5 e Cache
-        pass
-
-    # --- O PULO DO GATO (MIGRAÇÃO) ---
-    # Se for Forçar Update, adiciona TODOS os nomes que já estão no cache.
-    # Isso garante que o Curry e outros sejam atualizados para o novo formato.
+    # B. Se for Forçar Update, adiciona TODOS os nomes que já estão no cache.
     if force_all:
         players_needed.update(full_cache.keys())
-    # ---------------------------------
     
     if not players_needed:
         players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
@@ -3284,7 +3239,7 @@ def update_batch_cache(games_list, force_all=False):
         if p_name not in full_cache: 
             pending.append(p_name); continue
             
-        # Se tem cache mas falta a chave nova 3PA, baixa de novo
+        # Se tem cache mas falta a chave 3PA real, baixa de novo
         if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
             pending.append(p_name); continue
 
@@ -3297,12 +3252,11 @@ def update_batch_cache(games_list, force_all=False):
     if not pending:
         status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
 
-    status.write(f"⚡ Baixando {len(pending)} perfis completos (Migração de Schema)...")
+    status.write(f"⚡ Baixando {len(pending)} perfis completos (Correção de Volume)...")
     
     def fetch_task(name): return (name, get_player_logs_hit_prop(name))
     
     import concurrent.futures
-    # Aumentei workers para 8 para ir mais rápido
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(fetch_task, p) for p in pending]
         completed = 0
@@ -3310,7 +3264,6 @@ def update_batch_cache(games_list, force_all=False):
             name, logs = f.result()
             if logs:
                 pid = logs.pop('id', 0)
-                # Sobrescreve com o novo formato
                 full_cache[name] = {"name": name, "team": "UNK", "id": pid, "logs": logs, "updated": str(datetime.now())}
             completed += 1
             if completed % 10 == 0: 
@@ -3319,22 +3272,18 @@ def update_batch_cache(games_list, force_all=False):
     save_data_universal(KEY_LOGS, full_cache)
     status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
     time.sleep(1)
-# ==============================================================================
-# 2. ENGINES (CORRECTED)
-# ==============================================================================
 
 # ==============================================================================
-# ENGINES DO RADAR CONSISTÊNCIA
+# 2. ENGINES (MOTORES DE INTELIGÊNCIA)
 # ==============================================================================
 
-# 1. ATOMIC GENERATOR
+# --- 1. ATOMIC GENERATOR (Base L5/L10) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
-    # Helper local para mapa de jogos
     game_info_map = {}
     for g in games:
-        h = normalize_team(g.get('home', 'UNK')); a = normalize_team(g.get('away', 'UNK'))
-        gid = str(g.get('gameId') or g.get('game_id') or 'UNK')
+        h = fix_team_abbr(g.get('home', 'UNK')); a = fix_team_abbr(g.get('away', 'UNK'))
+        gid = str(g.get('game_id') or g.get('id') or 'UNK')
         info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
         if h != "UNK": game_info_map[h] = info
         if a != "UNK": game_info_map[a] = info
@@ -3344,9 +3293,8 @@ def generate_atomic_props(cache_data, games):
     
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
-        # Tenta pegar time do log ou do L5
-        team = normalize_team(data.get('team', 'UNK'))
-        if team == 'UNK' or team not in teams_active: continue
+        team = fix_team_abbr(data.get('team', 'UNK'))
+        if team not in teams_active: continue
         
         g_info = game_info_map.get(team, {"game_id": "UNK", "game_str": "UNK"})
         logs = data.get('logs', {})
@@ -3356,7 +3304,6 @@ def generate_atomic_props(cache_data, games):
             vals = logs.get(stat, [])
             if not vals: continue
             
-            # Prioriza L10 e L5 (100% Hit Rate)
             for period in [5, 10]:
                 if len(vals) >= period:
                     cut = vals[:period]
@@ -3371,130 +3318,308 @@ def generate_atomic_props(cache_data, games):
                         })
     return sorted(atomic_props, key=lambda x: (x['streak_val'], x['line']), reverse=True)
 
-# 2. SGP ORGANIZER
+# --- 2. STREAK ENGINE (NOVA ABA SEQUÊNCIAS) ---
+def calculate_active_streak(vals, threshold):
+    """Conta quantos jogos seguidos bateram a linha (do mais recente para trás)"""
+    streak = 0
+    for v in vals:
+        if v >= threshold: streak += 1
+        else: break
+    return streak
+
+def generate_iron_streaks(cache_data, games):
+    streaks = []
+    
+    # Escadas de teste (Ladders)
+    ladders = {
+        "PTS": [10, 12, 15, 18, 20, 22, 25, 30],
+        "REB": [4, 5, 6, 7, 8, 9, 10, 12],
+        "AST": [3, 4, 5, 6, 7, 8, 9, 10],
+        "3PM": [1, 2, 3, 4, 5]
+    }
+    
+    # Identifica oponentes
+    team_opp_map = {}
+    for g in games:
+        h = fix_team_abbr(g.get('home')); a = fix_team_abbr(g.get('away'))
+        team_opp_map[h] = a; team_opp_map[a] = h
+        
+    for name, data in cache_data.items():
+        if not isinstance(data, dict): continue
+        team = fix_team_abbr(data.get('team', 'UNK'))
+        if team not in team_opp_map: continue
+        
+        opp = team_opp_map[team]
+        logs = data.get('logs', {})
+        pid = data.get('id', 0)
+        
+        for stat, levels in ladders.items():
+            vals = logs.get(stat, [])
+            if not vals: continue
+            
+            # Encontra a melhor combinação Linha/Streak
+            best_streak = 0
+            best_line = 0
+            
+            # Varre do maior para o menor para pegar a linha mais alta possível
+            for line in sorted(levels, reverse=True):
+                curr_streak = calculate_active_streak(vals, line)
+                if curr_streak >= 7: 
+                    best_streak = curr_streak
+                    best_line = line
+                    break # Achou a maior linha com streak boa, para.
+            
+            if best_streak >= 7:
+                streaks.append({
+                    "player": name, "team": team, "opp": opp, "id": pid,
+                    "stat": stat, "line": best_line,
+                    "streak": best_streak,
+                    "record_str": f"{best_streak}/{best_streak}"
+                })
+                
+    return sorted(streaks, key=lambda x: x['streak'], reverse=True)
+
+# --- 3. SGP ORGANIZER (SUPERBILHETE) ---
 def organize_sgp_lab(atomic_props):
     unique_map = {}
     for p in atomic_props:
         key = f"{p['player']}_{p['stat']}"
         if key not in unique_map: unique_map[key] = p
         else:
-            if p['line'] > unique_map[key]['line']: unique_map[key] = p
-                
+            if p['line'] > unique_map[key]['line']: unique_map[key] = p     
     deduplicated = list(unique_map.values())
     sgp_structure = {}
-    
     for p in deduplicated:
         game_key = p.get('game_display', 'UNK')
         if 'UNK' in game_key: continue
-        
         if game_key not in sgp_structure: sgp_structure[game_key] = []
-        
         found = False
         for existing in sgp_structure[game_key]:
             if existing['player'] == p['player']:
                 existing['props'].append({"stat": p['stat'], "line": p['line'], "record": p['record_str']})
                 found = True; break
-        
         if not found:
             sgp_structure[game_key].append({
                 "player": p['player'], "team": p['team'], "id": p.get('player_id', 0),
                 "game_id": p.get('game_id'),
                 "props": [{"stat": p['stat'], "line": p['line'], "record": p['record_str']}]
             })
-            
     final_output = {}
     for game, players in sgp_structure.items():
         players.sort(key=lambda x: len(x['props']), reverse=True)
         final_output[game] = players
     return final_output
 
-# 3. COMBOS ENGINE (MATRIX RELAXED)
-class MatrixEngineNew:
-    def generate_combos(self, sgp_data):
-        candidates = []
-        for game, players in sgp_data.items():
-            for p in players:
-                # Score: Quantidade de props + qualidade dos pontos
-                score = len(p['props']) * 10 + sum([x['line'] for x in p['props'] if x['stat']=='PTS'])
-                p['score'] = score
-                candidates.append(p)
+# --- 4. SQUADRON ENGINE V63 (CONTEXT AWARE - INTEGRAÇÃO MÓDULOS) ---
+class SquadronEngine:
+    def __init__(self):
+        # Tenta carregar os módulos de inteligência externa (Vácuo, Pace, DvP)
+        self.dvp = None
+        self.pace = None
+        self.vacuum = None
         
-        candidates.sort(key=lambda x: x['score'], reverse=True)
-        tickets = []
-        used_keys = set()
-        top_candidates = candidates[:30] # Pool maior
+        # Imports "Soft" para não quebrar se o arquivo não existir
+        try:
+            # Ajuste o caminho conforme sua estrutura de pastas
+            # Assumindo que estão na raiz ou em modules/new_modules
+            if os.path.exists("dvp_analyzer.py"): import dvp_analyzer as dvp_mod
+            else: from modules.new_modules import dvp_analyzer as dvp_mod
+            self.dvp = dvp_mod.DvPAnalyzer()
+        except: pass
         
-        for combo in combinations(top_candidates, 2):
-            p1, p2 = combo
-            if p1.get('game_id') == p2.get('game_id'): continue 
-            if p1['team'] == p2['team']: continue
+        try:
+            if os.path.exists("pace_adjuster.py"): import pace_adjuster as pace_mod
+            else: from modules.new_modules import pace_adjuster as pace_mod
+            self.pace = pace_mod.PaceAdjuster({}) 
+        except: pass
+        
+        try:
+            if os.path.exists("vacuum_matrix.py"): import vacuum_matrix as vac_mod
+            else: from modules.new_modules import vacuum_matrix as vac_mod
+            self.vacuum = vac_mod.VacuumMatrixAnalyzer()
+        except: pass
+
+    def calculate_context_score(self, player, game_info):
+        """Gera nota de 0 a 100 baseada no CONTEXTO (DvP, Pace, Vácuo)"""
+        score = 0
+        p_name = player.get('player')
+        p_team = player.get('team')
+        opp_team = game_info.get('away') if game_info.get('home') == p_team else game_info.get('home')
+        
+        # 1. Fator DvP
+        if self.dvp:
+            try:
+                # Se o módulo tiver get_position_rank, usamos
+                rank = self.dvp.get_position_rank(opp_team, "SG") # Genérico
+                if rank >= 25: score += 15 # Defesa Ruim
+                elif rank <= 5: score -= 15 # Defesa Elite
+            except: pass
             
-            combo_id = tuple(sorted([p1['player'], p2['player']]))
-            if combo_id in used_keys: continue
+        # 2. Fator Vácuo (Lesões)
+        # Futura implementação: integrar com self.vacuum.analyze_team_vacuum
+                
+        # 3. Fator Pace
+        if self.pace:
+            try:
+                pace_factor = self.pace.get_pace_factor(p_team, opp_team)
+                if pace_factor > 1.02: score += 10
+                elif pace_factor < 0.98: score -= 10
+            except: pass
+            
+        return score
+
+    def generate_combos(self, sgp_data, specs_data):
+        tickets = []
+        anchors = []
+        snipers = []
+        grinders = []
+        
+        # Processa dados e calcula Score Híbrido
+        for game_str, players in sgp_data.items():
+            try:
+                parts = game_str.split(' @ ')
+                game_info = {'away': parts[0], 'home': parts[1]}
+            except: game_info = {'home': 'UNK', 'away': 'UNK'}
+
+            for p in players:
+                # Score Base (Stats) + Contexto (DvP/Pace)
+                stat_score = sum(x['line'] for x in p['props']) + (len(p['props']) * 5)
+                context_score = self.calculate_context_score(p, game_info)
+                p['final_score'] = stat_score + context_score
+                p['context_bonus'] = context_score
+                
+                # Classificação Hierárquica (General, Sniper, Soldado)
+                is_anchor = False
+                pts_prop = next((x for x in p['props'] if x['stat'] == 'PTS'), None)
+                
+                if len(p['props']) >= 3: is_anchor = True
+                elif pts_prop and pts_prop['line'] >= 20: is_anchor = True
+                elif pts_prop and pts_prop['line'] >= 15 and len(p['props']) >= 2: is_anchor = True
+                
+                if is_anchor:
+                    p['role'] = 'ANCHOR'
+                    anchors.append(p)
+                else:
+                    utility_props = [x for x in p['props'] if x['stat'] in ['REB', 'AST', 'STL', 'BLK']]
+                    if utility_props:
+                        p['role'] = 'GRINDER'
+                        grinders.append(p)
+
+        # Processa Snipers (Especialidades)
+        if '3PM' in specs_data:
+            for s in specs_data['3PM']:
+                sniper_obj = {
+                    "player": s['player'], "team": s['team'], "id": s['id'],
+                    "role": "SNIPER", "props": [{"stat": "3PM", "line": s['line']}],
+                    "final_score": s['line'] * 10
+                }
+                # Evita duplicar se o Âncora já for esse cara
+                if not any(a['player'] == s['player'] for a in anchors):
+                    snipers.append(sniper_obj)
+
+        # Ordenação Inteligente
+        anchors.sort(key=lambda x: x['final_score'], reverse=True)
+        snipers.sort(key=lambda x: x['final_score'], reverse=True)
+        grinders.sort(key=lambda x: x['final_score'], reverse=True)
+        
+        used_hashes = set()
+        
+        # Montagem dos Esquadrões (1 Âncora + 1 Sniper + 1 Grinder)
+        for anchor in anchors[:20]: 
+            selected_sniper = None
+            for s in snipers:
+                if s['player'] == anchor['player']: continue 
+                if s['team'] == anchor['team']: continue # Evita mesmo time
+                selected_sniper = s
+                break
+            
+            if not selected_sniper: continue
+
+            selected_grinder = None
+            for g in grinders:
+                if g['player'] == anchor['player']: continue
+                if g['player'] == selected_sniper['player']: continue
+                if g['team'] == anchor['team']: continue
+                if g['team'] == selected_sniper['team']: continue
+                selected_grinder = g
+                break
+            
+            if not selected_grinder: continue
             
             legs = []
-            # Adiciona props (prioriza variedade)
-            props1 = sorted(p1['props'], key=lambda x: x['stat'] != 'PTS', reverse=True)
-            for prop in props1[:2]: 
-                legs.append({"player": p1['player'], "team": p1['team'], "id": p1.get('id', 0), "stat": prop['stat'], "line": prop['line']})
-                
-            props2 = sorted(p2['props'], key=lambda x: x['stat'] != 'PTS', reverse=True)
-            for prop in props2[:2]:
-                legs.append({"player": p2['player'], "team": p2['team'], "id": p2.get('id', 0), "stat": prop['stat'], "line": prop['line']})
+            # ANCHOR (Max 3 props)
+            sorted_props = sorted(anchor['props'], key=lambda x: 0 if x['stat']=='PTS' else 1)
+            for p in sorted_props[:3]:
+                legs.append({"player": anchor['player'], "team": anchor['team'], "id": anchor.get('id'), "stat": p['stat'], "line": p['line'], "role": "👑 ÂNCORA"})
+            # SNIPER (1 prop)
+            for p in selected_sniper['props']:
+                legs.append({"player": selected_sniper['player'], "team": selected_sniper['team'], "id": selected_sniper.get('id'), "stat": p['stat'], "line": p['line'], "role": "🎯 SNIPER"})
+            # GRINDER (Max 2 props)
+            util_props = sorted(selected_grinder['props'], key=lambda x: 0 if x['stat'] in ['REB','AST'] else 1)
+            for p in util_props[:2]:
+                legs.append({"player": selected_grinder['player'], "team": selected_grinder['team'], "id": selected_grinder.get('id'), "stat": p['stat'], "line": p['line'], "role": "⚙️ GRINDER"})
             
-            if len(legs) < 2: continue
+            combo_hash = tuple(sorted([anchor['player'], selected_sniper['player'], selected_grinder['player']]))
+            if combo_hash in used_hashes: continue
+            used_hashes.add(combo_hash)
+            
+            # Badge de Fogo se tiver muito contexto a favor
+            title_prefix = "🔥" if anchor.get('context_bonus', 0) > 10 else "🎖️"
             
             tickets.append({
-                "id": f"CMB_{len(tickets)}", "title": f"⚡ {p1['player']} x {p2['player']}",
-                "legs": legs, "total_props": len(legs)
+                "id": f"SQD_{len(tickets)+1}",
+                "title": f"{title_prefix} Esquadrão: {anchor['player']} & Cia",
+                "total_props": len(legs),
+                "legs": legs
             })
-            used_keys.add(combo_id)
+            
             if len(tickets) >= 12: break
             
         return tickets
 
-# 4. SPECIALTY (SNIPER) FIXED
+# --- 5. SPECIALTY (SNIPER) V63 - VOLUME FIX ---
 def generate_specialties(cache_data, games):
     specs_3pm = []
     specs_def = []
-    
-    # Mapa de times ativos
     active_teams = set()
     for g in games:
-        active_teams.add(normalize_team(g.get('home')))
-        active_teams.add(normalize_team(g.get('away')))
+        active_teams.add(fix_team_abbr(g.get('home', 'UNK')))
+        active_teams.add(fix_team_abbr(g.get('away', 'UNK')))
         
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
-        team = normalize_team(data.get('team', 'UNK'))
+        team = fix_team_abbr(data.get('team', 'UNK'))
         if team not in active_teams: continue
         
         logs = data.get('logs', {})
         pid = data.get('id', 0)
-        
         if not logs: continue
         
-        # 1. 3PM Shooters (Com 3PA Real)
+        # 1. 3PM Shooters (CORRIGIDO: Usa 3PA Real)
         threes = logs.get('3PM', [])
         attempts = logs.get('3PA', []) 
         
         if len(threes) >= 5:
             # Volume Real
-            if attempts and sum(attempts) > 0:
-                avg_vol = sum(attempts[:10])/10 if len(attempts) >= 10 else sum(attempts)/len(attempts)
-                pct = (sum(threes[:10]) / sum(attempts[:10])) * 100 if sum(attempts[:10]) > 0 else 0
-            else:
+            # Só calcula se tiver dados de attempts (3PA)
+            if attempts and len(attempts) > 0 and sum(attempts) > 0:
+                curr_att = attempts[:10] if len(attempts) >= 10 else attempts
+                curr_make = threes[:10] if len(threes) >= 10 else threes
+                
+                avg_vol = sum(curr_att) / len(curr_att)
+                pct = (sum(curr_make) / sum(curr_att)) * 100 if sum(curr_att) > 0 else 0
+            else: 
                 avg_vol = 0; pct = 0
             
             floor = min(threes[:5])
-            avg_make = sum(threes[:10])/10 if len(threes) >= 10 else 0
+            avg_make = sum(threes[:10])/10 if len(threes) >= 10 else sum(threes)/len(threes)
             
             # Critério: Piso de 2 ou Média alta
             if floor >= 2 or avg_make >= 2.5:
+                vol_str = f"Vol: {avg_vol:.1f} ({pct:.0f}%)" if avg_vol > 0 else "Vol: N/A"
                 specs_3pm.append({
                     "player": name, "team": team, "stat": "3PM", 
-                    "line": max(2, int(floor)), "id": pid,
-                    "sub_text": f"Vol: {avg_vol:.1f} ({pct:.0f}%)"
+                    "line": max(2, int(floor)), "id": pid, "sub_text": vol_str
                 })
 
         # 2. Defensores
@@ -3504,39 +3629,17 @@ def generate_specialties(cache_data, games):
                 if min(vals[:5]) >= 1:
                     specs_def.append({
                         "player": name, "team": team, "stat": label, 
-                        "line": 1, "id": pid,
-                        "sub_text": "🔒 100% L5"
+                        "line": 1, "id": pid, "sub_text": "🔒 100% L5"
                     })
                     
     return {"3PM": sorted(specs_3pm, key=lambda x: x['line'], reverse=True), 
             "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
 # ==============================================================================
-# 4. UTILS
-# ==============================================================================
-def save_audit_ticket(ticket_data):
-    try:
-        KEY_AUDIT = "audit_trixies"
-        current = get_data_universal(KEY_AUDIT) or []
-        if not isinstance(current, list): current = []
-        new_ticket = {
-            "id": f"TKT_{int(time.time())}_{str(uuid.uuid4())[:6]}", 
-            "created_at": datetime.now().isoformat(),
-            "status": "PENDING", "category": "RADAR_COMBO",
-            "legs": ticket_data.get('legs', [])
-        }
-        current.append(new_ticket)
-        save_data_universal(KEY_AUDIT, current)
-        return True
-    except: return False
-
-def auto_update_system(): pass
-
-# ==============================================================================
-# PÁGINA: RADAR CONSISTÊNCIA (V59.0 - FINAL)
+# PÁGINA: RADAR CONSISTÊNCIA (V63.0 - CENTRAL DE COMANDO)
 # ==============================================================================
 def show_hit_prop_page():
-    # --- CSS CLEAN ---
+    # --- CSS MODERNIZADO ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -3544,49 +3647,44 @@ def show_hit_prop_page():
         .prop-title { font-family: 'Oswald'; font-size: 32px; color: #fff; margin-bottom: 5px; }
         .prop-sub { font-family: 'Inter'; font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
         
-        .pc-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #475569; background: #0f172a; }
-        .pc-name { font-family: 'Oswald'; font-size: 15px; color: #f8fafc; font-weight: 600; line-height: 1.1; }
+        .pc-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background: #0f172a; }
+        .pc-name { font-family: 'Oswald'; font-size: 14px; color: #f8fafc; font-weight: 600; line-height: 1.1; }
         
         .stat-pill {
-            background: #0f172a; border: 1px solid #334155; border-radius: 6px; 
-            padding: 4px 8px; margin-right: 4px; margin-top: 4px; display: inline-block; text-align: center;
+            background: #1e293b; border: 1px solid #334155; border-radius: 6px; 
+            padding: 2px 6px; margin-right: 4px; margin-top: 4px; display: inline-block; text-align: center;
         }
         .sp-val { font-family: 'Oswald'; font-size: 13px; font-weight: bold; color: #fff; }
         .sp-lbl { font-size: 9px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
-        .sp-rec { font-size: 9px; color: #10b981; font-weight: bold; display: block; margin-top: 2px; }
+        .sp-rec { font-size: 9px; color: #10b981; font-weight: bold; display: block; margin-top: 1px; }
         
         .combo-badge { background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. SETUP & DATA
-    # Não chamamos update_batch_cache aqui para não bloquear. Deixamos para o botão na Config.
+    # 1. SETUP
     games = st.session_state.get('scoreboard', [])
     if not games: 
-        st.warning("⚠️ Scoreboard vazio. Atualize em Config.")
+        st.warning("⚠️ Scoreboard vazio. Atualize em Config > Ingestão.")
         return
 
-    # 2. LOAD DATA & NORMALIZE
+    # 2. LOAD DATA
     cache_data = get_data_universal("real_game_logs") or {}
-    cache_data = normalize_cache_keys(cache_data) # <--- DATA FIX
+    cache_data = normalize_cache_keys(cache_data)
 
-    # ID VAULT (Recuperação de Fotos)
+    # ID VAULT (Fotos)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
         try:
-            # FIX DATAFRAME COLUMNS (Evita KeyError)
             df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
             c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
             c_name = next((c for c in df_l5.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), 'PLAYER')
-            
             for _, row in df_l5.iterrows():
                 try:
                     pid = int(float(row.get(c_id, 0)))
                     if pid > 0:
-                        name = str(row.get(c_name, '')).upper()
-                        # Normaliza para facilitar busca
-                        clean = normalize_name(name)
+                        clean = normalize_name(str(row.get(c_name, '')))
                         ID_VAULT[clean] = pid
                         if len(clean.split()) > 1: ID_VAULT[normalize_name(clean.split()[-1])] = pid
                 except: continue
@@ -3602,27 +3700,30 @@ def show_hit_prop_page():
 
     # 3. RUN ENGINES
     if not cache_data:
-        st.info("Cache de logs vazio. Vá em Config e clique em 'RECONSTRUIR CACHE DE PROPS'.")
+        st.info("Cache vazio. Vá em Config > Ingestão e clique em 'RECONSTRUIR CACHE DE PROPS'.")
         return
 
     atomic_props = generate_atomic_props(cache_data, games)
+    iron_streaks = generate_iron_streaks(cache_data, games) # <--- NOVO
     sgp_data = organize_sgp_lab(atomic_props)
-    
-    matrix_engine = MatrixEngineNew()
-    combo_tickets = matrix_engine.generate_combos(sgp_data)
-    
     specs = generate_specialties(cache_data, games)
+    
+    # Motor Inteligente (Com Módulos)
+    squadron_engine = SquadronEngine()
+    combo_tickets = squadron_engine.generate_combos(sgp_data, specs)
 
-    # 4. RENDER UI
+    # 4. RENDER UI (5 ABAS)
     st.markdown('<div class="prop-title">RADAR <span style="color:#ef4444">CONSISTÊNCIA</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">ANÁLISE DE TENDÊNCIA PURA (L5/L10)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V63.0</div>', unsafe_allow_html=True)
 
-    tab_combos, tab_specs, tab_sgp, tab_radar = st.tabs(["🧬 COMBOS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"])
+    tab_combos, tab_streaks, tab_specs, tab_sgp, tab_radar = st.tabs([
+        "🧬 COMBOS", "🛡️ SEQUÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
+    ])
 
-    # === COMBOS ===
+    # === 1. COMBOS (SQUADRON) ===
     with tab_combos:
         if not combo_tickets:
-            st.info("Nenhum combo de alta fidelidade encontrado hoje. Tente mais tarde.")
+            st.info("Nenhum 'Esquadrão' de alta fidelidade encontrado hoje.")
         else:
             for ticket in combo_tickets:
                 with st.container(border=True):
@@ -3637,56 +3738,65 @@ def show_hit_prop_page():
                         with c_img: st.markdown(f"<img src='{photo}' class='pc-img'>", unsafe_allow_html=True)
                         with c_inf:
                             st.markdown(f"<div class='pc-name'>{leg['player']}</div>", unsafe_allow_html=True)
-                            st.caption(f"{leg['team']}")
+                            st.caption(f"{leg.get('role','PLAYER')} • {leg['team']}")
                         with c_stat:
                             st.markdown(f"<div class='stat-pill'><div class='sp-val'>{leg['line']}+</div><div class='sp-lbl'>{leg['stat']}</div></div>", unsafe_allow_html=True)
                     
-                    # Salva usando o sistema de Auditoria Existente
-                    if st.button(f"💾 Salvar Combo", key=ticket['id'], use_container_width=True):
-                        if 'audit_system' in st.session_state:
-                            # Converte formato
-                            t_data = {
-                                "players": [{
-                                    "name": l['player'], "team": l['team'], 
-                                    "mercado": {"tipo": l['stat'], "base_valor": l['line']}
-                                } for l in ticket['legs']],
-                                "total_odd": 1.0, "category": "RADAR_COMBO", "score": 99
-                            }
+                    if st.button(f"💾 Salvar", key=ticket['id'], use_container_width=True):
+                         if 'audit_system' in st.session_state:
+                            t_data = {"players": [{"name": l['player'], "team": l['team'], "mercado": {"tipo": l['stat'], "base_valor": l['line']}} for l in ticket['legs']], "total_odd": 1.0, "category": "RADAR_COMBO", "score": 99}
                             st.session_state.audit_system.log_trixie(t_data, {"home": "MIX", "away": "MIX", "gameId": "MULTI"}, "RADAR_COMBO")
                             st.toast("Salvo!", icon="✅")
-                        else:
-                            st.error("Audit System Offline.")
 
-    # === ESPECIALIDADES ===
+    # === 2. SEQUÊNCIAS (NOVO) ===
+    with tab_streaks:
+        if not iron_streaks:
+            st.info("Nenhuma sequência longa ativa (7+ jogos) hoje.")
+        else:
+            cats = {"PTS": "🔥 PONTOS", "AST": "🧠 ASSISTÊNCIAS", "REB": "💪 REBOTES", "3PM": "🎯 3-POINTS"}
+            for stat_key, stat_label in cats.items():
+                subset = [s for s in iron_streaks if s['stat'] == stat_key]
+                if not subset: continue
+                
+                st.markdown(f"##### {stat_label}")
+                for s in subset:
+                    icon = "🔥" if s['streak'] >= 15 else "✅"
+                    with st.container():
+                        c_a, c_b, c_c = st.columns([2.5, 1.5, 1])
+                        with c_a: st.markdown(f"**{s['player']}** <span style='color:#94a3b8; font-size:12px'>vs {s['opp']}</span>", unsafe_allow_html=True)
+                        with c_b: st.markdown(f"<span style='font-size:15px; font-weight:bold'>{s['line']}+ {s['stat']}</span>", unsafe_allow_html=True)
+                        with c_c: st.markdown(f"<span style='color:#10b981; font-weight:bold'>{icon} ({s['record_str']})</span>", unsafe_allow_html=True)
+                        st.markdown("<div style='margin-bottom:5px; border-bottom:1px solid #334155; opacity:0.3'></div>", unsafe_allow_html=True)
+
+    # === 3. ESPECIALIDADES ===
     with tab_specs:
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("#### 🎯 Cestas de 3")
-            if not specs['3PM']: st.caption("Nada.")
+            st.markdown("#### 🎯 3-Point Snipers")
+            if not specs['3PM']: st.caption("Nada relevante.")
             for s in specs['3PM']:
                 with st.container(border=True):
                     photo = get_photo_url(s['player'], s.get('id', 0))
                     sc1, sc2 = st.columns([1, 3])
-                    with sc1: st.markdown(f"<img src='{photo}' class='pc-img' style='width:40px;height:40px;'>", unsafe_allow_html=True)
+                    with sc1: st.markdown(f"<img src='{photo}' class='pc-img'>", unsafe_allow_html=True)
                     with sc2: 
                         st.markdown(f"**{s['player']}**")
                         st.markdown(f"<span style='color:#22d3ee; font-weight:bold;'>{s['line']}+ 3PM</span>", unsafe_allow_html=True)
                         st.caption(s['sub_text'])
-
         with c2:
-            st.markdown("#### 🛡️ Defensores")
-            if not specs['DEF']: st.caption("Nada.")
+            st.markdown("#### 🛡️ Lockdown Defenders")
+            if not specs['DEF']: st.caption("Nada relevante.")
             for s in specs['DEF']:
                 with st.container(border=True):
                     photo = get_photo_url(s['player'], s.get('id', 0))
                     sc1, sc2 = st.columns([1, 3])
-                    with sc1: st.markdown(f"<img src='{photo}' class='pc-img' style='width:40px;height:40px;'>", unsafe_allow_html=True)
+                    with sc1: st.markdown(f"<img src='{photo}' class='pc-img'>", unsafe_allow_html=True)
                     with sc2: 
                         st.markdown(f"**{s['player']}**")
                         st.markdown(f"<span style='color:#f87171; font-weight:bold;'>1+ {s['stat']}</span>", unsafe_allow_html=True)
                         st.caption(s['sub_text'])
 
-    # === SUPERBILHETE ===
+    # === 4. SUPERBILHETE ===
     with tab_sgp:
         if not sgp_data: st.info("Vazio.")
         else:
@@ -3695,7 +3805,7 @@ def show_hit_prop_page():
                     for i in range(0, len(players), 2):
                         row_cols = st.columns(2)
                         for j in range(2):
-                            if i + j < len(players): # Check Math
+                            if i + j < len(players):
                                 p = players[i+j]
                                 with row_cols[j]:
                                     with st.container(border=True):
@@ -3709,7 +3819,7 @@ def show_hit_prop_page():
                                                 with badge_cols[b_idx]:
                                                     st.markdown(f"<div class='stat-pill'><div class='sp-val'>{prop['line']}+</div><div class='sp-lbl'>{prop['stat']}</div><div class='sp-rec'>{prop['record']}</div></div>", unsafe_allow_html=True)
 
-    # === RADAR GERAL ===
+    # === 5. RADAR GERAL ===
     with tab_radar:
         if atomic_props:
             df = pd.DataFrame(atomic_props)
@@ -8222,6 +8332,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
