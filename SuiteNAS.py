@@ -44,15 +44,35 @@ def fix_team_abbr(abbr):
     return mapping.get(abbr, abbr)
 
 def fetch_espn_scoreboard(progress_ui=False):
-    """Busca jogos na ESPN e converte siglas para padrão NBA (GS -> GSW)."""
+    """
+    Busca jogos na ESPN forçando a data de HOJE (Fuso Horário ET/NBA).
+    Converte siglas para padrão NBA (GS -> GSW).
+    """
     import requests
+    from datetime import datetime, timedelta
+
     try:
-        if progress_ui: st.toast("Atualizando jogos...", icon="🏀")
+        if progress_ui: st.toast("Sincronizando tabela da NBA...", icon="🏀")
         
-        url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+        # --- FIX DE DATA (CRÍTICO) ---
+        # A NBA roda no fuso Eastern Time (ET), que é UTC-5 (ou -4 no verão).
+        # Vamos pegar a data atual nesse fuso para não pegar jogos de ontem.
+        utc_now = datetime.utcnow()
+        # Subtrai 5 horas para garantir que estamos no "dia da NBA"
+        # Se for 01:00 AM no Brasil, ainda é 23:00 do dia anterior em NY, 
+        # mas queremos os jogos da "noite atual".
+        # Ajuste fino: Se você quer os jogos que VÃO acontecer, use a data atual.
+        
+        # Lógica: Se for antes das 04:00 AM (UTC), consideramos que ainda é o dia anterior nos EUA.
+        # Mas para simplificar e pegar o dia "corrente" de apostas:
+        et_now = utc_now - timedelta(hours=5) 
+        date_str = et_now.strftime("%Y%m%d")
+        
+        # Adiciona ?dates=YYYYMMDD na URL
+        url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}"
         headers = {"User-Agent": "Mozilla/5.0"}
         
-        # Timeout curto para não travar
+        # Timeout curto
         resp = requests.get(url, headers=headers, timeout=5)
         data = resp.json()
         
@@ -63,16 +83,21 @@ def fetch_espn_scoreboard(progress_ui=False):
                 raw_home = comp['competitors'][0]['team']['abbreviation']
                 raw_away = comp['competitors'][1]['team']['abbreviation']
                 gid = event['id']
+                status_state = event['status']['type']['state'] # pre, in, post
                 
                 # AQUI ESTÁ A MÁGICA: Converte GS -> GSW
                 home = fix_team_abbr(raw_home)
                 away = fix_team_abbr(raw_away)
                 
+                # Opcional: Se quiser filtrar apenas jogos que NÃO acabaram, descomente:
+                # if status_state == 'post': continue 
+
                 games.append({
                     "home": home,
                     "away": away,
                     "game_id": str(gid),
-                    "game_str": f"{away} @ {home}"
+                    "game_str": f"{away} @ {home}",
+                    "status": status_state
                 })
             except: continue
             
@@ -80,8 +105,7 @@ def fetch_espn_scoreboard(progress_ui=False):
         return games
         
     except Exception as e:
-        if progress_ui: st.error(f"Erro Scoreboard: {e}")
-        return []
+        if progress
         
     
 
@@ -8208,18 +8232,23 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
+# EXECUÇÃO PRINCIPAL (V66.0 - FINAL STABLE)
 # ============================================================================
-
 def main():
-    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
-  
-
-    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
-
+    # CONFIGURAÇÃO DA PÁGINA
+    # 'initial_sidebar_state="expanded"' força o menu a iniciar aberto
+    st.set_page_config(
+        page_title="DigiBets IA", 
+        layout="wide", 
+        page_icon="🏀",
+        initial_sidebar_state="expanded"
+    )
+    
+    # CSS GLOBAL CRÍTICO (DARK MODE PRO)
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
+
             /* 1. FORÇA FUNDO PRETO GLOBAL */
             .stApp { background-color: #000000 !important; }
             
@@ -8243,10 +8272,7 @@ def main():
                 border-right: 1px solid #1e293b;
             }
 
-
-
             /* 5. ESTILO MENU LATERAL (NUNITO) */
-
             div[role="radiogroup"] label {
                 background: transparent !important;
                 border: none !important;
@@ -8275,121 +8301,73 @@ def main():
             div[role="radiogroup"] > label > div:first-child { display: none !important; }
 
             /* 6. SEPARADORES DE MENU (CSS INDEXING) */
-
             div[role="radiogroup"] > label:nth-of-type(4) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(4)::before { content: "INTELIGÊNCIA ARTIFICIAL"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
             div[role="radiogroup"] > label:nth-of-type(10) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(10)::before { content: "CAÇADORES & ESTRATÉGIA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
             div[role="radiogroup"] > label:nth-of-type(13) { margin-top: 25px !important; }
             div[role="radiogroup"] > label:nth-of-type(13)::before { content: "ANÁLISE TÁTICA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
+
             div[role="radiogroup"] > label:nth-of-type(18) { margin-top: 25px !important; border-top: 1px solid #1e293b; padding-top: 15px !important; }
             div[role="radiogroup"] > label:nth-of-type(18)::before { content: "SISTEMA"; display: block; font-size: 0.65rem; color: #64748b; font-weight: 700; margin-bottom: 5px; }
         </style>
-
     """, unsafe_allow_html=True)
-  
+    
     safe_load_initial_data()
 
-
-
-    # --- MENU LATERAL (DENTRO DO MAIN PARA FUNCIONAR) ---
-
+    # --- MENU LATERAL (NAVEGAÇÃO PURA) ---
     with st.sidebar:
-
         st.markdown(f"""
-
             <div style="text-align: center; padding-bottom: 10px;">
-
                 <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150" style="margin-bottom: 5px;">
-
                 <div style="color: #94a3b8; font-family: 'Nunito'; font-size: 0.6rem; font-style: italic; opacity: 0.8;">
-
                     O Poder da IA nas suas Apostas Esportivas
-
                 </div>
-
             </div>
-
         """, unsafe_allow_html=True)
 
-
-
         MENU_ITEMS = [
-
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
-
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
-
             "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla", "🔮 Oráculo",
-
             "🛡️ DvP Confrontos", "🏥 Depto Médico", "👥 Escalações",
-
             "⚙️ Config", "🔍 Testar Conexão Supabase"
-
         ]
 
         choice = st.radio("Navegação", MENU_ITEMS, label_visibility="collapsed")
-
         
-
         st.markdown("<br><div style='text-align: center; color: #334155; font-size: 0.6rem;'>● SYSTEM ONLINE v2.2</div>", unsafe_allow_html=True)
 
-
-
     # --- ROTEAMENTO ---
-
     if choice == "🏠 Dashboard": show_dashboard_page()
-
     elif choice == "📊 Ranking Teses": show_analytics_page()
-
     elif choice == "📋 Auditoria": show_audit_page()
-
     
-
     elif choice == "🧬 Sinergia & Vácuo": show_nexus_page()
-
     elif choice == "⚔️ Lab Narrativas": show_narrative_lab()
-
     elif choice == "⚡ Momentum": show_momentum_page()
-
     elif choice == "🔥 Las Vegas Sync": show_props_odds_page()
-
     elif choice == "🌪️ Blowout Hunter": show_blowout_hunter_page()
-
     elif choice == "🏆 Trinity Club": show_trinity_club_page()
-
     
-
     elif choice == "🔥 Hot Streaks": show_hit_prop_page()
-
     elif choice == "📊 Matriz 5-7-10": show_matriz_5_7_10_page()
-
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
-
     elif choice == "🔮 Oráculo": show_oracle_page()
-
     
-
-    
-
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
-
     elif choice == "🏥 Depto Médico": show_depto_medico()
-
     elif choice == "👥 Escalações": show_escalacoes()
-
     
-
     elif choice == "⚙️ Config": show_config_page()
-
     elif choice == "🔍 Testar Conexão Supabase": show_cloud_diagnostics()
 
-
-
 if __name__ == "__main__":
-
     main()
                 
+
 
 
 
