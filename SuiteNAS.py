@@ -3381,23 +3381,24 @@ def normalize_team_signature(abbr):
     }
     return mapping.get(abbr, abbr)
 
-# --- 1. ATOMIC GENERATOR ---
+# --- 1. ATOMIC GENERATOR (VERSÃO PERMISSIVA - MOSTRA TUDO) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
     
-    # 1. Mapeia times que jogam hoje (COM NORMALIZAÇÃO)
-    for g in games:
-        try:
-            h = normalize_team_signature(g.get('home'))
-            a = normalize_team_signature(g.get('away'))
-            gid = str(g.get('game_id') or g.get('id') or 'UNK')
-            
-            # Cria entrada para AMBOS os times apontando para o mesmo jogo
-            info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
-            if h != "UNK": game_info_map[h] = info
-            if a != "UNK": game_info_map[a] = info
-        except: continue
+    # 1. Mapeia times que jogam hoje
+    # Se a lista de jogos estiver vazia, não tem problema, o mapa fica vazio
+    if games:
+        for g in games:
+            try:
+                h = normalize_team_signature(g.get('home'))
+                a = normalize_team_signature(g.get('away'))
+                gid = str(g.get('game_id') or g.get('id') or 'UNK')
+                
+                info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
+                if h != "UNK": game_info_map[h] = info
+                if a != "UNK": game_info_map[a] = info
+            except: continue
 
     teams_active = set(game_info_map.keys())
     min_thresholds = {"PTS": 10, "REB": 4, "AST": 3, "3PM": 1, "STL": 1, "BLK": 1}
@@ -3409,12 +3410,21 @@ def generate_atomic_props(cache_data, games):
         raw_team = data.get('team', 'UNK')
         team = normalize_team_signature(raw_team)
         
-        # Filtro: Se não joga hoje, pula
-        # (Se for UNK normalizado, ele já cai fora aqui pois UNK não está em teams_active)
-        if team not in teams_active: 
-            continue
-            
-        g_info = game_info_map.get(team)
+        # --- MUDANÇA AQUI: NÃO PULAMOS MAIS O JOGADOR ---
+        is_active = team in teams_active
+        
+        if is_active:
+            g_info = game_info_map.get(team)
+            g_str = g_info.get('game_str')
+            g_id = g_info.get('game_id')
+        else:
+            # Se não joga hoje, mostramos mesmo assim, mas marcado como OFF
+            g_info = {}
+            g_str = "OFF / NO GAME"
+            g_id = "0"
+            # Opcional: Se quiser esconder quem não joga, descomente a linha abaixo:
+            # continue 
+
         logs = data.get('logs', {})
         pid = data.get('id', 0)
         
@@ -3436,12 +3446,13 @@ def generate_atomic_props(cache_data, games):
                             "record_str": f"{period}/{period}", 
                             "streak_val": period, 
                             "game_info": g_info, 
-                            "game_display": g_info.get('game_str'), 
-                            "game_id": g_info.get('game_id'),
-                            "player_id": pid
+                            "game_display": g_str, 
+                            "game_id": g_id,
+                            "player_id": pid,
+                            "active": is_active # Marcador pra UI saber se pinta de cinza ou não
                         })
                         
-    return sorted(atomic_props, key=lambda x: (x['streak_val'], x['line']), reverse=True)
+    return sorted(atomic_props, key=lambda x: (x['active'], x['streak_val'], x['line']), reverse=True)
 
 # --- 2. STREAK ENGINE ---
 def calculate_active_streak(vals, threshold):
@@ -8318,6 +8329,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
