@@ -3361,46 +3361,42 @@ def update_batch_cache(games_list, force_all=False):
 # 2. ENGINES (TODOS USANDO A NORMALIZAÇÃO GLOBAL)
 # ==============================================================================
 
-# --- 1. ATOMIC GENERATOR (PERMISSIVO PARA DEBUG) ---
-# --- 1. ATOMIC GENERATOR (MODO 80% CONFIDENCE) ---
+# ==============================================================================
+# 2. ENGINES (ATUALIZADO PARA LÓGICA DE ALTA FREQUÊNCIA - 80%+)
+# ==============================================================================
+
+# --- 1. ATOMIC GENERATOR (MODO 80% - JÁ ATUALIZADO) ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
     
-    # 1. Mapeia times que jogam hoje
     if games:
         for g in games:
             try:
                 h = normalize_team_signature(g.get('home'))
                 a = normalize_team_signature(g.get('away'))
                 gid = str(g.get('game_id') or g.get('id') or 'UNK')
-                
                 info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
                 if h != "UNK": game_info_map[h] = info
                 if a != "UNK": game_info_map[a] = info
             except: continue
 
     teams_active = set(game_info_map.keys())
-    
-    # Reduzi levemente os gatilhos mínimos para capturar mais volume
+    # Limites ligeiramente menores para capturar volume, depois filtramos pelo Hit Rate
     min_thresholds = {"PTS": 8, "REB": 3, "AST": 2, "3PM": 1, "STL": 1, "BLK": 1}
     
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
-        
         raw_team = data.get('team', 'UNK')
         team = normalize_team_signature(raw_team)
         
         is_active = team in teams_active
-        
         if is_active:
             g_info = game_info_map.get(team)
             g_str = g_info.get('game_str')
             g_id = g_info.get('game_id')
         else:
-            g_info = {}
-            g_str = "OFF / NO GAME"
-            g_id = "0"
+            g_info = {}; g_str = "OFF / NO GAME"; g_id = "0"
 
         logs = data.get('logs', {})
         pid = data.get('id', 0)
@@ -3409,64 +3405,47 @@ def generate_atomic_props(cache_data, games):
             vals = logs.get(stat, [])
             if not vals: continue
             
-            # Analisa L5 e L10 com tolerância de erro
             for period in [5, 10]:
                 if len(vals) >= period:
                     cut = vals[:period]
-                    
-                    # --- A MÁGICA DOS 80% ---
-                    # Ordena os valores do menor para o maior
                     sorted_cut = sorted(cut)
                     
-                    # Se for L5, permitimos 1 erro. Pegamos o 2º menor valor (índice 1)
-                    # Ex: [2, 10, 12, 15, 20] -> O piso ajustado é 10 (ignoramos o 2)
-                    if period == 5:
-                        adjusted_floor = sorted_cut[1] # Ignora o pior jogo (4/5 hit)
-                        hit_rate = "80%"
+                    # Lógica 80%: 
+                    # L5 permite 1 erro (pega o indice 1)
+                    # L10 permite 2 erros (pega o indice 2)
+                    idx = 1 if period == 5 else 2
+                    adjusted_floor = sorted_cut[idx]
                     
-                    # Se for L10, permitimos 2 erros. Pegamos o 3º menor valor (índice 2)
-                    # Ex: 8/10 hit
-                    elif period == 10:
-                        adjusted_floor = sorted_cut[2] # Ignora os 2 piores
-                        hit_rate = "80%"
-                    
-                    # Se o piso ajustado (excluindo o pior jogo) bater a meta:
                     if adjusted_floor >= min_req:
-                        # Verifica se é 100% ou 80% para rotular
                         real_min = min(cut)
-                        tag = "💎 100%" if real_min >= adjusted_floor else f"⚠️ {hit_rate}"
-                        
+                        # Tag visual para o Superbilhete
+                        if real_min >= adjusted_floor:
+                            tag = "💎 100%"
+                            hit_val = period
+                        else:
+                            tag = "🔥 80%"
+                            hit_val = period - 1
+                            
                         atomic_props.append({
-                            "player": name, 
-                            "team": team, 
-                            "stat": stat, 
+                            "player": name, "team": team, "stat": stat, 
                             "line": int(adjusted_floor),
                             "record_str": f"{tag} L{period}", 
-                            "streak_val": period if real_min >= adjusted_floor else period - 0.5, # Penaliza levemente na ordenação
-                            "game_info": g_info, 
-                            "game_display": g_str, 
-                            "game_id": g_id,
-                            "player_id": pid,
-                            "active": is_active
+                            "streak_val": hit_val, # Usado para ordenar melhores hits
+                            "game_info": g_info, "game_display": g_str, 
+                            "game_id": g_id, "player_id": pid, "active": is_active
                         })
                         
     return sorted(atomic_props, key=lambda x: (x['active'], x['streak_val'], x['line']), reverse=True)
 
-# --- 2. STREAK ENGINE ---
-def calculate_active_streak(vals, threshold):
-    streak = 0
-    for v in vals:
-        if v >= threshold: streak += 1
-        else: break
-    return streak
-
+# --- 2. TREND ENGINE (ANTIGO STREAKS - AGORA HÍBRIDO) ---
 def generate_iron_streaks(cache_data, games):
-    streaks = []
+    trends = []
+    # Escada de valores para testar
     ladders = {
-        "PTS": [10, 12, 15, 18, 20, 22, 25, 30],
-        "REB": [4, 5, 6, 7, 8, 9, 10, 12],
-        "AST": [3, 4, 5, 6, 7, 8, 9, 10],
-        "3PM": [1, 2, 3, 4, 5]
+        "PTS": [10, 15, 20, 25, 30],
+        "REB": [4, 6, 8, 10, 12],
+        "AST": [3, 5, 7, 9, 11],
+        "3PM": [1, 2, 3, 4]
     }
     
     team_opp_map = {}
@@ -3474,69 +3453,95 @@ def generate_iron_streaks(cache_data, games):
         h = normalize_team_signature(g.get('home'))
         a = normalize_team_signature(g.get('away'))
         if h != "UNK" and a != "UNK":
-            team_opp_map[h] = a
-            team_opp_map[a] = h
+            team_opp_map[h] = a; team_opp_map[a] = h
         
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
-        
         raw_team = data.get('team', 'UNK')
         team = normalize_team_signature(raw_team)
         
         if team not in team_opp_map: continue
-        
         opp = team_opp_map[team]
         logs = data.get('logs', {})
         pid = data.get('id', 0)
         
         for stat, levels in ladders.items():
             vals = logs.get(stat, [])
-            if not vals or len(vals) < 7: continue
+            if not vals or len(vals) < 10: continue # Mínimo 10 jogos para analisar tendência
             
-            best_streak = 0
-            best_line = 0
-            
-            for line in sorted(levels, reverse=True):
-                curr_streak = calculate_active_streak(vals, line)
-                if curr_streak >= 7: 
-                    best_streak = curr_streak
-                    best_line = line
-                    break 
-            
-            if best_streak >= 7:
-                streaks.append({
-                    "player": name, "team": team, "opp": opp, "id": pid,
-                    "stat": stat, "line": best_line,
-                    "streak": best_streak,
-                    "record_str": f"{best_streak}/{best_streak}"
-                })
+            # Analisa janelas L10, L15, L20
+            for window in [10, 15, 20]:
+                if len(vals) < window: continue
                 
-    return sorted(streaks, key=lambda x: x['streak'], reverse=True)
+                cut = vals[:window]
+                
+                for line in sorted(levels, reverse=True):
+                    hits = sum(1 for v in cut if v >= line)
+                    rate = hits / window
+                    
+                    # Regra: 
+                    # Se 100% -> Mostra (Sequência Pura)
+                    # Se >= 80% e janela >= 15 -> Mostra (Alta Tendência)
+                    
+                    if rate == 1.0:
+                        trends.append({
+                            "player": name, "team": team, "opp": opp, "id": pid,
+                            "stat": stat, "line": line,
+                            "rate_val": 1.0, # Para ordenação
+                            "label": f"💎 {hits}/{window} (100%)",
+                            "window": window
+                        })
+                        break # Se achou 100% numa linha alta, não precisa ver linhas menores
+                        
+                    elif rate >= 0.80 and window >= 10:
+                        trends.append({
+                            "player": name, "team": team, "opp": opp, "id": pid,
+                            "stat": stat, "line": line,
+                            "rate_val": rate,
+                            "label": f"🔥 {hits}/{window} ({int(rate*100)}%)",
+                            "window": window
+                        })
+                        break # Pega a melhor linha com bom rate
+    
+    # Ordena por: 1. Taxa de Acerto (100% > 80%), 2. Janela (L20 > L10), 3. Linha (Valor maior)
+    return sorted(trends, key=lambda x: (x['rate_val'], x['window'], x['line']), reverse=True)
 
-# --- 3. SGP ORGANIZER ---
+# --- 3. SGP ORGANIZER (COM SUPORTE A 80%) ---
 def organize_sgp_lab(atomic_props):
     unique_map = {}
+    # Filtra duplicatas mantendo a melhor linha
     for p in atomic_props:
         key = f"{p['player']}_{p['stat']}"
-        if key not in unique_map: unique_map[key] = p
+        if key not in unique_map: 
+            unique_map[key] = p
         else:
-            if p['line'] > unique_map[key]['line']: unique_map[key] = p      
-    
+            # Lógica de substituição: prefere 100% hit rate, se empatar, prefere linha maior
+            curr = unique_map[key]
+            # Se a nova prop tem hit 100% e a velha não, troca
+            if "💎" in p['record_str'] and "💎" not in curr['record_str']:
+                unique_map[key] = p
+            # Se ambas são iguais em qualidade, pega a maior linha
+            elif p['line'] > curr['line'] and ("💎" in p['record_str']) == ("💎" in curr['record_str']):
+                unique_map[key] = p
+
     deduplicated = list(unique_map.values())
     sgp_structure = {}
     
     for p in deduplicated:
         game_key = p.get('game_display', 'UNK')
-        # Filtra jogos inválidos ou OFF
-        if 'UNK' in game_key or 'OFF' in game_key: 
-            continue
+        if 'UNK' in game_key or 'OFF' in game_key: continue
             
         if game_key not in sgp_structure: sgp_structure[game_key] = []
         
         found = False
         for existing in sgp_structure[game_key]:
             if existing['player'] == p['player']:
-                existing['props'].append({"stat": p['stat'], "line": p['line'], "record": p['record_str']})
+                # Adiciona o hit rate na exibição
+                existing['props'].append({
+                    "stat": p['stat'], 
+                    "line": p['line'], 
+                    "record": p['record_str'] # Ex: "💎 100% L5"
+                })
                 found = True; break
         if not found:
             sgp_structure[game_key].append({
@@ -3547,12 +3552,15 @@ def organize_sgp_lab(atomic_props):
             
     final_output = {}
     for game, players in sgp_structure.items():
+        # Ordena jogadores com mais props primeiro
         players.sort(key=lambda x: len(x['props']), reverse=True)
         final_output[game] = players
     return final_output
 
-# --- 4. SQUADRON ENGINE ---
+# --- 4. SQUADRON ENGINE (MANTIDO) ---
 class SquadronEngine:
+    # (Mantenha o código da Squadron Engine igual ao anterior, 
+    # ele já vai consumir os dados 80% automaticamente vindo do organize_sgp_lab)
     def __init__(self):
         self.dvp = None; self.pace = None; self.vacuum = None
         try:
@@ -3686,7 +3694,7 @@ class SquadronEngine:
             
         return tickets
 
-# --- 5. SPECIALTY (SNIPER) ---
+# --- 5. SPECIALTY (SNIPER - MANTIDO) ---
 def generate_specialties(cache_data, games):
     specs_3pm = []
     specs_def = []
@@ -3742,7 +3750,7 @@ def generate_specialties(cache_data, games):
             "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
 # ==============================================================================
-# PÁGINA: RADAR CONSISTÊNCIA (V66.3 - UI FINAL)
+# PÁGINA: RADAR CONSISTÊNCIA (UI ATUALIZADA)
 # ==============================================================================
 def show_hit_prop_page():
     # --- CSS ---
@@ -3817,10 +3825,10 @@ def show_hit_prop_page():
 
     # 4. RENDER UI
     st.markdown('<div class="prop-title">RADAR <span style="color:#ef4444">CONSISTÊNCIA</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.3 (Gold Master)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.4 (High Frequency)</div>', unsafe_allow_html=True)
 
     tab_combos, tab_streaks, tab_specs, tab_sgp, tab_radar = st.tabs([
-        "🧬 COMBOS", "🛡️ SEQUÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
+        "🧬 COMBOS", "🛡️ SEQUÊNCIAS & TENDÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
     ])
 
     with tab_combos:
@@ -3844,17 +3852,20 @@ def show_hit_prop_page():
                         st.toast("Salvo!", icon="✅")
 
     with tab_streaks:
-        if not iron_streaks: st.info("Nenhuma sequência longa ativa (7+ jogos) hoje.")
+        if not iron_streaks: st.info("Nenhuma sequência ou tendência forte encontrada hoje.")
         else:
             for stat_key, stat_label in [("PTS", "🔥 PONTOS"), ("AST", "🧠 ASSISTÊNCIAS"), ("REB", "💪 REBOTES"), ("3PM", "🎯 3-POINTS")]:
                 subset = [s for s in iron_streaks if s['stat'] == stat_key]
                 if subset:
                     st.markdown(f"##### {stat_label}")
                     for s in subset:
-                        icon = "🔥" if s['streak'] >= 15 else "✅"
-                        col1, col2 = st.columns([3, 1])
+                        # Define ícone e cor baseado se é 100% ou 80%
+                        is_perfect = "100%" in s['label']
+                        color = "#10b981" if is_perfect else "#f59e0b" # Verde ou Laranja
+                        
+                        col1, col2 = st.columns([3, 1.2])
                         col1.markdown(f"**{s['player']}** vs {s['opp']} • **{s['line']}+ {s['stat']}**")
-                        col2.markdown(f"<span style='color:#10b981; font-weight:bold'>{icon} ({s['record_str']})</span>", unsafe_allow_html=True)
+                        col2.markdown(f"<span style='color:{color}; font-weight:bold; font-size:12px'>{s['label']}</span>", unsafe_allow_html=True)
                         st.divider()
 
     with tab_specs:
@@ -3881,19 +3892,16 @@ def show_hit_prop_page():
         for game_str, players in sgp_data.items():
             with st.expander(f"🏀 {game_str}", expanded=True):
                 for p in players:
-                    st.markdown(f"**{p['player']}**: " + " | ".join([f"{x['line']}+ {x['stat']}" for x in p['props']]))
+                    # Formata a string de props para mostrar o ícone de hit rate
+                    props_str = " | ".join([f"<span style='color:#cbd5e1'>{x['line']}+ {x['stat']}</span> <span style='font-size:10px'>({x['record']})</span>" for x in p['props']])
+                    st.markdown(f"**{p['player']}**: {props_str}", unsafe_allow_html=True)
 
     with tab_radar:
         if atomic_props:
             df = pd.DataFrame(atomic_props)
-            
-            # Formatação visual para destacar quem joga hoje
-            st.info("ℹ️ Mostrando todos os jogadores do cache (Ativos e Inativos). Verifique a coluna 'JOGO'.")
-            
-            # Seleciona e renomeia colunas para ficar bonito
+            st.info("ℹ️ Mostrando jogadores ativos e inativos (Ativos primeiro).")
             df_display = df[['player', 'team', 'game_display', 'stat', 'line', 'record_str']].copy()
             df_display.columns = ['JOGADOR', 'TIME', 'JOGO (HOJE)', 'STAT', 'LINHA MÍNIMA', 'RECORD']
-            
             st.dataframe(df_display, use_container_width=True)
         else:
             st.warning("Nenhum dado encontrado no cache L25.")
@@ -8335,6 +8343,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
