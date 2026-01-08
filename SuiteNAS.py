@@ -30,43 +30,29 @@ st.set_page_config(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ==============================================================================
-# HELPER FUNCTIONS (COLE ISTO NO INÍCIO OU ANTES DA SEÇÃO HIT PROP)
-# ==============================================================================
-
 def fix_team_abbr(abbr):
-    """Normaliza abreviações de times para o padrão 3 letras."""
+    """Normaliza abreviações da ESPN (2/3/4 letras) para o padrão NBA (3 letras)."""
     if not abbr: return "UNK"
     abbr = str(abbr).upper().strip()
     
-    # Mapeamento de correções comuns
     mapping = {
         'GS': 'GSW', 'NO': 'NOP', 'NY': 'NYK', 'SA': 'SAS', 
         'PHO': 'PHX', 'WSH': 'WAS', 'BK': 'BKN', 'UTA': 'UTA',
-        'UTAH': 'UTA', 'NOR': 'NOP'
+        'UTAH': 'UTA', 'NOR': 'NOP', 'WAS': 'WAS', 'WAS': 'WAS',
+        'SA': 'SAS', 'NA': 'NOP' # Às vezes a API buga
     }
     return mapping.get(abbr, abbr)
 
-def normalize_name(n):
-    """Normaliza nomes de jogadores para busca."""
-    import unicodedata
-    import re
-    if not n: return ""
-    n = str(n).lower().replace(".", " ").replace(",", " ").replace("-", " ")
-    n = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", n)
-    n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
-    return " ".join(n.split())
-
 def fetch_espn_scoreboard(progress_ui=False):
-    """Busca jogos de hoje na API da ESPN e salva na Sessão."""
+    """Busca jogos na ESPN e converte siglas para padrão NBA (GS -> GSW)."""
     import requests
     try:
-        if progress_ui: st.toast("Buscando jogos na ESPN...", icon="🏀")
+        if progress_ui: st.toast("Atualizando jogos...", icon="🏀")
         
-        # URL da API pública da ESPN
         url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         headers = {"User-Agent": "Mozilla/5.0"}
         
+        # Timeout curto para não travar
         resp = requests.get(url, headers=headers, timeout=5)
         data = resp.json()
         
@@ -74,13 +60,13 @@ def fetch_espn_scoreboard(progress_ui=False):
         for event in data.get('events', []):
             try:
                 comp = event['competitions'][0]
-                home = comp['competitors'][0]['team']['abbreviation']
-                away = comp['competitors'][1]['team']['abbreviation']
+                raw_home = comp['competitors'][0]['team']['abbreviation']
+                raw_away = comp['competitors'][1]['team']['abbreviation']
                 gid = event['id']
                 
-                # Normaliza nomes (NY -> NYK, UT -> UTA)
-                home = fix_team_abbr(home)
-                away = fix_team_abbr(away)
+                # AQUI ESTÁ A MÁGICA: Converte GS -> GSW
+                home = fix_team_abbr(raw_home)
+                away = fix_team_abbr(raw_away)
                 
                 games.append({
                     "home": home,
@@ -90,12 +76,11 @@ def fetch_espn_scoreboard(progress_ui=False):
                 })
             except: continue
             
-        # Salva na sessão
         st.session_state['scoreboard'] = games
         return games
         
     except Exception as e:
-        if progress_ui: st.error(f"Erro ao buscar jogos: {e}")
+        if progress_ui: st.error(f"Erro Scoreboard: {e}")
         return []
         
     
@@ -8271,12 +8256,17 @@ def show_dashboard_page():
                     odds_map=odds_cache
                 )
 # ============================================================================
-# EXECUÇÃO PRINCIPAL (CORRIGIDA E CONSOLIDADA)
+# EXECUÇÃO PRINCIPAL (V65.1 - COM SCOREBOARD INTEGRADO)
 # ============================================================================
 def main():
-    st.set_page_config(page_title="DigiBets IA", layout="wide", page_icon="🏀")
+    st.set_page_config(
+        page_title="DigiBets IA", 
+        layout="wide", 
+        page_icon="🏀",
+        initial_sidebar_state="expanded" # Garante menu aberto
+    )
     
-    # CSS GLOBAL CRÍTICO (FUNDO PRETO & FONTE NUNITO & REMOÇÃO DE ESPAÇOS)
+    # CSS GLOBAL (MANTIDO EXATAMENTE IGUAL AO SEU)
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&family=Oswald:wght@400;600&display=swap');
@@ -8346,8 +8336,9 @@ def main():
     
     safe_load_initial_data()
 
-    # --- MENU LATERAL (DENTRO DO MAIN PARA FUNCIONAR) ---
+    # --- MENU LATERAL UNIFICADO ---
     with st.sidebar:
+        # 1. Logo e Título
         st.markdown(f"""
             <div style="text-align: center; padding-bottom: 10px;">
                 <img src="https://i.ibb.co/TxfVPy49/Sem-t-tulo.png" width="150" style="margin-bottom: 5px;">
@@ -8357,6 +8348,32 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
+        st.divider()
+
+        # 2. SCOREBOARD INTEGRADO (MOSTRA JOGOS NA SIDEBAR)
+        st.caption("🏀 JOGOS DE HOJE")
+        # Tenta pegar da sessão
+        sb_games = st.session_state.get('scoreboard', [])
+        
+        # Se vazio, tenta buscar rapidinho (sem UI blocking)
+        if not sb_games:
+            # Chama a função fetch que já definimos antes
+            try: sb_games = fetch_espn_scoreboard(False)
+            except: pass
+            
+        if sb_games:
+            # Mostra estilo ticker compacto
+            for g in sb_games:
+                st.markdown(f"<div style='font-size:12px; color:#cbd5e1; margin-bottom:4px;'>• <b>{g['away']}</b> @ <b>{g['home']}</b></div>", unsafe_allow_html=True)
+        else:
+            st.warning("Nenhum jogo detectado.")
+            if st.button("🔄 Buscar Jogos", key="btn_sb_sidebar"):
+                fetch_espn_scoreboard(True)
+                st.rerun()
+        
+        st.divider()
+
+        # 3. NAVEGAÇÃO
         MENU_ITEMS = [
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
@@ -8385,7 +8402,6 @@ def main():
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
     elif choice == "🔮 Oráculo": show_oracle_page()
     
-    
     elif choice == "🛡️ DvP Confrontos": show_dvp_analysis()
     elif choice == "🏥 Depto Médico": show_depto_medico()
     elif choice == "👥 Escalações": show_escalacoes()
@@ -8395,8 +8411,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-
                 
+
 
 
 
