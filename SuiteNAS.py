@@ -3199,17 +3199,21 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V66.0 - COMMAND CENTER (FINAL STABLE & CORRECTED)
+# ☢️ HIT PROP HUNTER V66.2 - COMMAND CENTER (FINAL STABLE & NORMALIZED)
 # ==============================================================================
 
 import concurrent.futures
 import statistics
 import random
+import time
+import pandas as pd
+import streamlit as st
+import os
 from itertools import combinations
 from datetime import datetime
 
 # ==============================================================================
-# 1. DATA FETCHING & NORMALIZATION (FIX CRÍTICO: DETECÇÃO DE TIME E VOLUME)
+# 1. DATA FETCHING & NORMALIZATION (COM AUTO-DETECÇÃO DE TIME)
 # ==============================================================================
 
 def get_player_logs_hit_prop(name):
@@ -3337,8 +3341,8 @@ def update_batch_cache(games_list, force_all=False):
                 # Pega o time que o fetcher descobriu
                 real_team = logs.pop('team_detected', 'UNK')
                 
-                # Normaliza (GS -> GSW) por garantia usando a função global
-                try: real_team = fix_team_abbr(real_team)
+                # Normaliza (GS -> GSW) por garantia
+                try: real_team = normalize_team_signature(real_team)
                 except: pass
 
                 full_cache[name] = {
@@ -3357,26 +3361,43 @@ def update_batch_cache(games_list, force_all=False):
     time.sleep(1)
 
 # ==============================================================================
-# 2. ENGINES (MANTIDOS E INTEGRADOS)
+# 2. ENGINES (CORRIGIDOS COM NORMALIZAÇÃO DE SIGLAS)
 # ==============================================================================
 
+# --- HELPER CRÍTICO: TRADUÇÃO DE TIMES ---
+def normalize_team_signature(abbr):
+    """
+    Garante que siglas da ESPN (ex: GS, NO, NY) batam com as da NBA API (GSW, NOP, NYK).
+    Isso conserta o bug de abas vazias.
+    """
+    if not abbr: return "UNK"
+    abbr = str(abbr).upper().strip()
+    
+    mapping = {
+        "GS": "GSW", "PHX": "PHX", "PHO": "PHX", "NO": "NOP", "NOP": "NOP",
+        "NY": "NYK", "NYK": "NYK", "SA": "SAS", "SAS": "SAS", "UTAH": "UTA",
+        "UTA": "UTA", "WSH": "WAS", "WAS": "WAS", "BK": "BKN", "BKN": "BKN",
+        "CHA": "CHA", "CHO": "CHA"
+    }
+    return mapping.get(abbr, abbr)
+
+# --- 1. ATOMIC GENERATOR ---
 def generate_atomic_props(cache_data, games):
     atomic_props = []
     game_info_map = {}
     
-    # 1. Mapeia times que jogam hoje
+    # 1. Mapeia times que jogam hoje (COM NORMALIZAÇÃO)
     for g in games:
         try:
-            h = fix_team_abbr(g.get('home', 'UNK'))
-            a = fix_team_abbr(g.get('away', 'UNK'))
-        except:
-            h = str(g.get('home')).upper()
-            a = str(g.get('away')).upper()
-
-        gid = str(g.get('game_id') or g.get('id') or 'UNK')
-        info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
-        if h != "UNK": game_info_map[h] = info
-        if a != "UNK": game_info_map[a] = info
+            h = normalize_team_signature(g.get('home'))
+            a = normalize_team_signature(g.get('away'))
+            gid = str(g.get('game_id') or g.get('id') or 'UNK')
+            
+            # Cria entrada para AMBOS os times apontando para o mesmo jogo
+            info = {"game_id": gid, "game_str": f"{a} @ {h}", "home": h, "away": a}
+            if h != "UNK": game_info_map[h] = info
+            if a != "UNK": game_info_map[a] = info
+        except: continue
 
     teams_active = set(game_info_map.keys())
     min_thresholds = {"PTS": 10, "REB": 4, "AST": 3, "3PM": 1, "STL": 1, "BLK": 1}
@@ -3384,39 +3405,27 @@ def generate_atomic_props(cache_data, games):
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
         
-        # Pega time e corrige
+        # Pega time do cache e normaliza
         raw_team = data.get('team', 'UNK')
-        try: team = fix_team_abbr(raw_team)
-        except: team = raw_team
+        team = normalize_team_signature(raw_team)
         
-        # --- CORREÇÃO CRÍTICA AQUI ---
-        # Se for UNK, permitimos passar para Debug, mas marcamos como sem jogo.
-        # Se tiver time definido mas não joga hoje, aí sim filtramos.
-        if team != 'UNK' and team not in teams_active: 
-            continue 
+        # Filtro: Se não joga hoje, pula
+        # (Se for UNK normalizado, ele já cai fora aqui pois UNK não está em teams_active)
+        if team not in teams_active: 
+            continue
             
-        # Define info do jogo (ou placeholder se for UNK)
-        if team == 'UNK':
-            g_info = {"game_str": "Time Desconhecido (UNK)", "game_id": "0"}
-        else:
-            g_info = game_info_map.get(team, {})
-
+        g_info = game_info_map.get(team)
         logs = data.get('logs', {})
         pid = data.get('id', 0)
         
         for stat, min_req in min_thresholds.items():
             vals = logs.get(stat, [])
+            if not vals: continue
             
-            # Proteção contra listas vazias ou nulas (Max Strus)
-            if not vals or len(vals) == 0: 
-                continue
-            
-            # Loop de períodos (5 e 10 jogos)
             for period in [5, 10]:
-                # Proteção para jogadores com poucos jogos (Kam Jones tem 7, falharia no L10)
                 if len(vals) >= period:
                     cut = vals[:period]
-                    floor = min(cut) # Seguro pois len >= period
+                    floor = min(cut)
                     
                     if floor >= min_req:
                         atomic_props.append({
@@ -3433,7 +3442,7 @@ def generate_atomic_props(cache_data, games):
                         })
                         
     return sorted(atomic_props, key=lambda x: (x['streak_val'], x['line']), reverse=True)
-    
+
 # --- 2. STREAK ENGINE ---
 def calculate_active_streak(vals, threshold):
     streak = 0
@@ -3452,13 +3461,10 @@ def generate_iron_streaks(cache_data, games):
     }
     
     team_opp_map = {}
+    # Mapa de Oponentes (COM NORMALIZAÇÃO)
     for g in games:
-        try:
-            h = fix_team_abbr(g.get('home', 'UNK'))
-            a = fix_team_abbr(g.get('away', 'UNK'))
-        except:
-            h = str(g.get('home')).upper()
-            a = str(g.get('away')).upper()
+        h = normalize_team_signature(g.get('home'))
+        a = normalize_team_signature(g.get('away'))
         if h != "UNK" and a != "UNK":
             team_opp_map[h] = a
             team_opp_map[a] = h
@@ -3467,13 +3473,9 @@ def generate_iron_streaks(cache_data, games):
         if not isinstance(data, dict): continue
         
         raw_team = data.get('team', 'UNK')
-        try: team = fix_team_abbr(raw_team)
-        except: team = raw_team
+        team = normalize_team_signature(raw_team)
         
-        # Se for UNK, pulamos no Streaks (pois precisa de oponente pra fazer sentido)
-        # Se não tiver oponente hoje, também pula.
-        if team not in team_opp_map: 
-            continue
+        if team not in team_opp_map: continue
         
         opp = team_opp_map[team]
         logs = data.get('logs', {})
@@ -3481,9 +3483,7 @@ def generate_iron_streaks(cache_data, games):
         
         for stat, levels in ladders.items():
             vals = logs.get(stat, [])
-            # Proteção: precisa de pelo menos 7 jogos para uma streak de 7
-            if not vals or len(vals) < 7: 
-                continue
+            if not vals or len(vals) < 7: continue
             
             best_streak = 0
             best_line = 0
@@ -3512,13 +3512,19 @@ def organize_sgp_lab(atomic_props):
         key = f"{p['player']}_{p['stat']}"
         if key not in unique_map: unique_map[key] = p
         else:
-            if p['line'] > unique_map[key]['line']: unique_map[key] = p     
+            if p['line'] > unique_map[key]['line']: unique_map[key] = p      
+    
     deduplicated = list(unique_map.values())
     sgp_structure = {}
+    
     for p in deduplicated:
         game_key = p.get('game_display', 'UNK')
-        if 'UNK' in game_key: continue
+        # Filtra jogos inválidos
+        if 'UNK' in game_key and 'Time Desconhecido' in game_key: 
+            continue
+            
         if game_key not in sgp_structure: sgp_structure[game_key] = []
+        
         found = False
         for existing in sgp_structure[game_key]:
             if existing['player'] == p['player']:
@@ -3530,6 +3536,7 @@ def organize_sgp_lab(atomic_props):
                 "game_id": p.get('game_id'),
                 "props": [{"stat": p['stat'], "line": p['line'], "record": p['record_str']}]
             })
+            
     final_output = {}
     for game, players in sgp_structure.items():
         players.sort(key=lambda x: len(x['props']), reverse=True)
@@ -3676,20 +3683,16 @@ def generate_specialties(cache_data, games):
     specs_3pm = []
     specs_def = []
     active_teams = set()
+    
+    # Lista de Times Ativos (COM NORMALIZAÇÃO)
     for g in games:
-        # Usa fix_team_abbr se disponível
-        try:
-            active_teams.add(fix_team_abbr(g.get('home', 'UNK')))
-            active_teams.add(fix_team_abbr(g.get('away', 'UNK')))
-        except:
-            active_teams.add(g.get('home'))
-            active_teams.add(g.get('away'))
+        active_teams.add(normalize_team_signature(g.get('home')))
+        active_teams.add(normalize_team_signature(g.get('away')))
         
     for name, data in cache_data.items():
         if not isinstance(data, dict): continue
         raw_team = data.get('team', 'UNK')
-        try: team = fix_team_abbr(raw_team)
-        except: team = raw_team
+        team = normalize_team_signature(raw_team)
         
         if team not in active_teams: continue
         
@@ -3732,7 +3735,7 @@ def generate_specialties(cache_data, games):
             "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
 # ==============================================================================
-# PÁGINA: RADAR CONSISTÊNCIA (V66.1 - LIMPA E DESTRAVADA)
+# PÁGINA: RADAR CONSISTÊNCIA (V66.2 - UI)
 # ==============================================================================
 def show_hit_prop_page():
     # --- CSS ---
@@ -3799,10 +3802,6 @@ def show_hit_prop_page():
     # Gera dados atômicos
     atomic_props = generate_atomic_props(cache_data, games)
     
-    # REMOVI O BLOCO DE DEBUG AQUI QUE ESTAVA TRAVANDO A PÁGINA
-    # Se atomic_props estiver vazio, ele simplesmente seguirá e mostrará abas vazias,
-    # permitindo que você navegue ou que outras engines (como Streaks) funcionem se tiverem dados.
-
     iron_streaks = generate_iron_streaks(cache_data, games)
     sgp_data = organize_sgp_lab(atomic_props)
     specs = generate_specialties(cache_data, games)
@@ -3811,7 +3810,7 @@ def show_hit_prop_page():
 
     # 4. RENDER UI
     st.markdown('<div class="prop-title">RADAR <span style="color:#ef4444">CONSISTÊNCIA</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.1</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.2 (Normalized)</div>', unsafe_allow_html=True)
 
     tab_combos, tab_streaks, tab_specs, tab_sgp, tab_radar = st.tabs([
         "🧬 COMBOS", "🛡️ SEQUÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
@@ -8319,6 +8318,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
