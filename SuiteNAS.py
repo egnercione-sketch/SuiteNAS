@@ -548,87 +548,7 @@ def normalize_cache_keys(cache_data):
             logs['3PA'] = logs.get('FGA', [0]*len(logs.get('PTS', [])))
         
         data['logs'] = logs
-    return cache_data
-
-def update_batch_cache(games_list, force_all=False):
-    """
-    Função Mestra de Atualização do Radar Consistência.
-    """
-    KEY_LOGS = "real_game_logs"
-    
-    # 1. Carrega Cache Atual (Nuvem)
-    full_cache = get_data_universal(KEY_LOGS) or {}
-    if not isinstance(full_cache, dict): full_cache = {}
-    
-    status = st.status("☁️ Sincronizando Radar Consistência...", expanded=True)
-    players_needed = set()
-    
-    # --- FIX CRÍTICO DATAFRAME L5 ---
-    if 'df_l5' in st.session_state:
-        df = st.session_state['df_l5']
-        if not df.empty:
-            # Normaliza nomes das colunas
-            df.columns = [str(c).upper().strip() for c in df.columns]
-            
-            # Busca dinâmica da coluna de nome
-            name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
-            
-            if name_col:
-                for p in df[name_col].unique(): 
-                    if p: players_needed.add(str(p))
-    # -----------------------------
-    
-    if not players_needed:
-        # Fallback de segurança
-        players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
-
-    pending = []
-    now = datetime.now()
-    
-    for p_name in players_needed:
-        # Se FORCE_ALL, ignora cache e baixa de novo
-        if force_all:
-            pending.append(p_name); continue
-            
-        if p_name not in full_cache: 
-            pending.append(p_name); continue
-            
-        # Verifica se tem a chave nova 3PA
-        if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
-            pending.append(p_name); continue
-
-        # Verifica validade (24h)
-        try:
-            dt_last = datetime.fromisoformat(full_cache[p_name].get('updated', '2000-01-01'))
-            if (now - dt_last).total_seconds() > 86400: pending.append(p_name)
-        except: pending.append(p_name)
-
-    if not pending:
-        status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
-
-    status.write(f"⚡ Baixando {len(pending)} perfis completos...")
-    
-    # Download Paralelo
-    def fetch_task(name): return (name, get_player_logs_hit_prop(name))
-    
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(fetch_task, p) for p in pending]
-        completed = 0
-        for f in concurrent.futures.as_completed(futures):
-            name, logs = f.result()
-            if logs:
-                pid = logs.pop('id', 0)
-                full_cache[name] = {"name": name, "team": "UNK", "id": pid, "logs": logs, "updated": str(datetime.now())}
-            completed += 1
-            if completed % 5 == 0: 
-                status.write(f"Progresso: {completed}/{len(pending)}")
-            
-    # Salva na Nuvem
-    save_data_universal(KEY_LOGS, full_cache)
-    status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
-    time.sleep(1)
-    
+    return cache_data  
 # ============================================================================
 # 8. FUNÇÕES DE FETCH ESTATÍSTICO (STATSMANAGER)
 # ============================================================================
@@ -3314,47 +3234,83 @@ def normalize_cache_keys(cache_data):
         data['logs'] = logs
     return cache_data
 
-def update_batch_cache(games_list):
+def update_batch_cache(games_list, force_all=False):
+    """
+    Função Mestra de Atualização do Radar Consistência.
+    """
     KEY_LOGS = "real_game_logs"
+    
+    # 1. Carrega Cache Atual (Nuvem)
     full_cache = get_data_universal(KEY_LOGS) or {}
     if not isinstance(full_cache, dict): full_cache = {}
     
-    status = st.status("☁️ Sincronizando...", expanded=True)
+    status = st.status("☁️ Sincronizando Radar Consistência...", expanded=True)
     players_needed = set()
+    
+    # --- FIX CRÍTICO DATAFRAME L5 ---
     if 'df_l5' in st.session_state:
         df = st.session_state['df_l5']
         if not df.empty:
-            for p in df['PLAYER'].unique(): players_needed.add(p)
+            # Normaliza nomes das colunas
+            df.columns = [str(c).upper().strip() for c in df.columns]
+            
+            # Busca dinâmica da coluna de nome
+            name_col = next((c for c in df.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), None)
+            
+            if name_col:
+                for p in df[name_col].unique(): 
+                    if p: players_needed.add(str(p))
+    # -----------------------------
     
     if not players_needed:
-        status.update(label="⚠️ Aguardando dados.", state="complete"); return
+        # Fallback de segurança
+        players_needed = {"LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic"}
 
     pending = []
     now = datetime.now()
+    
     for p_name in players_needed:
-        if p_name not in full_cache: pending.append(p_name); continue
+        # Se FORCE_ALL, ignora cache e baixa de novo
+        if force_all:
+            pending.append(p_name); continue
+            
+        if p_name not in full_cache: 
+            pending.append(p_name); continue
+            
+        # Verifica se tem a chave nova 3PA
+        if 'logs' in full_cache[p_name] and '3PA' not in full_cache[p_name]['logs']:
+            pending.append(p_name); continue
+
+        # Verifica validade (24h)
         try:
             dt_last = datetime.fromisoformat(full_cache[p_name].get('updated', '2000-01-01'))
             if (now - dt_last).total_seconds() > 86400: pending.append(p_name)
         except: pending.append(p_name)
 
     if not pending:
-        status.update(label="✅ Sincronizado!", state="complete", expanded=False); return
+        status.update(label="✅ Tudo Sincronizado!", state="complete", expanded=False); return
 
-    status.write(f"⚡ Baixando {len(pending)}...")
+    status.write(f"⚡ Baixando {len(pending)} perfis completos...")
     
-    def fetch_task(name): return (name, get_player_logs(name))
+    # Download Paralelo
+    def fetch_task(name): return (name, get_player_logs_hit_prop(name))
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(fetch_task, p) for p in pending]
+        completed = 0
         for f in concurrent.futures.as_completed(futures):
             name, logs = f.result()
             if logs:
                 pid = logs.pop('id', 0)
                 full_cache[name] = {"name": name, "team": "UNK", "id": pid, "logs": logs, "updated": str(datetime.now())}
+            completed += 1
+            if completed % 5 == 0: 
+                status.write(f"Progresso: {completed}/{len(pending)}")
             
+    # Salva na Nuvem
     save_data_universal(KEY_LOGS, full_cache)
-    status.update(label="✅ Atualizado!", state="complete", expanded=False)
+    status.update(label="✅ Atualizado com Sucesso!", state="complete", expanded=False)
     time.sleep(1)
 
 # ==============================================================================
@@ -8260,6 +8216,7 @@ if __name__ == "__main__":
     main()
 
                 
+
 
 
 
