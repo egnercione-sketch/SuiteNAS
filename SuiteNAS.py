@@ -3709,7 +3709,7 @@ def generate_specialties(cache_data, games):
             "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
 # ==============================================================================
-# PÁGINA: RADAR CONSISTÊNCIA (V66.0)
+# PÁGINA: RADAR CONSISTÊNCIA (V66.1 - LIMPA E DESTRAVADA)
 # ==============================================================================
 def show_hit_prop_page():
     # --- CSS ---
@@ -3773,15 +3773,12 @@ def show_hit_prop_page():
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     # 3. RUN ENGINES
+    # Gera dados atômicos
     atomic_props = generate_atomic_props(cache_data, games)
     
-    # DEBUG SE VAZIO
-    if not atomic_props:
-        with st.expander("🕵️ POR QUE ESTÁ VAZIO?", expanded=True):
-            st.write(f"Jogadores no Cache: {len(cache_data)}")
-            st.write(f"Times no Scoreboard: {[g['home'] for g in games] + [g['away'] for g in games]}")
-            st.write(f"Dica: Se o cache tiver time 'UNK', faça Hard Reset.")
-        return
+    # REMOVI O BLOCO DE DEBUG AQUI QUE ESTAVA TRAVANDO A PÁGINA
+    # Se atomic_props estiver vazio, ele simplesmente seguirá e mostrará abas vazias,
+    # permitindo que você navegue ou que outras engines (como Streaks) funcionem se tiverem dados.
 
     iron_streaks = generate_iron_streaks(cache_data, games)
     sgp_data = organize_sgp_lab(atomic_props)
@@ -3791,14 +3788,14 @@ def show_hit_prop_page():
 
     # 4. RENDER UI
     st.markdown('<div class="prop-title">RADAR <span style="color:#ef4444">CONSISTÊNCIA</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="prop-sub">CENTRAL DE COMANDO L25 • V66.1</div>', unsafe_allow_html=True)
 
     tab_combos, tab_streaks, tab_specs, tab_sgp, tab_radar = st.tabs([
         "🧬 COMBOS", "🛡️ SEQUÊNCIAS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR GERAL"
     ])
 
     with tab_combos:
-        if not combo_tickets: st.info("Nenhum combo.")
+        if not combo_tickets: st.info("Nenhum combo de alta fidelidade encontrado hoje.")
         for ticket in combo_tickets:
             with st.container(border=True):
                 c1, c2 = st.columns([3, 1])
@@ -3818,7 +3815,7 @@ def show_hit_prop_page():
                         st.toast("Salvo!", icon="✅")
 
     with tab_streaks:
-        if not iron_streaks: st.info("Nenhuma sequência longa.")
+        if not iron_streaks: st.info("Nenhuma sequência longa ativa (7+ jogos) hoje.")
         else:
             for stat_key, stat_label in [("PTS", "🔥 PONTOS"), ("AST", "🧠 ASSISTÊNCIAS"), ("REB", "💪 REBOTES"), ("3PM", "🎯 3-POINTS")]:
                 subset = [s for s in iron_streaks if s['stat'] == stat_key]
@@ -3835,6 +3832,7 @@ def show_hit_prop_page():
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("#### 🎯 3-Point Snipers")
+            if not specs['3PM']: st.caption("Nenhum destaque.")
             for s in specs['3PM']:
                 with st.container(border=True):
                     sc1, sc2 = st.columns([1, 3])
@@ -3842,6 +3840,7 @@ def show_hit_prop_page():
                     sc2.markdown(f"**{s['player']}**\n<span style='color:#22d3ee; font-weight:bold;'>{s['line']}+ 3PM</span>\n<span style='font-size:10px'>{s['sub_text']}</span>", unsafe_allow_html=True)
         with c2:
             st.markdown("#### 🛡️ Defenders")
+            if not specs['DEF']: st.caption("Nenhum destaque.")
             for s in specs['DEF']:
                 with st.container(border=True):
                     sc1, sc2 = st.columns([1, 3])
@@ -8297,6 +8296,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
