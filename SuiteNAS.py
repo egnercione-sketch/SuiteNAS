@@ -2058,9 +2058,9 @@ class NexusEngine:
             players_list = self.roster_map.get(team, [])
             if not players_list: continue
 
-            # Busca o "Motor" (Líder em Assistências)
+            # 1. Busca o "Motor" (Líder em Assistências)
             motor = None
-            max_ast = 5.5 # Baixei o sarrafo pra achar mais gente
+            max_ast = 4.5 # Baixei drasticamente para pegar qualquer armador titular
             
             for p in players_list:
                 avg = self._get_avg_stat(p, 'AST')
@@ -2070,12 +2070,12 @@ class NexusEngine:
             
             if not motor: continue
 
-            # Busca o "Finalizador" (Líder em Pontos)
+            # 2. Busca o "Finalizador" (Líder em Pontos - Diferente do Motor)
             finisher = None
-            max_pts = 18.0 # Baixei o sarrafo
+            max_pts = 15.0 # Baixei para 15.0 para pegar segunda opção ofensiva
             
             for p in players_list:
-                if p == motor: continue # Não pode ser o mesmo
+                if p == motor: continue # Não pode ser o mesmo (Luka não pode tocar pra ele mesmo)
                 avg = self._get_avg_stat(p, 'PTS')
                 if avg > max_pts:
                     max_pts = avg
@@ -2085,13 +2085,13 @@ class NexusEngine:
 
             # Se achou a dupla, calcula Score
             t_ast = math.ceil(max_ast - 0.5)
-            t_pts = math.floor(max_pts) # Piso para ser seguro
+            t_pts = math.floor(max_pts) 
             
             # Score Base
             score = 50 
             badges = []
             
-            # Bonificações
+            # Bonificações (Para diferenciar os bons dos ótimos)
             if max_ast >= 8.0: score += 10; badges.append("🧠 Elite Playmaker")
             if max_pts >= 25.0: score += 10; badges.append("🎯 Elite Scorer")
             
@@ -2101,17 +2101,31 @@ class NexusEngine:
                 pace = self.pace_adjuster.calculate_game_pace(team, opp)
                 if pace >= 100: 
                     score += 10
-                    badges.append(f"🏎️ Pace Alto: {int(pace)}")
+                    badges.append(f"🏎️ Pace: {int(pace)}")
             
-            # Filtro Final (Mais permissivo: 55+)
-            if score >= 55:
+            # --- MUDANÇA CRÍTICA: ACEITA SCORE 50 (Básico) ---
+            if score >= 50:
                 found.append({
                     "type": "SGP",
                     "title": "SGP: SINERGIA OFENSIVA",
                     "score": score,
                     "color": "#eab308",
-                    "hero": {"name": motor, "photo": self.get_photo(motor), "role": "PASSADOR", "stat": "AST", "target": f"{t_ast}+", "logo": self.get_team_logo(team)},
-                    "partner": {"name": finisher, "photo": self.get_photo(finisher), "role": "CESTINHA", "stat": "PTS", "target": f"{t_pts}+", "logo": self.get_team_logo(team)},
+                    "hero": {
+                        "name": motor, 
+                        "photo": self.get_photo(motor), 
+                        "role": "PASSADOR", 
+                        "stat": "AST", 
+                        "target": f"{t_ast}+", 
+                        "logo": self.get_team_logo(team)
+                    },
+                    "partner": {
+                        "name": finisher, 
+                        "photo": self.get_photo(finisher), 
+                        "role": "CESTINHA", 
+                        "stat": "PTS", 
+                        "target": f"{t_pts}+", 
+                        "logo": self.get_team_logo(team)
+                    },
                     "badges": badges
                 })
         return found
@@ -8392,6 +8406,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
