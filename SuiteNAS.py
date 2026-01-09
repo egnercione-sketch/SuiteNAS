@@ -2407,7 +2407,7 @@ class NexusEngine:
         return best
 
 # ============================================================================
-# PÁGINA: TRINITY CLUB (V16.0 - GOLD EDITION & CONTEXT BAR)
+# PÁGINA: TRINITY CLUB (V17.0 - NUCLEAR ID MATCHING)
 # ============================================================================
 def show_trinity_club_page():
     import os
@@ -2416,12 +2416,11 @@ def show_trinity_club_page():
     import re
     import unicodedata
 
-    # --- 1. CSS VISUAL (REFINADO) ---
+    # --- 1. CSS VISUAL (MANTIDO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;600&display=swap');
         
-        /* CARD PRINCIPAL */
         .trin-card {
             background-color: #0f172a;
             border: 1px solid #334155;
@@ -2431,34 +2430,20 @@ def show_trinity_club_page():
             box-shadow: 0 4px 10px rgba(0,0,0,0.4);
             transition: all 0.3s ease;
         }
-        
-        /* DESTAQUE GOLD (FULL TRINITY) */
         .trin-card.gold-member {
             border: 1px solid #D4AF37;
             box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
             background: linear-gradient(180deg, rgba(212, 175, 55, 0.05) 0%, #0f172a 100%);
         }
-
         .trin-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
+        .trin-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
         
-        .trin-meta { 
-            font-family: 'Inter'; font-size: 11px; color: #94a3b8; 
-            display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
-        }
-        
-        /* COLUNAS L5/L10/L15 */
-        .col-header {
-            text-align: center; font-family: 'Oswald'; font-size: 11px; font-weight: bold;
-            padding: 3px; border-radius: 4px; margin-bottom: 6px; letter-spacing: 1px;
-        }
+        .col-header { text-align: center; font-family: 'Oswald'; font-size: 11px; font-weight: bold; padding: 3px; border-radius: 4px; margin-bottom: 6px; letter-spacing: 1px; }
         .head-l5 { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; }
         .head-l10 { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid #eab308; }
         .head-l15 { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6; }
 
-        .stat-box { 
-            text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 6px; 
-            padding: 4px; border: 1px solid #334155; margin-bottom: 4px;
-        }
+        .stat-box { text-align: center; background: rgba(30, 41, 59, 0.5); border-radius: 6px; padding: 4px; border: 1px solid #334155; margin-bottom: 4px; }
         .stat-val { font-family: 'Oswald'; font-size: 16px; font-weight: bold; line-height: 1; }
         .stat-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: 600; }
         
@@ -2467,72 +2452,34 @@ def show_trinity_club_page():
         .color-ast { color: #60a5fa; } 
         .color-def { color: #e2e8f0; } 
 
-        /* BARRA DE CONTEXTO (NOVO FOOTER) */
-        .context-bar {
-            display: flex;
-            gap: 8px;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #334155;
-            flex-wrap: wrap;
-        }
-        
-        .ctx-pill {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid #475569;
-            border-radius: 4px;
-            padding: 2px 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 10px;
-            color: #cbd5e1;
-            font-family: 'Inter';
-        }
-        
-        .ctx-icon { font-size: 12px; }
+        .context-bar { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #334155; flex-wrap: wrap; }
+        .ctx-pill { background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; border-radius: 4px; padding: 2px 8px; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #cbd5e1; font-family: 'Inter'; }
         .ctx-val { color: #fff; font-weight: bold; font-family: 'Oswald'; margin-left: 2px; }
         
-        .trin-img {
-            border-radius: 50%; border: 2px solid #334155;
-            width: 65px; height: 65px; object-fit: cover;
-            background: #0f172a;
-        }
+        .trin-img { border-radius: 50%; border: 2px solid #334155; width: 65px; height: 65px; object-fit: cover; background: #0f172a; }
         .gold-member .trin-img { border-color: #D4AF37; }
-        
-        .gold-badge {
-            background: #D4AF37; color: #000; font-family: 'Oswald'; font-size: 10px;
-            padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 8px;
-            display: inline-block; vertical-align: middle;
-        }
+        .gold-badge { background: #D4AF37; color: #000; font-family: 'Oswald'; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 8px; display: inline-block; vertical-align: middle; }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("## 🏆 Trinity Club")
 
-    # --- HERO SECTION (A LEGENDA) ---
+    # HERO SECTION
     st.markdown("""
-    <div style="
-        background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
-        border-left: 4px solid #D4AF37;
-        border-radius: 8px;
-        padding: 15px 20px;
-        margin-bottom: 25px;
-        border: 1px solid #334155;
-    ">
+    <div style="background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%); border-left: 4px solid #D4AF37; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; border: 1px solid #334155;">
         <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
             <strong style="color: #D4AF37; font-size: 15px;">A ELITE DA CONSISTÊNCIA</strong><br>
             Ao contrário das médias, o Trinity Club busca o <strong>Piso Seguro</strong>. Identificamos linhas estatísticas que o jogador bateu em <strong>100%</strong> dos jogos nas janelas abaixo:
             <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
-                <li style="margin-bottom: 4px;">🔥 <strong style="color: #fca5a5;">L5:</strong> Forma Imediata (Últimos 5 jogos).</li>
-                <li style="margin-bottom: 4px;">⚖️ <strong style="color: #fde047;">L10:</strong> Tendência Sólida (Últimos 10 jogos).</li>
-                <li style="margin-bottom: 4px;">🏛️ <strong style="color: #93c5fd;">L15:</strong> Pilar Histórico (Últimos 15 jogos).</li>
+                <li style="margin-bottom: 4px;">🔥 <strong style="color: #fca5a5;">L5:</strong> Forma Imediata.</li>
+                <li style="margin-bottom: 4px;">⚖️ <strong style="color: #fde047;">L10:</strong> Tendência Sólida.</li>
+                <li style="margin-bottom: 4px;">🏛️ <strong style="color: #93c5fd;">L15:</strong> Pilar Histórico.</li>
             </ul>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # --- 2. PREPARAÇÃO DOS DADOS ---
+    # 2. CARREGAMENTO DE DADOS
     full_cache = get_data_universal("real_game_logs", os.path.join("cache", "real_game_logs.json"))
     df_l5 = st.session_state.get('df_l5', pd.DataFrame()) 
     
@@ -2540,25 +2487,42 @@ def show_trinity_club_page():
         st.warning("Aguardando sincronização de logs...")
         return
 
-    # --- 3. SISTEMA DE CROSS-MATCHING (L25 x DF15) ---
-    def clean_string(text):
+    # ==============================================================================
+    # 3. MOTOR NUCLEAR DE IDENTIFICAÇÃO (ID VAULT V2)
+    # ==============================================================================
+    
+    def nuclear_normalize(text):
+        """
+        Remove TUDO que não for letra ou número.
+        Ex: 'Luka Dončić' -> 'LUKADONCIC'
+        Ex: 'Shai Gilgeous-Alexander' -> 'SHAIGILGEOUSALEXANDER'
+        Ex: 'C.J. McCollum' -> 'CJMCCOLLUM'
+        """
         if not text: return ""
         try:
-            text = str(text).upper()
-            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-            text = re.sub(r'\b(JR|SR|II|III|IV)\b', '', text)
-            text = re.sub(r'[^A-Z]', '', text) 
-            return text.strip()
+            # Normaliza Unicode (remove acentos)
+            text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+            text = text.upper()
+            # Remove sufixos comuns (Jr, Sr, etc) ANTES de limpar tudo
+            for suffix in [" JR", " SR", " III", " II", " IV"]:
+                if text.endswith(suffix):
+                    text = text.replace(suffix, "")
+            # Remove tudo que não é letra ou numero
+            text = re.sub(r'[^A-Z0-9]', '', text)
+            return text
         except: return ""
 
     ID_VAULT = {}
     
     if not df_l5.empty:
         try:
+            # Padroniza Colunas
             df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-            c_name = next((c for c in df_l5.columns if 'PLAYER' in c and 'NAME' in c), 'PLAYER')
+            
+            # Encontra colunas vitais
+            c_name = next((c for c in df_l5.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
             c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            c_team = next((c for c in df_l5.columns if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            c_team = next((c for c in df_l5.columns if c in ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_CODE']), 'TEAM')
 
             for _, row in df_l5.iterrows():
                 try:
@@ -2567,37 +2531,58 @@ def show_trinity_club_page():
                     
                     if pid > 0:
                         raw_name = str(row.get(c_name, ''))
-                        team = str(row.get(c_team, 'UNK')).upper().strip()
-                        key_full = clean_string(raw_name)
-                        ID_VAULT[key_full] = {'id': pid, 'team': team}
+                        raw_team = str(row.get(c_team, 'UNK')).upper().strip()
+                        
+                        # Chave 1: Nome Completo Nuclear (LUKADONCIC)
+                        k1 = nuclear_normalize(raw_name)
+                        ID_VAULT[k1] = pid
+                        
+                        # Chave 2: Sobrenome Nuclear + Time (DONCIC_DAL)
                         parts = raw_name.split()
                         if len(parts) > 1:
-                            lname = clean_string(parts[-1])
-                            key_last = f"{lname}_{team}"
-                            if key_last not in ID_VAULT:
-                                ID_VAULT[key_last] = {'id': pid, 'team': team}
+                            lname = nuclear_normalize(parts[-1])
+                            k2 = f"{lname}_{raw_team}"
+                            ID_VAULT[k2] = pid
+                            
                 except: continue
         except Exception as e: pass
 
-    def get_player_meta(player_name, team_abbr):
-        key_full = clean_string(player_name)
-        key_last = f"{clean_string(player_name.split()[-1])}_{team_abbr}"
-        if key_full in ID_VAULT: return ID_VAULT[key_full]
-        if key_last in ID_VAULT: return ID_VAULT[key_last]
-        for k, v in ID_VAULT.items():
-            if key_full in k or k in key_full:
-                if v['team'] == team_abbr: return v
-        return {'id': 0, 'team': team_abbr}
+    def resolve_player_id(player_name, team_abbr):
+        """Tenta encontrar o ID da NBA a todo custo."""
+        # 1. Tenta Nome Completo Limpo
+        k1 = nuclear_normalize(player_name)
+        if k1 in ID_VAULT: return ID_VAULT[k1]
+        
+        # 2. Tenta Sobrenome + Time
+        parts = player_name.split()
+        if len(parts) > 0:
+            lname = nuclear_normalize(parts[-1])
+            k2 = f"{lname}_{team_abbr}"
+            if k2 in ID_VAULT: return ID_VAULT[k2]
+        
+        # 3. Tenta Match Parcial (Lento, mas salva)
+        # Ex: "Nicolas Claxton" vs "Nic Claxton"
+        for vault_key, vault_id in ID_VAULT.items():
+            if k1 in vault_key or vault_key in k1:
+                # Verifica se o sobrenome bate para não dar falso positivo
+                if len(parts) > 1:
+                    lname = nuclear_normalize(parts[-1])
+                    if lname in vault_key:
+                        return vault_id
 
-    # --- 4. ENGINE TRINITY ---
+        return 0
+
+    # ==============================================================================
+
+    # 4. ENGINE TRINITY
     class TrinityEngine:
         def __init__(self, logs_cache, games):
             self.logs = logs_cache
             self.games_map = self._map_games(games)
             
         def _normalize_team(self, team_code):
-            mapping = {"NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP"}
-            return mapping.get(team_code, team_code)
+            mapping = {"NY": "NYK", "GS": "GSW", "PHO": "PHX", "NO": "NOP", "SA": "SAS", "WSH": "WAS", "UTAH": "UTA", "NOH": "NOP", "BRK": "BKN", "CHO": "CHA"}
+            return mapping.get(str(team_code).upper(), str(team_code).upper())
 
         def _map_games(self, games):
             mapping = {}
@@ -2624,6 +2609,9 @@ def show_trinity_club_page():
                 if not logs: continue
                 ctx = self.games_map[team]
                 
+                # Armazena ID do ESPN se existir no log (Fallback)
+                espn_id = data.get('id', 0)
+                
                 for stat in ['PTS', 'REB', 'AST']:
                     values = logs.get(stat, [])
                     if len(values) < window: continue 
@@ -2636,13 +2624,15 @@ def show_trinity_club_page():
                     if safe_floor >= min_req:
                         candidates.append({
                             "player": player_name,
-                            "team": raw_team,
+                            "team": team, # Time normalizado
+                            "raw_team": raw_team,
                             "opp": ctx['opp'],
                             "stat": stat,
                             "line": safe_floor - 1,
-                            "floors": {"Form": floor_form, "Venue": floor_form, "H2H": int(floor_form*0.9)}, # Placeholders, logicamente seriam calculados
+                            "floors": {"Form": floor_form, "Venue": floor_form, "H2H": int(floor_form*0.9)},
                             "score": safe_floor,
-                            "game_str": ctx['game_str']
+                            "game_str": ctx['game_str'],
+                            "espn_id": espn_id # Passamos o ID original caso precise
                         })
                             
             return sorted(candidates, key=lambda x: x['score'], reverse=True)
@@ -2670,7 +2660,7 @@ def show_trinity_club_page():
         st.info("Nenhum padrão estatístico Trinity encontrado hoje.")
         return
 
-    # --- 5. RENDERIZAÇÃO (GOLD & CONTEXT) ---
+    # 5. RENDERIZAÇÃO
     logo_base = "https://a.espncdn.com/i/teamlogos/nba/500"
 
     for game_name, players in games_dict.items():
@@ -2682,32 +2672,39 @@ def show_trinity_club_page():
         
         for p_name, data in players.items():
             meta = data['meta']
-            
-            # Verifica se é GOLD (Bateu as 3 janelas)
             is_gold = len(data['L5']) > 0 and len(data['L10']) > 0 and len(data['L15']) > 0
             gold_class = "gold-member" if is_gold else ""
             gold_badge_html = "<span class='gold-badge'>GOLD MEMBER</span>" if is_gold else ""
 
-            # ID Recovery
-            player_meta = get_player_meta(p_name, str(meta['team']).upper())
-            pid = player_meta['id']
-            real_team = player_meta['team']
+            # --- BUSCA DE FOTO HÍBRIDA ---
+            # 1. Tenta achar o ID NBA via Nome (Alta qualidade)
+            nba_id = resolve_player_id(p_name, meta['team'])
             
-            nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-            espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
-            fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+            # 2. Se não achar, vê se veio ID da ESPN nos logs
+            espn_id = meta.get('espn_id', 0)
             
-            img_html = f"""<img src="{nba_url}" class="trin-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
-            if pid == 0: img_html = f"""<img src="{fallback_url}" class="trin-img">"""
+            # Define URL da imagem
+            if nba_id > 0:
+                # Prioridade: NBA ID (Foto melhor)
+                img_src = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{nba_id}.png"
+            elif espn_id and int(espn_id) > 0:
+                # Fallback: ESPN ID (Foto ok)
+                img_src = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{espn_id}.png"
+            else:
+                # Fallback Final: Boneco
+                img_src = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
             
-            tm_low = real_team.lower()
-            if tm_low in ["uta", "nop", "phx", "was"]: tm_low += "h" if tm_low == "uta" else "" 
-            if tm_low == "nop": tm_low = "no"
-            if tm_low == "phx": tm_low = "pho"
-            if tm_low == "was": tm_low = "wsh"
+            # Renderiza Imagem com tratamento de erro (se a URL da NBA falhar, tenta ESPN, depois fallback)
+            img_html = f"""
+            <img src="{img_src}" class="trin-img" 
+                 onerror="this.src='https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{nba_id}.png'; 
+                 this.onerror=function(){{this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'}};">
+            """
+
+            # Logo
+            tm_low = meta['team'].lower()
             logo_url = f"{logo_base}/{tm_low}.png"
 
-            # Início do Card
             st.markdown(f'<div class="trin-card {gold_class}">', unsafe_allow_html=True)
             
             c1, c2, c3, c4, c5 = st.columns([1.3, 2.7, 2, 2, 2])
@@ -2720,28 +2717,21 @@ def show_trinity_club_page():
                 st.markdown(f"""
                 <div class="trin-meta">
                     <img src="{logo_url}" width="18" style="vertical-align:middle; margin-right:4px;"> 
-                    <b>{real_team}</b> vs {meta['opp']}
+                    <b>{meta['team']}</b> vs {meta['opp']}
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # --- A NOVA BARRA DE CONTEXTO ---
                 floors = meta['floors']
                 st.markdown(f"""
                 <div class="context-bar">
-                    <div class="ctx-pill" title="Forma Atual (Piso Recente)">
-                        <span class="ctx-icon">📈</span>
-                        <span>Forma</span>
-                        <span class="ctx-val">{int(floors['Form'])}</span>
+                    <div class="ctx-pill" title="Forma Atual">
+                        <span class="ctx-icon">📈</span><span>Forma</span><span class="ctx-val">{int(floors['Form'])}</span>
                     </div>
-                    <div class="ctx-pill" title="Desempenho no Local (Casa/Fora)">
-                        <span class="ctx-icon">🏠</span>
-                        <span>Local</span>
-                        <span class="ctx-val">{int(floors['Venue'])}</span>
+                    <div class="ctx-pill" title="Desempenho no Local">
+                        <span class="ctx-icon">🏠</span><span>Local</span><span class="ctx-val">{int(floors['Venue'])}</span>
                     </div>
                     <div class="ctx-pill" title="Histórico vs Oponente">
-                        <span class="ctx-icon">🆚</span>
-                        <span>H2H</span>
-                        <span class="ctx-val">{int(floors['H2H'])}</span>
+                        <span class="ctx-icon">🆚</span><span>H2H</span><span class="ctx-val">{int(floors['H2H'])}</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -2766,7 +2756,7 @@ def show_trinity_club_page():
             render_col(c4, "⚖️ L10", "head-l10", data['L10'])
             render_col(c5, "🏛️ L15", "head-l15", data['L15'])
             
-            st.markdown("</div>", unsafe_allow_html=True) # Fim do Card
+            st.markdown("</div>", unsafe_allow_html=True)
                 
 # ============================================================================
 # PÁGINA: NEXUS PAGE (V10.0 - NATIVE STREAMLIT / BULLETPROOF)
@@ -8675,6 +8665,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
