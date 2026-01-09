@@ -7166,7 +7166,7 @@ def render_player_list_bench(players, injured_names):
             """, unsafe_allow_html=True)
 
 # ============================================================================
-# PÁGINA: MATCHUP CENTER (V3.1 - ROBUST DATA EXTRACTION FIX)
+# PÁGINA: MATCHUP CENTER (V3.2 - CRASH PROOF & TITLE FIX)
 # ============================================================================
 def show_escalacoes():
     import streamlit as st
@@ -7183,7 +7183,6 @@ def show_escalacoes():
         
         .war-room-header { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
         
-        /* CONTAINER DO JOGO */
         .game-block {
             background-color: #0f172a;
             border: 1px solid #334155;
@@ -7201,7 +7200,6 @@ def show_escalacoes():
         .gh-title { font-family: 'Oswald'; font-size: 16px; color: #fff; }
         .gh-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; }
 
-        /* LINHA DO JOGADOR */
         .player-row {
             display: flex; align-items: center;
             padding: 6px 8px;
@@ -7212,7 +7210,6 @@ def show_escalacoes():
         .player-row:last-child { border-bottom: none; }
         
         .p-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid #475569; background: #000; margin-right: 10px; }
-        
         .p-info { flex: 1; }
         .p-name { font-family: 'Oswald'; font-size: 13px; color: #e2e8f0; line-height: 1.1; }
         .p-pos { font-size: 9px; color: #64748b; font-weight: bold; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
@@ -7224,11 +7221,11 @@ def show_escalacoes():
 
     st.markdown('<div class="war-room-header">👥 MATCHUP CENTER</div>', unsafe_allow_html=True)
 
-    # --- HERO SECTION ---
+    # --- HERO SECTION (TÍTULO AJUSTADO) ---
     st.markdown("""
     <div style="background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%); border-left: 4px solid #3b82f6; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; border: 1px solid #334155;">
         <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
-            <strong style="color: #3b82f6; font-size: 15px;">SALA DE GUERRA (ESCALAÇÕES)</strong><br>
+            <strong style="color: #3b82f6; font-size: 15px;">ESCALAÇÕES - CONFRONTOS</strong><br>
             Acompanhe os duelos confirmados e projetados para toda a rodada.
             <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
                 <li style="margin-bottom: 4px;">✅ <strong style="color: #10B981;">OFICIAL:</strong> Escalação confirmada.</li>
@@ -7307,7 +7304,7 @@ def show_escalacoes():
         r_home = fetch_roster_internal(home)
         r_away = fetch_roster_internal(away)
         
-        # --- A CORREÇÃO ESTÁ AQUI (BLINDAGEM CONTRA NONE) ---
+        # --- BLINDAGEM DE DADOS ---
         def process_team(roster, team_abbr):
             processed = []
             if not roster: return []
@@ -7317,20 +7314,24 @@ def show_escalacoes():
                 
                 name = p.get('fullName', p.get('displayName', 'Unknown'))
                 
-                # Extração Segura: (dict or {}).get(...)
-                pos_obj = p.get('position') or {}
+                # Extração Paranoica: Garante que é dict antes de chamar .get()
+                pos_obj = p.get('position')
+                if not isinstance(pos_obj, dict): pos_obj = {}
                 pos = pos_obj.get('abbreviation', '-')
                 
-                status_obj = p.get('status') or {}
-                type_obj = status_obj.get('type') or {}
-                status = type_obj.get('name', 'Active')
+                status_text = 'Active'
+                status_obj = p.get('status')
+                if isinstance(status_obj, dict):
+                    type_obj = status_obj.get('type')
+                    if isinstance(type_obj, dict):
+                        status_text = type_obj.get('name', 'Active')
                 
                 pid_espn = p.get('id', 0)
                 pid_nba = resolve_id(name, team_abbr)
                 final_id = pid_nba if pid_nba > 0 else pid_espn
                 
                 processed.append({
-                    "name": name, "pos": pos, "status": status, "id": final_id
+                    "name": name, "pos": pos, "status": status_text, "id": final_id
                 })
             return processed
 
@@ -8684,6 +8685,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
