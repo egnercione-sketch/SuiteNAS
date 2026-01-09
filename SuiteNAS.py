@@ -1515,7 +1515,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V32.1 - LOGO SIZE FIX)
+# PÁGINA: BLOWOUT RADAR (V33.0 - SMART PHOTO ENGINE)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1534,55 +1534,46 @@ def show_blowout_hunter_page():
             text = str(text)
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
             text = text.upper().strip()
-            for suffix in [" JR.", " SR.", " III", " II", " IV"]:
+            text = text.replace(".", "").replace("'", "") # Remove pontuação
+            for suffix in [" JR", " SR", " III", " II", " IV"]:
                 if text.endswith(suffix):
                     text = text.replace(suffix, "")
             return text.strip()
         except: return ""
 
+    def normalize_team_code(t):
+        """Padroniza siglas de times."""
+        t = str(t).upper().strip()
+        map_t = {
+            "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "PHO": "PHX",
+            "UTAH": "UTA", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA"
+        }
+        return map_t.get(t, t)
+
     def adjust_stat(raw_val, projected_min):
-        """
-        Ajusta a estatística para a realidade.
-        Assume que o dado bruto pode ser 'Per 36' e projeta para os minutos do blowout.
-        Aplica um 'Teto de Sanidade' para evitar projeções de Michael Jordan.
-        """
+        """Ajusta a estatística para a realidade (Matemática V32.0)."""
         try:
             val = float(raw_val)
             mins = float(projected_min)
             if mins <= 0: return 0.0
             
-            # 1. Normalização (Assume que o dado base é Per 36 se for muito alto)
+            # Normalização (Base 36)
             projected_val = (val / 36.0) * mins
             
-            # 2. Teto de Sanidade (Caps por Minuto)
-            caps = {
-                'pts': 0.9 * mins, # Max 0.9 pts por minuto
-                'reb': 0.4 * mins, # Max 0.4 reb por minuto
-                'ast': 0.35 * mins # Max 0.35 ast por minuto
-            }
+            # Teto de Sanidade
+            caps = {'pts': 0.9 * mins, 'reb': 0.4 * mins, 'ast': 0.35 * mins}
             
-            # Se for PTS, aplica o cap (média entre projetado e cap se estourar)
-            if projected_val > caps['pts']: 
+            if projected_val > caps.get('pts', 99): 
                 projected_val = (projected_val + caps['pts']) / 2
                 
             return round(projected_val, 1)
-        except:
-            return 0.0
-
-    LOGO_MAP = {
-        "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
-        "NO": "NOP", "NOP": "NOP", "SA": "SAS", "SAS": "SAS",
-        "UTAH": "UTA", "UTA": "UTA", "PHO": "PHX", "PHX": "PHX",
-        "WSH": "WAS", "WAS": "WAS", "BRK": "BKN", "BKN": "BKN",
-        "CHO": "CHA", "CHA": "CHA", "LAL": "LAL", "LAC": "LAC",
-        "DET": "DET", "OKC": "OKC"
-    }
+        except: return 0.0
 
     def get_logo_url(team_abbr):
-        clean_abbr = LOGO_MAP.get(team_abbr.upper(), team_abbr.upper())
+        clean_abbr = normalize_team_code(team_abbr)
         return f"https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/{clean_abbr.lower()}.png"
 
-    # --- 2. ESTILO VISUAL (CORRIGIDO) ---
+    # --- 2. ESTILO VISUAL ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
@@ -1599,16 +1590,12 @@ def show_blowout_hunter_page():
         
         .game-matchup-text { font-family: 'Oswald'; font-size: 18px; color: #fff; letter-spacing: 1px; margin: 0 10px; }
         .match-logo { width: 30px; height: 30px; object-fit: contain; }
-        
         .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
         
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
         .team-col-header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; }
-        
-        /* --- A CORREÇÃO ESTÁ AQUI --- */
-        .team-col-logo { width: 24px; height: 24px; object-fit: contain; } 
-        
+        .team-col-logo { width: 24px; height: 24px; object-fit: contain; }
         .team-col-text { color: #94a3b8; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
         
         .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid #334155; }
@@ -1629,99 +1616,107 @@ def show_blowout_hunter_page():
 
     # --- HERO SECTION ---
     st.markdown("""
-    <div style="
-        background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
-        border-left: 4px solid #6366f1;
-        border-radius: 8px;
-        padding: 15px 20px;
-        margin-bottom: 25px;
-        border: 1px solid #334155;
-    ">
+    <div style="background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%); border-left: 4px solid #6366f1; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; border: 1px solid #334155;">
         <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
             <strong style="color: #6366f1; font-size: 15px;">O CAÇADOR DE OPORTUNIDADES (GARBAGE TIME)</strong><br>
             Jogos com Spread alto tendem a ser decididos cedo. Quando as estrelas sentam, abre-se valor nas linhas dos reservas ("Bench Mob").
             <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
-                <li style="margin-bottom: 6px;">
-                    🌪️ <strong style="color: #EF4444;">Blowout Risk:</strong> Alta probabilidade de goleada. Foco total nos reservas listados.
-                </li>
-                <li>
-                    📈 <strong style="color: #4ade80;">Projeção Realista:</strong> As estatísticas abaixo são <em>ajustadas</em> para os minutos projetados de quadra livre.
-                </li>
+                <li style="margin-bottom: 6px;">🌪️ <strong style="color: #EF4444;">Blowout Risk:</strong> Alta probabilidade de goleada. Foco total nos reservas listados.</li>
+                <li>📈 <strong style="color: #4ade80;">Projeção Realista:</strong> Estatísticas ajustadas para os minutos projetados de quadra livre.</li>
             </ul>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 3. DADOS & FILTROS ---
+    # --- 3. MOTOR DE FOTOS INTELIGENTE (SMART ID MAP) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    PLAYER_ID_MAP = {}
+    NAME_TO_ID = {}
+    LASTNAME_TEAM_TO_ID = {}
     
     if not df_l5.empty:
         try:
-            df_l5['PLAYER_NORM_MAP'] = df_l5['PLAYER'].apply(normalize_str)
-            valid_ids = df_l5[df_l5['PLAYER_ID'] != 0]
-            PLAYER_ID_MAP = dict(zip(valid_ids['PLAYER_NORM_MAP'], valid_ids['PLAYER_ID']))
+            # Garante nomes de colunas
+            df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+            
+            c_name = next((c for c in df_l5.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
+            c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
+            c_team = next((c for c in df_l5.columns if c in ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_CODE']), 'TEAM')
+
+            # Popula Mapas
+            for _, row in df_l5.iterrows():
+                try:
+                    pid = int(float(row.get(c_id, 0)))
+                    if pid == 0: continue
+                    
+                    full_name = normalize_str(str(row.get(c_name, '')))
+                    team_code = normalize_team_code(str(row.get(c_team, '')))
+                    
+                    # Mapa 1: Nome Completo -> ID
+                    NAME_TO_ID[full_name] = pid
+                    
+                    # Mapa 2: Sobrenome + Time -> ID (Para fallbacks)
+                    parts = full_name.split()
+                    if len(parts) > 0:
+                        lastname = parts[-1]
+                        key = f"{lastname}_{team_code}"
+                        LASTNAME_TEAM_TO_ID[key] = pid
+                except: continue
         except: pass
 
-    # Monitor de Lesões
+    # --- 4. MONITOR DE LESÕES ---
     banned_players = set()
     EXCLUSION_KEYWORDS = ['OUT', 'DOUBTFUL', 'SURGERY', 'INJURED', 'PROTOCOL', 'SUSPENDED', 'G LEAGUE', 'PERSONAL']
     
-    raw_inj_source = get_data_universal('injuries')
-    if not raw_inj_source: raw_inj_source = st.session_state.get('injuries_data', [])
-
+    raw_inj_source = get_data_universal('injuries') or st.session_state.get('injuries_data', [])
     if raw_inj_source:
         flat_inj = []
         if isinstance(raw_inj_source, dict):
             for t in raw_inj_source.values():
                 if isinstance(t, list): flat_inj.extend(t)
-        elif isinstance(raw_inj_source, list):
-            flat_inj = raw_inj_source
+        elif isinstance(raw_inj_source, list): flat_inj = raw_inj_source
             
         for item in flat_inj:
             try:
-                p_name = ""
-                status = ""
-                if isinstance(item, dict):
-                    p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
-                    status = str(item.get('status', '')).upper()
-                
+                p_name = item.get('player') or item.get('name') or ""
+                status = str(item.get('status', '')).upper()
                 if p_name:
                     norm = normalize_str(p_name)
                     if norm and any(x in status for x in EXCLUSION_KEYWORDS):
                         banned_players.add(norm)
             except: continue
 
-    # --- 4. ENGINE (CACHE) ---
+    # --- 5. ENGINE & LOOP ---
     DNA_DB = st.session_state.get('dna_final_v27', {})
     if not DNA_DB:
         DNA_DB = get_data_universal("rotation_dna_v27") or {}
         st.session_state['dna_final_v27'] = DNA_DB
 
-    # --- 5. LOOP DE JOGOS ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.info("Aguardando jogos...")
         return
 
     st.markdown("---")
-    
-    # Slider de Simulação
-    force_spread = st.slider("🎛️ Simular Cenário de Blowout (Aumentar Spread Virtual):", 0, 30, 0, help="Force o sistema a considerar uma diferença de pontos maior para ver quem jogaria.")
+    force_spread = st.slider("🎛️ Simular Cenário de Blowout (Aumentar Spread Virtual):", 0, 30, 0)
 
     def get_team_data(query):
         q = str(query).upper().strip()
-        if q in LOGO_MAP:
-            target = LOGO_MAP[q]
-            if target in DNA_DB: return DNA_DB[target]
-        if q in DNA_DB: return DNA_DB[q]
+        # Mapeia query para chave do DNA_DB
+        map_key = {
+            "GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "PHO": "PHX",
+            "UTAH": "UTA", "WSH": "WAS", "BRK": "BKN", "CHO": "CHA"
+        }
+        target = map_key.get(q, q)
+        
+        # Tenta achar no DB
+        if target in DNA_DB: return DNA_DB[target]
+        # Tenta match parcial
         for k in DNA_DB.keys():
-            if q in k or k in q: return DNA_DB[k]
+            if target in k: return DNA_DB[k]
         return []
 
     for g in games:
         raw_s = g.get('odds_spread', '0')
-        # Tenta extrair numero do spread (ex: "-5.5" -> 5.5)
         try: real_s = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_s))[-1]))
         except: real_s = 0.0
         
@@ -1761,6 +1756,7 @@ def show_blowout_hunter_page():
             def render_team_col(col, t_name):
                 data = get_team_data(t_name)
                 t_logo = get_logo_url(t_name)
+                t_clean_code = normalize_team_code(t_name)
                 
                 with col:
                     st.markdown(f"""
@@ -1777,12 +1773,27 @@ def show_blowout_hunter_page():
                             p_clean = normalize_str(p.get('clean_name') or p['name'])
                             if p_clean in banned_players: continue 
                             
-                            fresh_id = PLAYER_ID_MAP.get(p_clean, 0)
+                            # --- BUSCA INTELIGENTE DE ID ---
+                            fresh_id = 0
+                            # 1. Tenta Nome Completo
+                            if p_clean in NAME_TO_ID:
+                                fresh_id = NAME_TO_ID[p_clean]
+                            else:
+                                # 2. Tenta Sobrenome + Time
+                                parts = p_clean.split()
+                                if len(parts) > 0:
+                                    lname = parts[-1]
+                                    key = f"{lname}_{t_clean_code}"
+                                    if key in LASTNAME_TEAM_TO_ID:
+                                        fresh_id = LASTNAME_TEAM_TO_ID[key]
+                            
+                            # Atualiza ID se achou um melhor que o zero
                             if fresh_id != 0: p['id'] = fresh_id
+                            elif 'id' not in p: p['id'] = 0
+                                
                             valid_players.append(p)
                         
                         if valid_players:
-                            # Mostra top 3 reservas
                             for p in valid_players[:3]:
                                 pid = int(p.get('id', 0))
                                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
@@ -1794,11 +1805,9 @@ def show_blowout_hunter_page():
                                 img_html = f"""<img src="{nba_url}" class="vulture-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
                                 if pid == 0: img_html = f"""<img src="{fallback_url}" class="vulture-img">"""
 
-                                # --- MATEMÁTICA CORRIGIDA AQUI ---
                                 proj_min = float(p.get('blowout_min', 15))
                                 avg_min = float(p.get('avg_min', 10))
                                 
-                                # Ajusta stats
                                 adj_pts = adjust_stat(p.get('pts', 0), proj_min)
                                 adj_reb = adjust_stat(p.get('reb', 0), proj_min)
                                 adj_ast = adjust_stat(p.get('ast', 0), proj_min)
@@ -8613,6 +8622,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
