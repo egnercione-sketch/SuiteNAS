@@ -7901,7 +7901,7 @@ def show_narrative_lab():
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
     # HEADER
-    st.markdown('<div class="wr-header">⚔️ NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
+    st.markdown('<div class="wr-header">⚔️ LAB NARRATIVAS</div>', unsafe_allow_html=True)
     st.markdown('<div class="wr-sub">ANOMALIAS ESTATÍSTICAS HISTÓRICAS (H2H)</div>', unsafe_allow_html=True)
 
     # --- HERO SECTION (EXPLICAÇÃO) ---
@@ -8499,6 +8499,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
