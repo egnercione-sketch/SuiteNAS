@@ -7844,128 +7844,164 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (V5.1 - FIX COLUNA DE TIME)
+# PÁGINA: LAB DE NARRATIVAS (V5.2 - SMART CACHE & STORYTELLING)
 # ============================================================================
 def show_narrative_lab():
     import time
+    import datetime
     
-    # --- CSS TÁTICO ---
+    # --- CSS TÁTICO & HERO ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
         .wr-header { font-family: 'Oswald', sans-serif; font-size: 32px; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
-        .wr-sub { font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+        .wr-sub { font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+        
+        /* TABELAS */
         .wr-table { width: 100%; border-collapse: collapse; }
         .wr-table td { padding: 8px 4px; vertical-align: middle; border-bottom: 1px dashed #334155; }
         .wr-table tr:last-child td { border-bottom: none; }
         .wr-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; font-weight: bold; line-height: 1.1; }
         .wr-stat { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; }
+        
+        /* VALORES */
         .wr-val-killer { font-family: 'Oswald', sans-serif; font-size: 18px; color: #F87171; font-weight: bold; text-align: right; }
         .wr-val-cold { font-family: 'Oswald', sans-serif; font-size: 18px; color: #00E5FF; font-weight: bold; text-align: right; }
+        
+        /* TAGS */
         .wr-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-top: 4px; }
         .tag-killer { background: rgba(248, 113, 113, 0.15); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
         .tag-cold { background: rgba(6, 182, 212, 0.15); color: #00E5FF; border: 1px solid rgba(6, 182, 212, 0.3); }
+        
         .wr-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; display: block; }
         .wr-game-title { font-family: 'Oswald', sans-serif; font-size: 18px; color: #E2E8F0; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. SETUP
+    # 1. SETUP & ENGINE CHECK
     try:
         if "narrative_engine" not in st.session_state:
-            from modules.new_modules.narrative_intelligence import NarrativeIntelligence
-            st.session_state.narrative_engine = NarrativeIntelligence()
+            # Tenta importar dinamicamente se não estiver na sessão
+            try:
+                from modules.new_modules.narrative_intelligence import NarrativeIntelligence
+                st.session_state.narrative_engine = NarrativeIntelligence()
+            except:
+                st.warning("⚠️ Módulo de Inteligência Narrativa não encontrado.")
+                return
         engine = st.session_state.narrative_engine
     except:
-        st.error("⚠️ Engine não encontrada.")
+        st.error("⚠️ Erro ao carregar Engine Narrativa.")
         return
 
+    # Dados Básicos
     games = st.session_state.get("scoreboard", [])
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
 
-    # Header
+    # HEADER
     st.markdown('<div class="wr-header">⚔️ NARRATIVE WAR ROOM</div>', unsafe_allow_html=True)
-    st.markdown('<div class="wr-sub">MONITORAMENTO DE ANOMALIAS ESTATÍSTICAS HISTÓRICAS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="wr-sub">ANOMALIAS ESTATÍSTICAS HISTÓRICAS (H2H)</div>', unsafe_allow_html=True)
+
+    # --- HERO SECTION (EXPLICAÇÃO) ---
+    st.markdown("""
+    <div style="
+        background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
+        border-left: 4px solid #F87171;
+        border-radius: 8px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid #334155;
+    ">
+        <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
+            <strong style="color: #F87171; font-size: 15px;">O FATOR PSICOLÓGICO.</strong><br>
+            Alguns jogadores elevam seu nível contra certos oponentes (ex: ex-times, rivais). Esta ferramenta analisa o histórico direto (Head-to-Head):
+            <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
+                <li style="margin-bottom: 6px;">
+                    🔥 <strong style="color: #F87171;">Carrasco (Killer):</strong> Jogador que historicamente supera sua média de pontos em <strong>+15%</strong> contra este adversário.
+                </li>
+                <li>
+                    ❄️ <strong style="color: #00E5FF;">Trauma (Cold):</strong> Jogador que historicamente joga <strong>-15%</strong> abaixo da sua média contra esta defesa.
+                </li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if not games or df_l5.empty:
-        st.info("ℹ️ Aguardando dados...")
+        st.info("ℹ️ Aguardando dados de jogos e estatísticas...")
         return
 
-    # --- DIAGNÓSTICO E CORREÇÃO DE COLUNAS ---
-    # Normaliza nomes das colunas
+    # --- NORMALIZAÇÃO DE DADOS ---
     df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
     
-    # Busca a coluna de Time (Tenta várias opções)
     col_team = None
-    possible_cols = ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_NAME', 'TEAM_SLUG', 'ABBREVIATION']
-    for c in possible_cols:
-        if c in df_l5.columns:
-            col_team = c
-            break
+    for c in ['TEAM', 'TEAM_ABBREVIATION', 'TEAM_NAME', 'ABBREVIATION']:
+        if c in df_l5.columns: col_team = c; break
             
-    if not col_team:
-        # SE DER ERRO, MOSTRA O QUE TEM NO DATAFRAME
-        st.error("Erro Crítico: Coluna de Time não identificada.")
-        with st.expander("🛠️ Ver Colunas Disponíveis (Debug)"):
-            st.write(df_l5.columns.tolist())
-            st.write("Amostra dos dados:", df_l5.head(2))
-        return
+    if not col_team: return
 
-    # Normaliza Times
+    # Mapa de Times Seguro
     TEAM_MAP_FIX = {
         'GS': 'GSW', 'GOLDEN STATE': 'GSW', 'NO': 'NOP', 'NEW ORLEANS': 'NOP',
         'NY': 'NYK', 'NEW YORK': 'NYK', 'SA': 'SAS', 'SAN ANTONIO': 'SAS',
         'PHO': 'PHX', 'PHOENIX': 'PHX', 'UTAH': 'UTA', 'UTA': 'UTA',
-        'WSH': 'WAS', 'WASHINGTON': 'WAS', 'BKN': 'BKN', 'BROOKLYN': 'BKN',
-        'LAL': 'LAL', 'LAC': 'LAC', 'NOP': 'NOP', 'SAS': 'SAS', 'GSW': 'GSW'
+        'WSH': 'WAS', 'WASHINGTON': 'WAS', 'BKN': 'BKN', 'BROOKLYN': 'BKN'
     }
     def normalize_t(x):
         x = str(x).upper().strip()
         return TEAM_MAP_FIX.get(x, x)
 
-    # Cria coluna normalizada segura
     df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
-
-    # Cria PTS_AVG se não existir
+    
+    # Garante PTS_AVG
     if 'PTS_AVG' not in df_l5.columns:
-        if 'PTS' in df_l5.columns: df_l5['PTS_AVG'] = df_l5['PTS']
-        else: df_l5['PTS_AVG'] = 0.0
+        df_l5['PTS_AVG'] = df_l5['PTS'] if 'PTS' in df_l5.columns else 0.0
     df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
 
-    # 2. SCAN INTELIGENTE
-    if "narrative_cache_v8" not in st.session_state:
-        st.session_state.narrative_cache_v8 = {}
+    # 2. SCAN INTELIGENTE (COM CACHE DE SESSÃO)
+    # Gera uma chave única para o dia de hoje + qtd de jogos. Se mudar, recalcula.
+    today_str = datetime.datetime.now().strftime("%Y%m%d")
+    cache_key = f"wr_scan_{today_str}_{len(games)}"
+    
+    if "narrative_cache" not in st.session_state:
+        st.session_state.narrative_cache = {}
 
-    cache_key = f"wr_scan_{len(games)}_{pd.Timestamp.now().strftime('%Y%m%d_%H')}"
-    scan_results = st.session_state.narrative_cache_v8.get(cache_key)
+    scan_results = st.session_state.narrative_cache.get(cache_key)
 
     if scan_results is None:
+        # Se não estiver no cache, processa
         loading_ph = st.empty()
         with loading_ph.container():
-            st.write("📡 Analisando histórico de confrontos...")
+            st.info(f"📡 Analisando histórico de confrontos para {len(games)} jogos...")
             prog = st.progress(0)
             scan_results = []
             
             for i, game in enumerate(games):
                 try:
-                    away_raw = normalize_t(game['away'])
-                    home_raw = normalize_t(game['home'])
+                    away_raw = normalize_t(game.get('away', 'UNK'))
+                    home_raw = normalize_t(game.get('home', 'UNK'))
                     
-                    # Deduplicação e Filtro
-                    r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].drop_duplicates(subset=['PLAYER_ID']).sort_values('PTS_AVG', ascending=False).head(10)
-                    r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].drop_duplicates(subset=['PLAYER_ID']).sort_values('PTS_AVG', ascending=False).head(10)
+                    if away_raw == 'UNK' or home_raw == 'UNK': continue
+                    
+                    # Pega Top 10 pontuadores de cada time para analisar (Otimização)
+                    r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].sort_values('PTS_AVG', ascending=False).head(10)
+                    r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].sort_values('PTS_AVG', ascending=False).head(10)
 
                     def analyze_player(row, opp_team, my_team):
                         try:
-                            pid = int(float(row.get('PLAYER_ID', 0)))
-                            pname = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
+                            c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
+                            c_name = next((c for c in df_l5.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), 'PLAYER')
+                            
+                            pid = int(float(row.get(c_id, 0))) if c_id else 0
+                            pname = row.get(c_name, 'Unknown')
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
+                            # Ignora jogadores irrelevantes
                             if avg_pts < 8: return
 
-                            # Engine
+                            # Chama Engine
                             data = engine.get_player_matchup_history(pid, pname, opp_team)
                             
                             if data and 'comparison' in data:
@@ -7994,24 +8030,19 @@ def show_narrative_lab():
                     prog.progress((i+1)/len(games))
                 except: continue
             
-            st.session_state.narrative_cache_v8[cache_key] = scan_results
+            # Salva no Cache da Sessão
+            st.session_state.narrative_cache[cache_key] = scan_results
         loading_ph.empty()
 
-    # 3. RESULTADOS
+    # 3. EXIBIÇÃO DE RESULTADOS
     if not scan_results:
-        st.success("Nenhuma anomalia crítica detectada hoje.")
+        st.success("✅ Nenhuma anomalia estatística crítica detectada para os jogos de hoje.")
         return
 
     # UI: TOP THREATS (Deduplicado)
     killers = [x for x in scan_results if x['type'] == "KILLER"]
-    seen_pids = set()
-    unique_killers = []
-    for k in killers:
-        if k['pid'] not in seen_pids:
-            unique_killers.append(k)
-            seen_pids.add(k['pid'])
-            
-    top_threats = sorted(unique_killers, key=lambda x: x['diff'], reverse=True)[:3]
+    # Ordena por % de diferença
+    top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
 
     if top_threats:
         st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#F87171; font-weight:bold;'>🚨 ALVOS DE ALTO VALOR (TOP 3)</div>", unsafe_allow_html=True)
@@ -8021,7 +8052,7 @@ def show_narrative_lab():
                 with st.container(border=True):
                     c_img, c_info = st.columns([1, 2])
                     with c_img:
-                        st.markdown(f"<img src='https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png' class='wr-img' style='border-color:#F87171'>", unsafe_allow_html=True)
+                        st.markdown(f"<img src='https://cdn.nba.com/headshots/nba/latest/1040x760/{t['pid']}.png' class='wr-img' style='border-color:#F87171' onerror=\"this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'\">", unsafe_allow_html=True)
                     with c_info:
                         st.markdown(f"""
                         <div style='line-height:1.1'>
@@ -8031,16 +8062,18 @@ def show_narrative_lab():
                         </div>
                         """, unsafe_allow_html=True)
 
-    # UI: WAR ZONE (ABERTO E DIRETO)
+    # UI: RELATÓRIOS DE JOGO
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 RELATÓRIOS DE JOGO</div>", unsafe_allow_html=True)
 
+    # Agrupa por Jogo
     games_dict = {}
     for item in scan_results:
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
         
         target_list = games_dict[gid]["killers"] if item['type'] == "KILLER" else games_dict[gid]["cold"]
+        # Evita duplicados
         if not any(existing['pid'] == item['pid'] for existing in target_list):
             target_list.append(item)
 
@@ -8066,7 +8099,7 @@ def show_narrative_lab():
                 else:
                     rows = ""
                     for p in rosters['killers']:
-                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#F87171"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-killer">HISTÓRICO</span></td><td><div class="wr-val-killer">+{p['diff']:.0f}%</div></td></tr>"""
+                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#F87171" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-killer">HISTÓRICO</span></td><td><div class="wr-val-killer">+{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 
             with c_cold:
@@ -8076,7 +8109,7 @@ def show_narrative_lab():
                 else:
                     rows = ""
                     for p in rosters['cold']:
-                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
+                        rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: DASHBOARD (V10.5 - AUTO-SYNC COM VALIDAÇÃO DE DATA)
@@ -8466,6 +8499,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
