@@ -7166,7 +7166,7 @@ def render_player_list_bench(players, injured_names):
             """, unsafe_allow_html=True)
 
 # ============================================================================
-# PÁGINA: MATCHUP CENTER (V3.2 - CRASH PROOF & TITLE FIX)
+# PÁGINA: MATCHUP CENTER (V3.3 - HIERARCHY SORT FIX)
 # ============================================================================
 def show_escalacoes():
     import streamlit as st
@@ -7213,6 +7213,7 @@ def show_escalacoes():
         .p-info { flex: 1; }
         .p-name { font-family: 'Oswald'; font-size: 13px; color: #e2e8f0; line-height: 1.1; }
         .p-pos { font-size: 9px; color: #64748b; font-weight: bold; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+        .p-mins { font-size: 10px; color: #10B981; font-weight: bold; margin-left: auto; font-family: 'Inter'; }
         
         .border-left-home { border-left: 3px solid #00E5FF; }
         .border-left-away { border-left: 3px solid #FF4F4F; }
@@ -7221,15 +7222,15 @@ def show_escalacoes():
 
     st.markdown('<div class="war-room-header">👥 MATCHUP CENTER</div>', unsafe_allow_html=True)
 
-    # --- HERO SECTION (TÍTULO AJUSTADO) ---
+    # --- HERO SECTION ---
     st.markdown("""
     <div style="background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%); border-left: 4px solid #3b82f6; border-radius: 8px; padding: 15px 20px; margin-bottom: 25px; border: 1px solid #334155;">
         <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
             <strong style="color: #3b82f6; font-size: 15px;">ESCALAÇÕES - CONFRONTOS</strong><br>
-            Acompanhe os duelos confirmados e projetados para toda a rodada.
+            Acompanhe os duelos ordenados pela hierarquia de minutos (L5).
             <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
                 <li style="margin-bottom: 4px;">✅ <strong style="color: #10B981;">OFICIAL:</strong> Escalação confirmada.</li>
-                <li>⚠️ <strong style="color: #F59E0B;">PROJETADO:</strong> Baseado na rotação habitual.</li>
+                <li>⚠️ <strong style="color: #F59E0B;">PROJETADO:</strong> Ordenado por minutagem média.</li>
             </ul>
         </div>
     </div>
@@ -7240,7 +7241,7 @@ def show_escalacoes():
         st.warning("⚠️ Scoreboard vazio. Atualize os jogos na aba Config.")
         return
 
-    # ID VAULT (Motor de Fotos)
+    # Helper Nuclear
     def nuclear_normalize(text):
         if not text: return ""
         try:
@@ -7250,35 +7251,57 @@ def show_escalacoes():
             return text
         except: return ""
 
+    # PREPARAÇÃO DO MAPA DE MINUTOS E IDs
+    # (Isso é crucial para saber que LeBron joga 35 min e Bronny joga 10 min)
     ID_VAULT = {}
+    MINS_VAULT = {} # Mapa de Minutos
+    
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    
     if not df_l5.empty:
         try:
             df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
             c_name = next((c for c in df_l5.columns if 'PLAYER' in c), 'PLAYER')
             c_id = next((c for c in df_l5.columns if 'ID' in c and 'TEAM' not in c), 'PLAYER_ID')
             c_team = next((c for c in df_l5.columns if 'TEAM' in c and 'ID' not in c), 'TEAM')
+            c_min = next((c for c in df_l5.columns if c in ['MIN_AVG', 'MIN', 'MINUTES']), None)
             
             for _, row in df_l5.iterrows():
                 try:
                     pid = int(float(row.get(c_id, 0)))
-                    if pid > 0:
-                        nm = str(row.get(c_name, ''))
-                        tm = str(row.get(c_team, 'UNK')).upper()
-                        ID_VAULT[nuclear_normalize(nm)] = pid
-                        parts = nm.split()
-                        if len(parts) > 1: ID_VAULT[f"{nuclear_normalize(parts[-1])}_{tm}"] = pid
+                    nm = str(row.get(c_name, ''))
+                    tm = str(row.get(c_team, 'UNK')).upper()
+                    mins = float(row.get(c_min, 0)) if c_min else 0.0
+                    
+                    key = nuclear_normalize(nm)
+                    
+                    # Salva ID e Minutos
+                    if pid > 0: ID_VAULT[key] = pid
+                    MINS_VAULT[key] = mins
+                    
+                    # Fallback Sobrenome
+                    parts = nm.split()
+                    if len(parts) > 1: 
+                        k2 = f"{nuclear_normalize(parts[-1])}_{tm}"
+                        if pid > 0: ID_VAULT[k2] = pid
+                        MINS_VAULT[k2] = mins
                 except: continue
         except: pass
 
-    def resolve_id(name, team):
+    def resolve_meta(name, team):
+        """Retorna (ID, Minutos)"""
         k1 = nuclear_normalize(name)
-        if k1 in ID_VAULT: return ID_VAULT[k1]
-        parts = name.split()
-        if len(parts) > 0:
-            k2 = f"{nuclear_normalize(parts[-1])}_{team}"
-            if k2 in ID_VAULT: return ID_VAULT[k2]
-        return 0
+        id_val = ID_VAULT.get(k1, 0)
+        min_val = MINS_VAULT.get(k1, 0.0)
+        
+        if id_val == 0 or min_val == 0:
+            parts = name.split()
+            if len(parts) > 0:
+                k2 = f"{nuclear_normalize(parts[-1])}_{team}"
+                if id_val == 0: id_val = ID_VAULT.get(k2, 0)
+                if min_val == 0: min_val = MINS_VAULT.get(k2, 0.0)
+                
+        return id_val, min_val
 
     # FETCHER EMBUTIDO
     def fetch_roster_internal(team_abbr):
@@ -7288,8 +7311,7 @@ def show_escalacoes():
         try:
             r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
             if r.status_code == 200:
-                data = r.json()
-                return data.get('athletes', [])
+                return r.json().get('athletes', [])
         except: pass
         return []
 
@@ -7304,7 +7326,7 @@ def show_escalacoes():
         r_home = fetch_roster_internal(home)
         r_away = fetch_roster_internal(away)
         
-        # --- BLINDAGEM DE DADOS ---
+        # --- PROCESSAMENTO COM ORDENAÇÃO POR MINUTOS ---
         def process_team(roster, team_abbr):
             processed = []
             if not roster: return []
@@ -7314,38 +7336,47 @@ def show_escalacoes():
                 
                 name = p.get('fullName', p.get('displayName', 'Unknown'))
                 
-                # Extração Paranoica: Garante que é dict antes de chamar .get()
                 pos_obj = p.get('position')
                 if not isinstance(pos_obj, dict): pos_obj = {}
                 pos = pos_obj.get('abbreviation', '-')
                 
-                status_text = 'Active'
                 status_obj = p.get('status')
+                status_text = 'Active'
                 if isinstance(status_obj, dict):
                     type_obj = status_obj.get('type')
                     if isinstance(type_obj, dict):
                         status_text = type_obj.get('name', 'Active')
                 
-                pid_espn = p.get('id', 0)
-                pid_nba = resolve_id(name, team_abbr)
-                final_id = pid_nba if pid_nba > 0 else pid_espn
+                # Busca Metadata (ID e Minutos)
+                pid_nba, mins_avg = resolve_meta(name, team_abbr)
+                
+                # Se não achou na NBA, usa ID ESPN
+                final_id = pid_nba if pid_nba > 0 else p.get('id', 0)
                 
                 processed.append({
-                    "name": name, "pos": pos, "status": status_text, "id": final_id
+                    "name": name, 
+                    "pos": pos, 
+                    "status": status_text, 
+                    "id": final_id,
+                    "minutes": mins_avg # O Segredo está aqui!
                 })
-            return processed
+            
+            # --- A CORREÇÃO MAGISTRAL ---
+            # Ordena: Quem tem mais minutos fica no topo
+            # Jogadores sem minutos (0.0) vão pro fundo do banco
+            return sorted(processed, key=lambda x: x['minutes'], reverse=True)
 
         h_players = process_team(r_home, home)
         a_players = process_team(r_away, away)
         
-        # Simulação de Titulares (Top 5 da lista)
+        # Agora o Top 5 é garantido serem os jogadores com mais minutos
         h_starters = h_players[:5]
         h_bench = h_players[5:]
         
         a_starters = a_players[:5]
         a_bench = a_players[5:]
         
-        # --- 4. RENDERIZAÇÃO DO JOGO (FEED) ---
+        # --- 4. RENDERIZAÇÃO ---
         st.markdown(f"""
         <div class="game-block">
             <div class="game-header-bar">
@@ -7368,6 +7399,7 @@ def show_escalacoes():
                     pid = p['id']
                     photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
                     fallback = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+                    mins_display = f"{int(p['minutes'])}m" if p['minutes'] > 0 else ""
                     
                     st.markdown(f"""
                     <div class="player-row {css_border}">
@@ -7375,6 +7407,7 @@ def show_escalacoes():
                         <div class="p-info">
                             <div class="p-name">{p['name']} <span class="p-pos">{p['pos']}</span></div>
                         </div>
+                        <div class="p-mins">{mins_display}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 
@@ -7394,7 +7427,6 @@ def show_escalacoes():
         progress_bar.progress((idx + 1) / len(games))
 
     progress_bar.empty()
-
 # ============================================================================
 # PÁGINA: DEPTO MÉDICO (V50.0 - AUTO-SYNC & VIP LAYOUT)
 # ============================================================================
@@ -8685,6 +8717,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
