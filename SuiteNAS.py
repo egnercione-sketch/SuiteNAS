@@ -7844,7 +7844,7 @@ CUSTOM_CSS = """
 </style>
 """
 # ============================================================================
-# PÁGINA: LAB DE NARRATIVAS (V5.2 - SMART CACHE & STORYTELLING)
+# PÁGINA: LAB DE NARRATIVAS (V5.3 - CLOUD PERSISTENCE)
 # ============================================================================
 def show_narrative_lab():
     import time
@@ -7860,18 +7860,15 @@ def show_narrative_lab():
         .wr-header { font-family: 'Oswald', sans-serif; font-size: 32px; color: #fff; letter-spacing: 2px; text-transform: uppercase; }
         .wr-sub { font-family: monospace; font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
         
-        /* TABELAS */
         .wr-table { width: 100%; border-collapse: collapse; }
         .wr-table td { padding: 8px 4px; vertical-align: middle; border-bottom: 1px dashed #334155; }
         .wr-table tr:last-child td { border-bottom: none; }
         .wr-name { font-family: 'Oswald', sans-serif; font-size: 15px; color: #fff; font-weight: bold; line-height: 1.1; }
         .wr-stat { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; }
         
-        /* VALORES */
         .wr-val-killer { font-family: 'Oswald', sans-serif; font-size: 18px; color: #F87171; font-weight: bold; text-align: right; }
         .wr-val-cold { font-family: 'Oswald', sans-serif; font-size: 18px; color: #00E5FF; font-weight: bold; text-align: right; }
         
-        /* TAGS */
         .wr-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-top: 4px; }
         .tag-killer { background: rgba(248, 113, 113, 0.15); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
         .tag-cold { background: rgba(6, 182, 212, 0.15); color: #00E5FF; border: 1px solid rgba(6, 182, 212, 0.3); }
@@ -7884,7 +7881,6 @@ def show_narrative_lab():
     # 1. SETUP & ENGINE CHECK
     try:
         if "narrative_engine" not in st.session_state:
-            # Tenta importar dinamicamente se não estiver na sessão
             try:
                 from modules.new_modules.narrative_intelligence import NarrativeIntelligence
                 st.session_state.narrative_engine = NarrativeIntelligence()
@@ -7904,7 +7900,7 @@ def show_narrative_lab():
     st.markdown('<div class="wr-header">⚔️ LAB NARRATIVAS</div>', unsafe_allow_html=True)
     st.markdown('<div class="wr-sub">ANOMALIAS ESTATÍSTICAS HISTÓRICAS (H2H)</div>', unsafe_allow_html=True)
 
-    # --- HERO SECTION (EXPLICAÇÃO) ---
+    # HERO SECTION
     st.markdown("""
     <div style="
         background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
@@ -7942,7 +7938,6 @@ def show_narrative_lab():
             
     if not col_team: return
 
-    # Mapa de Times Seguro
     TEAM_MAP_FIX = {
         'GS': 'GSW', 'GOLDEN STATE': 'GSW', 'NO': 'NOP', 'NEW ORLEANS': 'NOP',
         'NY': 'NYK', 'NEW YORK': 'NYK', 'SA': 'SAS', 'SAN ANTONIO': 'SAS',
@@ -7955,26 +7950,36 @@ def show_narrative_lab():
 
     df_l5['TEAM_NORMALIZED'] = df_l5[col_team].apply(normalize_t)
     
-    # Garante PTS_AVG
     if 'PTS_AVG' not in df_l5.columns:
         df_l5['PTS_AVG'] = df_l5['PTS'] if 'PTS' in df_l5.columns else 0.0
     df_l5['PTS_AVG'] = pd.to_numeric(df_l5['PTS_AVG'], errors='coerce').fillna(0)
 
-    # 2. SCAN INTELIGENTE (COM CACHE DE SESSÃO)
-    # Gera uma chave única para o dia de hoje + qtd de jogos. Se mudar, recalcula.
+    # 2. SCAN INTELIGENTE (HIERARQUIA: SESSÃO -> NUVEM -> CÁLCULO)
     today_str = datetime.datetime.now().strftime("%Y%m%d")
     cache_key = f"wr_scan_{today_str}_{len(games)}"
     
-    if "narrative_cache" not in st.session_state:
-        st.session_state.narrative_cache = {}
-
-    scan_results = st.session_state.narrative_cache.get(cache_key)
-
+    scan_results = None
+    
+    # A. Verifica Sessão (Memória RAM)
+    if "narrative_cache" in st.session_state and cache_key in st.session_state.narrative_cache:
+        scan_results = st.session_state.narrative_cache[cache_key]
+    
+    # B. Verifica Nuvem (Supabase) - Se não achou na Sessão
     if scan_results is None:
-        # Se não estiver no cache, processa
+        try:
+            cloud_cache = get_data_universal("narrative_cache") or {}
+            if cache_key in cloud_cache:
+                scan_results = cloud_cache[cache_key]
+                # Atualiza Sessão para ficar rápido nos próximos cliques
+                if "narrative_cache" not in st.session_state: st.session_state.narrative_cache = {}
+                st.session_state.narrative_cache[cache_key] = scan_results
+        except: pass
+
+    # C. Se não achou em lugar nenhum, Calcula (e Salva na Nuvem)
+    if scan_results is None:
         loading_ph = st.empty()
         with loading_ph.container():
-            st.info(f"📡 Analisando histórico de confrontos para {len(games)} jogos...")
+            st.info(f"📡 Calculando anomalias H2H para {len(games)} jogos... (Isso é feito uma vez por dia)")
             prog = st.progress(0)
             scan_results = []
             
@@ -7982,10 +7987,8 @@ def show_narrative_lab():
                 try:
                     away_raw = normalize_t(game.get('away', 'UNK'))
                     home_raw = normalize_t(game.get('home', 'UNK'))
-                    
                     if away_raw == 'UNK' or home_raw == 'UNK': continue
                     
-                    # Pega Top 10 pontuadores de cada time para analisar (Otimização)
                     r_away = df_l5[df_l5['TEAM_NORMALIZED'] == away_raw].sort_values('PTS_AVG', ascending=False).head(10)
                     r_home = df_l5[df_l5['TEAM_NORMALIZED'] == home_raw].sort_values('PTS_AVG', ascending=False).head(10)
 
@@ -7993,17 +7996,13 @@ def show_narrative_lab():
                         try:
                             c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
                             c_name = next((c for c in df_l5.columns if c in ['PLAYER', 'PLAYER_NAME', 'NAME']), 'PLAYER')
-                            
                             pid = int(float(row.get(c_id, 0))) if c_id else 0
                             pname = row.get(c_name, 'Unknown')
                             avg_pts = float(row.get('PTS_AVG', 0))
                             
-                            # Ignora jogadores irrelevantes
                             if avg_pts < 8: return
 
-                            # Chama Engine
                             data = engine.get_player_matchup_history(pid, pname, opp_team)
-                            
                             if data and 'comparison' in data:
                                 diff = data['comparison'].get('diff_pct', 0)
                                 n_type = "NEUTRAL"
@@ -8030,8 +8029,23 @@ def show_narrative_lab():
                     prog.progress((i+1)/len(games))
                 except: continue
             
-            # Salva no Cache da Sessão
+            # --- SALVAMENTO ---
+            # 1. Salva na Sessão Local
+            if "narrative_cache" not in st.session_state: st.session_state.narrative_cache = {}
             st.session_state.narrative_cache[cache_key] = scan_results
+            
+            # 2. Salva na Nuvem (Supabase)
+            try:
+                # Baixa cache atual da nuvem para não apagar outros dias (opcional, ou sobrescreve)
+                current_cloud = get_data_universal("narrative_cache") or {}
+                # Limpa chaves muito antigas para economizar espaço (opcional)
+                if len(current_cloud) > 5: current_cloud = {} 
+                
+                current_cloud[cache_key] = scan_results
+                save_data_universal("narrative_cache", current_cloud)
+                # st.toast("Análise salva na nuvem!", icon="☁️")
+            except: pass
+            
         loading_ph.empty()
 
     # 3. EXIBIÇÃO DE RESULTADOS
@@ -8039,9 +8053,8 @@ def show_narrative_lab():
         st.success("✅ Nenhuma anomalia estatística crítica detectada para os jogos de hoje.")
         return
 
-    # UI: TOP THREATS (Deduplicado)
+    # UI: TOP THREATS
     killers = [x for x in scan_results if x['type'] == "KILLER"]
-    # Ordena por % de diferença
     top_threats = sorted(killers, key=lambda x: x['diff'], reverse=True)[:3]
 
     if top_threats:
@@ -8062,25 +8075,21 @@ def show_narrative_lab():
                         </div>
                         """, unsafe_allow_html=True)
 
-    # UI: RELATÓRIOS DE JOGO
+    # UI: RELATÓRIOS
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div style='margin-bottom:10px; font-family:monospace; color:#94a3b8; font-weight:bold;'>📂 RELATÓRIOS DE JOGO</div>", unsafe_allow_html=True)
 
-    # Agrupa por Jogo
     games_dict = {}
     for item in scan_results:
         gid = item['game_id']
         if gid not in games_dict: games_dict[gid] = {"killers": [], "cold": []}
-        
         target_list = games_dict[gid]["killers"] if item['type'] == "KILLER" else games_dict[gid]["cold"]
-        # Evita duplicados
         if not any(existing['pid'] == item['pid'] for existing in target_list):
             target_list.append(item)
 
     for gid, rosters in games_dict.items():
         n_kill = len(rosters['killers'])
         n_cold = len(rosters['cold'])
-        
         if n_kill == 0 and n_cold == 0: continue
 
         with st.container(border=True):
@@ -8091,7 +8100,6 @@ def show_narrative_lab():
             """, unsafe_allow_html=True)
             
             c_kill, c_cold = st.columns(2)
-            
             with c_kill:
                 st.markdown("<div style='color:#F87171; font-family:Oswald; font-size:14px; margin-bottom:10px;'>🔥 CARRASCOS</div>", unsafe_allow_html=True)
                 if not rosters['killers']: 
@@ -8499,6 +8507,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
