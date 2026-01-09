@@ -8073,10 +8073,13 @@ def show_narrative_lab():
                         rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 # ============================================================================
-# PÁGINA: DASHBOARD (V10.4 - FULL AUTO-SYNC & GAME CARDS)
+# PÁGINA: DASHBOARD (V10.5 - AUTO-SYNC COM VALIDAÇÃO DE DATA)
 # ============================================================================
 def show_dashboard_page():
-    # --- CSS Helper (Mantido original) ---
+    import datetime
+    from datetime import timedelta
+
+    # --- CSS Helper ---
     st.markdown("""
     <style>
         .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
@@ -8084,46 +8087,65 @@ def show_dashboard_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # ========================================================================
-    # 1. AUTO-LOADER INTELIGENTE (CLOUD FIRST) - A CORREÇÃO
-    # ========================================================================
-    # Garante que temos JOGOS e ODDS antes de desenhar a tela
-    
-    # --- A. SCOREBOARD ---
-    if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
-        # 1. Tenta Nuvem
-        cloud_games = get_data_universal("scoreboard")
-        if cloud_games:
-            st.session_state['scoreboard'] = cloud_games
-        else:
-            # 2. Nuvem vazia? Baixa da API
-            try:
-                with st.spinner("☁️ Sincronizando Jogos..."):
-                    games_data = fetch_espn_scoreboard(False)
-                    if games_data:
-                        st.session_state['scoreboard'] = games_data
-                        save_data_universal("scoreboard", games_data) # Salva para o próximo
-            except: 
-                st.session_state['scoreboard'] = []
+    # --- HELPER DE DATA NBA ---
+    def get_nba_today_str():
+        # Define "Hoje" no fuso da NBA (UTC-5)
+        # Se for 1h da manhã no Brasil, ainda pode ser o dia anterior na NBA.
+        et_now = datetime.datetime.utcnow() - timedelta(hours=5)
+        return et_now.strftime("%Y%m%d")
 
-    # --- B. ODDS (SPREADS) ---
-    if 'odds' not in st.session_state or not st.session_state['odds']:
-        # 1. Tenta Nuvem
-        cloud_odds = get_data_universal("odds")
-        if cloud_odds:
-            st.session_state['odds'] = cloud_odds
+    # ========================================================================
+    # 1. AUTO-LOADER INTELIGENTE (COM VALIDAÇÃO DE VALIDADE)
+    # ========================================================================
+    
+    # Flag para controlar se precisamos baixar dados novos
+    need_refresh = False
+    
+    # 1. Tenta carregar da Nuvem primeiro
+    cloud_games = get_data_universal("scoreboard")
+    today_str = get_nba_today_str()
+
+    if cloud_games and isinstance(cloud_games, list) and len(cloud_games) > 0:
+        # --- AQUI ESTÁ A CORREÇÃO CRÍTICA ---
+        # Verifica a data do primeiro jogo salvo no Supabase
+        db_date = cloud_games[0].get('date_str', '00000000')
+        
+        if db_date == today_str:
+            # O banco está atualizado (é de hoje)! Pode usar.
+            st.session_state['scoreboard'] = cloud_games
+            # Tenta carregar odds da nuvem também
+            st.session_state['odds'] = get_data_universal("odds") or {}
         else:
-            # 2. Nuvem vazia? Baixa da API (se tiver jogos)
-            if st.session_state.get('scoreboard'):
-                try:
-                    with st.spinner("💰 Atualizando Odds..."):
-                        # Assume que fetch_nba_odds está disponível no escopo global
-                        odds_data = fetch_nba_odds() 
+            # O banco tem dados, MAS são velhos. Forçar atualização.
+            # st.toast(f"Dados antigos detectados ({db_date}). Atualizando para {today_str}...", icon="🔄")
+            need_refresh = True
+    else:
+        # Banco vazio. Precisa atualizar.
+        need_refresh = True
+
+    # 2. Se precisar atualizar (Banco vazio ou Dados Velhos), vai na API
+    if need_refresh:
+        try:
+            with st.spinner("🔄 Atualizando Scoreboard e Odds do dia..."):
+                # Baixa Scoreboard Novo
+                games_data = fetch_espn_scoreboard(False)
+                
+                if games_data:
+                    st.session_state['scoreboard'] = games_data
+                    save_data_universal("scoreboard", games_data) # Atualiza o Supabase com a data nova!
+                    
+                    # Baixa Odds Novas
+                    try:
+                        odds_data = fetch_odds_for_today() # Função consumidora refatorada
                         if odds_data:
                             st.session_state['odds'] = odds_data
                             save_data_universal("odds", odds_data)
-                except: 
-                    st.session_state['odds'] = {}
+                    except: 
+                        st.session_state['odds'] = {}
+                else:
+                    st.session_state['scoreboard'] = []
+        except Exception as e:
+            st.error(f"Erro na sincronização automática: {e}")
 
     # Carrega dados para variáveis locais
     games_list = st.session_state.get('scoreboard', [])
@@ -8438,6 +8460,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
