@@ -1515,7 +1515,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V31.0 - HYBRID PHOTO FIX)
+# PÁGINA: BLOWOUT RADAR (V32.0 - REALITY CHECK & HERO UX)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1524,8 +1524,9 @@ def show_blowout_hunter_page():
     import time
     import numpy as np
     import unicodedata
+    import streamlit as st
     
-    # --- 1. FUNÇÕES AUXILIARES ---
+    # --- 1. FUNÇÕES AUXILIARES & MATEMÁTICA ---
     def normalize_str(text):
         """Limpa texto para comparação (Remove acentos, uppercase, sufixos)."""
         if not text: return ""
@@ -1533,12 +1534,44 @@ def show_blowout_hunter_page():
             text = str(text)
             text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
             text = text.upper().strip()
-            # Remove sufixos comuns que atrapalham o match
             for suffix in [" JR.", " SR.", " III", " II", " IV"]:
                 if text.endswith(suffix):
                     text = text.replace(suffix, "")
             return text.strip()
         except: return ""
+
+    def adjust_stat(raw_val, projected_min):
+        """
+        Ajusta a estatística para a realidade.
+        Assume que o dado bruto pode ser 'Per 36' e projeta para os minutos do blowout.
+        Aplica um 'Teto de Sanidade' para evitar projeções de Michael Jordan.
+        """
+        try:
+            val = float(raw_val)
+            mins = float(projected_min)
+            if mins <= 0: return 0.0
+            
+            # 1. Normalização (Assume que o dado base é Per 36 se for muito alto)
+            # Se o valor base for > 15 (para pts) e minutos projetados < 30, provavelmente é Per 36.
+            # Para simplificar e corrigir o erro de "28 pts", vamos normalizar sempre base 36.
+            projected_val = (val / 36.0) * mins
+            
+            # 2. Teto de Sanidade (Caps por Minuto)
+            # Ninguém faz mais de 1.0 ponto/min sustentável vindo do banco.
+            caps = {
+                'pts': 0.9 * mins, # Max 0.9 pts por minuto
+                'reb': 0.4 * mins, # Max 0.4 reb por minuto
+                'ast': 0.35 * mins # Max 0.35 ast por minuto
+            }
+            
+            # Se for PTS, aplica o cap
+            # (Lógica simplificada: Se o projetado for maior que o cap, usa a média entre eles)
+            if projected_val > caps['pts']: 
+                projected_val = (projected_val + caps['pts']) / 2
+                
+            return round(projected_val, 1)
+        except:
+            return 0.0
 
     LOGO_MAP = {
         "GS": "GSW", "GSW": "GSW", "NY": "NYK", "NYK": "NYK",
@@ -1556,45 +1589,76 @@ def show_blowout_hunter_page():
     # --- 2. ESTILO VISUAL ---
     st.markdown("""
     <style>
-        .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; }
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        .radar-title { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+        
         .match-container { background-color: #1e293b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; overflow: hidden; }
+        
         .risk-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
         .risk-high { background: linear-gradient(90deg, #7f1d1d 0%, #1e293b 80%); border-left: 5px solid #EF4444; }
         .risk-med { background: linear-gradient(90deg, #78350f 0%, #1e293b 80%); border-left: 5px solid #F59E0B; }
         .risk-low { background: linear-gradient(90deg, #064e3b 0%, #1e293b 80%); border-left: 5px solid #10B981; }
-        .game-matchup-box { display: flex; align-items: center; gap: 10px; }
-        .match-logo { width: 35px; height: 35px; object-fit: contain; }
-        .game-matchup-text { font-family: 'Oswald'; font-size: 20px; color: #fff; letter-spacing: 1px; }
+        
+        .game-matchup-text { font-family: 'Oswald'; font-size: 18px; color: #fff; letter-spacing: 1px; margin: 0 10px; }
+        .match-logo { width: 30px; height: 30px; object-fit: contain; }
+        
         .risk-label { font-size: 11px; font-weight: bold; color: #fff; text-transform: uppercase; }
         .spread-tag { font-size: 12px; color: #cbd5e1; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
         .team-col-header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; }
-        .team-col-logo { width: 24px; height: 24px; object-fit: contain; }
         .team-col-text { color: #94a3b8; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
-        .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; }
-        .vulture-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #a78bfa; margin-right: 12px; object-fit: cover; background: #0f172a; }
-        .vulture-name { color: #e2e8f0; font-weight: 700; font-size: 13px; line-height: 1.2; }
-        .vulture-role { font-size: 9px; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
-        .stat-box { display: flex; gap: 12px; text-align: center; }
-        .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; }
-        .stat-lbl { font-size: 7px; color: #64748B; font-weight: bold; }
+        
+        .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid #334155; }
+        .vulture-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #6366f1; margin-right: 10px; object-fit: cover; background: #0f172a; }
+        .vulture-name { color: #e2e8f0; font-weight: 600; font-size: 13px; font-family: 'Oswald'; }
+        .vulture-mins { font-size: 10px; color: #94a3b8; margin-top: 2px; font-family: 'Inter'; }
+        
+        .stat-box { display: flex; gap: 10px; text-align: center; }
+        .stat-val { font-family: 'Oswald'; font-size: 14px; font-weight: bold; }
+        .stat-lbl { font-size: 8px; color: #64748B; font-weight: bold; }
         .c-pts { color: #4ade80; } .c-reb { color: #60a5fa; } .c-ast { color: #facc15; }
-        .dna-badge { background: #6D28D9; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
-        .fallback-badge { background: #F59E0B; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 8px; font-weight:bold; }
+        
+        .badge-sniper { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid #a78bfa; padding: 1px 4px; border-radius: 3px; font-size: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="radar-title">&#127744; BLOWOUT RADAR</div>', unsafe_allow_html=True)
 
-    # --- 3. MAPEAMENTO DE IDs & LESÕES ---
+    # --- HERO SECTION ---
+    st.markdown("""
+    <div style="
+        background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
+        border-left: 4px solid #6366f1;
+        border-radius: 8px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid #334155;
+    ">
+        <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
+            <strong style="color: #6366f1; font-size: 15px;">O CAÇADOR DE OPORTUNIDADES (GARBAGE TIME)</strong><br>
+            Jogos com Spread alto tendem a ser decididos cedo. Quando as estrelas sentam, abre-se valor nas linhas dos reservas ("Bench Mob").
+            <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
+                <li style="margin-bottom: 6px;">
+                    🌪️ <strong style="color: #EF4444;">Blowout Risk:</strong> Alta probabilidade de goleada. Foco total nos reservas listados.
+                </li>
+                <li>
+                    📈 <strong style="color: #4ade80;">Projeção Realista:</strong> As estatísticas abaixo são <em>ajustadas</em> para os minutos projetados de quadra livre.
+                </li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- 3. DADOS & FILTROS ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     PLAYER_ID_MAP = {}
     
     if not df_l5.empty:
         try:
-            # Cria um mapa robusto: Nome Normalizado -> ID
             df_l5['PLAYER_NORM_MAP'] = df_l5['PLAYER'].apply(normalize_str)
-            # Remove duplicatas e zeros
             valid_ids = df_l5[df_l5['PLAYER_ID'] != 0]
             PLAYER_ID_MAP = dict(zip(valid_ids['PLAYER_NORM_MAP'], valid_ids['PLAYER_ID']))
         except: pass
@@ -1621,10 +1685,6 @@ def show_blowout_hunter_page():
                 if isinstance(item, dict):
                     p_name = item.get('player') or item.get('name') or item.get('athlete') or ""
                     status = str(item.get('status', '')).upper()
-                elif isinstance(item, str):
-                    parts = str(item).split('-')
-                    p_name = parts[0]
-                    status = str(item).upper()
                 
                 if p_name:
                     norm = normalize_str(p_name)
@@ -1638,18 +1698,17 @@ def show_blowout_hunter_page():
         DNA_DB = get_data_universal("rotation_dna_v27") or {}
         st.session_state['dna_final_v27'] = DNA_DB
 
-    # --- 5. EXIBIÇÃO ---
+    # --- 5. LOOP DE JOGOS ---
     games = st.session_state.get('scoreboard', [])
     if not games:
         st.info("Aguardando jogos...")
         return
 
     st.markdown("---")
-    c_sim, c_vazio = st.columns([1, 2])
-    with c_sim:
-        force_spread = st.slider("🎛️ Simular Cenário de Blowout (Spread):", 0, 30, 0)
+    
+    # Slider de Simulação
+    force_spread = st.slider("🎛️ Simular Cenário de Blowout (Aumentar Spread Virtual):", 0, 30, 0, help="Force o sistema a considerar uma diferença de pontos maior para ver quem jogaria.")
 
-    # Função Inteligente de Busca de Time
     def get_team_data(query):
         q = str(query).upper().strip()
         if q in LOGO_MAP:
@@ -1662,8 +1721,10 @@ def show_blowout_hunter_page():
 
     for g in games:
         raw_s = g.get('odds_spread', '0')
+        # Tenta extrair numero do spread (ex: "-5.5" -> 5.5)
         try: real_s = abs(float(re.findall(r"[-+]?\d*\.\d+|\d+", str(raw_s))[-1]))
         except: real_s = 0.0
+        
         final_spread = max(real_s, force_spread)
         
         if final_spread >= 12.5:
@@ -1682,14 +1743,14 @@ def show_blowout_hunter_page():
         st.markdown(f"""
         <div class="match-container">
             <div class="risk-header {risk_cls}">
-                <div class="game-matchup-box">
+                <div style="display:flex; align-items:center;">
                     <img src="{logo_away}" class="match-logo">
                     <span class="game-matchup-text">{g['away']} @ {g['home']}</span>
                     <img src="{logo_home}" class="match-logo">
                 </div>
-                <div class="game-meta">
+                <div style="text-align:right;">
                     <div class="risk-label">{risk_txt}</div>
-                    <span class="spread-tag">SPREAD: {final_spread}</span>
+                    <span class="spread-tag">LINHA: {final_spread}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -1706,7 +1767,7 @@ def show_blowout_hunter_page():
                     <div class="players-area">
                         <div class="team-col-header">
                             <img src="{t_logo}" class="team-col-logo">
-                            <div class="team-col-text">{t_name} RESERVES</div>
+                            <div class="team-col-text">{t_name} RESERVAS</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
@@ -1714,50 +1775,49 @@ def show_blowout_hunter_page():
                         valid_players = []
                         for p in data:
                             p_clean = normalize_str(p.get('clean_name') or p['name'])
-                            
-                            # 1. Filtro Lesão
                             if p_clean in banned_players: continue 
                             
-                            # 2. Recuperação de ID FORÇADA (Ignora cache, busca fresco)
-                            # Isso garante que se o cache tinha 0, agora pegamos o certo
                             fresh_id = PLAYER_ID_MAP.get(p_clean, 0)
-                            if fresh_id != 0:
-                                p['id'] = fresh_id
-                            
+                            if fresh_id != 0: p['id'] = fresh_id
                             valid_players.append(p)
                         
                         if valid_players:
+                            # Mostra top 3 reservas
                             for p in valid_players[:3]:
                                 pid = int(p.get('id', 0))
-                                
-                                # URLs Híbridas (NBA vs ESPN)
                                 nba_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
                                 espn_url = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{pid}.png"
                                 fallback_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-                                badge_cls = "dna-badge" if p.get('type') == 'SNIPER' else "fallback-badge"
-                                badge_txt = "SNIPER" if p.get('type') == 'SNIPER' else "CEILING"
+                                badge_html = f'<span class="badge-sniper">SNIPER</span>' if p.get('type') == 'SNIPER' else ''
                                 
-                                # HTML IMG Híbrido: Tenta NBA, se falhar tenta ESPN, se falhar usa Fallback
                                 img_html = f"""<img src="{nba_url}" class="vulture-img" onerror="this.src='{espn_url}'; this.onerror=function(){{this.src='{fallback_url}'}};">"""
-                                if pid == 0:
-                                     img_html = f"""<img src="{fallback_url}" class="vulture-img">"""
+                                if pid == 0: img_html = f"""<img src="{fallback_url}" class="vulture-img">"""
+
+                                # --- MATEMÁTICA CORRIGIDA AQUI ---
+                                proj_min = float(p.get('blowout_min', 15))
+                                avg_min = float(p.get('avg_min', 10))
+                                
+                                # Ajusta stats
+                                adj_pts = adjust_stat(p.get('pts', 0), proj_min)
+                                adj_reb = adjust_stat(p.get('reb', 0), proj_min)
+                                adj_ast = adjust_stat(p.get('ast', 0), proj_min)
 
                                 st.markdown(f"""
                                 <div class="vulture-row">
                                     <div style="display:flex; align-items:center;">
                                         {img_html}
-                                        <div class="vulture-info">
-                                            <div class="vulture-name">{p['name']} <span class="{badge_cls}">{badge_txt}</span></div>
-                                            <div class="vulture-role">
-                                                {p['avg_min']:.0f}m <span style="color:#64748B;">➝</span> <span style="color:#4ade80;">{p['blowout_min']:.0f}m</span>
+                                        <div>
+                                            <div class="vulture-name">{p['name']} {badge_html}</div>
+                                            <div class="vulture-mins">
+                                                {avg_min:.0f}m <span style="color:#64748B;">➝</span> <span style="color:#4ade80; font-weight:bold;">{proj_min:.0f}m</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="stat-box">
-                                        <div><div class="stat-val c-pts">{p['pts']:.1f}</div><div class="stat-lbl">PTS</div></div>
-                                        <div><div class="stat-val c-reb">{p['reb']:.1f}</div><div class="stat-lbl">REB</div></div>
-                                        <div><div class="stat-val c-ast">{p['ast']:.1f}</div><div class="stat-lbl">AST</div></div>
+                                        <div><div class="stat-val c-pts">{adj_pts:.1f}</div><div class="stat-lbl">PTS</div></div>
+                                        <div><div class="stat-val c-reb">{adj_reb:.1f}</div><div class="stat-lbl">REB</div></div>
+                                        <div><div class="stat-val c-ast">{adj_ast:.1f}</div><div class="stat-lbl">AST</div></div>
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -8553,6 +8613,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
