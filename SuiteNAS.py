@@ -7166,7 +7166,7 @@ def render_player_list_bench(players, injured_names):
             """, unsafe_allow_html=True)
 
 # ============================================================================
-# PÁGINA: MATCHUP CENTER (V3.0 - TACTICAL FEED & COMPACT GRID)
+# PÁGINA: MATCHUP CENTER (V3.1 - ROBUST DATA EXTRACTION FIX)
 # ============================================================================
 def show_escalacoes():
     import streamlit as st
@@ -7176,7 +7176,7 @@ def show_escalacoes():
     import re
     import unicodedata
 
-    # --- 1. CSS VISUAL (COMPACTO & TÁTICO) ---
+    # --- 1. CSS VISUAL (MANTIDO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -7201,7 +7201,7 @@ def show_escalacoes():
         .gh-title { font-family: 'Oswald'; font-size: 16px; color: #fff; }
         .gh-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; }
 
-        /* LINHA DO JOGADOR (COMPACTA) */
+        /* LINHA DO JOGADOR */
         .player-row {
             display: flex; align-items: center;
             padding: 6px 8px;
@@ -7217,19 +7217,8 @@ def show_escalacoes():
         .p-name { font-family: 'Oswald'; font-size: 13px; color: #e2e8f0; line-height: 1.1; }
         .p-pos { font-size: 9px; color: #64748b; font-weight: bold; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
         
-        .p-stat { font-family: 'Inter'; font-size: 11px; color: #94a3b8; text-align: right; min-width: 60px; }
-        .stat-highlight { color: #fff; font-weight: bold; }
-        
-        /* BORDAS DE TIME */
         .border-left-home { border-left: 3px solid #00E5FF; }
         .border-left-away { border-left: 3px solid #FF4F4F; }
-
-        /* BADGES */
-        .status-badge { font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 4px; font-family:'Oswald'; }
-        .bg-official { background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; }
-        .bg-proj { background: rgba(245, 158, 11, 0.2); color: #F59E0B; border: 1px solid #F59E0B; }
-        
-        .bench-toggle { font-size: 11px; color: #64748b; cursor: pointer; text-align: center; padding: 5px; background: #0f172a; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -7242,8 +7231,8 @@ def show_escalacoes():
             <strong style="color: #3b82f6; font-size: 15px;">SALA DE GUERRA (ESCALAÇÕES)</strong><br>
             Acompanhe os duelos confirmados e projetados para toda a rodada.
             <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
-                <li style="margin-bottom: 4px;">✅ <strong style="color: #10B981;">OFICIAL:</strong> Escalação confirmada pela liga/time.</li>
-                <li>⚠️ <strong style="color: #F59E0B;">PROJETADO:</strong> Baseado na rotação habitual (L5) quando a oficial não saiu.</li>
+                <li style="margin-bottom: 4px;">✅ <strong style="color: #10B981;">OFICIAL:</strong> Escalação confirmada.</li>
+                <li>⚠️ <strong style="color: #F59E0B;">PROJETADO:</strong> Baseado na rotação habitual.</li>
             </ul>
         </div>
     </div>
@@ -7294,9 +7283,8 @@ def show_escalacoes():
             if k2 in ID_VAULT: return ID_VAULT[k2]
         return 0
 
-    # FETCHER EMBUTIDO (CORREÇÃO DE ERRO)
+    # FETCHER EMBUTIDO
     def fetch_roster_internal(team_abbr):
-        # Mapeamento ESPN
         map_espn = {"UTA": "utah", "NOP": "no", "NYK": "ny", "GSW": "gs", "SAS": "sa", "PHX": "pho", "WAS": "wsh", "BKN": "bkn"}
         t_code = map_espn.get(team_abbr.upper(), team_abbr.lower())
         url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{t_code}/roster"
@@ -7310,63 +7298,51 @@ def show_escalacoes():
 
     # --- 3. PROCESSAMENTO DOS JOGOS ---
     games = st.session_state.scoreboard
-
-    # Barra de Progresso Discreta (pois vamos carregar tudo)
     progress_bar = st.progress(0)
     
     for idx, game in enumerate(games):
         away = game.get('away', 'UNK')
         home = game.get('home', 'UNK')
-        gid = game.get('game_id', str(idx))
         
-        # 3.1 Fetch Rosters (Rápido)
-        # O ideal seria cachear isso, mas para "Feed Ao Vivo" vamos buscar
-        # Se ficar lento, podemos colocar @st.cache_data no fetch_roster_internal
         r_home = fetch_roster_internal(home)
         r_away = fetch_roster_internal(away)
         
-        # 3.2 Lógica de Titulares/Reservas
+        # --- A CORREÇÃO ESTÁ AQUI (BLINDAGEM CONTRA NONE) ---
         def process_team(roster, team_abbr):
             processed = []
+            if not roster: return []
+            
             for p in roster:
-                name = p.get('fullName', p.get('displayName', 'Unknown'))
-                pos = p.get('position', {}).get('abbreviation', '-')
-                status = p.get('status', {}).get('type', {}).get('name', 'Active')
-                pid_espn = p.get('id', 0)
+                if not isinstance(p, dict): continue
                 
-                # Tenta achar ID NBA para foto melhor
+                name = p.get('fullName', p.get('displayName', 'Unknown'))
+                
+                # Extração Segura: (dict or {}).get(...)
+                pos_obj = p.get('position') or {}
+                pos = pos_obj.get('abbreviation', '-')
+                
+                status_obj = p.get('status') or {}
+                type_obj = status_obj.get('type') or {}
+                status = type_obj.get('name', 'Active')
+                
+                pid_espn = p.get('id', 0)
                 pid_nba = resolve_id(name, team_abbr)
                 final_id = pid_nba if pid_nba > 0 else pid_espn
                 
-                # Minutos/Stats (Mock ou buscar do df_l5 se quiser avançar)
-                # Aqui vamos simplificar para garantir performance
                 processed.append({
-                    "name": name, "pos": pos, "status": status, "id": final_id,
-                    "starter": False # ESPN nem sempre dá o starter field direto aqui
+                    "name": name, "pos": pos, "status": status, "id": final_id
                 })
-            
-            # Ordenação Simples (Fallback, pois não temos minutos aqui sem cruzar com DF_L5)
-            # Na V4 podemos cruzar com DF_L5 para ordenar por minutos reais
             return processed
 
         h_players = process_team(r_home, home)
         a_players = process_team(r_away, away)
         
-        # Simulação de Titulares (Top 5 da lista da ESPN geralmente são os principais, ou aleatório sem stats)
-        # MELHORIA: Cruzar com DF_L5 para pegar os 5 com mais minutos
-        def get_top_5_by_minutes(players, team_abbr):
-            # Cria lista com minutos do DF_L5
-            ranked = []
-            for p in players:
-                k1 = nuclear_normalize(p['name'])
-                # Busca minutos no ID_VAULT? Não, o Vault só tem ID.
-                # Precisaríamos do DF_L5. Vamos fazer um lookup rápido no DF_L5 se possível.
-                # Para não pesar, vamos assumir a ordem da ESPN ou apenas listar.
-                ranked.append(p)
-            return ranked[:5], ranked[5:]
-
-        h_starters, h_bench = get_top_5_by_minutes(h_players, home)
-        a_starters, a_bench = get_top_5_by_minutes(a_players, away)
+        # Simulação de Titulares (Top 5 da lista)
+        h_starters = h_players[:5]
+        h_bench = h_players[5:]
+        
+        a_starters = a_players[:5]
+        a_bench = a_players[5:]
         
         # --- 4. RENDERIZAÇÃO DO JOGO (FEED) ---
         st.markdown(f"""
@@ -7387,7 +7363,6 @@ def show_escalacoes():
             with col:
                 st.markdown(f"<div style='margin-bottom:8px; color:{color_tit}; font-family:Oswald; font-size:18px;'>{team_abbr}</div>", unsafe_allow_html=True)
                 
-                # Titulares
                 for p in starters:
                     pid = p['id']
                     photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
@@ -7402,7 +7377,6 @@ def show_escalacoes():
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # Banco (Expander)
                 with st.expander(f"Reserves ({len(bench)})"):
                     for p in bench:
                          st.markdown(f"""
@@ -7415,7 +7389,7 @@ def show_escalacoes():
         render_squad(c_away, away, a_starters, a_bench, "away")
         render_squad(c_home, home, h_starters, h_bench, "home")
         
-        st.divider() # Separador visual entre jogos
+        st.divider()
         progress_bar.progress((idx + 1) / len(games))
 
     progress_bar.empty()
@@ -8710,6 +8684,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
