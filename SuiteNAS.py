@@ -52,10 +52,17 @@ def normalize_name(n):
     n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
     return " ".join(n.split())
 
+# ==============================================================================
+# 1. FETCH SCOREBOARD (PRODUTOR: Extrai Jogos + Odds Brutas)
+# ==============================================================================
 def fetch_espn_scoreboard(progress_ui=False):
-    """Busca jogos forçando a data de HOJE no fuso horário da NBA."""
+    """
+    Busca jogos e ODDS BRUTAS direto da API da ESPN.
+    Salva tudo no session_state['scoreboard'].
+    """
     import requests
     from datetime import datetime, timedelta
+    
     try:
         if progress_ui: st.toast("Sincronizando NBA...", icon="🏀")
         
@@ -71,22 +78,50 @@ def fetch_espn_scoreboard(progress_ui=False):
         for event in data.get('events', []):
             try:
                 comp = event['competitions'][0]
-                home = fix_team_abbr(comp['competitors'][0]['team']['abbreviation'])
-                away = fix_team_abbr(comp['competitors'][1]['team']['abbreviation'])
+                
+                # Times
+                home_raw = comp['competitors'][0]['team']['abbreviation']
+                away_raw = comp['competitors'][1]['team']['abbreviation']
+                
+                # Normalização (se tiver a função global, usa, senão usa string pura)
+                try: 
+                    home = normalize_team_signature(home_raw)
+                    away = normalize_team_signature(away_raw)
+                except:
+                    home = fix_team_abbr(home_raw)
+                    away = fix_team_abbr(away_raw)
+
                 gid = event['id']
                 
+                # --- CAPTURA DE ODDS (A PEÇA QUE FALTAVA) ---
+                odds_spread = "N/A"
+                odds_total = 0.0
+                
+                if 'odds' in comp and len(comp['odds']) > 0:
+                    # Pega o primeiro provider de odds (geralmente ESPN BET)
+                    odds_obj = comp['odds'][0]
+                    odds_spread = odds_obj.get('details', 'N/A') # Ex: "BOS -5.5"
+                    odds_total = odds_obj.get('overUnder', 0.0)
+                
                 games.append({
-                    "home": home, "away": away, "game_id": str(gid),
+                    "home": home, 
+                    "away": away, 
+                    "game_id": str(gid),
                     "game_str": f"{away} @ {home}",
-                    "status": event['status']['type']['state']
+                    "status": event['status']['type']['state'],
+                    # Salvamos o dado bruto aqui para o próximo passo usar
+                    "odds_spread": odds_spread, 
+                    "odds_total": odds_total
                 })
             except: continue
             
+        # Salva na memória
         st.session_state['scoreboard'] = games
         return games
+        
     except Exception as e:
         if progress_ui: st.error(f"Erro Scoreboard: {e}")
-        return []        
+        return []
     
 
 # ============================================================================
@@ -4574,32 +4609,19 @@ def fetch_team_roster(team_abbr_or_id, progress_ui=True):
             st.warning(f"Falha ao buscar roster para {team_abbr_or_id}: {e}")
         return {}
 
-# ============================================================================
-# FETCH ODDS (FONTE: ESPN)
-# ============================================================================
+# ==============================================================================
+# 2. PARSE ODDS (CONSUMIDOR: Transforma Texto em Números)
+# ==============================================================================
 def fetch_odds_for_today():
     """
-    Gera o mapa de odds a partir dos dados da ESPN (Scoreboard).
-    Substitui a API paga (The Odds API) por dados gratuitos da ESPN.
+    Não baixa nada! Apenas lê o 'scoreboard' já carregado e formata
+    as strings de odds (ex: 'LAL -5.5') para números usáveis (-5.5).
     """
-    # 1. Tentar pegar do session_state
+    # 1. Pega os dados que acabamos de baixar
     games = st.session_state.get('scoreboard', [])
     
-    # 2. Se vazio, tentar carregar do arquivo
-    if not games:
-        cached = load_json(SCOREBOARD_JSON_FILE)
-        if cached:
-            # Reconstrução rápida da lista de jogos caso venha do JSON bruto
-            if "events" in cached:
-                # Se for o JSON cru da ESPN, precisaria reprocessar, 
-                # mas vamos assumir que fetch_espn_scoreboard já salvou processado ou re-chamar:
-                pass
-            else:
-                games = cached # Assumindo formato lista já salvo
-    
-    # 3. Se ainda vazio, buscar agora
-    if not games:
-        games = fetch_espn_scoreboard(progress_ui=False)
+    # Se não tiver jogos, não tem o que fazer
+    if not games: return {}
 
     odds_map = {}
     
@@ -4608,59 +4630,54 @@ def fetch_odds_for_today():
             away = game.get("away")
             home = game.get("home")
             
-            # Tentar extrair dados da ESPN que salvamos no fetch_espn_scoreboard
-            # Formato esperado da string ESPN: "BOS -5.5" ou "EVEN"
+            # Pega o dado bruto que salvamos no passo anterior
             spread_str = game.get("odds_spread", "")
-            total_val = game.get("odds_total")
+            total_val = game.get("odds_total", 0)
             
             spread_val = 0.0
             
-            # Parsear Spread
+            # Lógica de Parsing (Limpeza da String)
             if spread_str and spread_str != "N/A":
                 try:
-                    # Lógica: Se string for "BOS -5.5", o spread é 5.5
-                    # Se for "EVEN", é 0
-                    if "EVEN" in spread_str.upper():
+                    # Caso 1: "EVEN" (0.0)
+                    if "EVEN" in spread_str.upper() or "PK" in spread_str.upper():
                         spread_val = 0.0
                     else:
-                        # Pega o último pedaço "-5.5"
+                        # Caso 2: "BOS -5.5" -> Pega o último pedaço
+                        # Removemos o time e ficamos só com o número
                         parts = spread_str.split()
-                        if parts:
+                        if len(parts) >= 1:
+                            # Tenta pegar o último elemento (ex: -5.5)
                             spread_val = float(parts[-1])
                 except:
                     spread_val = 0.0
             
-            # Parsear Total
-            try:
-                total_float = float(total_val) if total_val else 0.0
-            except:
-                total_float = 0.0
+            # Parsing do Total
+            try: total_float = float(total_val)
+            except: total_float = 0.0
 
-            # Construir chaves para compatibilidade com o sistema antigo
-            # O sistema espera chaves como "Lakers@Celtics"
-            # Vamos usar os nomes completos que temos no dicionário
-            away_full = get_full_team_name(away)
-            home_full = get_full_team_name(home)
-            
+            # Cria o objeto limpo
             entry = {
                 "spread": spread_val,
                 "total": total_float,
-                "home_full": home_full,
-                "away_full": away_full,
-                "bookmaker": "ESPN (Free)"
+                "spread_str": spread_str, # Mantém o texto visual
+                "bookmaker": "ESPN"
             }
             
-            # Salvar com várias chaves para garantir que o sistema encontre
-            odds_map[f"{away}@{home}"] = entry
-            odds_map[f"{away} @ {home}"] = entry
-            odds_map[f"{away_full}@{home_full}"] = entry
-            odds_map[f"{away_full} @ {home_full}"] = entry
+            # --- CRIA CHAVES DE ACESSO ---
+            # O sistema pode buscar por "GSW@LAL" ou "GSW @ LAL"
+            # Criamos todas as variações para garantir que o Dashboard encontre
+            key_clean = f"{away}@{home}"
+            key_spaced = f"{away} @ {home}"
+            
+            odds_map[key_clean] = entry
+            odds_map[key_spaced] = entry
             
         except Exception:
             continue
             
-    # Salvar no cache de odds para manter compatibilidade
-    save_json(ODDS_CACHE_FILE, odds_map)
+    # Atualiza o session state com o mapa pronto
+    st.session_state['odds'] = odds_map
     return odds_map
 
 def fetch_team_advanced_stats():
@@ -8421,6 +8438,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
