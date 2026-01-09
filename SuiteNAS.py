@@ -1515,7 +1515,7 @@ def show_dvp_analysis():
         """, unsafe_allow_html=True)
                 
 # ============================================================================
-# PÁGINA: BLOWOUT RADAR (V32.0 - REALITY CHECK & HERO UX)
+# PÁGINA: BLOWOUT RADAR (V32.1 - LOGO SIZE FIX)
 # ============================================================================
 def show_blowout_hunter_page():
     import json
@@ -1552,20 +1552,16 @@ def show_blowout_hunter_page():
             if mins <= 0: return 0.0
             
             # 1. Normalização (Assume que o dado base é Per 36 se for muito alto)
-            # Se o valor base for > 15 (para pts) e minutos projetados < 30, provavelmente é Per 36.
-            # Para simplificar e corrigir o erro de "28 pts", vamos normalizar sempre base 36.
             projected_val = (val / 36.0) * mins
             
             # 2. Teto de Sanidade (Caps por Minuto)
-            # Ninguém faz mais de 1.0 ponto/min sustentável vindo do banco.
             caps = {
                 'pts': 0.9 * mins, # Max 0.9 pts por minuto
                 'reb': 0.4 * mins, # Max 0.4 reb por minuto
                 'ast': 0.35 * mins # Max 0.35 ast por minuto
             }
             
-            # Se for PTS, aplica o cap
-            # (Lógica simplificada: Se o projetado for maior que o cap, usa a média entre eles)
+            # Se for PTS, aplica o cap (média entre projetado e cap se estourar)
             if projected_val > caps['pts']: 
                 projected_val = (projected_val + caps['pts']) / 2
                 
@@ -1586,7 +1582,7 @@ def show_blowout_hunter_page():
         clean_abbr = LOGO_MAP.get(team_abbr.upper(), team_abbr.upper())
         return f"https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/{clean_abbr.lower()}.png"
 
-    # --- 2. ESTILO VISUAL ---
+    # --- 2. ESTILO VISUAL (CORRIGIDO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
@@ -1609,6 +1605,10 @@ def show_blowout_hunter_page():
         
         .players-area { padding: 10px; background: rgba(0,0,0,0.2); }
         .team-col-header { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 8px; }
+        
+        /* --- A CORREÇÃO ESTÁ AQUI --- */
+        .team-col-logo { width: 24px; height: 24px; object-fit: contain; } 
+        
         .team-col-text { color: #94a3b8; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
         
         .vulture-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid #334155; }
@@ -8613,6 +8613,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
