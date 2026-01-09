@@ -1944,7 +1944,7 @@ def show_momentum_page():
                 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (v10.2 - OPTIMIZED & CALIBRATED)
+# CLASSE NEXUS ENGINE (v11.0 - HIGH VOLUME & ROBUST MATCHING)
 # ============================================================================
 import math
 import json
@@ -1963,12 +1963,15 @@ class NexusEngine:
         self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
         
-        # OTIMIZAÇÃO: Cria mapa de elenco (Roster) uma vez só
+        # OTIMIZAÇÃO: Cria mapa de elenco (Roster)
         self.roster_map = self._build_roster_map()
 
     # --- UTILITÁRIOS ---
     def _normalize_team(self, team_raw):
-        """Converte qualquer nome para sigla de 3 letras"""
+        """
+        Versão unificada e robusta de normalização de times.
+        Garante que PHX = PHO, GS = GSW, etc.
+        """
         if not team_raw: return "UNK"
         t = str(team_raw).upper().strip()
         
@@ -1992,6 +1995,7 @@ class NexusEngine:
             "TORONTO": "TOR", "RAPTORS": "TOR", "UTAH": "UTA", "JAZZ": "UTA",
             "WASHINGTON": "WAS", "WIZARDS": "WAS", "WSH": "WAS"
         }
+        # Tenta mapear, se não der, pega os 3 primeiros caracteres
         return mapping.get(t, t[:3])
 
     def _strip_accents(self, text):
@@ -2037,7 +2041,7 @@ class NexusEngine:
         # 1. SGP (Estratégia Sinergia)
         opportunities.extend(self._scan_sgp_opportunities())
 
-        # 2. Vácuo (Estratégia Lesão com Varredura Total)
+        # 2. Vácuo (Estratégia Lesão)
         if self.injury_monitor:
             try: 
                 opportunities.extend(self._scan_vacuum_opportunities())
@@ -2048,7 +2052,8 @@ class NexusEngine:
 
     def _scan_sgp_opportunities(self):
         found = []
-        # Para cada time que joga hoje
+        
+        # Identifica times ativos hoje
         active_teams = set()
         for g in self.games:
             active_teams.add(self._normalize_team(g.get('home')))
@@ -2058,42 +2063,59 @@ class NexusEngine:
             players_list = self.roster_map.get(team, [])
             if not players_list: continue
 
-            # 1. Busca o "Motor" (Líder em Assistências)
-            motor = None
-            max_ast = 4.5 # Baixei drasticamente para pegar qualquer armador titular
+            # --- ETAPA 1: Identificar Candidatos ---
+            motors = []
+            finishers = []
+            
+            # Filtros Mínimos (Bem baixos para capturar volume)
+            min_ast_req = 3.5
+            min_pts_req = 12.0
             
             for p in players_list:
-                avg = self._get_avg_stat(p, 'AST')
-                if avg > max_ast:
-                    max_ast = avg
-                    motor = p
+                avg_ast = self._get_avg_stat(p, 'AST')
+                avg_pts = self._get_avg_stat(p, 'PTS')
+                
+                if avg_ast >= min_ast_req:
+                    motors.append({'name': p, 'val': avg_ast})
+                
+                if avg_pts >= min_pts_req:
+                    finishers.append({'name': p, 'val': avg_pts})
             
-            if not motor: continue
+            if not motors or not finishers: continue
+            
+            # --- ETAPA 2: Formar a Melhor Dupla ---
+            # Ordena pelos melhores
+            motors.sort(key=lambda x: x['val'], reverse=True)
+            finishers.sort(key=lambda x: x['val'], reverse=True)
+            
+            best_motor = motors[0]
+            best_finisher = None
+            
+            # Garante que o finalizador não é o próprio motor
+            for f in finishers:
+                if f['name'] != best_motor['name']:
+                    best_finisher = f
+                    break
+            
+            if not best_finisher: continue
 
-            # 2. Busca o "Finalizador" (Líder em Pontos - Diferente do Motor)
-            finisher = None
-            max_pts = 15.0 # Baixei para 15.0 para pegar segunda opção ofensiva
+            # --- ETAPA 3: Calcular Score e Badge ---
+            m_val = best_motor['val']
+            f_val = best_finisher['val']
             
-            for p in players_list:
-                if p == motor: continue # Não pode ser o mesmo (Luka não pode tocar pra ele mesmo)
-                avg = self._get_avg_stat(p, 'PTS')
-                if avg > max_pts:
-                    max_pts = avg
-                    finisher = p
-            
-            if not finisher: continue
-
-            # Se achou a dupla, calcula Score
-            t_ast = math.ceil(max_ast - 0.5)
-            t_pts = math.floor(max_pts) 
+            t_ast = math.ceil(m_val - 0.5)
+            t_pts = math.floor(f_val) 
             
             # Score Base
-            score = 50 
+            score = 45 
             badges = []
             
-            # Bonificações (Para diferenciar os bons dos ótimos)
-            if max_ast >= 8.0: score += 10; badges.append("🧠 Elite Playmaker")
-            if max_pts >= 25.0: score += 10; badges.append("🎯 Elite Scorer")
+            # Bonificações de Qualidade
+            if m_val >= 7.0: score += 10; badges.append("🧠 Elite Playmaker")
+            elif m_val >= 5.0: score += 5
+            
+            if f_val >= 25.0: score += 10; badges.append("🎯 Elite Scorer")
+            elif f_val >= 18.0: score += 5
             
             # Analisa Pace
             opp = self._get_opponent(team)
@@ -2103,7 +2125,7 @@ class NexusEngine:
                     score += 10
                     badges.append(f"🏎️ Pace: {int(pace)}")
             
-            # --- MUDANÇA CRÍTICA: ACEITA SCORE 50 (Básico) ---
+            # Filtro Final (Aceita quase tudo que é decente)
             if score >= 50:
                 found.append({
                     "type": "SGP",
@@ -2111,16 +2133,16 @@ class NexusEngine:
                     "score": score,
                     "color": "#eab308",
                     "hero": {
-                        "name": motor, 
-                        "photo": self.get_photo(motor), 
+                        "name": best_motor['name'], 
+                        "photo": self.get_photo(best_motor['name']), 
                         "role": "PASSADOR", 
                         "stat": "AST", 
                         "target": f"{t_ast}+", 
                         "logo": self.get_team_logo(team)
                     },
                     "partner": {
-                        "name": finisher, 
-                        "photo": self.get_photo(finisher), 
+                        "name": best_finisher['name'], 
+                        "photo": self.get_photo(best_finisher['name']), 
                         "role": "CESTINHA", 
                         "stat": "PTS", 
                         "target": f"{t_pts}+", 
@@ -2131,35 +2153,24 @@ class NexusEngine:
         return found
 
     def _scan_vacuum_opportunities(self):
-        """
-        LÓGICA VÁCUO 2.1:
-        Reforçada para encontrar reboteiros mesmo sem posição definida.
-        """
+        """LÓGICA VÁCUO 2.1 (Mantida pois funcionou bem)"""
         found = []
         if not self.games: return []
 
-        # 1. Mapa de Matchups
         matchups = {}
         for g in self.games:
             h = self._normalize_team(g.get('home'))
             a = self._normalize_team(g.get('away'))
-            matchups[h] = a
-            matchups[a] = h
+            matchups[h] = a; matchups[a] = h
         
-        # 2. Varredura de Lesões
-        # Tenta pegar as lesões. Se der erro, retorna vazio sem quebrar.
-        try:
-            all_injuries = self.injury_monitor.get_all_injuries()
+        try: all_injuries = self.injury_monitor.get_all_injuries()
         except: return []
         
         if not all_injuries: return []
 
         for team_raw, injuries in all_injuries.items():
             victim_team = self._normalize_team(team_raw)
-            
-            # Se o time machucado não joga hoje, ignora
             if victim_team not in matchups: continue
-            
             predator_team = matchups[victim_team]
             
             for inj in injuries:
@@ -2167,44 +2178,30 @@ class NexusEngine:
                 name = inj.get('name', '')
                 pos_raw = str(inj.get('position', '')).upper()
                 
-                # CRITÉRIO 1: Status OUT
                 if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
-                    
-                    # CRITÉRIO 2: É Pivô ou Grande Reboteiro?
                     is_center = False
-                    
-                    # A) Pelo Injury Report
                     if 'C' in pos_raw or 'CENTER' in pos_raw: is_center = True
-                    
-                    # B) Pelo Cache de Logs (Média de rebotes alta > 7 confirma que é um Big)
                     log_avg_reb = self._get_avg_stat(name, 'REB')
                     if log_avg_reb >= 7.0: is_center = True
                     
-                    # C) Lista VIP Expandida
                     vip_centers = [
                         "NIKOLA JOKIC", "DOMANTAS SABONIS", "JAKOB POELTL", "WALKER KESSLER", 
                         "JUSUF NURKIC", "ZACH EDEY", "ISAIAH HARTENSTEIN", "IVICA ZUBAC", 
                         "ALPEREN SENGUN", "JOEL EMBIID", "DEANDRE AYTON", "JALEN DUREN",
                         "ANTHONY DAVIS", "BAM ADEBAYO", "GIANNIS ANTETOKOUNMPO", "VICTOR WEMBANYAMA",
-                        "KARL-ANTHONY TOWNS", "RUDY GOBERT", "JARRETT ALLEN", "EVAN MOBLEY"
+                        "KARL-ANTHONY TOWNS", "RUDY GOBERT", "JARRETT ALLEN", "EVAN MOBLEY", "DRAYMOND GREEN"
                     ]
                     if name.upper() in vip_centers: is_center = True
 
                     if is_center:
-                        # ACHAMOS UM VÁCUO (Time sem o grandão)! Busca o Predador no outro time
                         predator = self._find_best_rebounder(predator_team)
-                        
                         if predator:
                             avg_reb = self._get_avg_stat(predator, 'REB')
-                            
-                            # Filtro Mínimo: O predador tem que pegar pelo menos 6 rebotes por jogo
                             if avg_reb >= 6.0:
-                                # Boost baseado na média
                                 boost = 2.0 if avg_reb > 9 else 1.5
                                 target = math.ceil(avg_reb + boost)
                                 moon = math.ceil(avg_reb + boost + 3)
-                                
-                                score = 75 # Começa alto pois é uma boa tese
+                                score = 75 
                                 if avg_reb > 10: score += 10
                                 
                                 found.append({
@@ -2221,16 +2218,9 @@ class NexusEngine:
                                         "logo": self.get_team_logo(predator_team)
                                     },
                                     "villain": {
-                                        "name": victim_team, 
-                                        "missing": name, 
-                                        "status": "🚨 OUT", 
-                                        "logo": self.get_team_logo(victim_team)
+                                        "name": victim_team, "missing": name, "status": "🚨 OUT", "logo": self.get_team_logo(victim_team)
                                     },
-                                    "ladder": [
-                                        f"✅ Base: {int(avg_reb)}+", 
-                                        f"💰 Alvo: {target}+", 
-                                        f"🚀 Lua: {moon}+"
-                                    ],
+                                    "ladder": [f"✅ Base: {int(avg_reb)}+", f"💰 Alvo: {target}+", f"🚀 Lua: {moon}+"],
                                     "impact": f"Sem {name} ({log_avg_reb:.1f} reb/j), {victim_team} perde proteção de aro."
                                 })
                                 break 
@@ -2238,13 +2228,11 @@ class NexusEngine:
 
     # --- AUXILIARES ---
     def _get_avg_stat(self, player, stat):
-        # Proteção contra falhas no dicionário
         try:
             player_data = self.logs.get(player)
             if not player_data: return 0
             vals = player_data.get('logs', {}).get(stat, [])
             if not vals: return 0
-            # Pega L10 ou o que tiver
             limit = min(len(vals), 10)
             return sum(vals[:limit])/limit
         except: return 0
@@ -2259,10 +2247,8 @@ class NexusEngine:
         return None
 
     def _find_best_rebounder(self, team):
-        # Usa o Roster Map para ser muito mais rápido
         team_players = self.roster_map.get(team, [])
         best, max_reb = None, 0
-        
         for name in team_players:
             val = self._get_avg_stat(name, 'REB')
             if val > max_reb: 
@@ -8406,6 +8392,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
