@@ -8056,10 +8056,10 @@ def show_narrative_lab():
                         rows += f"""<tr><td style="width:50px;"><img src="https://cdn.nba.com/headshots/nba/latest/1040x760/{p['pid']}.png" class="wr-img" style="border-color:#00E5FF"></td><td><div class="wr-name">{p['player']}</div><div class="wr-stat">Méd: {p['avg']:.1f}</div><span class="wr-tag tag-cold">TRAUMA</span></td><td><div class="wr-val-cold">{p['diff']:.0f}%</div></td></tr>"""
                     st.markdown(f"<table class='wr-table'>{rows}</table>", unsafe_allow_html=True)
 # ============================================================================
-# PÁGINA: DASHBOARD (CORRIGIDA E LIMPA)
+# PÁGINA: DASHBOARD (V10.4 - FULL AUTO-SYNC & GAME CARDS)
 # ============================================================================
 def show_dashboard_page():
-    # Helper de Fontes e Cores
+    # --- CSS Helper (Mantido original) ---
     st.markdown("""
     <style>
         .dash-title { font-family: 'Oswald'; font-size: 20px; color: #E2E8F0; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
@@ -8067,72 +8067,113 @@ def show_dashboard_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # 1. Carrega Dados (Prioriza Sessão)
+    # ========================================================================
+    # 1. AUTO-LOADER INTELIGENTE (CLOUD FIRST) - A CORREÇÃO
+    # ========================================================================
+    # Garante que temos JOGOS e ODDS antes de desenhar a tela
+    
+    # --- A. SCOREBOARD ---
+    if 'scoreboard' not in st.session_state or not st.session_state['scoreboard']:
+        # 1. Tenta Nuvem
+        cloud_games = get_data_universal("scoreboard")
+        if cloud_games:
+            st.session_state['scoreboard'] = cloud_games
+        else:
+            # 2. Nuvem vazia? Baixa da API
+            try:
+                with st.spinner("☁️ Sincronizando Jogos..."):
+                    games_data = fetch_espn_scoreboard(False)
+                    if games_data:
+                        st.session_state['scoreboard'] = games_data
+                        save_data_universal("scoreboard", games_data) # Salva para o próximo
+            except: 
+                st.session_state['scoreboard'] = []
+
+    # --- B. ODDS (SPREADS) ---
+    if 'odds' not in st.session_state or not st.session_state['odds']:
+        # 1. Tenta Nuvem
+        cloud_odds = get_data_universal("odds")
+        if cloud_odds:
+            st.session_state['odds'] = cloud_odds
+        else:
+            # 2. Nuvem vazia? Baixa da API (se tiver jogos)
+            if st.session_state.get('scoreboard'):
+                try:
+                    with st.spinner("💰 Atualizando Odds..."):
+                        # Assume que fetch_nba_odds está disponível no escopo global
+                        odds_data = fetch_nba_odds() 
+                        if odds_data:
+                            st.session_state['odds'] = odds_data
+                            save_data_universal("odds", odds_data)
+                except: 
+                    st.session_state['odds'] = {}
+
+    # Carrega dados para variáveis locais
+    games_list = st.session_state.get('scoreboard', [])
+    odds_cache = st.session_state.get('odds', {})
+    
+    # Converte lista para DataFrame
+    games = pd.DataFrame(games_list) if games_list else pd.DataFrame()
+
+    # 2. Carrega Stats de Jogadores (L5)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # Busca Scoreboard da Sessão (ou tenta buscar se vazio)
-    games_list = st.session_state.get('scoreboard', [])
-    if not games_list:
-        try: games_list = fetch_espn_scoreboard(False)
-        except: games_list = []
-        
-    # Converte lista de dicts para DataFrame (para manter compatibilidade com seu código antigo)
-    if games_list:
-        games = pd.DataFrame(games_list)
-    else:
-        games = pd.DataFrame()
-
-    # 2. Validação Inicial
+    # Fallback: Tenta carregar L5 da nuvem se a sessão estiver vazia
     if df_l5 is None or df_l5.empty:
-        st.warning("⚠️ Base de dados L5 vazia. Carregue os dados em Config > Ingestão.")
-        return
+        cloud_l5 = get_data_universal("df_l5")
+        if cloud_l5: 
+             try: df_l5 = pd.DataFrame(cloud_l5)
+             except: pass
 
-    # ========================================================================
-    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS
-    # ========================================================================
-    df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-
-    # --- DETETIVE DE COLUNAS DE TIME ---
-    col_team_found = None
-    possible_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM', 'ABBREVIATION']
+    if df_l5 is None or df_l5.empty:
+        st.warning("⚠️ Base de dados L5 vazia. Vá em Config > Ingestão para carregar os stats dos jogadores.")
     
-    for c in possible_cols:
-        if c in df_l5.columns:
-            col_team_found = c
-            break
-            
-    if col_team_found:
-        df_l5['TEAM'] = df_l5[col_team_found]
-    else:
-        if 'MATCHUP' in df_l5.columns:
-            df_l5['TEAM'] = df_l5['MATCHUP'].astype(str).str.split().str[0]
+    # ========================================================================
+    # 🛠️ FIX 1: NORMALIZAÇÃO DE COLUNAS E TIMES
+    # ========================================================================
+    if not df_l5.empty:
+        df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
+
+        # Detetive de Colunas
+        col_team_found = None
+        possible_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM', 'ABBREVIATION']
+        for c in possible_cols:
+            if c in df_l5.columns:
+                col_team_found = c; break
+                
+        if col_team_found:
+            df_l5['TEAM'] = df_l5[col_team_found]
         else:
-            df_l5['TEAM'] = 'UNK'
+            if 'MATCHUP' in df_l5.columns:
+                df_l5['TEAM'] = df_l5['MATCHUP'].astype(str).str.split().str[0]
+            else:
+                df_l5['TEAM'] = 'UNK'
 
-    # ========================================================================
-    # 🛠️ FIX 2: PADRONIZAÇÃO DE SIGLAS
-    # ========================================================================
-    # Usa a função global que já definimos no topo do arquivo
-    df_l5['TEAM'] = df_l5['TEAM'].apply(fix_team_abbr)
+        # Padronização de Siglas (Usa a função global do Nexus se existir)
+        try:
+            formatter = normalize_team_signature if 'normalize_team_signature' in globals() else lambda x: str(x).upper()
+            df_l5['TEAM'] = df_l5['TEAM'].apply(formatter)
+        except: pass
 
-    # --- FILTRO: APENAS QUEM JOGA HOJE ---
-    teams_playing_today = []
-    
-    if not games.empty:
-        # Garante que as colunas existam no DF de jogos
-        if 'home' in games.columns and 'away' in games.columns:
-            raw_teams = games['home'].tolist() + games['away'].tolist()
-            teams_playing_today = set([fix_team_abbr(x) for x in raw_teams])
-    
-    # Cria o DataFrame Filtrado
-    if not teams_playing_today:
-        st.info("Nenhum jogo identificado para hoje (Filtro de Destaques inativo).")
-        df_today = pd.DataFrame()
+        # Filtro: Quem joga hoje
+        teams_playing_today = set()
+        if not games.empty:
+            if 'home' in games.columns and 'away' in games.columns:
+                try:
+                    formatter = normalize_team_signature if 'normalize_team_signature' in globals() else lambda x: str(x).upper()
+                    raw_teams = games['home'].tolist() + games['away'].tolist()
+                    teams_playing_today = set([formatter(x) for x in raw_teams])
+                except: pass
+        
+        if not teams_playing_today:
+            df_today = pd.DataFrame()
+        else:
+            df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)].copy()
     else:
-        df_today = df_l5[df_l5['TEAM'].isin(teams_playing_today)]
+        df_today = pd.DataFrame()
 
     # ========================================================================
-    # 3. RENDERIZAÇÃO: DESTAQUES DO DIA
+    # 3. RENDERIZAÇÃO: DESTAQUES DO DIA (GOLDEN CARDS)
     # ========================================================================
     st.markdown('<div class="dash-title gold-text">⭐ DESTAQUES DO DIA (JOGOS DE HOJE)</div>', unsafe_allow_html=True)
     
@@ -8145,68 +8186,50 @@ def show_dashboard_page():
         return name[:limit]
 
     if not df_today.empty:
-        # Função Auxiliar para pegar Top N
         def get_top_n(df, col, n=3):
             if col not in df.columns: return pd.DataFrame()
-            # Tenta colunas de nome
             c_name = next((c for c in df.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
             cols_to_fetch = [c_name, 'TEAM', col]
-            
-            # IDs para foto
             if 'PLAYER_ID' in df.columns: cols_to_fetch.append('PLAYER_ID')
             elif 'ID' in df.columns: cols_to_fetch.append('ID')
             elif 'PERSON_ID' in df.columns: cols_to_fetch.append('PERSON_ID')
-            
-            # Filtra apenas colunas existentes
             final_cols = [c for c in cols_to_fetch if c in df.columns]
             return df.nlargest(n, col)[final_cols]
 
-        # Garante colunas numéricas
         for col in ['PTS', 'AST', 'REB']:
             target = f"{col}_AVG"
             if target not in df_today.columns:
-                if col in df_today.columns:
-                     df_today[target] = df_today[col]
-                else:
-                    df_today[target] = 0
+                if col in df_today.columns: df_today[target] = df_today[col]
+                else: df_today[target] = 0
 
         top_pts = get_top_n(df_today, 'PTS_AVG')
         top_ast = get_top_n(df_today, 'AST_AVG')
         top_reb = get_top_n(df_today, 'REB_AVG')
 
-        # Renderizador do Card Dourado
         def render_golden_card(title, df_top, color="#D4AF37", icon="👑"):
             if df_top.empty: return
             king = df_top.iloc[0]
             
-            # Busca ID seguro
             c_id = next((c for c in df_top.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), None)
             p_id = king[c_id] if c_id else 0
             try: p_id = int(float(p_id))
             except: p_id = 0
-                
-            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
             
-            # Nome
+            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p_id}.png"
             c_name = next((c for c in df_top.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
             p_name = king.get(c_name, 'UNK')
             
-            # Valor
             stat_val = 0
             for c in df_top.columns:
-                if "AVG" in c or c in ['PTS', 'AST', 'REB']:
-                    stat_val = king[c]
-                    break
+                if "AVG" in c or c in ['PTS', 'AST', 'REB']: stat_val = king[c]; break
             
-            # Sub-linhas
             def get_sub_row(idx, rank):
                 if len(df_top) <= idx: return ""
                 p = df_top.iloc[idx]
                 nm = p.get(c_name, 'UNK')
                 v = 0
                 for c in df_top.columns:
-                    if "AVG" in c or c in ['PTS', 'AST', 'REB']:
-                        v = p[c]; break
+                    if "AVG" in c or c in ['PTS', 'AST', 'REB']: v = p[c]; break
                 return f"""<div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:3px; border-bottom:1px dashed #334155; font-family:'Oswald' !important;"><span>{rank}. {truncate_name(nm)}</span><span style="color:{color}">{v:.1f}</span></div>"""
 
             row2 = get_sub_row(1, 2)
@@ -8239,22 +8262,28 @@ def show_dashboard_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ========================================================================
-    # 4. GAME GRID (JOGOS DE HOJE)
+    # 4. GAME GRID (JOGOS DE HOJE + ODDS) - AQUI ESTÃO OS CARDS!
     # ========================================================================
     st.markdown('<div class="dash-title" style="color:#E2E8F0;">🏀 JOGOS DE HOJE</div>', unsafe_allow_html=True)
 
     if games.empty:
-        st.info("Nenhum jogo encontrado para hoje.")
+        st.info("Nenhum jogo identificado na nuvem ou API.")
+        if st.button("🔄 Forçar Atualização"):
+            try: st.session_state['scoreboard'] = fetch_espn_scoreboard(False); st.rerun()
+            except: pass
     else:
-        odds_cache = st.session_state.get("odds", {})
+        # Usa o cache de odds (que foi carregado no início da função)
+        safe_odds = odds_cache if isinstance(odds_cache, dict) else {}
+        
         rows = st.columns(2)
         for i, (index, game) in enumerate(games.iterrows()):
             with rows[i % 2]:
+                # Chama a função de renderização (assumindo que ela existe globalmente)
                 render_game_card(
                     away_team=game.get('away', 'UNK'),
                     home_team=game.get('home', 'UNK'),
                     game_data=game,
-                    odds_map=odds_cache
+                    odds_map=safe_odds 
                 )
 # ============================================================================
 # EXECUÇÃO PRINCIPAL (V66.0 - FINAL STABLE)
@@ -8392,6 +8421,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
