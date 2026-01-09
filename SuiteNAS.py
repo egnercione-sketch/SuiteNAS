@@ -3406,7 +3406,7 @@ def show_matriz_5_7_10_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V68.1 - COMMAND CENTER (KEYERROR FIX & STABLE)
+# ☢️ HIT PROP HUNTER V68.3 - COMMAND CENTER (STREAK ORGANIZER FIX)
 # ==============================================================================
 
 def show_hit_prop_page():
@@ -3438,7 +3438,6 @@ def show_hit_prop_page():
         return mapping.get(abbr, abbr)
 
     def get_stat_color(stat):
-        """Retorna a cor para a estatística."""
         s = stat.upper()
         if 'PTS' in s: return "#fbbf24" # Amber
         if 'REB' in s: return "#60a5fa" # Blue
@@ -3462,7 +3461,7 @@ def show_hit_prop_page():
         return cache_data
 
     # ==============================================================================
-    # 2. ENGINES (CORRIGIDA A CHAVE 'SCORE')
+    # 2. ENGINES
     # ==============================================================================
 
     def generate_atomic_props(cache_data, games):
@@ -3513,11 +3512,11 @@ def show_hit_prop_page():
                         if adjusted_floor >= min_req:
                             real_min = min(cut)
                             if real_min >= adjusted_floor:
-                                tag = "💎" # 100%
+                                tag = "💎"
                                 hit_txt = f"100% L{period}"
                                 score = period + 2
                             else:
-                                tag = "🔥" # 80%
+                                tag = "🔥"
                                 hit_txt = f"80% L{period}"
                                 score = period
                                 
@@ -3527,7 +3526,7 @@ def show_hit_prop_page():
                                 "record_str": f"{tag} {hit_txt}",
                                 "hit_simple": hit_txt,
                                 "tag": tag,
-                                "score": score, # <--- AQUI ESTÁ A CHAVE CORRETA
+                                "score": score,
                                 "game_info": g_info, "game_display": g_str, 
                                 "game_id": g_id, "player_id": pid, "active": is_active
                             })
@@ -3536,6 +3535,7 @@ def show_hit_prop_page():
 
     def organize_sgp_lab(atomic_props):
         unique_map = {}
+        # Deduplicação Inteligente
         for p in atomic_props:
             key = f"{p['player']}_{p['stat']}"
             if key not in unique_map: unique_map[key] = p
@@ -3607,7 +3607,7 @@ def show_hit_prop_page():
         return {"3PM": sorted(specs_3pm, key=lambda x: x['line'], reverse=True), 
                 "DEF": sorted(specs_def, key=lambda x: x['player'])}
 
-    # --- SQUADRON ENGINE V2 (LOGICA DE USO LIMITADO) ---
+    # --- SQUADRON ENGINE ---
     class SquadronEngine:
         def generate_combos(self, sgp_data):
             tickets = []
@@ -3690,6 +3690,14 @@ def show_hit_prop_page():
         .sgp-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; border-bottom: 1px dashed #334155; padding-bottom: 8px; }
         .sgp-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #475569; }
         .sgp-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; margin-bottom: 4px; }
+        
+        /* CHIP DE SEQUÊNCIA (Separador) */
+        .seq-chip {
+            border: 1px solid #334155; background: rgba(15,23,42,0.8);
+            border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-right: 6px; display: inline-block; margin-bottom: 4px;
+        }
+        .seq-100 { border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05); }
+        .seq-80 { border-color: #f59e0b; color: #f59e0b; background: rgba(245, 158, 11, 0.05); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -3771,14 +3779,11 @@ def show_hit_prop_page():
                         </div>
                         """, unsafe_allow_html=True)
 
-    # --- ABA 2: SEQUÊNCIAS (CORRIGIDA) ---
+    # --- ABA 2: SEQUÊNCIAS (ORGANIZAÇÃO KAWHI LEONARD) ---
     with tab_streaks:
-        # Agrupa atomic_props por Jogo -> Jogador (apenas score alto)
         streaks_by_game = defaultdict(list)
         for p in atomic_props:
-            # FIX: Usa 'score' aqui ao invés de 'streak_val'
-            if p['score'] >= 5: 
-                streaks_by_game[p['game_display']].append(p)
+            if p['score'] >= 5: streaks_by_game[p['game_display']].append(p)
         
         if not streaks_by_game: st.info("Vazio.")
         
@@ -3791,19 +3796,34 @@ def show_hit_prop_page():
             
             for player, p_list in props_by_player.items():
                 pid = p_list[0].get('player_id', 0)
+                
+                # ORDENAÇÃO INTELIGENTE (Prioridade: 100% > 80% e PTS > REB > AST)
+                stat_rank = {"PTS": 1, "REB": 2, "AST": 3, "3PM": 4, "STL": 5, "BLK": 6}
+                p_list.sort(key=lambda x: (0 if "💎" in x['tag'] else 1, stat_rank.get(x['stat'], 99)))
+                
                 c1, c2 = st.columns([0.5, 4])
                 with c1: st.image(get_photo(player, pid), width=40)
                 with c2:
                     st.markdown(f"**{player}**")
-                    chips = ""
-                    for p in p_list:
-                        clr = get_stat_color(p['stat'])
-                        chips += f"""
-                        <span style="background:#1e293b; border:1px solid {clr}; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px;">
-                            <strong style="color:#fff">{p['line']}+ {p['stat']}</strong> <span style="color:#94a3b8; font-size:9px">({p['hit_simple']})</span>
-                        </span>
-                        """
-                    st.markdown(chips, unsafe_allow_html=True)
+                    
+                    # SEPARAÇÃO EM DUAS LINHAS (DIAMANTES E FOGO)
+                    diamonds = [p for p in p_list if "💎" in p['tag']]
+                    fires = [p for p in p_list if "🔥" in p['tag']]
+                    
+                    def render_chips(sub_list, css_class):
+                        html = ""
+                        for p in sub_list:
+                            s_clr = get_stat_color(p['stat'])
+                            html += f"""
+                            <span class="seq-chip {css_class}">
+                                <strong style="color:#fff">{p['line']}+ {p['stat']}</strong> <span style="font-size:9px">({p['hit_simple']})</span>
+                            </span>
+                            """
+                        return html
+
+                    if diamonds: st.markdown(render_chips(diamonds, "seq-100"), unsafe_allow_html=True)
+                    if fires: st.markdown(render_chips(fires, "seq-80"), unsafe_allow_html=True)
+                    
                 st.divider()
 
     # --- ABA 3: ESPECIALIDADES ---
@@ -3840,12 +3860,17 @@ def show_hit_prop_page():
                 """, unsafe_allow_html=True)
                 
                 chips_html = ""
-                for prop in p['props']:
+                # Ordena Chips para ficar bonito (PTS primeiro)
+                sorted_props = sorted(p['props'], key=lambda x: stat_rank.get(x['stat'], 99) if 'stat_rank' in locals() else 0)
+                
+                for prop in sorted_props:
                     clr = get_stat_color(prop['stat'])
+                    rec_val = prop.get('record_str', 'N/A').replace('💎','').replace('🔥','').strip()
+                    
                     chips_html += f"""
                     <div class="stat-chip-compact">
                         <div class="scc-top" style="color:{clr}">{prop['line']}+ {prop['stat']}</div>
-                        <div class="scc-bot">{prop['record'].replace('💎','').replace('🔥','')}</div>
+                        <div class="scc-bot">{rec_val}</div>
                     </div>
                     """
                 
@@ -8427,6 +8452,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
