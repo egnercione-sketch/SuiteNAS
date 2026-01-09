@@ -1778,204 +1778,250 @@ def show_blowout_hunter_page():
 
         st.markdown("</div>", unsafe_allow_html=True)
 # ============================================================================
-# PÁGINA: MOMENTUM (V5.2 - FIX COLUMNS & UNK)
+# PÁGINA: MOMENTUM (V5.3 - PODIUM & THERMOMETER UX)
 # ============================================================================
 def show_momentum_page():
     import pandas as pd
     import streamlit as st
 
-    # --- 1. CSS SEGURO ---
-    MOMENTUM_CSS = """
+    # --- 1. CSS VISUAL (PODIUM STYLE) ---
+    st.markdown("""
     <style>
-        .mom-header { 
-            font-family: 'Oswald', sans-serif; 
-            font-size: 26px; 
-            color: #fff; 
-            margin-bottom: 10px; 
-            letter-spacing: 1px; 
-        }
-        .mom-card {
-            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        .mom-header { font-family: 'Oswald'; font-size: 26px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+        
+        /* CARD GRANDE (LÍDER) */
+        .king-card {
+            background: linear-gradient(180deg, rgba(16, 185, 129, 0.1) 0%, rgba(15, 23, 42, 1) 100%);
+            border: 1px solid #10B981;
             border-radius: 12px;
-            padding: 0; 
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
             margin-bottom: 15px;
-            display: flex;
-            align-items: center;
+        }
+        .frozen-card {
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.1) 0%, rgba(15, 23, 42, 1) 100%);
+            border: 1px solid #EF4444;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+            margin-bottom: 15px;
+        }
+        
+        .rank-badge {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            background: #0f172a; padding: 4px 12px; border-radius: 20px;
+            font-family: 'Oswald'; font-size: 12px; font-weight: bold; border: 1px solid #334155;
+            z-index: 2;
+        }
+
+        .king-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #10B981; margin: 0 auto 10px auto; display: block; background:#000; }
+        .frozen-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #EF4444; margin: 0 auto 10px auto; display: block; background:#000; }
+
+        .k-name { font-family: 'Oswald'; font-size: 20px; color: #fff; line-height: 1.1; margin-bottom: 4px; }
+        .k-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 8px; }
+        .k-score { font-family: 'Oswald'; font-size: 28px; font-weight: bold; }
+
+        /* CARD PEQUENO (LISTA) */
+        .mini-card {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(30, 41, 59, 0.4);
+            border-radius: 8px; padding: 8px; margin-bottom: 8px;
             border: 1px solid #334155;
-            overflow: hidden; 
-            transition: transform 0.2s;
         }
-        .mom-card:hover { transform: scale(1.02); border-color: #64748B; }
-        .border-hot { border-left: 6px solid #10B981; }
-        .border-cold { border-left: 6px solid #EF4444; }
-        .mom-img-box {
-            width: 80px; height: 80px; background: #000;
-            display: flex; justify-content: center; align-items: center; flex-shrink: 0;
-        }
-        .mom-img { width: 100%; height: 100%; object-fit: cover; opacity: 0.9; }
-        .mom-info { padding: 10px 15px; flex-grow: 1; }
-        .mom-name { font-family: 'Oswald', sans-serif; font-size: 16px; color: #fff; line-height: 1.1; }
-        .mom-team { font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; }
-        .mom-stat-row { display: flex; justify-content: space-between; align-items: end; }
-        .mom-score { font-family: 'Oswald'; font-size: 22px; font-weight: bold; }
-        .mom-avg { font-size: 10px; color: #64748B; text-align: right; }
+        .mini-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #475569; background:#000; }
+        .mini-info { flex: 1; }
+        .mini-name { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; line-height: 1.1; }
+        .mini-val { font-family: 'Oswald'; font-size: 16px; font-weight: bold; text-align: right; }
+
     </style>
-    """
-    st.markdown(MOMENTUM_CSS, unsafe_allow_html=True)
-    st.markdown('<div class="mom-header">&#9889; MOMENTUM RADAR (Z-SCORE)</div>', unsafe_allow_html=True)
-    st.info("Ranking baseado na Dominância Relativa (Performance vs Média da Liga nos últimos 5 jogos).")
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="mom-header">⚡ MOMENTUM RADAR</div>', unsafe_allow_html=True)
+
+    # --- HERO SECTION (TERMÔMETRO) ---
+    st.markdown("""
+    <div style="
+        background: linear-gradient(90deg, rgba(30,41,59,0.6) 0%, rgba(15,23,42,0.6) 100%);
+        border-left: 4px solid #10B981;
+        border-radius: 8px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid #334155;
+    ">
+        <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
+            <strong style="color: #10B981; font-size: 15px;">RADAR DE TENDÊNCIAS (L5)</strong><br>
+            Identifique quem está vivendo um momento mágico e quem está numa maré de azar nos últimos 5 jogos:
+            <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
+                <li style="margin-bottom: 6px;">
+                    🔥 <strong style="color: #10B981;">Em Chamas (Hot):</strong> Produção estatística (PRA) muito acima da média da liga. Ideal para surfar a boa fase (Overs).
+                </li>
+                <li>
+                    ❄️ <strong style="color: #EF4444;">Congelado (Cold):</strong> Titulares com alta minutagem, mas baixo impacto recente. Oportunidades de explorar linhas baixas (Unders).
+                </li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # --- 2. DADOS ---
     if 'df_l5' not in st.session_state or st.session_state.df_l5.empty:
-        st.warning("Dados insuficientes. Vá em Config > Atualizar L5.")
+        st.warning("⚠️ Base de dados L5 vazia. Vá em Config > Ingestão para atualizar.")
         return
 
-    # Trabalhamos numa cópia para não estragar o original
+    # Cópia segura
     df = st.session_state.df_l5.copy()
     
-    # ==============================================================================
-    # 🚑 FIX CRÍTICO DE COLUNAS (NORMALIZAÇÃO ABSOLUTA)
-    # ==============================================================================
-    
-    # 1. Tudo Maiúsculo
+    # 2.1 NORMALIZAÇÃO DE COLUNAS
     df.columns = [str(c).upper().strip() for c in df.columns]
 
-    # 2. Mapeamento de Colunas Essenciais (Fallback em Cascata)
+    # Mapeamento de Colunas
+    cols_map = {
+        'PLAYER_ID': ['ID', 'PERSON_ID'],
+        'PLAYER': ['PLAYER_NAME', 'NAME'],
+        'TEAM': ['TEAM_ABBREVIATION', 'TEAM_CODE'],
+        'MIN_AVG': ['MIN', 'MINUTES'],
+        'PTS_AVG': ['PTS'],
+        'REB_AVG': ['REB'],
+        'AST_AVG': ['AST']
+    }
     
-    # ID
-    if 'PLAYER_ID' not in df.columns:
-        if 'ID' in df.columns: df['PLAYER_ID'] = df['ID']
-        elif 'PERSON_ID' in df.columns: df['PLAYER_ID'] = df['PERSON_ID']
-        else: df['PLAYER_ID'] = 0
+    for target, alts in cols_map.items():
+        if target not in df.columns:
+            for alt in alts:
+                if alt in df.columns:
+                    df[target] = df[alt]
+                    break
+            if target not in df.columns:
+                # Valores default
+                if target == 'PLAYER': df[target] = 'Unknown'
+                elif target == 'TEAM': df[target] = 'UNK'
+                else: df[target] = 0
 
-    # NOME
-    if 'PLAYER' not in df.columns:
-        if 'PLAYER_NAME' in df.columns: df['PLAYER'] = df['PLAYER_NAME']
-        elif 'NAME' in df.columns: df['PLAYER'] = df['NAME']
-        else: df['PLAYER'] = 'Unknown'
-
-    # TIME (Tenta resolver o UNK)
-    if 'TEAM' not in df.columns or df['TEAM'].iloc[0] == 'UNK':
-        # Tenta achar a sigla em outras colunas
-        potential_cols = ['TEAM_ABBREVIATION', 'TEAM_CODE', 'TEAM_ID', 'TEAM_NAME']
-        for c in potential_cols:
-            if c in df.columns:
-                df['TEAM'] = df[c]
-                break
-        if 'TEAM' not in df.columns: df['TEAM'] = 'UNK'
-
-    # MINUTOS (Onde estava dando erro)
-    if 'MIN_AVG' not in df.columns:
-        if 'MIN' in df.columns: df['MIN_AVG'] = df['MIN']
-        elif 'MINUTES' in df.columns: df['MIN_AVG'] = df['MINUTES']
-        else: df['MIN_AVG'] = 0
-
-    # PTS
-    if 'PTS_AVG' not in df.columns:
-        if 'PTS' in df.columns: df['PTS_AVG'] = df['PTS']
-        else: df['PTS_AVG'] = 0
-
-    # REB
-    if 'REB_AVG' not in df.columns:
-        if 'REB' in df.columns: df['REB_AVG'] = df['REB']
-        else: df['REB_AVG'] = 0
-        
-    # AST
-    if 'AST_AVG' not in df.columns:
-        if 'AST' in df.columns: df['AST_AVG'] = df['AST']
-        else: df['AST_AVG'] = 0
-
-    # ==============================================================================
-
-    # --- 3. CÁLCULO ESTATÍSTICO (Z-SCORE) ---
-    
-    # Converte para números (Força bruta para evitar erros de string)
-    cols_to_numeric = ['MIN_AVG', 'PTS_AVG', 'REB_AVG', 'AST_AVG']
-    for col in cols_to_numeric:
+    # 2.2 DEDUPLICAÇÃO E LIMPEZA (A CORREÇÃO)
+    # Garante números
+    for col in ['MIN_AVG', 'PTS_AVG', 'REB_AVG', 'AST_AVG', 'PLAYER_ID']:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Filtro mínimo de minutos (Agora é seguro filtrar)
-    df_calc = df[df['MIN_AVG'] >= 15].copy()
+    # Remove duplicatas de ID (mantém a linha com mais minutos, assumindo ser a mais correta)
+    df = df.sort_values('MIN_AVG', ascending=False).drop_duplicates(subset=['PLAYER_ID'])
+
+    # Filtro de Relevância (Apenas jogadores com > 18 min)
+    df_calc = df[df['MIN_AVG'] >= 18].copy()
     
     if df_calc.empty:
-        st.warning("Nenhum jogador com mais de 15 min de média encontrado. Verifique a carga de dados.")
-        st.write("Colunas disponíveis:", df.columns.tolist())
+        st.info("Nenhum jogador qualificado para análise (Mínimo 18 min).")
         return
 
-    # Calcula PRA
+    # --- 3. CÁLCULO ESTATÍSTICO (Z-SCORE) ---
+    # Usamos PRA (Points + Rebounds + Assists) como métrica de volume
     df_calc['PRA_AVG'] = df_calc['PTS_AVG'] + df_calc['REB_AVG'] + df_calc['AST_AVG']
 
-    # Estatísticas da Liga
     mean_league = df_calc['PRA_AVG'].mean()
     std_league = df_calc['PRA_AVG'].std()
     if std_league == 0: std_league = 1
 
-    # Z-Score
     df_calc['z_score'] = (df_calc['PRA_AVG'] - mean_league) / std_league
 
-    # --- 4. SEPARAÇÃO HOT / COLD ---
+    # --- 4. SEPARAÇÃO PÓDIO ---
     
-    # HOT: Z-Score > 0
-    top_hot = df_calc[df_calc['z_score'] > 0].sort_values('z_score', ascending=False).head(10)
+    # TOP 3 HOT (Ordenado do maior para o menor)
+    top_hot = df_calc[df_calc['z_score'] > 0].sort_values('z_score', ascending=False).head(3)
     
-    # COLD: Z-Score < 0 e Minutos Altos (> 24)
+    # TOP 3 COLD (Ordenado do menor para o maior - mais negativo primeiro)
+    # Filtro extra: Cold precisa ter minutos altos (>24) para ser relevante (Titular mal)
     top_cold = df_calc[
         (df_calc['z_score'] < 0) & 
         (df_calc['MIN_AVG'] >= 24)
-    ].sort_values('z_score', ascending=True).head(10)
+    ].sort_values('z_score', ascending=True).head(3)
 
-    # --- 5. RENDERIZAÇÃO ---
-    c1, c2 = st.columns(2)
+    # --- 5. RENDERIZAÇÃO (PODIUM LAYOUT) ---
 
-    def render_momentum_card(col, row, type_card):
-        is_hot = type_card == "HOT"
-        css_class = "border-hot" if is_hot else "border-cold"
-        color = "#10B981" if is_hot else "#EF4444"
-        icon_html = "&#128200;" if is_hot else "&#128201;"
+    c_hot, c_cold = st.columns(2)
+
+    # === LADO QUENTE (HOT) ===
+    with c_hot:
+        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:18px; text-align:center; margin-bottom:10px;">🔥 EM CHAMAS (TOP 3)</div>', unsafe_allow_html=True)
         
-        try: pid = int(float(row['PLAYER_ID']))
-        except: pid = 0
+        if not top_hot.empty:
+            # #1 KING
+            king = top_hot.iloc[0]
+            k_pid = int(king['PLAYER_ID'])
+            k_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{k_pid}.png"
             
-        name = row['PLAYER']
-        team = row['TEAM']
-        pra = row['PRA_AVG']
-        z = row['z_score']
-        
-        if pid > 0: photo_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        else: photo_url = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-        
-        col.markdown(f"""
-        <div class="mom-card {css_class}">
-            <div class="mom-img-box">
-                <img src="{photo_url}" class="mom-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+            st.markdown(f"""
+            <div class="king-card">
+                <div class="rank-badge" style="color:#10B981; border-color:#10B981;">#1 LÍDER</div>
+                <img src="{k_img}" class="king-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+                <div class="k-name">{king['PLAYER']}</div>
+                <div class="k-meta">{king['TEAM']} • PRA {king['PRA_AVG']:.1f}</div>
+                <div class="k-score" style="color:#10B981">+{king['z_score']:.2f}σ</div>
             </div>
-            <div class="mom-info">
-                <div class="mom-team">{team}</div>
-                <div class="mom-name">{name}</div>
-                <div class="mom-stat-row">
-                    <div style="font-size:11px; color:{color}; font-weight:bold;">
-                        {icon_html} {z:+.2f} <span style="color:#64748B;">(Z-Score)</span>
+            """, unsafe_allow_html=True)
+
+            # #2 e #3 LISTA
+            for i in range(1, len(top_hot)):
+                row = top_hot.iloc[i]
+                r_pid = int(row['PLAYER_ID'])
+                r_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{r_pid}.png"
+                
+                st.markdown(f"""
+                <div class="mini-card" style="border-left: 3px solid #10B981;">
+                    <img src="{r_img}" class="mini-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+                    <div class="mini-info">
+                        <div class="mini-name">#{i+1} {row['PLAYER']}</div>
+                        <div style="font-size:10px; color:#94a3b8">{row['TEAM']}</div>
                     </div>
-                    <div>
-                        <div class="mom-score" style="color:#fff;">{pra:.1f}</div>
-                        <div class="mom-avg">PRA (Média L5)</div>
-                    </div>
+                    <div class="mini-val" style="color:#10B981">+{row['z_score']:.2f}</div>
                 </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Nenhum destaque positivo.")
+
+    # === LADO FRIO (COLD) ===
+    with c_cold:
+        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:18px; text-align:center; margin-bottom:10px;">❄️ CONGELADOS (TOP 3)</div>', unsafe_allow_html=True)
+        
+        if not top_cold.empty:
+            # #1 FROZEN
+            frozen = top_cold.iloc[0]
+            f_pid = int(frozen['PLAYER_ID'])
+            f_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{f_pid}.png"
+            
+            st.markdown(f"""
+            <div class="frozen-card">
+                <div class="rank-badge" style="color:#EF4444; border-color:#EF4444;">#1 TRAVADO</div>
+                <img src="{f_img}" class="frozen-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+                <div class="k-name">{frozen['PLAYER']}</div>
+                <div class="k-meta">{frozen['TEAM']} • PRA {frozen['PRA_AVG']:.1f}</div>
+                <div class="k-score" style="color:#EF4444">{frozen['z_score']:.2f}σ</div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-    with c1:
-        st.markdown('<div style="color:#10B981; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #10B981;">&#128293; ALTA PERFORMANCE (HOT)</div>', unsafe_allow_html=True)
-        if top_hot.empty: st.info("Nenhum destaque positivo.")
+            # #2 e #3 LISTA
+            for i in range(1, len(top_cold)):
+                row = top_cold.iloc[i]
+                r_pid = int(row['PLAYER_ID'])
+                r_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{r_pid}.png"
+                
+                st.markdown(f"""
+                <div class="mini-card" style="border-left: 3px solid #EF4444;">
+                    <img src="{r_img}" class="mini-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
+                    <div class="mini-info">
+                        <div class="mini-name">#{i+1} {row['PLAYER']}</div>
+                        <div style="font-size:10px; color:#94a3b8">{row['TEAM']}</div>
+                    </div>
+                    <div class="mini-val" style="color:#EF4444">{row['z_score']:.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            for _, row in top_hot.iterrows(): render_momentum_card(c1, row, "HOT")
-
-    with c2:
-        st.markdown('<div style="color:#EF4444; font-family:Oswald; font-size:20px; margin-bottom:15px; border-bottom:2px solid #EF4444;">&#10052; BAIXA PRODUTIVIDADE (COLD)</div>', unsafe_allow_html=True)
-        if top_cold.empty: st.info("Nenhum titular 'frio'.")
-        else:
-            for _, row in top_cold.iterrows(): render_momentum_card(c2, row, "COLD")
+            st.info("Nenhum destaque negativo relevante.")
                 
 
 # ============================================================================
@@ -8507,6 +8553,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
