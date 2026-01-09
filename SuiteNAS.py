@@ -1944,7 +1944,7 @@ def show_momentum_page():
                 
 
 # ============================================================================
-# CLASSE NEXUS ENGINE (v10.1 - SINTAXE CORRIGIDA & VARREDURA TOTAL)
+# CLASSE NEXUS ENGINE (v10.2 - OPTIMIZED & CALIBRATED)
 # ============================================================================
 import math
 import json
@@ -1962,7 +1962,9 @@ class NexusEngine:
         self.injury_monitor = InjuryMonitor() if 'InjuryMonitor' in globals() and InjuryMonitor else None
         self.pace_adjuster = PaceAdjuster() if 'PaceAdjuster' in globals() and PaceAdjuster else None
         self.dvp_analyzer = DvPAnalyzer() if 'DvPAnalyzer' in globals() and DvPAnalyzer else None
-        self.sinergy = None # Desligado para evitar alucinações de times
+        
+        # OTIMIZAÇÃO: Cria mapa de elenco (Roster) uma vez só
+        self.roster_map = self._build_roster_map()
 
     # --- UTILITÁRIOS ---
     def _normalize_team(self, team_raw):
@@ -1999,13 +2001,11 @@ class NexusEngine:
         except: return str(text)
 
     def _load_photo_map(self):
-        # SINTAXE CORRIGIDA AQUI:
         if os.path.exists("nba_players_map.json"):
             try:
                 with open("nba_players_map.json", "r", encoding="utf-8") as f:
                     return json.load(f)
-            except:
-                pass
+            except: pass
         return {}
 
     def get_photo(self, name):
@@ -2018,6 +2018,17 @@ class NexusEngine:
         if abbr == 'uta': abbr = 'utah'
         if abbr == 'nop': abbr = 'no'
         return f"https://a.espncdn.com/i/teamlogos/nba/500/{abbr}.png"
+
+    def _build_roster_map(self):
+        """Organiza os jogadores por time para busca rápida O(1)."""
+        roster = {}
+        for name, data in self.logs.items():
+            if not isinstance(data, dict): continue
+            raw_t = data.get('team', 'UNK')
+            team = self._normalize_team(raw_t)
+            if team not in roster: roster[team] = []
+            roster[team].append(name)
+        return roster
 
     # --- MOTOR PRINCIPAL ---
     def run_nexus_scan(self):
@@ -2037,67 +2048,78 @@ class NexusEngine:
 
     def _scan_sgp_opportunities(self):
         found = []
-        processed = set() 
+        # Para cada time que joga hoje
+        active_teams = set()
+        for g in self.games:
+            active_teams.add(self._normalize_team(g.get('home')))
+            active_teams.add(self._normalize_team(g.get('away')))
 
-        for p_name, data in self.logs.items():
-            if p_name in processed: continue
-            
-            # Normaliza time
-            my_team = self._normalize_team(data.get('team'))
-            
-            # Filtro 1: Motor (Assistências > 6.0)
-            avg_ast = self._get_avg_stat(p_name, 'AST')
-            if avg_ast < 6.0: continue
+        for team in active_teams:
+            players_list = self.roster_map.get(team, [])
+            if not players_list: continue
 
-            # Filtro 2: Busca Parceiro (mesmo time estrito)
-            partner_name = None
-            best_pts = 0
+            # Busca o "Motor" (Líder em Assistências)
+            motor = None
+            max_ast = 5.5 # Baixei o sarrafo pra achar mais gente
             
-            # Varre logs procurando cestinha do MESMO time
-            for cand_name, cand_data in self.logs.items():
-                if cand_name == p_name: continue
-                if self._normalize_team(cand_data.get('team')) == my_team:
-                    c_pts = self._get_avg_stat(cand_name, 'PTS')
-                    if c_pts > best_pts:
-                        best_pts = c_pts
-                        partner_name = cand_name
+            for p in players_list:
+                avg = self._get_avg_stat(p, 'AST')
+                if avg > max_ast:
+                    max_ast = avg
+                    motor = p
             
-            if not partner_name: continue
+            if not motor: continue
+
+            # Busca o "Finalizador" (Líder em Pontos)
+            finisher = None
+            max_pts = 18.0 # Baixei o sarrafo
             
-            # Monta Card SGP
-            t_ast = f"{math.ceil(avg_ast - 0.5)}+"
-            t_pts = f"{math.floor(best_pts)}+"
+            for p in players_list:
+                if p == motor: continue # Não pode ser o mesmo
+                avg = self._get_avg_stat(p, 'PTS')
+                if avg > max_pts:
+                    max_pts = avg
+                    finisher = p
             
-            score = 60
+            if not finisher: continue
+
+            # Se achou a dupla, calcula Score
+            t_ast = math.ceil(max_ast - 0.5)
+            t_pts = math.floor(max_pts) # Piso para ser seguro
+            
+            # Score Base
+            score = 50 
             badges = []
             
-            if avg_ast > 9.0: score += 10
-            if best_pts > 24: score += 10
+            # Bonificações
+            if max_ast >= 8.0: score += 10; badges.append("🧠 Elite Playmaker")
+            if max_pts >= 25.0: score += 10; badges.append("🎯 Elite Scorer")
             
-            opp = self._get_opponent(my_team)
+            # Analisa Pace
+            opp = self._get_opponent(team)
             if opp and self.pace_adjuster:
-                pace = self.pace_adjuster.calculate_game_pace(my_team, opp)
+                pace = self.pace_adjuster.calculate_game_pace(team, opp)
                 if pace >= 100: 
                     score += 10
-                    badges.append(f"🏎️ Pace: {int(pace)}")
+                    badges.append(f"🏎️ Pace Alto: {int(pace)}")
             
-            if score >= 70:
-                processed.add(p_name)
+            # Filtro Final (Mais permissivo: 55+)
+            if score >= 55:
                 found.append({
                     "type": "SGP",
-                    "title": "ECOSSISTEMA SIMBIÓTICO",
+                    "title": "SGP: SINERGIA OFENSIVA",
                     "score": score,
                     "color": "#eab308",
-                    "hero": {"name": p_name, "photo": self.get_photo(p_name), "role": "🧠 O MOTOR", "stat": "AST", "target": t_ast, "logo": self.get_team_logo(my_team)},
-                    "partner": {"name": partner_name, "photo": self.get_photo(partner_name), "role": "🎯 O FINALIZADOR", "stat": "PTS", "target": t_pts, "logo": self.get_team_logo(my_team)},
-                    "badges": badges + ["🔥 Sinergia Alta"]
+                    "hero": {"name": motor, "photo": self.get_photo(motor), "role": "PASSADOR", "stat": "AST", "target": f"{t_ast}+", "logo": self.get_team_logo(team)},
+                    "partner": {"name": finisher, "photo": self.get_photo(finisher), "role": "CESTINHA", "stat": "PTS", "target": f"{t_pts}+", "logo": self.get_team_logo(team)},
+                    "badges": badges
                 })
         return found
 
     def _scan_vacuum_opportunities(self):
         """
-        LÓGICA VÁCUO 2.0 (VIP LIST):
-        Garante que Jokic, Nurkic, etc sejam detectados como pivôs mesmo se a posição estiver errada.
+        LÓGICA VÁCUO 2.1:
+        Reforçada para encontrar reboteiros mesmo sem posição definida.
         """
         found = []
         if not self.games: return []
@@ -2111,8 +2133,13 @@ class NexusEngine:
             matchups[a] = h
         
         # 2. Varredura de Lesões
-        all_injuries = self.injury_monitor.get_all_injuries()
+        # Tenta pegar as lesões. Se der erro, retorna vazio sem quebrar.
+        try:
+            all_injuries = self.injury_monitor.get_all_injuries()
+        except: return []
         
+        if not all_injuries: return []
+
         for team_raw, injuries in all_injuries.items():
             victim_team = self._normalize_team(team_raw)
             
@@ -2129,40 +2156,41 @@ class NexusEngine:
                 # CRITÉRIO 1: Status OUT
                 if any(x in status for x in ['OUT', 'INJ', 'DOUBT']):
                     
-                    # CRITÉRIO 2: É Pivô? (Verificação Tripla)
+                    # CRITÉRIO 2: É Pivô ou Grande Reboteiro?
                     is_center = False
                     
                     # A) Pelo Injury Report
                     if 'C' in pos_raw or 'CENTER' in pos_raw: is_center = True
                     
-                    # B) Pelo Cache de Logs
-                    if not is_center and name in self.logs:
-                        log_pos = str(self.logs[name].get('position', '')).upper()
-                        if 'C' in log_pos or 'CENTER' in log_pos: is_center = True
+                    # B) Pelo Cache de Logs (Média de rebotes alta > 7 confirma que é um Big)
+                    log_avg_reb = self._get_avg_stat(name, 'REB')
+                    if log_avg_reb >= 7.0: is_center = True
                     
-                    # C) Lista VIP de Pivôs (Garante que seu log seja respeitado)
+                    # C) Lista VIP Expandida
                     vip_centers = [
                         "NIKOLA JOKIC", "DOMANTAS SABONIS", "JAKOB POELTL", "WALKER KESSLER", 
                         "JUSUF NURKIC", "ZACH EDEY", "ISAIAH HARTENSTEIN", "IVICA ZUBAC", 
-                        "ALPEREN SENGUN", "JOEL EMBIID", "DEANDRE AYTON", "JALEN DUREN"
+                        "ALPEREN SENGUN", "JOEL EMBIID", "DEANDRE AYTON", "JALEN DUREN",
+                        "ANTHONY DAVIS", "BAM ADEBAYO", "GIANNIS ANTETOKOUNMPO", "VICTOR WEMBANYAMA",
+                        "KARL-ANTHONY TOWNS", "RUDY GOBERT", "JARRETT ALLEN", "EVAN MOBLEY"
                     ]
                     if name.upper() in vip_centers: is_center = True
 
                     if is_center:
-                        # ACHAMOS UM VÁCUO! Busca Predador
+                        # ACHAMOS UM VÁCUO (Time sem o grandão)! Busca o Predador no outro time
                         predator = self._find_best_rebounder(predator_team)
                         
                         if predator:
                             avg_reb = self._get_avg_stat(predator, 'REB')
                             
-                            # Filtro Mínimo
+                            # Filtro Mínimo: O predador tem que pegar pelo menos 6 rebotes por jogo
                             if avg_reb >= 6.0:
-                                # Boost
+                                # Boost baseado na média
                                 boost = 2.0 if avg_reb > 9 else 1.5
                                 target = math.ceil(avg_reb + boost)
                                 moon = math.ceil(avg_reb + boost + 3)
                                 
-                                score = 85 
+                                score = 75 # Começa alto pois é uma boa tese
                                 if avg_reb > 10: score += 10
                                 
                                 found.append({
@@ -2189,15 +2217,23 @@ class NexusEngine:
                                         f"💰 Alvo: {target}+", 
                                         f"🚀 Lua: {moon}+"
                                     ],
-                                    "impact": f"Sem {name}, {victim_team} perde proteção de aro."
+                                    "impact": f"Sem {name} ({log_avg_reb:.1f} reb/j), {victim_team} perde proteção de aro."
                                 })
                                 break 
         return found
 
     # --- AUXILIARES ---
     def _get_avg_stat(self, player, stat):
-        vals = self.logs.get(player, {}).get('logs', {}).get(stat, [])
-        return sum(vals[:10])/len(vals[:10]) if vals else 0
+        # Proteção contra falhas no dicionário
+        try:
+            player_data = self.logs.get(player)
+            if not player_data: return 0
+            vals = player_data.get('logs', {}).get(stat, [])
+            if not vals: return 0
+            # Pega L10 ou o que tiver
+            limit = min(len(vals), 10)
+            return sum(vals[:limit])/limit
+        except: return 0
 
     def _get_opponent(self, team):
         target = self._normalize_team(team)
@@ -2209,13 +2245,15 @@ class NexusEngine:
         return None
 
     def _find_best_rebounder(self, team):
+        # Usa o Roster Map para ser muito mais rápido
+        team_players = self.roster_map.get(team, [])
         best, max_reb = None, 0
-        target = self._normalize_team(team)
-        # Varre logs procurando o melhor reboteiro daquele time
-        for name, data in self.logs.items():
-            if self._normalize_team(data.get('team')) == target:
-                val = self._get_avg_stat(name, 'REB')
-                if val > max_reb: max_reb = val; best = name
+        
+        for name in team_players:
+            val = self._get_avg_stat(name, 'REB')
+            if val > max_reb: 
+                max_reb = val
+                best = name
         return best
 
 # ============================================================================
@@ -2530,26 +2568,25 @@ def show_trinity_club_page():
 # ============================================================================
 # PÁGINA: NEXUS PAGE (V10.0 - NATIVE STREAMLIT / BULLETPROOF)
 # ============================================================================
+# ============================================================================
+# PÁGINA: NEXUS PAGE (V10.3 - UI COMERCIAL & HERO SECTION)
+# ============================================================================
 def show_nexus_page():
-    # --- CSS MÍNIMO (Apenas para embelezar fontes e cores) ---
+    # --- CSS MÍNIMO ---
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@400;600&display=swap');
         
-        /* Classes utilitárias para TEXTO apenas (Seguro) */
         .nx-title { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: bold; letter-spacing: 1px; color: #FFFFFF; }
         .nx-score { font-family: monospace; font-weight: bold; color: #FBBF24; background: #1e293b; padding: 4px 8px; border-radius: 4px; border: 1px solid #334155; }
-        
         .nx-big-stat { font-family: 'Oswald', sans-serif; font-size: 24px; font-weight: bold; line-height: 1.1; }
         .nx-meta { font-family: monospace; font-size: 11px; color: #94a3b8; text-transform: uppercase; }
         
-        /* Cores Neon */
         .c-pts { color: #FBBF24; }
         .c-ast { color: #38BDF8; }
         .c-reb { color: #F87171; }
         .c-def { color: #A3E635; }
         
-        /* Imagem Redonda Segura (Inline) */
         .nx-avatar { border-radius: 50%; width: 60px; height: 60px; object-fit: cover; border: 2px solid #334155; }
         .nx-logo { width: 60px; height: 60px; object-fit: contain; }
     </style>
@@ -2560,11 +2597,37 @@ def show_nexus_page():
     scoreboard = get_data_universal("scoreboard")
 
     # Header Nativo
-    st.markdown("<h1 style='text-align:center; margin-bottom:0;'>NEXUS HUD</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; margin-bottom:0;'>Sinergia & Vácuo</h1>", unsafe_allow_html=True)
     st.markdown("<div style='text-align:center; color:#64748b; font-size:12px; margin-bottom:20px;'>SISTEMA TÁTICO • ONLINE</div>", unsafe_allow_html=True)
 
+    # --- HERO SECTION: COPY "A VANTAGEM" ---
+    st.markdown("""
+    <div style="
+        background: linear-gradient(90deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.7) 100%);
+        border-left: 4px solid #FBBF24;
+        border-radius: 8px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid #334155;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    ">
+        <div style="font-family: 'Inter', sans-serif; color: #e2e8f0; font-size: 14px; line-height: 1.6;">
+            <strong style="color: #FBBF24; font-size: 15px;">ENCONTRE AS FALHAS NA MATRIZ.</strong><br>
+            O Nexus vai além das médias simples. Ele cruza cenários táticos para encontrar narrativas lucrativas:
+            <ul style="margin-top: 8px; margin-bottom: 0; padding-left: 20px; list-style-type: none;">
+                <li style="margin-bottom: 6px;">
+                    ⚡ <strong style="color: #eab308;">Sinergia (SGP):</strong> Detecta <em>Conexões Letais</em> entre Armadores e Cestinhas do mesmo time que estão em sintonia máxima.
+                </li>
+                <li>
+                    🟣 <strong style="color: #a855f7;">Vácuo Tático:</strong> Monitora lesões críticas (ex: Pivôs OUT) e aponta instantaneamente o <em>Predador</em> que vai dominar os rebotes no garrafão exposto.
+                </li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if not full_cache:
-        st.info("ℹ️ Aguardando dados...")
+        st.info("ℹ️ Aguardando dados de estatísticas...")
         return
 
     # 2. Engine
@@ -2572,18 +2635,18 @@ def show_nexus_page():
     
     try:
         all_ops = nexus.run_nexus_scan()
-        min_score = 60 
+        # Filtro de exibição final (pode ser ajustado)
         opportunities = sorted(
-            [op for op in all_ops if op.get('score', 0) >= min_score],
+            [op for op in all_ops if op.get('score', 0) >= 50],
             key=lambda x: x.get('score', 0),
             reverse=True
         )
     except Exception as e:
-        st.error(f"Erro Nexus: {e}")
+        st.error(f"Erro ao processar Nexus: {e}")
         return
 
     if not opportunities:
-        st.info("Nenhuma oportunidade encontrada.")
+        st.info("🔎 Nenhuma oportunidade de alta sinergia ou vácuo encontrada para os jogos de hoje.")
         return
 
     # Helper de Cores
@@ -2594,11 +2657,10 @@ def show_nexus_page():
         if 'REB' in s: return "c-reb"
         return "c-def"
 
-    # 3. RENDERIZAÇÃO 100% NATIVA
+    # 3. RENDERIZAÇÃO
     for op in opportunities:
-        # Prepara Dados
         score = op.get('score', 0)
-        color = op.get('color', '#38BDF8') # Usado na borda lateral se quisermos
+        color = op.get('color', '#38BDF8')
         raw_title = op.get('title', 'OPORTUNIDADE')
         op_type = op.get('type', 'Standard')
         is_sgp = (op_type == 'SGP')
@@ -2612,7 +2674,6 @@ def show_nexus_page():
             icon = "⚔️"
             center_label = "VS"
 
-        # Hero (Esquerda)
         hero = op.get('hero', {})
         h_name = hero.get('name', 'Unknown')
         h_photo = hero.get('photo', '')
@@ -2621,7 +2682,6 @@ def show_nexus_page():
         h_stat = hero.get('stat', '')
         h_cls = get_color_class(h_stat)
 
-        # Target (Direita)
         if is_sgp:
             partner = op.get('partner', {})
             t_name = partner.get('name', 'Parceiro')
@@ -2637,31 +2697,22 @@ def show_nexus_page():
             v_status = villain.get('status', '')
             status_alert = f"<span style='color:#F87171; background:#3f1a1a; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:11px;'>🚨 {v_status}</span>" if v_status else ""
             t_val_html = f"<div style='margin-top:5px'>{status_alert}</div>"
-            t_img_class = "nx-logo" # Logo quadrado/contain
+            t_img_class = "nx-logo"
 
-        # --- ESTRUTURA DO CARD (NATIVA) ---
-        # border=True cria a caixa visual segura
         with st.container(border=True):
-            
-            # 1. HEADER (Duas colunas nativas)
             c_head_L, c_head_R = st.columns([3, 1])
             with c_head_L:
-                # Título Colorido
                 st.markdown(f"<span style='color:{color}; font-size:18px;'>{icon}</span> <span class='nx-title'>{main_title}</span>", unsafe_allow_html=True)
             with c_head_R:
-                # Badge de Score (Alinhado à direita via HTML simples)
                 st.markdown(f"<div style='text-align:right'><span class='nx-score'>SCORE {score}</span></div>", unsafe_allow_html=True)
             
-            st.divider() # Linha nativa do Streamlit (Segura e bonita)
+            st.divider()
 
-            # 2. CORPO (3 Colunas Nativas)
             c1, c2, c3 = st.columns([2, 0.4, 2])
             
-            # --- Coluna Esquerda: HEROI ---
             with c1:
-                sc1, sc2 = st.columns([0.8, 2]) # Sub-colunas para alinhar foto e texto
+                sc1, sc2 = st.columns([0.8, 2])
                 with sc1:
-                    # Imagem via HTML simples (Inline não quebra)
                     st.markdown(f"<img src='{h_photo}' class='nx-avatar' style='border-color:{color}'>", unsafe_allow_html=True)
                 with sc2:
                     st.markdown(f"""
@@ -2672,16 +2723,13 @@ def show_nexus_page():
                     </div>
                     """, unsafe_allow_html=True)
             
-            # --- Coluna Central: VS ---
             with c2:
                 if center_label:
                     st.markdown(f"<div style='text-align:center; margin-top:15px; font-weight:bold; color:#475569;'>{center_label}</div>", unsafe_allow_html=True)
             
-            # --- Coluna Direita: TARGET ---
             with c3:
                 sc_txt, sc_img = st.columns([2, 0.8])
                 with sc_txt:
-                    # Alinhamento à direita via HTML text-align (Seguro)
                     st.markdown(f"""
                     <div style='text-align:right; line-height:1.2'>
                         <div style='font-weight:bold; font-size:15px; color:#fff'>{t_name}</div>
@@ -2692,29 +2740,30 @@ def show_nexus_page():
                 with sc_img:
                     st.markdown(f"<div style='display:flex; justify-content:flex-end'><img src='{t_photo}' class='{t_img_class}'></div>", unsafe_allow_html=True)
 
-            # 3. FOOTER (Ladder e Impacto)
-            # Prepara Ladder
-            ladder_raw = op.get('ladder', [])
-            ladder_clean = [str(l).split(":")[-1].strip() for l in ladder_raw if ":" in str(l)]
-            
-            if len(ladder_clean) >= 3:
-                ladder_html = f"""
-                <span style='color:#64748b'>Base</span> <strong style='color:#fff'>{ladder_clean[0]}</strong> <span style='color:#334155'>|</span> 
-                <span style='color:#FBBF24'>Alvo</span> <strong style='color:#FBBF24'>{ladder_clean[1]}</strong> <span style='color:#334155'>|</span> 
-                <span style='color:#64748b'>Teto</span> <strong style='color:#fff'>{ladder_clean[2]}</strong>
-                """
-            else:
-                ladder_html = " • ".join(ladder_clean)
+            if not is_sgp:
+                ladder_raw = op.get('ladder', [])
+                ladder_clean = [str(l).split(":")[-1].strip() for l in ladder_raw if ":" in str(l)]
+                if len(ladder_clean) >= 3:
+                    ladder_html = f"""
+                    <span style='color:#64748b'>Base</span> <strong style='color:#fff'>{ladder_clean[0]}</strong> <span style='color:#334155'>|</span> 
+                    <span style='color:#FBBF24'>Alvo</span> <strong style='color:#FBBF24'>{ladder_clean[1]}</strong> <span style='color:#334155'>|</span> 
+                    <span style='color:#64748b'>Teto</span> <strong style='color:#fff'>{ladder_clean[2]}</strong>
+                    """
+                else:
+                    ladder_html = " • ".join(ladder_clean)
                 
-            impact_txt = op.get('impact', '')
-
-            # Renderiza Footer com fundo leve
-            st.markdown(f"""
-            <div style='margin-top:10px; background:#111827; border-radius:6px; padding:8px; border:1px dashed #334155; display:flex; justify-content:space-between; align-items:center; font-size:12px;'>
-                <div>{ladder_html}</div>
-                <div style='color:#94a3b8; font-style:italic; text-align:right; max-width:40%;'>{impact_txt}</div>
-            </div>
-            """, unsafe_allow_html=True)
+                impact_txt = op.get('impact', '')
+                st.markdown(f"""
+                <div style='margin-top:10px; background:#111827; border-radius:6px; padding:8px; border:1px dashed #334155; display:flex; justify-content:space-between; align-items:center; font-size:12px;'>
+                    <div>{ladder_html}</div>
+                    <div style='color:#94a3b8; font-style:italic; text-align:right; max-width:40%;'>{impact_txt}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Badges para SGP
+            if is_sgp and 'badges' in op:
+                badges_html = "".join([f"<span style='background:#1e293b; color:#94a3b8; padding:2px 6px; border-radius:4px; font-size:10px; margin-right:4px; border:1px solid #334155'>{b}</span>" for b in op['badges']])
+                st.markdown(f"<div style='margin-top:8px;'>{badges_html}</div>", unsafe_allow_html=True)
 # ============================================================================
 # STRATEGY ENGINE: 5/7/10 (VERSÃO 3.5 - COMPATÍVEL COM LAYOUT ANTERIOR)
 # ============================================================================
@@ -8343,6 +8392,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
