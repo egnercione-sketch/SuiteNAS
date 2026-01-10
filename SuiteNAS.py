@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V16.0 - NATIVE SGP LAYOUT)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V17.0 - STABLE LAYOUT & PHOTO FIX)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6648,24 +6648,50 @@ def show_desdobramentos_inteligentes():
     except ImportError:
         def get_data_universal(key): return {}
 
-    # --- 2. HELPERS ---
+    # --- 2. HELPERS (FOTOS & NORMALIZAÇÃO) ---
     def nuclear_normalize(text):
         if not text: return ""
-        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
+        # Remove acentos e caracteres especiais, tudo upper case
+        text = str(text).replace('.', '').replace("'", "")
+        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper())
 
+    # Lógica Robusta para IDs de Fotos
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
-    if not df_l5.empty:
-        try:
-            c_id = next((c for c in df_l5.columns if 'ID' in c), 'PLAYER_ID')
-            c_name = next((c for c in df_l5.columns if 'PLAYER' in c), 'PLAYER')
+    
+    # Tenta carregar do cache universal se não estiver na sessão
+    if df_l5.empty:
+        df_l5 = get_data_universal('df_l5')
+
+    if isinstance(df_l5, pd.DataFrame) and not df_l5.empty:
+        # Tenta encontrar as colunas certas
+        cols_upper = [c.upper() for c in df_l5.columns]
+        id_col = next((c for c in df_l5.columns if 'PLAYER_ID' in c.upper() or 'PERSON_ID' in c.upper()), None)
+        name_col = next((c for c in df_l5.columns if 'PLAYER_NAME' in c.upper() or 'PLAYER' == c.upper()), None)
+        
+        if id_col and name_col:
             for _, row in df_l5.iterrows():
-                ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
-        except: pass
+                try:
+                    p_name = nuclear_normalize(str(row[name_col]))
+                    p_id = int(float(row[id_col]))
+                    ID_VAULT[p_name] = p_id
+                except: pass
 
     def get_photo_url(name):
-        pid = ID_VAULT.get(nuclear_normalize(name), 0)
-        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        # Normaliza o nome de entrada para bater com o Vault
+        clean_name = nuclear_normalize(name)
+        pid = ID_VAULT.get(clean_name, 0)
+        
+        # Fallback para nomes comuns que as vezes dão erro
+        if pid == 0:
+            # Tenta busca parcial se falhar
+            for v_name, v_id in ID_VAULT.items():
+                if clean_name in v_name or v_name in clean_name:
+                    pid = v_id
+                    break
+        
+        if pid > 0: 
+            return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     # --- 3. CLASSIFIER & ENGINE ---
@@ -6686,7 +6712,7 @@ def show_desdobramentos_inteligentes():
             if reb >= 4.5 and ast >= 3.5: return "hustle"
             return "scorer"
 
-    class OrchestratorV16:
+    class OrchestratorV17:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
@@ -6745,7 +6771,8 @@ def show_desdobramentos_inteligentes():
                 if not valid_legs: continue
                 
                 role = 'BASE'
-                if role_tag in ['star', 'starter'] and any(l['stat']=='PTS' and l['line']>=18 for l in valid_legs):
+                # ÂNCORA: Obrigatório ser Star/Starter E ter linha alta de pontos OU ser um Double Barrel de elite
+                if (role_tag in ['star', 'starter'] and any(l['stat']=='PTS' and l['line']>=18 for l in valid_legs)):
                     role = 'ANCHOR'
                 elif len(valid_legs) >= 2 and style_tag in ['playmaker', 'hustle', 'rebounder']:
                     role = 'MOTOR'
@@ -6767,6 +6794,7 @@ def show_desdobramentos_inteligentes():
             self.master_inventory.sort(key=lambda x: x['score'], reverse=True)
             tickets = []
             
+            # Fórmulas
             formulas = ['ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL']
             
             def find_candidate(roles, exclude_teams, exclude_players, max_usage=2):
@@ -6777,7 +6805,7 @@ def show_desdobramentos_inteligentes():
                             return p
                 return None
 
-            # FASE 1: Fórmulas
+            # FASE 1: Fórmulas Estruturadas
             for form_type in formulas:
                 candidates = []
                 u_teams, u_players = set(), set()
@@ -6786,13 +6814,13 @@ def show_desdobramentos_inteligentes():
                 
                 if form_type == 'ATTACK':
                     slots = [(['ANCHOR'], 3), (['ANCHOR'], 3), (['WORKER', 'BASE'], 2), (['WORKER', 'BASE'], 2)]
-                    meta = {'title': '🚀 ATAQUE TOTAL', 'desc': 'Foco em pontuadores.', 'color': 'red'}
+                    meta = {'title': '🚀 ATAQUE TOTAL', 'desc': 'Foco em pontuadores.', 'color': '#ef4444'} # Vermelho
                 elif form_type == 'PYRAMID':
                     slots = [(['ANCHOR'], 3), (['MOTOR', 'WORKER'], 3), (['WORKER', 'BASE'], 2), (['BASE', 'WORKER'], 2)]
-                    meta = {'title': '🛡️ A PIRÂMIDE', 'desc': 'Equilíbrio tático.', 'color': 'blue'}
+                    meta = {'title': '🛡️ A PIRÂMIDE', 'desc': 'Equilíbrio tático.', 'color': '#3b82f6'} # Azul
                 elif form_type == 'WALL':
                     slots = [(['MOTOR', 'WORKER'], 3), (['WORKER'], 2), (['BASE'], 2), (['BASE'], 2)]
-                    meta = {'title': '🧱 O PAREDÃO', 'desc': 'Segurança máxima.', 'color': 'green'}
+                    meta = {'title': '🧱 O PAREDÃO', 'desc': 'Segurança máxima.', 'color': '#10b981'} # Verde
                 
                 valid_ticket = True
                 for roles, limit in slots:
@@ -6806,7 +6834,7 @@ def show_desdobramentos_inteligentes():
                 if valid_ticket and len(candidates) == 4:
                     self._commit_ticket(tickets, candidates, meta)
 
-            # FASE 2: Reciclagem
+            # FASE 2: Reciclagem (Scavenge) - Garante volume
             while len(tickets) < 20:
                 scavenge = []
                 u_teams, u_players = set(), set()
@@ -6818,7 +6846,7 @@ def show_desdobramentos_inteligentes():
                         u_teams.add(p['team']); u_players.add(p['player'])
                 
                 if len(scavenge) == 4:
-                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM', 'desc': 'Oportunidades extras.', 'color': 'purple'})
+                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM', 'desc': 'Oportunidades extras.', 'color': '#a855f7'}) # Roxo
                 else: break
             
             return tickets
@@ -6827,7 +6855,8 @@ def show_desdobramentos_inteligentes():
             final_legs = []
             for p in players:
                 p['usage'] += 1
-                # Lógica Double Barrel: pega as 2 melhores se possível
+                # Lógica Double Barrel: pega as 2 melhores se possível (SGP)
+                # Cap de segurança: não deixar um jogador ter mais de 2 legs para não inflar o bilhete
                 legs_to_use = p['legs'][:2] if (len(p['legs']) > 1 and p['role'] in ['ANCHOR', 'MOTOR']) else p['legs'][:1]
                 
                 for l in legs_to_use:
@@ -6837,6 +6866,10 @@ def show_desdobramentos_inteligentes():
                         'is_double': len(legs_to_use) > 1
                     })
             
+            # HARD CAP VISUAL: Limita a 6 pernas no total para não quebrar layout
+            if len(final_legs) > 6:
+                final_legs = final_legs[:6]
+
             meta['title'] = f"{meta['title']} #{len(tickets)+1}"
             tickets.append({**meta, 'legs': final_legs})
 
@@ -6844,11 +6877,11 @@ def show_desdobramentos_inteligentes():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div style="font-family:Oswald; font-size:30px; color:#fbbf24; text-transform:uppercase;">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V16.0 Native Layout")
+        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V17.0 Stable")
     with c_tog:
         debug_mode = st.toggle("Debug", value=False)
 
-    # Legenda Simples (Texto Nativo)
+    # Legenda Fixa
     st.markdown("**Legenda:** 👑 Anchor (Estrela) | ⚙️ Motor (Glue Guy) | 👷 Worker (Rotação) | 🛡️ Base (Segurança) | ⚡ Double Barrel")
 
     logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
@@ -6858,29 +6891,30 @@ def show_desdobramentos_inteligentes():
         st.warning("⚠️ Dados insuficientes. Atualize em Config.")
         return
 
-    maestro = OrchestratorV16(logs, games)
+    maestro = OrchestratorV17(logs, games)
     maestro.ingest_and_bundle()
     tickets = maestro.manufacture_tickets()
 
     if debug_mode:
-        st.info(f"⚙️ Analisados: {maestro.diag['approved_players']} Jogadores. Gerados: {len(tickets)} Bilhetes.")
+        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes.")
 
     if not tickets:
         st.info("😴 Sem combinações de alta confiança.")
         return
 
-    # --- 5. RENDERIZAÇÃO NATIVA (ANTI-EXPLOSÃO) ---
+    # --- 5. RENDERIZAÇÃO NATIVA SEGURA ---
     cols = st.columns(3)
     for i, t in enumerate(tickets):
         with cols[i % 3]:
-            # Usa o container nativo com borda para o Card
+            # Container com Borda Nativa
             with st.container(border=True):
-                # Header colorido usando sintaxe nativa de cor do Streamlit
-                st.markdown(f":{t['color']}[**{t['title']}**]")
-                st.caption(f"{t['desc']} • {len(t['legs'])} Legs")
-                st.divider()
+                # Header HTML Seguro (Resolve o problema de 'explosão' de texto cru)
+                st.markdown(f"<div style='border-left: 4px solid {t['color']}; padding-left: 10px; margin-bottom: 10px;'>"
+                            f"<div style='font-family:Oswald; font-size:16px; color:white;'>{t['title']}</div>"
+                            f"<div style='font-size:11px; color:#94a3b8;'>{t['desc']} • {len(t['legs'])} Legs</div>"
+                            f"</div>", unsafe_allow_html=True)
 
-                # Agrupamento por Jogador (SGP Style)
+                # Agrupamento por Jogador
                 player_legs = defaultdict(list)
                 player_meta = {}
                 for leg in t['legs']:
@@ -6890,32 +6924,30 @@ def show_desdobramentos_inteligentes():
                 for p_name, legs in player_legs.items():
                     meta = player_meta[p_name]
                     
-                    # Colunas internas para alinhar Imagem e Texto
+                    # Colunas internas (Layout Rígido)
                     c_img, c_data = st.columns([1, 4])
                     
                     with c_img:
                         st.image(get_photo_url(p_name), width=40)
                     
                     with c_data:
-                        # Ícones e Tags
+                        # Info Principal
                         role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
                         barrel = "⚡" if meta['dbl'] else ""
-                        
                         st.markdown(f"**{p_name}** {barrel}")
                         st.caption(f"{role_icon} {meta['role']} • {meta['team']}")
                         
-                        # Stats Chips (Usando HTML inline simples e seguro dentro do Markdown)
+                        # Stats em Chips (HTML inline seguro)
                         chips_str = ""
                         for l in legs:
                             color = "#fbbf24" if l['stat'] == 'PTS' else "#60a5fa"
-                            # Badge HTML Simples (<span> não quebra layout)
-                            chips_str += f"""<span style='background:#1e293b; border:1px solid #334155; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:4px; display:inline-block;'>
-                                <strong style='color:{color}'>{l['line']}+ {l['stat']}</strong> <span style='color:#64748b; font-size:9px'>({l['hits']}/10)</span>
+                            # Chip Compacto
+                            chips_str += f"""<span style='background:#1e293b; border:1px solid #475569; padding:2px 5px; border-radius:4px; font-size:10px; margin-right:4px; display:inline-block;'>
+                                <strong style='color:{color}'>{l['line']}+ {l['stat']}</strong> <span style='color:#64748b; font-size:8px'>({l['hits']}/10)</span>
                             </span>"""
                         
                         st.markdown(chips_str, unsafe_allow_html=True)
                     
-                    # Espaçamento leve entre jogadores
                     st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: MATCHUP CENTER (V3.3 - HIERARCHY SORT FIX)
@@ -8437,6 +8469,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
