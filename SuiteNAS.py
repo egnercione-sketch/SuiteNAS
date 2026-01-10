@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V1.1 (CALIBRADO + DEBUG)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V1.2 (DEBUG SUPREMO)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3164,6 +3164,7 @@ def show_garimpo_page():
     import requests
     import re
     import unicodedata
+    import time
     from collections import defaultdict
 
     # --- 1. CONFIGURAÇÃO ---
@@ -3177,7 +3178,7 @@ def show_garimpo_page():
         st.error(f"Erro de Módulos: {e}")
         return
 
-    # --- 2. CSS (MANTIDO) ---
+    # --- 2. CSS (IDENTIDADE VISUAL) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -3201,7 +3202,7 @@ def show_garimpo_page():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">Fábrica de SGP (Pontos + Rebotes + Assistências)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">SGP Factory V1.2 • Diagnóstico Ativo</div>', unsafe_allow_html=True)
     with c_tog:
         debug_mode = st.toggle("🛠️ Debug", value=True)
 
@@ -3209,7 +3210,6 @@ def show_garimpo_page():
         st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
         return
 
-    # Tenta obter dados
     try:
         from SuiteNAS import get_data_universal
         cache_logs = get_data_universal("real_game_logs")
@@ -3226,7 +3226,6 @@ def show_garimpo_page():
         try: return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
         except: return ""
 
-    # Carrega IDs
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -3263,18 +3262,27 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ENGINE (COM DIAGNÓSTICO) ---
+    # --- 5. MINER ENGINE (TRACKER TOTAL) ---
     class GoldMinerV2:
         def __init__(self, logs, blacklist, rosters):
             self.logs = logs
             self.blacklist = blacklist
             self.rosters = rosters
             self.vacuum = VacuumMatrixAnalyzer()
-            self.classifier = PlayerClassifier()
-            self.monte_carlo = MonteCarloEngine(default_sims=1500) # Rápido
+            self.monte_carlo = MonteCarloEngine(default_sims=1500)
             
-            # Contadores de Debug
-            self.diag = {"total": 0, "skip_min": 0, "skip_data": 0, "fail_mc": 0, "approved": 0, "failures": []}
+            # --- DIAGNÓSTICO COMPLETO ---
+            self.diag = {
+                "total": 0,
+                "skip_injury": 0,      # Novo: Lesionados
+                "skip_data_insuf": 0,  # Dados insuficientes (L5)
+                "skip_data_crash": 0,  # Novo: Erro ao ler números (None, etc)
+                "skip_min": 0,         # Poucos minutos
+                "skip_kit_req": 0,     # Não bateu o requisito mínimo do kit (ex: projeta 5 pts, kit pede 6)
+                "fail_mc": 0,          # Falhou na probabilidade do Monte Carlo
+                "approved": 0,
+                "failures": []
+            }
 
         def mine_nuggets(self):
             nuggets = []
@@ -3288,37 +3296,55 @@ def show_garimpo_page():
                     min_l5 = 0
                     if p_norm in self.logs:
                         raw = self.logs[p_norm].get('logs', {}).get('MIN', [])
-                        if raw: min_l5 = np.mean([float(str(x).replace(':','.')) for x in raw[:5]])
+                        # Parser seguro
+                        safe_mins = []
+                        for x in raw:
+                            try: safe_mins.append(float(str(x).replace(':','.')))
+                            except: pass
+                        if safe_mins: min_l5 = np.mean(safe_mins[:5])
+                    
                     vac_roster.append({'name': p['name'], 'status': p['status'], 'position': p['pos'], 'min_L5': min_l5, 'is_starter': min_l5 > 24})
                 
                 rep = self.vacuum.analyze_team_vacuum(vac_roster, team)
                 if rep:
                     for name, info in rep.items(): vacuum_boosts[nuclear_normalize(name)] = info
 
-            # 2. Processamento
+            # 2. Varredura
             for name, data in self.logs.items():
                 self.diag['total'] += 1
                 norm = nuclear_normalize(name)
-                if norm in self.blacklist: continue
+                
+                # Check Injury
+                if norm in self.blacklist:
+                    self.diag['skip_injury'] += 1
+                    continue
                 
                 logs = data.get('logs', {})
                 if not logs or len(logs.get('PTS', [])) < 5: 
-                    self.diag['skip_data'] += 1; continue
+                    self.diag['skip_data_insuf'] += 1
+                    continue
                 
-                # Stats
+                # Stats Parsing Seguro (Evita Crash Silencioso)
                 try:
-                    pts = logs.get('PTS', [])[:15] # L15 (Amostra maior)
-                    reb = logs.get('REB', [])[:15]
-                    ast = logs.get('AST', [])[:15]
-                    mins = [float(str(x).replace(':','.')) for x in logs.get('MIN', [])[:5]]
-                except: continue
-                
-                if not pts or not mins: continue
-                
-                proj_pts = np.mean(pts)
-                proj_reb = np.mean(reb)
-                proj_ast = np.mean(ast)
-                proj_min = np.mean(mins)
+                    pts = [float(x) for x in logs.get('PTS', [])[:15] if x is not None]
+                    reb = [float(x) for x in logs.get('REB', [])[:15] if x is not None]
+                    ast = [float(x) for x in logs.get('AST', [])[:15] if x is not None]
+                    
+                    raw_min = logs.get('MIN', [])[:5]
+                    mins = []
+                    for x in raw_min:
+                        try: mins.append(float(str(x).replace(':','.')))
+                        except: pass
+                        
+                    if not pts or not mins: raise ValueError("Empty Data")
+                    
+                    proj_pts = np.mean(pts)
+                    proj_reb = np.mean(reb)
+                    proj_ast = np.mean(ast)
+                    proj_min = np.mean(mins)
+                except:
+                    self.diag['skip_data_crash'] += 1
+                    continue
                 
                 # Vacuum Boost
                 vac_info = vacuum_boosts.get(norm)
@@ -3326,35 +3352,37 @@ def show_garimpo_page():
                     boost = vac_info['boost']
                     proj_pts *= boost; proj_reb *= boost; proj_ast *= boost; proj_min *= boost
                 
-                # Filtro Minutos (Relaxado para 22)
+                # Filtro Minutos (22+)
                 if proj_min < 22: 
-                    self.diag['skip_min'] += 1; continue
+                    self.diag['skip_min'] += 1
+                    continue
                 
-                # KITS DEFINIDOS (Relaxados)
+                # Kits
                 kits = [
-                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, # Muito Fácil
+                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, 
                     {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
                     {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO'},
                     {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE'}
                 ]
                 
                 best_kit = None
+                passed_req = False
                 
                 for kit in kits:
                     r_pts, r_reb, r_ast = kit['req']
                     
-                    # Se a projeção for MENOR que o requisito, nem roda Monte Carlo (economiza CPU)
+                    # Filtro de Pré-Requisito (Economia)
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast:
                         continue
+                    
+                    passed_req = True # Passou pelo menos no requisito básico de um kit
 
-                    # Monte Carlo (Probabilidades)
+                    # Monte Carlo
                     p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS")['prob_percent']
                     p_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB")['prob_percent']
                     p_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST")['prob_percent']
                     
-                    # REGRA DE CORTE (Relaxada):
-                    # Aceita se todos forem > 60% (era 70%)
-                    # OU se a média for > 75% (Compensação: um muito bom salva um ruim)
+                    # Regra de Aprovação (Relaxada)
                     avg_prob = (p_pts + p_reb + p_ast) / 3
                     min_prob = min(p_pts, p_reb, p_ast)
                     
@@ -3366,28 +3394,25 @@ def show_garimpo_page():
                             'type': kit['label'],
                             'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
                             'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
-                            'odd': max(2.0, min(20.0, odd_fair * 0.8)),
+                            'odd': max(1.8, min(15.0, odd_fair * 0.8)),
                             'combined_prob': combined * 100
                         }
                     else:
-                        # Debug Falha (Só guarda os quase lá)
                         if avg_prob > 50 and len(self.diag['failures']) < 5:
-                            self.diag['failures'].append(f"{name} falhou no {kit['name']}: PTS {int(p_pts)}% | REB {int(p_reb)}% | AST {int(p_ast)}%")
+                            self.diag['failures'].append(f"{name} falhou MC ({kit['name']}): P{int(p_pts)}% R{int(p_reb)}% A{int(p_ast)}%")
                 
                 if best_kit:
-                    nuggets.append({
-                        'player': name, 'team': data['team'],
-                        'kit': best_kit, 'vacuum': vac_info,
-                        'proj_min': proj_min
-                    })
+                    nuggets.append({'player': name, 'team': data['team'], 'kit': best_kit, 'vacuum': vac_info, 'proj_min': proj_min})
                     self.diag['approved'] += 1
                 else:
-                    self.diag['fail_mc'] += 1
+                    # Se não passou em nenhum pré-requisito de nenhum kit
+                    if not passed_req: self.diag['skip_kit_req'] += 1
+                    else: self.diag['fail_mc'] += 1 # Passou no req, mas falhou na prob MC
                     
             return nuggets
 
     # --- 6. EXECUÇÃO ---
-    if st.button("⚒️ PROSPECTAR (V1.1)", type="primary", use_container_width=True):
+    if st.button("⚒️ PROSPECTAR (DEBUG)", type="primary", use_container_width=True):
         
         with st.status("⛏️ Minerando...", expanded=True) as status:
             status.write("🚑 Checando Lesões...")
@@ -3397,19 +3422,23 @@ def show_garimpo_page():
             miner = GoldMinerV2(cache_logs, blacklist, rosters)
             nuggets = miner.mine_nuggets()
             
-            # DEBUG BOX
+            # DEBUG REPORT
             if debug_mode:
                 d = miner.diag
                 st.info(f"""
-                **DIAGNÓSTICO:**
-                - Total Analisado: {d['total']}
-                - Ignorado (Dados Insuficientes): {d['skip_data']}
-                - Ignorado (Minutos < 22): {d['skip_min']}
-                - Falha no Monte Carlo (Prob Baixa): {d['fail_mc']}
-                - **APROVADOS:** {d['approved']}
+                **DIAGNÓSTICO DO FUNIL:**
+                1. Total Analisado: **{d['total']}**
+                2. 🚑 Lesionados (Blacklist): **{d['skip_injury']}**
+                3. 📉 Dados Insuficientes (L5): **{d['skip_data_insuf']}**
+                4. 💥 Erro de Leitura (Crash): **{d['skip_data_crash']}**
+                5. ⏱️ Poucos Minutos (<22): **{d['skip_min']}**
+                6. 🤏 Projeção Fraca (Nem testou MC): **{d['skip_kit_req']}**
+                7. 🎲 Falha Probabilidade (MC): **{d['fail_mc']}**
+                -----------------------------------
+                ✅ **APROVADOS FINAL:** **{d['approved']}**
                 """)
                 if d['failures']:
-                    with st.expander("Exemplos de Falha (Quase lá)"):
+                    with st.expander("Exemplos de 'Quase' (Falha MC)"):
                         for f in d['failures']: st.write(f)
             
             st.session_state.garimpo_results = nuggets
@@ -3420,7 +3449,7 @@ def show_garimpo_page():
         results = st.session_state.garimpo_results
         
         if not results:
-            st.warning("Nenhum resultado. O filtro ainda está barrando todos. Verifique o Debug acima.")
+            st.warning("Sem resultados. Verifique o diagnóstico acima.")
             return
             
         results.sort(key=lambda x: x['kit']['combined_prob'], reverse=True)
@@ -8628,6 +8657,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
