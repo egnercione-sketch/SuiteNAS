@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V2.0 (ROLE PLAYER FOCUS)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V2.1 (HOTFIX KEYERROR)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3163,6 +3163,7 @@ def show_garimpo_page():
     import numpy as np
     import re
     import unicodedata
+    import requests
     
     # --- 1. CONFIGURAÇÃO & CSS ---
     try:
@@ -3210,16 +3211,15 @@ def show_garimpo_page():
     c_head, c_filt = st.columns([2, 3])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">Role Player Finder V2.0</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">Role Player Finder V2.1 (Fix)</div>', unsafe_allow_html=True)
     
     with c_filt:
-        # Filtros Inteligentes
         cf1, cf2 = st.columns(2)
         with cf1:
             tier_filter = st.multiselect(
                 "🎯 Kits Desejados:",
                 ['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE'],
-                default=['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO'] # Elite fora por padrão
+                default=['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO']
             )
         with cf2:
             min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 70, 5)
@@ -3285,7 +3285,7 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ENGINE (COM DEDUPLICAÇÃO) ---
+    # --- 5. MINER ENGINE (CORRIGIDO) ---
     class GoldMinerL5:
         def __init__(self, df_data, blacklist, rosters):
             self.df = df_data
@@ -3302,7 +3302,6 @@ def show_garimpo_page():
             return 16.0
 
         def mine_nuggets(self):
-            # Usaremos um dict para manter apenas o MELHOR card de cada jogador
             best_nuggets = {} 
             
             cols = self.df.columns
@@ -3332,10 +3331,6 @@ def show_garimpo_page():
                     proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast)
                     min_source = "EST"
 
-                # Vacuum Boost (Fundamental para Role Players)
-                vacuum_boosts = {} # (Simplificado para o exemplo, ideal carregar do rosters)
-                # ... (Lógica de vacuum se repete aqui) ...
-
                 if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
                 
                 kits = [
@@ -3346,7 +3341,6 @@ def show_garimpo_page():
                 ]
                 
                 for kit in kits:
-                    # Filtro de Tier (Otimização: só calcula o que o usuário quer ver)
                     if kit['label'] not in tier_filter: continue
                     
                     r_pts, r_reb, r_ast = kit['req']
@@ -3359,53 +3353,52 @@ def show_garimpo_page():
                     min_prob = min(p_pts, p_reb, p_ast)
                     avg_prob = (p_pts + p_reb + p_ast) / 3
                     
-                    # Filtro de Confiança Global
+                    # Filtro de Confiança Global (Hard Cutoff 50%)
                     if min_prob < 50 or avg_prob < (min_conf / 100 * 80): continue 
                     
                     combined = (p_pts/100) * (p_reb/100) * (p_ast/100) * 100
                     
-                    # Se bater o filtro de confiança do usuário
                     if combined >= min_conf:
-                        # DEDUPLICAÇÃO: Só guarda se for melhor que o anterior desse jogador
                         current_best = best_nuggets.get(norm)
-                        
-                        # Lógica de "Melhor Card":
-                        # Preferimos Tiers mais altos SE a confiança for boa.
-                        # Mas entre Base e Segurança, se a Base for 99% e Segurança 60%, prefira Base.
-                        
                         should_update = False
+                        
+                        # CORREÇÃO DO KEYERROR AQUI:
                         if not current_best:
                             should_update = True
                         else:
-                            # Se o novo kit for do mesmo tier, pega o de maior probabilidade
-                            if kit['label'] == current_best['kit']['label']:
-                                if combined > current_best['kit']['combined_prob']: should_update = True
-                            # Se tiers diferentes... isso é gosto pessoal. 
-                            # Vamos priorizar CONFIAÇA para Role Players.
-                            elif combined > current_best['kit']['combined_prob']:
+                            # Comparamos a 'combined_prob' que está salva no NÍVEL SUPERIOR do dicionário
+                            current_prob = current_best.get('combined_prob', 0)
+                            
+                            # Se for o mesmo tipo de kit, pega o de maior probabilidade
+                            if kit['label'] == current_best['kit_type']: 
+                                if combined > current_prob: should_update = True
+                            # Se forem tipos diferentes, prioriza confiança
+                            elif combined > current_prob:
                                 should_update = True
 
                         if should_update:
                             tm = str(row.get(c_t, 'UNK'))
                             best_nuggets[norm] = {
-                                'player': name, 'team': tm, 'kit': kit, 
+                                'player': name, 
+                                'team': tm, 
+                                'kit_type': kit['label'], # Salvamos o label direto para facilitar
                                 'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
                                 'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
-                                'proj_min': proj_min, 'min_source': min_source,
+                                'proj_min': proj_min, 
+                                'min_source': min_source,
                                 'combined_prob': combined
                             }
                             
             return list(best_nuggets.values())
 
     # --- 6. EXECUÇÃO ---
-    # Botão com Estado de Carregamento
     if st.button("⚒️ PROSPECTAR OPORTUNIDADES", type="primary", use_container_width=True):
         blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
         miner = GoldMinerL5(df_l5, blacklist, rosters)
         nuggets = miner.mine_nuggets()
         st.session_state.garimpo_results = nuggets
 
-    # --- 7. EXIBIÇÃO ORGANIZADA ---
+    # --- 7. EXIBIÇÃO ---
     if 'garimpo_results' in st.session_state:
         results = st.session_state.garimpo_results
         
@@ -3413,18 +3406,13 @@ def show_garimpo_page():
             st.warning(f"Nenhum jogador encontrado com Confiança > {min_conf}% nos tiers selecionados.")
             return
             
-        # Ordenação: Por Tier (Ordem do User) e depois Confiança
-        # Mapeia a ordem baseada na seleção do usuário para agrupar visualmente
+        # Ordenação
         results.sort(key=lambda x: x['combined_prob'], reverse=True)
-        
         st.success(f"✅ {len(results)} Oportunidades Filtradas")
         
-        # Grid Responsivo
-        cols = st.columns(3) # 3 colunas para ver mais cards
-        
+        cols = st.columns(3)
         for i, item in enumerate(results):
             col = cols[i % 3]
-            kit = item['kit']
             lines = item['lines']
             probs = item['probs']
             
@@ -3456,7 +3444,7 @@ def show_garimpo_page():
         <div class="stat-val">{int(probs['AST'])}%</div>
     </div>
     <div class="nugget-footer">
-        <span class="badge-type">{kit['type']}</span>
+        <span class="badge-type">{item['kit_type']}</span>
         <span class="conf-tag">{int(item['combined_prob'])}% CONF</span>
     </div>
 </div>
@@ -8640,6 +8628,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
