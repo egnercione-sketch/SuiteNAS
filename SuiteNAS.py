@@ -3155,314 +3155,378 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: MATRIZ 5-7-10 (ESCADINHA) - DIRECT VIEW
+# PÁGINA: O GARIMPO (SGP FACTORY) - V1.0
 # ============================================================================
-# ============================================================================
-# PÁGINA: MATRIZ 5-7-10 (V29.0 - LEGEND & POLISH)
-# ============================================================================
-def show_matriz_5_7_10_page():
-    import json
+def show_garimpo_page():
+    import streamlit as st
     import pandas as pd
     import numpy as np
-    import unicodedata
+    import requests
     import re
-    
-    # --- 1. FUNÇÕES AUXILIARES ---
-    def normalize_str(text):
-        if not text: return ""
-        try:
-            text = str(text)
-            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-            return text.upper().strip()
-        except: return ""
+    import unicodedata
+    import time
+    from collections import defaultdict
 
-    def get_step_color(prob):
-        if prob >= 80: return "#22c55e" # Green
-        if prob >= 50: return "#eab308" # Yellow
-        if prob >= 20: return "#ef4444" # Red
-        return "#334155" # Grey
+    # --- 1. CONFIGURAÇÃO & IMPORTAÇÃO DE MÓDULOS ---
+    try:
+        from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
+        from modules.new_modules.player_classifier import PlayerClassifier
+        from modules.new_modules.monte_carlo import MonteCarloEngine
+        from modules.new_modules.dvp_analyzer import DvPAnalyzer
+        from modules.new_modules.thesis_engine import ThesisEngine
+        MODULES_OK = True
+    except ImportError as e:
+        st.error(f"Erro ao importar módulos do Garimpo: {e}")
+        MODULES_OK = False
+        return
 
-    # --- 2. CSS (LAYOUT ESCADINHA + LEGENDA) ---
+    # --- 2. IDENTIDADE VISUAL (TEMA: MINERAÇÃO/OURO) ---
     st.markdown("""
     <style>
-        .matriz-title { font-family: 'Oswald'; font-size: 32px; color: #fff; margin-bottom: 0px; letter-spacing: 1px; }
-        .matriz-sub { font-family: 'Nunito'; font-size: 14px; color: #94a3b8; margin-bottom: 15px; }
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
         
-        /* LEGENDA */
-        .legend-container {
-            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
-            background: rgba(255,255,255,0.05); padding: 8px 15px; border-radius: 6px;
-            font-size: 11px; color: #cbd5e1; margin-bottom: 25px; border: 1px solid #334155;
-        }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .garimpo-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin-bottom: 0px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0px 0px 10px rgba(251, 191, 36, 0.3); }
+        .garimpo-sub { font-family: 'Inter'; font-size: 13px; color: #94a3b8; margin-bottom: 25px; }
         
-        .section-header { 
-            font-family: 'Oswald'; font-size: 20px; color: #e2e8f0; 
-            border-bottom: 2px solid #334155; padding-bottom: 8px; margin-top: 20px; margin-bottom: 15px; 
-            display: flex; align-items: center; gap: 10px;
-        }
-
-        /* CARD PRINCIPAL */
-        .ladder-card {
-            background-color: #1e293b;
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 12px;
+        /* CARD DE PEPITA (NUGGET CARD) */
+        .nugget-card {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid #334155;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap; 
-            gap: 15px;
-            transition: transform 0.2s;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-left: 4px solid #fbbf24; /* Ouro */
+            position: relative;
+            transition: all 0.3s ease;
         }
-        .ladder-card:hover { border-color: #6366f1; transform: translateY(-2px); }
-
-        .player-box { display: flex; align-items: center; min-width: 200px; flex: 1; }
-        .p-img {
-            width: 55px; height: 55px; border-radius: 50%;
-            border: 3px solid #0f172a; margin-right: 12px;
-            object-fit: cover; background: #000; box-shadow: 0 0 0 2px #6366f1;
-        }
-        .p-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
-        .p-meta { font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
+        .nugget-card:hover { border-color: #f59e0b; transform: translateY(-3px); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         
-        .steps-container { display: flex; gap: 8px; flex: 2; justify-content: flex-end; align-items: center; }
+        .nugget-header { display: flex; align-items: center; gap: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+        .nugget-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background: #000; }
+        .nugget-info { flex: 1; }
+        .nugget-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; }
+        .nugget-meta { font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; gap: 8px; align-items: center; margin-top: 3px; }
         
-        .step-item {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.3);
-            border-radius: 6px;
-            width: 70px; padding: 6px 0;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        .step-head { font-size: 10px; color: #cbd5e1; font-weight: bold; margin-bottom: 2px; }
-        .step-val { font-family: 'Roboto Mono', monospace; font-size: 16px; font-weight: bold; }
+        /* BADGES */
+        .badge-vacuum { background: #4c1d95; color: #d8b4fe; padding: 2px 8px; border-radius: 4px; font-size: 10px; border: 1px solid #8b5cf6; display: flex; align-items: center; gap: 4px; }
+        .badge-safe { background: #064e3b; color: #6ee7b7; padding: 2px 8px; border-radius: 4px; font-size: 10px; border: 1px solid #10b981; }
         
-        /* Badges */
-        .badge-glue { background: #172554; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #3b82f6; }
-        .badge-dyna { background: #450a0a; color: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight:bold; border: 1px solid #ef4444; }
-
+        /* BARRAS DE PROGRESSO (STATS) */
+        .stat-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 12px; color: #cbd5e1; }
+        .stat-label { width: 80px; font-weight: bold; font-family: 'Inter'; }
+        .stat-bar-bg { flex: 1; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 10px; }
+        .stat-bar-fill { height: 100%; border-radius: 3px; }
+        .stat-val { width: 40px; text-align: right; font-family: 'Oswald'; color: #fff; }
+        
+        /* CORES DAS BARRAS */
+        .fill-pts { background: #ef4444; }
+        .fill-reb { background: #3b82f6; }
+        .fill-ast { background: #fbbf24; }
+        
+        /* RODAPÉ DO CARD */
+        .nugget-footer { margin-top: 12px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; }
+        .footer-odds { color: #fbbf24; font-family: 'Oswald'; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="matriz-title">🏗️ MATRIZ 5-7-10</div>', unsafe_allow_html=True)
-    st.markdown('<div class="matriz-sub">Análise de probabilidade em degraus ("Escadinha"). Base L25.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="garimpo-header">⚒️ O GARIMPO <span style="font-size:18px; color:#64748b; vertical-align:middle;">| SGP Factory</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="garimpo-sub">Identificando "Operários de Luxo" para combinadas de valor (PTS+REB+AST).</div>', unsafe_allow_html=True)
 
-    # --- 3. LEGENDA EXPLICATIVA ---
-    st.markdown("""
-    <div class="legend-container">
-        <div class="legend-item">📈 <b>Aquecendo:</b> Média Recente (L5) > Média Geral</div>
-        <div class="legend-item">📉 <b>Esfriando:</b> Média Recente (L5) < Média Geral</div>
-        <div class="legend-item">➡️ <b>Estável:</b> Performance Constante</div>
-        <div style="flex-grow:1"></div>
-        <div class="legend-item"><span class="badge-glue">🧪 GLUE</span> Seguro no 5+</div>
-        <div class="legend-item"><span class="badge-dyna">🧨 BOOM</span> Explosivo no 10+</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- 4. PREPARAÇÃO DE DADOS ---
-    
-    # A. Scoreboard
-    scoreboard = st.session_state.get('scoreboard', [])
-    if not scoreboard:
-        st.warning("⚠️ Scoreboard vazio. Atualize os jogos na aba Config.")
+    # --- 3. DADOS ---
+    if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
+        st.warning("⚠️ Scoreboard vazio. Vá em Config > Atualizar Jogos.")
         return
 
-    TEAMS_PLAYING_TODAY = set()
-    for g in scoreboard:
-        TEAMS_PLAYING_TODAY.add(g['home'].upper())
-        TEAMS_PLAYING_TODAY.add(g['away'].upper())
-        # Aliases
-        aliases = {"GS": "GSW", "NY": "NYK", "NO": "NOP", "SA": "SAS", "PHO": "PHX", "WSH": "WAS", "CHO": "CHA", "UTAH": "UTA", "BRK": "BKN"}
-        for k, v in aliases.items():
-            if g['home'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
-            if g['away'].upper() == k: TEAMS_PLAYING_TODAY.add(v)
+    # Tenta usar cache V3.5 (Real) ou Snapshot
+    try:
+        from SuiteNAS import get_data_universal # Ajuste conforme seu arquivo principal
+        cache_logs = get_data_universal("real_game_logs")
+    except:
+        cache_logs = st.session_state.get("real_game_logs", {})
 
-    # B. Mapa de IDs (L5)
+    if not cache_logs:
+        st.error("❌ Cache de Logs vazio. Vá em Config > Reconstruir Cache.")
+        return
+
+    # --- 4. HELPERS ---
+    def nuclear_normalize(text):
+        if not text: return ""
+        try:
+            text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+            return re.sub(r'[^A-Z0-9]', '', text.upper())
+        except: return ""
+
+    # Carrega ID Map para Fotos
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    PLAYER_ID_MAP = {}
-    PLAYER_TEAM_MAP = {}
+    ID_VAULT = {}
     if not df_l5.empty:
         try:
-            df_norm = df_l5.copy()
-            df_norm['PLAYER_NORM'] = df_norm['PLAYER'].apply(normalize_str)
-            PLAYER_ID_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['PLAYER_ID']))
-            PLAYER_TEAM_MAP = dict(zip(df_norm['PLAYER_NORM'], df_norm['TEAM']))
+            for _, row in df_l5.iterrows():
+                if row.get('PLAYER_ID'): ID_VAULT[nuclear_normalize(row['PLAYER'])] = int(row['PLAYER_ID'])
         except: pass
 
-    # --- 5. ENGINE DE PROCESSAMENTO ---
-    
-    with st.spinner("Calculando probabilidades..."):
-        # 1. Lesões (Shield V27)
-        banned_players = set()
-        try:
-            fresh_inj = get_data_universal('injuries_cache_v44') or get_data_universal('injuries_data')
-            if fresh_inj: st.session_state['injuries_data'] = fresh_inj
+    def get_photo(name):
+        pid = ID_VAULT.get(nuclear_normalize(name), 0)
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    # --- 5. INJURY SCAN (OBRIGATÓRIO) ---
+    @st.cache_data(ttl=600)
+    def scan_injuries_live(games):
+        blacklist = set()
+        active_rosters = {} # {team: [players...]}
+        
+        map_espn = {"UTA":"utah","NOP":"no","NYK":"ny","GSW":"gs","SAS":"sa","PHX":"pho","WAS":"wsh","BKN":"bkn"}
+        
+        # Lista de times jogando hoje
+        teams = set()
+        for g in games:
+            teams.add(g['home']); teams.add(g['away'])
             
-            raw_inj = st.session_state.get('injuries_data', [])
-            flat_inj = []
-            if isinstance(raw_inj, dict):
-                for t in raw_inj.values(): 
-                    if isinstance(t, list): flat_inj.extend(t)
-            elif isinstance(raw_inj, list):
-                flat_inj = raw_inj
+        for t in teams:
+            t_code = map_espn.get(t.upper(), t.lower())
+            try:
+                # Simulação de request (Substitua pela sua lógica real ou import do injury monitor)
+                url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{t_code}/roster"
+                r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=2)
+                if r.status_code == 200:
+                    data = r.json()
+                    active_rosters[t] = []
+                    for ath in data.get('athletes', []):
+                        name = ath.get('fullName', '')
+                        status = ath.get('status', {}).get('type', {}).get('name', 'Active')
+                        
+                        # Guardamos info para o Vacuum
+                        p_info = {'name': name, 'status': status, 'pos': ath.get('position',{}).get('abbreviation','F')}
+                        active_rosters[t].append(p_info)
+                        
+                        if status != 'Active':
+                            blacklist.add(nuclear_normalize(name))
+            except: pass
+        return blacklist, active_rosters
+
+    # --- 6. MOTOR DO GARIMPO (MINER) ---
+    class GoldMiner:
+        def __init__(self, logs, blacklist, rosters):
+            self.logs = logs
+            self.blacklist = blacklist
+            self.rosters = rosters
             
-            EXCLUSION = ['OUT', 'DOUBT', 'SURG', 'INJUR', 'PROTOCOL', 'DAY', 'DTD', 'QUEST']
-            for item in flat_inj:
-                p_name = ""
-                status = ""
-                if isinstance(item, dict):
-                    p_name = item.get('player') or item.get('name') or ""
-                    status = str(item.get('status', '')).upper()
-                elif isinstance(item, str):
-                    p_name = item.split('-')[0]
-                    status = str(item).upper()
+            # Instancia Módulos
+            self.vacuum = VacuumMatrixAnalyzer()
+            self.classifier = PlayerClassifier()
+            self.monte_carlo = MonteCarloEngine(default_sims=2000) # Rápido
+            self.dvp = DvPAnalyzer()
+
+        def mine_nuggets(self):
+            nuggets = []
+            
+            # 1. Analisa Vacuum por Time
+            vacuum_boosts = {}
+            for team, roster in self.rosters.items():
+                # Adapta roster para o formato esperado pelo VacuumMatrix
+                vac_roster = []
+                for p in roster:
+                    p_norm = nuclear_normalize(p['name'])
+                    # Tenta pegar média de minutos do cache para ajudar na decisão
+                    min_l5 = 0
+                    if p_norm in self.logs:
+                        raw_mins = self.logs[p_norm].get('logs', {}).get('MIN', [])
+                        if raw_mins: min_l5 = np.mean(raw_mins[:5])
+                    
+                    vac_roster.append({
+                        'name': p['name'],
+                        'status': p['status'], # Active/Out
+                        'position': p['pos'],
+                        'min_L5': min_l5,
+                        'is_starter': min_l5 > 24 # Heurística simples
+                    })
                 
-                if p_name and any(x in status for x in EXCLUSION):
-                    banned_players.add(normalize_str(p_name))
-        except: pass
+                # Roda o Vacuum
+                report = self.vacuum.analyze_team_vacuum(vac_roster, team)
+                if report:
+                    for name, info in report.items():
+                        vacuum_boosts[nuclear_normalize(name)] = info
 
-        # 2. Logs
-        raw_logs = get_data_universal('real_game_logs')
-        if not raw_logs:
-            st.error("Logs L25 não disponíveis.")
+            # 2. Processa Jogadores
+            for name, data in self.logs.items():
+                norm = nuclear_normalize(name)
+                
+                # FILTRO DE SEGURANÇA 1: LESÃO
+                if norm in self.blacklist: continue
+                
+                # Dados Brutos
+                logs = data.get('logs', {})
+                if not logs or len(logs.get('PTS', [])) < 5: continue
+                
+                # Stats Básicas
+                pts = logs.get('PTS', [])[:10] # L10
+                reb = logs.get('REB', [])[:10]
+                ast = logs.get('AST', [])[:10]
+                mins = logs.get('MIN', [])[:5] # L5 para minutos (mais sensível a rotação)
+                
+                if not pts or not mins: continue
+                
+                # Projeções Base
+                proj_pts = np.mean(pts)
+                proj_reb = np.mean(reb)
+                proj_ast = np.mean(ast)
+                proj_min = np.mean(mins)
+                
+                # Aplica Vacuum Boost
+                vac_info = vacuum_boosts.get(norm)
+                is_vacuum = False
+                if vac_info:
+                    boost = vac_info['boost']
+                    proj_pts *= boost
+                    proj_reb *= boost
+                    proj_ast *= boost
+                    proj_min *= boost
+                    is_vacuum = True
+                
+                # FILTRO DE SEGURANÇA 2: OPERÁRIO
+                # Queremos jogadores com 24+ minutos projetados e participação ativa
+                if proj_min < 24: continue
+                
+                # Classifica Role
+                p_ctx = {
+                    'pts_L5': proj_pts, 'reb_L5': proj_reb, 'ast_L5': proj_ast, 'min_L5': proj_min,
+                    'is_starter': proj_min > 28
+                }
+                role_info = self.classifier.get_role_classification(p_ctx)
+                
+                # TESTE DOS KITS (TEMPLATES)
+                # Kit 1: Piso Seguro (8-3-2)
+                # Kit 2: Operário Padrão (12-4-2) - O favorito
+                # Kit 3: Triple Threat (15-5-4)
+                
+                kits = [
+                    {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
+                    {'name': 'Kit Operário', 'req': (12, 4, 2), 'label': '⚙️ PADRÃO'},
+                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ALAVANCAGEM'}
+                ]
+                
+                best_kit = None
+                
+                for kit in kits:
+                    r_pts, r_reb, r_ast = kit['req']
+                    
+                    # Validação Monte Carlo (Rápida)
+                    # Usamos Poisson para REB/AST e Normal para PTS
+                    prob_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS")['prob_percent']
+                    prob_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB")['prob_percent']
+                    prob_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST")['prob_percent']
+                    
+                    # Critério de Aceitação: Todos > 70% (Segurança Combinada)
+                    if prob_pts > 70 and prob_reb > 70 and prob_ast > 70:
+                        combined_prob = (prob_pts/100) * (prob_reb/100) * (prob_ast/100)
+                        
+                        # Estima Odd (Inversa da prob combinada com margem da casa)
+                        fair_odd = 1 / combined_prob if combined_prob > 0 else 99
+                        est_odd = max(2.50, min(15.0, fair_odd * 0.85)) # Ajuste conservador
+                        
+                        best_kit = {
+                            'type': kit['label'],
+                            'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
+                            'probs': {'PTS': prob_pts, 'REB': prob_reb, 'AST': prob_ast},
+                            'odd': est_odd,
+                            'combined_prob': combined_prob * 100
+                        }
+                    else:
+                        # Se falhou no kit mais leve, nem tenta os pesados
+                        if kit['name'] == 'Kit Piso': break 
+                
+                if best_kit:
+                    # Verifica DvP (Alerta de Matchup)
+                    opp = "UNK" # Pegar do scoreboard se possível
+                    rank_def = 15
+                    # ... lógica de DvP simplificada ...
+                    
+                    nuggets.append({
+                        'player': name,
+                        'team': data['team'],
+                        'kit': best_kit,
+                        'vacuum': vac_info,
+                        'role': role_info['style'],
+                        'proj_min': proj_min
+                    })
+                    
+            return nuggets
+
+    # --- 7. EXECUÇÃO ---
+    if st.button("⚒️ INICIAR GARIMPO (PROSPECTAR)", type="primary", use_container_width=True):
+        
+        with st.status("⛏️ Minerando Oportunidades...", expanded=True) as status:
+            status.write("🚑 Verificando Departamento Médico (Filtro de Lesões)...")
+            blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
+            
+            status.write("🧠 Ativando Vacuum Matrix & Classificadores...")
+            miner = GoldMiner(cache_logs, blacklist, rosters)
+            
+            status.write("🎲 Rodando Simulações Monte Carlo nos Kits SGP...")
+            nuggets = miner.mine_nuggets()
+            
+            st.session_state.garimpo_results = nuggets
+            status.update(label=f"✅ ENCONTRADO! {len(nuggets)} Pepitas de Valor.", state="complete", expanded=False)
+
+    # --- 8. EXIBIÇÃO (CARDS) ---
+    if 'garimpo_results' in st.session_state:
+        results = st.session_state.garimpo_results
+        
+        if not results:
+            st.info("Nenhum jogador passou nos critérios rígidos de SGP hoje.")
             return
-
-        reb_ladder = []
-        ast_ladder = []
-
-        for p_name, p_data in raw_logs.items():
-            if not isinstance(p_data, dict): continue
             
-            norm_name = normalize_str(p_name)
-            
-            # Filtro Lesão
-            if norm_name in banned_players: continue
-            
-            # Filtro Joga Hoje
-            team = str(p_data.get('team', 'UNK')).upper().strip()
-            if team in ['UNK', 'NONE']: team = PLAYER_TEAM_MAP.get(norm_name, 'UNK')
-            
-            is_playing = False
-            if team in TEAMS_PLAYING_TODAY: is_playing = True
-            else:
-                for t in TEAMS_PLAYING_TODAY:
-                    if t in team or team in t: 
-                        is_playing = True; break
-            
-            if not is_playing: continue
-
-            logs = p_data.get('logs', {})
-            if not logs: continue
-            
-            # --- PROCESSA REBOTES ---
-            vals_reb = logs.get('REB', [])
-            if vals_reb:
-                clean_reb = [float(x) for x in vals_reb if x is not None]
-                if len(clean_reb) >= 10:
-                    arr = np.array(clean_reb)
-                    n = len(arr)
-                    p5 = (np.sum(arr >= 5) / n) * 100
-                    p7 = (np.sum(arr >= 7) / n) * 100
-                    p10 = (np.sum(arr >= 10) / n) * 100
-                    
-                    if p5 >= 75 or p10 >= 20:
-                        l5 = np.mean(arr[:5]) if n >= 5 else np.mean(arr)
-                        l25 = np.mean(arr)
-                        p_id = PLAYER_ID_MAP.get(norm_name, 0)
-                        
-                        item = {
-                            "name": p_name, "id": int(p_id), "team": team,
-                            "p5": p5, "p7": p7, "p10": p10,
-                            "trend": l5 - l25,
-                            "type": "GLUE" if p5 >= 80 else "DYNAMITE"
-                        }
-                        reb_ladder.append(item)
-
-            # --- PROCESSA ASSISTÊNCIAS ---
-            vals_ast = logs.get('AST', [])
-            if vals_ast:
-                clean_ast = [float(x) for x in vals_ast if x is not None]
-                if len(clean_ast) >= 10:
-                    arr = np.array(clean_ast)
-                    n = len(arr)
-                    p5 = (np.sum(arr >= 5) / n) * 100
-                    p7 = (np.sum(arr >= 7) / n) * 100
-                    p10 = (np.sum(arr >= 10) / n) * 100
-                    
-                    if p5 >= 75 or p10 >= 20:
-                        l5 = np.mean(arr[:5]) if n >= 5 else np.mean(arr)
-                        l25 = np.mean(arr)
-                        p_id = PLAYER_ID_MAP.get(norm_name, 0)
-                        
-                        item = {
-                            "name": p_name, "id": int(p_id), "team": team,
-                            "p5": p5, "p7": p7, "p10": p10,
-                            "trend": l5 - l25,
-                            "type": "GLUE" if p5 >= 80 else "DYNAMITE"
-                        }
-                        ast_ladder.append(item)
-
-    # --- 6. RENDERIZAÇÃO ---
-    
-    # Ordenação
-    reb_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
-    ast_ladder.sort(key=lambda x: x['p10'] if x['type'] == 'DYNAMITE' else x['p5'], reverse=True)
-
-    def render_ladder_card(p):
-        photo = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-        if p['id'] != 0:
-            photo = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
-            
-        c5 = get_step_color(p['p5'])
-        c7 = get_step_color(p['p7'])
-        c10 = get_step_color(p['p10'])
+        # Ordena por Odd (Maior para menor) ou Probabilidade
+        results.sort(key=lambda x: x['kit']['combined_prob'], reverse=True)
         
-        trend_icon = "➡️"
-        if p['trend'] > 0.5: trend_icon = "📈" 
-        elif p['trend'] < -0.5: trend_icon = "📉"
-        
-        badge_html = f'<span class="badge-glue">🧪 GLUE</span>' if p['type'] == 'GLUE' else f'<span class="badge-dyna">🧨 BOOM</span>'
-
-        st.markdown(f"""
-        <div class="ladder-card">
-            <div class="player-box">
-                <img src="{photo}" class="p-img" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png';">
-                <div>
-                    <div class="p-name">{p['name']} {trend_icon}</div>
-                    <div class="p-meta">{p['team']} {badge_html}</div>
+        c1, c2 = st.columns(2)
+        for i, item in enumerate(results):
+            col = c1 if i % 2 == 0 else c2
+            
+            kit = item['kit']
+            lines = kit['lines']
+            probs = kit['probs']
+            vac = item['vacuum']
+            
+            # Badges
+            badges_html = ""
+            if vac: badges_html += f'<span class="badge-vacuum">💎 VACUUM ({vac["source"]} OUT)</span>'
+            if kit['combined_prob'] > 60: badges_html += f'<span class="badge-safe">🛡️ SAFE</span>'
+            
+            with col:
+                st.markdown(f"""
+                <div class="nugget-card">
+                    <div class="nugget-header">
+                        <img src="{get_photo(item['player'])}" class="nugget-img">
+                        <div class="nugget-info">
+                            <div class="nugget-name">{item['player']}</div>
+                            <div class="nugget-meta">{item['team']} • {item['role'].upper()} • {int(item['proj_min'])} MIN {badges_html}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['PTS']}+ PTS</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
+                        <div class="stat-val">{int(probs['PTS'])}%</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['REB']}+ REB</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
+                        <div class="stat-val">{int(probs['REB'])}%</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['AST']}+ AST</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
+                        <div class="stat-val">{int(probs['AST'])}%</div>
+                    </div>
+                    
+                    <div class="nugget-footer">
+                        <div>{kit['type']}</div>
+                        <div class="footer-odds">Odd Est: @{kit['odd']:.2f}</div>
+                    </div>
                 </div>
-            </div>
-            <div class="steps-container">
-                <div class="step-item">
-                    <div class="step-head">5+</div>
-                    <div class="step-val" style="color:{c5}">{p['p5']:.0f}%</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-head">7+</div>
-                    <div class="step-val" style="color:{c7}">{p['p7']:.0f}%</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-head">10+</div>
-                    <div class="step-val" style="color:{c10}">{p['p10']:.0f}%</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # --- SEÇÃO REBOTES ---
-    st.markdown('<div class="section-header">🛡️ REBOTES <span style="font-size:12px; color:#64748b; margin-left:10px;">(Escada 5 / 7 / 10)</span></div>', unsafe_allow_html=True)
-    if reb_ladder:
-        for p in reb_ladder: render_ladder_card(p)
-    else:
-        st.info("Nenhum jogador de Rebotes atingiu os critérios hoje.")
-
-    # --- SEÇÃO ASSISTÊNCIAS ---
-    st.markdown('<div class="section-header">🎨 ASSISTÊNCIAS <span style="font-size:12px; color:#64748b; margin-left:10px;">(Escada 5 / 7 / 10)</span></div>', unsafe_allow_html=True)
-    if ast_ladder:
-        for p in ast_ladder: render_ladder_card(p)
-    else:
-        st.info("Nenhum jogador de Assistências atingiu os critérios hoje.")
+                """, unsafe_allow_html=True)
         
         
         
@@ -8604,7 +8668,7 @@ def main():
         MENU_ITEMS = [
             "🏠 Dashboard", "📊 Ranking Teses", "📋 Auditoria",
             "🧬 Sinergia & Vácuo", "⚔️ Lab Narrativas", "⚡ Momentum", "🔥 Las Vegas Sync", "🌪️ Blowout Hunter", "🏆 Trinity Club",
-            "🔥 Hot Streaks", "📊 Matriz 5-7-10", "🧩 Desdobra Múltipla", "🔮 Oráculo",
+            "🔥 Hot Streaks", "⛏️ Garimpo", "🧩 Desdobra Múltipla", "🔮 Oráculo",
             "🛡️ DvP Confrontos", "🏥 Depto Médico", "👥 Escalações",
             "⚙️ Config", "🔍 Testar Conexão Supabase"
         ]
@@ -8626,7 +8690,7 @@ def main():
     elif choice == "🏆 Trinity Club": show_trinity_club_page()
     
     elif choice == "🔥 Hot Streaks": show_hit_prop_page()
-    elif choice == "📊 Matriz 5-7-10": show_matriz_5_7_10_page()
+    elif choice == "⛏️ Garimpo": show_garimpo_page()
     elif choice == "🧩 Desdobra Múltipla": show_desdobramentos_inteligentes()
     elif choice == "🔮 Oráculo": show_oracle_page()
     
@@ -8640,6 +8704,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
