@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V17.1 - WHITE FONT & PHOTO FIX)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V18.0 - PHOTO FIX & CLEAN UI)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6648,19 +6648,15 @@ def show_desdobramentos_inteligentes():
     except ImportError:
         def get_data_universal(key): return {}
 
-    # --- 2. HELPERS (FOTOS ROBUSTAS) ---
-    def nuclear_normalize(text):
-        if not text: return ""
-        text = str(text).replace('.', '').replace("'", "")
-        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper())
-
-    # Carregamento Inteligente de IDs
+    # --- 2. HELPERS & FOTOS (LÓGICA SUPERBILHETE) ---
+    
+    # Carrega DataFrame para popular o Vault de IDs
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     if df_l5.empty: df_l5 = get_data_universal('df_l5')
 
     ID_VAULT = {}
     if isinstance(df_l5, pd.DataFrame) and not df_l5.empty:
-        # Tenta achar a coluna de ID de várias formas
+        # Normalização simplificada para bater com o get_photo do usuário
         cols = df_l5.columns
         id_col = next((c for c in cols if str(c).upper() in ['PLAYER_ID', 'PERSON_ID', 'ID']), None)
         name_col = next((c for c in cols if str(c).upper() in ['PLAYER_NAME', 'PLAYER', 'NAME']), None)
@@ -6668,28 +6664,36 @@ def show_desdobramentos_inteligentes():
         if id_col and name_col:
             for _, row in df_l5.iterrows():
                 try:
-                    p_name = nuclear_normalize(str(row[name_col]))
-                    # Garante que é inteiro
+                    # Normalização: Upper e sem pontos (ex: C.J. -> CJ)
+                    p_name = str(row[name_col]).upper().replace('.', '').strip()
                     p_id = int(float(row[id_col]))
                     ID_VAULT[p_name] = p_id
+                    
+                    # Salva também só pelo sobrenome para fallback
+                    parts = p_name.split()
+                    if len(parts) > 1:
+                        ID_VAULT[parts[-1]] = p_id
                 except: pass
 
-    def get_photo_url(name):
-        clean_name = nuclear_normalize(name)
-        pid = ID_VAULT.get(clean_name, 0)
+    # A função exata solicitada
+    def get_photo(name, pid=0):
+        # Tenta usar o PID passado se for válido
+        if pid > 0: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         
-        # Tentativa de busca aproximada se falhar
-        if pid == 0:
-            for k, v in ID_VAULT.items():
-                if clean_name in k: # Busca parcial
-                    pid = v
-                    break
+        # Limpeza do nome
+        clean = str(name).upper().replace('.', '').strip()
         
-        if pid > 0: 
-            return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        # Tenta achar no Vault pelo nome completo
+        pid = ID_VAULT.get(clean, 0)
+        
+        # Fallback: Se não achou, tenta pelo último nome
+        if pid == 0 and len(clean.split()) > 1: 
+            pid = ID_VAULT.get(clean.split()[-1], 0)
+        
+        if pid > 0: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 3. CSS (FONTE BRANCA E AJUSTES) ---
+    # --- 3. CSS (VISUAL LIMPO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;600&display=swap');
@@ -6702,10 +6706,6 @@ def show_desdobramentos_inteligentes():
             background: #0f172a; border: 1px solid #334155; border-radius: 8px;
             margin-bottom: 15px; overflow: hidden;
         }
-        
-        .t-header { padding: 8px 12px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .t-title { font-family: 'Oswald'; font-size: 14px; color: #fff; letter-spacing: 0.5px; }
-        .t-badge { font-size: 10px; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #fff; }
         
         /* CORES TEMAS */
         .th-attack { background: linear-gradient(90deg, rgba(220, 38, 38, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #dc2626; }
@@ -6724,25 +6724,29 @@ def show_desdobramentos_inteligentes():
         
         .p-info { flex: 1; min-width: 0; }
         
-        /* CORREÇÃO DO NOME: BRANCO E FORTE */
         .sgp-name { 
-            font-family: 'Oswald'; 
-            font-size: 14px; 
-            color: #ffffff !important; /* FORÇA O BRANCO */
-            font-weight: 700; 
-            line-height: 1.1; 
-            margin-bottom: 4px;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            font-family: 'Oswald'; font-size: 14px; color: #ffffff !important; font-weight: 700; 
+            line-height: 1.1; margin-bottom: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
-        
         .sgp-team { font-family: 'Inter'; font-size: 10px; color: #94a3b8; font-weight: normal; margin-left: 4px; }
         
         .role-pill { font-size: 8px; padding: 1px 5px; border-radius: 3px; background: #334155; color: #cbd5e1; display: inline-block; margin-right: 5px; vertical-align: middle; }
         .barrel-icon { color: #facc15; font-size: 10px; margin-left: 2px; }
+        
+        /* CHIP DE STATS SIMPLIFICADO (SEM O HIT RATE) */
+        .stat-chip-simple {
+            display: inline-block;
+            background: #1e293b; 
+            border: 1px solid #475569; 
+            padding: 3px 8px; 
+            border-radius: 4px; 
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 4. ENGINE (Lógica Mantida V17) ---
+    # --- 4. ENGINE (V17 Logic) ---
     class LocalPlayerClassifier:
         def get_role_classification(self, ctx):
             pts = ctx.get('pts_L5', 0)
@@ -6760,7 +6764,7 @@ def show_desdobramentos_inteligentes():
             if reb >= 4.5 and ast >= 3.5: return "hustle"
             return "scorer"
 
-    class OrchestratorV17:
+    class OrchestratorV18:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
@@ -6779,8 +6783,7 @@ def show_desdobramentos_inteligentes():
 
         def _norm(self, t):
             if not t: return ""
-            map_nba = {"GS": "GSW", "PHX": "PHX", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "BK": "BKN"}
-            return map_nba.get(str(t).upper(), str(t).upper())
+            return str(t).upper().strip()
 
         def ingest_and_bundle(self):
             for name, data in self.logs.items():
@@ -6828,6 +6831,9 @@ def show_desdobramentos_inteligentes():
                 
                 valid_legs.sort(key=lambda x: x['score'], reverse=True)
                 
+                # Tenta pegar o ID do jogador aqui se disponível nos logs (alguns logs trazem meta info)
+                # Se não, o get_photo vai resolver com o Vault
+                
                 self.master_inventory.append({
                     'player': name, 'team': team, 
                     'legs': valid_legs,
@@ -6851,6 +6857,7 @@ def show_desdobramentos_inteligentes():
                             return p
                 return None
 
+            # FASE 1: Fórmulas
             for form_type in formulas:
                 candidates = []
                 u_teams, u_players = set(), set()
@@ -6879,6 +6886,7 @@ def show_desdobramentos_inteligentes():
                 if valid_ticket and len(candidates) == 4:
                     self._commit_ticket(tickets, candidates, meta)
 
+            # FASE 2: Reciclagem
             while len(tickets) < 20:
                 scavenge = []
                 u_teams, u_players = set(), set()
@@ -6903,10 +6911,10 @@ def show_desdobramentos_inteligentes():
                 for l in legs_to_use:
                     final_legs.append({
                         'player': p['player'], 'team': p['team'], 'role': p['role'],
-                        'stat': l['stat'], 'line': l['line'], 'hits': l['hits'],
+                        'stat': l['stat'], 'line': l['line'],
                         'is_double': len(legs_to_use) > 1
                     })
-            if len(final_legs) > 6: final_legs = final_legs[:6]
+            if len(final_legs) > 7: final_legs = final_legs[:7]
             meta['title'] = f"{meta['title']} #{len(tickets)+1}"
             tickets.append({**meta, 'legs': final_legs})
 
@@ -6914,7 +6922,7 @@ def show_desdobramentos_inteligentes():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div style="font-family:Oswald; font-size:30px; color:#fbbf24; text-transform:uppercase;">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V17.1 Visual Fix")
+        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V18.0 Clean UI")
     with c_tog:
         debug_mode = st.toggle("Debug", value=False)
 
@@ -6927,12 +6935,12 @@ def show_desdobramentos_inteligentes():
         st.warning("⚠️ Dados insuficientes. Atualize em Config.")
         return
 
-    maestro = OrchestratorV17(logs, games)
+    maestro = OrchestratorV18(logs, games)
     maestro.ingest_and_bundle()
     tickets = maestro.manufacture_tickets()
 
     if debug_mode:
-        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes. (ID Vault size: {len(ID_VAULT)})")
+        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes.")
 
     if not tickets:
         st.info("😴 Sem combinações de alta confiança.")
@@ -6960,22 +6968,25 @@ def show_desdobramentos_inteligentes():
                     c_img, c_data = st.columns([1, 4])
                     
                     with c_img:
-                        st.image(get_photo_url(p_name), width=42)
+                        # Tenta pegar ID do Vault global ou 0
+                        st.image(get_photo(p_name), width=42)
                     
                     with c_data:
                         role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
                         barrel = "⚡" if meta['dbl'] else ""
                         
-                        # Nome Branco e Forte
                         st.markdown(f"<div class='sgp-name'>{p_name} <span class='barrel-icon'>{barrel}</span> <span class='sgp-team'>({meta['team']})</span></div>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='margin-bottom:3px'><span class='role-pill'>{role_icon} {meta['role']}</span></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='margin-bottom:4px'><span class='role-pill'>{role_icon} {meta['role']}</span></div>", unsafe_allow_html=True)
                         
+                        # CHIPS LIMPOS (SEM HIT RATE)
                         chips_str = ""
                         for l in legs:
                             color = "#fbbf24" if l['stat'] == 'PTS' else "#60a5fa"
-                            chips_str += f"""<span style='background:#1e293b; border:1px solid #475569; padding:2px 5px; border-radius:4px; font-size:10px; margin-right:4px; display:inline-block;'>
-                                <strong style='color:{color}'>{l['line']}+ {l['stat']}</strong> <span style='color:#64748b; font-size:8px'>({l['hits']}/10)</span>
+                            # Removido o L10/10 conforme pedido
+                            chips_str += f"""<span class='stat-chip-simple'>
+                                <strong style='font-family:Oswald; color:{color}; font-size:12px'>{l['line']}+ {l['stat']}</strong>
                             </span>"""
+                        
                         st.markdown(chips_str, unsafe_allow_html=True)
                     
                     st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
@@ -8499,6 +8510,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
