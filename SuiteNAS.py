@@ -7352,6 +7352,9 @@ def show_escalacoes():
 # ============================================================================
 # PÁGINA: DEPTO MÉDICO (V50.0 - AUTO-SYNC & VIP LAYOUT)
 # ============================================================================
+# ============================================================================
+# PÁGINA: DEPTO MÉDICO (V51.0 - RICH DETAILS & SOURCE TRACKING)
+# ============================================================================
 def show_depto_medico():
     import streamlit as st
     import pandas as pd
@@ -7359,14 +7362,15 @@ def show_depto_medico():
     import re
     from datetime import datetime, timedelta
     
-    # Tenta importar o monitor (se estiver no mesmo arquivo ou modulo)
+    # Tenta importar o monitor
     try:
-        from injuries import InjuryMonitor
+        from injuries import monitor  # Importa a instância global criada no final do injuries.py
     except ImportError:
-        # Fallback se não encontrar o módulo direto
-        InjuryMonitor = None
+        monitor = None
+        st.error("⚠️ Módulo 'injuries.py' não encontrado.")
+        return
 
-    # --- 1. CSS VISUAL ---
+    # --- 1. CSS VISUAL (ATUALIZADO PARA DETALHES) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@400;600&display=swap');
@@ -7378,36 +7382,47 @@ def show_depto_medico():
         .vip-card {
             background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
             border-left: 4px solid #ef4444;
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 12px;
             margin-bottom: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: flex; align-items: center; gap: 15px;
+            display: flex; align-items: flex-start; gap: 12px;
+            transition: transform 0.2s;
         }
-        .vip-img { width: 65px; height: 65px; border-radius: 50%; border: 2px solid #ef4444; object-fit: cover; background: #000; }
-        .vip-info { flex: 1; }
-        .vip-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; }
-        .vip-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; }
-        .vip-status { font-family: 'Oswald'; font-size: 12px; background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.4); display: inline-block; margin-top: 4px; }
+        .vip-card:hover { transform: translateY(-2px); }
+        
+        .vip-img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #ef4444; object-fit: cover; background: #000; flex-shrink: 0; }
+        .vip-info { flex: 1; min-width: 0; } /* min-width garante wrap do texto */
+        
+        .vip-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .vip-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
+        .vip-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+        
+        .vip-status-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+        .vip-status { font-family: 'Oswald'; font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+        .vip-source { font-family: 'Inter'; font-size: 9px; color: #64748b; background: #1e293b; padding: 2px 5px; border-radius: 3px; border: 1px solid #334155; }
+        
+        .vip-desc { font-family: 'Inter'; font-size: 11px; color: #cbd5e1; line-height: 1.3; font-style: italic; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px; border-left: 2px solid #475569; }
         
         /* LISTA GERAL */
         .team-block { background: rgba(30, 41, 59, 0.3); border-radius: 8px; padding: 10px; margin-bottom: 10px; border: 1px solid #334155; }
         .team-header { font-family: 'Oswald'; color: #e2e8f0; font-size: 14px; border-bottom: 1px solid #475569; padding-bottom: 4px; margin-bottom: 8px; display: flex; justify-content: space-between; }
-        .inj-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 0; border-bottom: 1px dashed #334155; }
+        
+        .inj-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 5px 0; border-bottom: 1px dashed #334155; cursor: help; }
+        .inj-row:hover { background: rgba(255,255,255,0.03); }
         .inj-name { color: #cbd5e1; font-weight: 500; }
-        .inj-stat-out { color: #f87171; font-weight: bold; }
-        .inj-stat-gtd { color: #facc15; font-weight: bold; }
+        .inj-stat-out { color: #f87171; font-weight: bold; font-size: 11px; }
+        .inj-stat-gtd { color: #facc15; font-weight: bold; font-size: 11px; }
     </style>
     """, unsafe_allow_html=True)
 
     # --- 2. LÓGICA DE AUTO-ATUALIZAÇÃO (3 HORAS) ---
     def check_and_update_injuries():
-        monitor = InjuryMonitor() if InjuryMonitor else None
-        if not monitor: return get_data_universal('injuries') or {}
+        if not monitor: return {}
 
-        # Carrega dados atuais
-        data = monitor.get_all_injuries() # Retorna dict de times
-        meta = monitor.cache.get('updated_at') # Pega timestamp
+        # Carrega dados atuais da memória (que veio do Supabase)
+        data = monitor.get_all_injuries()
+        meta = monitor.cache.get('updated_at')
         
         need_update = False
         time_diff_str = "Desconhecido"
@@ -7429,23 +7444,24 @@ def show_depto_medico():
                 need_update = True
 
         if need_update:
-            with st.spinner(f"⏳ Atualizando Depto Médico (Última: {time_diff_str})..."):
+            with st.spinner(f"⏳ Atualizando Depto Médico com CBS & ESPN (Última: {time_diff_str})..."):
                 # Busca lista de times ativos hoje para priorizar
                 games = st.session_state.get('scoreboard', [])
                 priority_teams = []
                 if games:
                     for g in games:
-                        priority_teams.append(normalize_team_signature(g.get('home')))
-                        priority_teams.append(normalize_team_signature(g.get('away')))
+                        # Extrai sigla simples (ex: "LAL") do nome completo se necessário
+                        priority_teams.append(g.get('home_abbr', g.get('home')))
+                        priority_teams.append(g.get('away_abbr', g.get('away')))
                 else:
-                    # Se não tem jogos, atualiza tudo (pode demorar um pouco)
-                    priority_teams = list(NBA_TO_ESPN_MAP.keys()) if 'NBA_TO_ESPN_MAP' in globals() else ["LAL", "BOS", "GSW"] # Fallback
+                    # Fallback: Atualiza times populares se não houver jogos hoje
+                    priority_teams = ["LAL", "GSW", "BOS", "PHI", "MIL", "DEN", "PHX", "DAL"]
 
-                # Chama a atualização do monitor
+                # Chama a atualização do monitor (Lógica Híbrida v60.1)
                 monitor.update_all_teams(priority_teams)
-                st.toast("Depto Médico Atualizado!", icon="✅")
+                st.toast("Depto Médico Atualizado via Satélite!", icon="📡")
                 
-                # Recarrega pós update
+                # Retorna dados frescos
                 return monitor.get_all_injuries()
         
         return data
@@ -7457,52 +7473,37 @@ def show_depto_medico():
         st.warning("⚠️ Não foi possível carregar dados de lesões.")
         return
 
-    # Flatten data (transforma dict de times em lista plana)
+    # Flatten data
     injuries_flat = []
     for team, players in raw_teams_data.items():
         if isinstance(players, list):
             for p in players:
-                p['team'] = team # Garante que o time está no objeto
+                p['team'] = team
                 injuries_flat.append(p)
 
     # --- 4. MOTOR DE FOTOS 2.0 (ID RECOVERY) ---
+    # (Mantido igual pois sua lógica de ID estava ótima)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
-    # Mapas de busca rápida
+    def normalize_name_simple(n):
+        if not n: return ""
+        n = str(n).lower()
+        n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode("ascii")
+        return "".join(e for e in n if e.isalnum())
+
     NAME_TO_ID = {}
-    LASTNAME_TEAM_TO_ID = {}
-    
     if not df_l5.empty:
         try:
-            # Normaliza colunas
             df_l5.columns = [str(c).upper().strip() for c in df_l5.columns]
-            
             c_name = next((c for c in df_l5.columns if c in ['PLAYER_NAME', 'PLAYER', 'NAME']), 'PLAYER')
             c_id = next((c for c in df_l5.columns if c in ['PLAYER_ID', 'ID', 'PERSON_ID']), 'PLAYER_ID')
-            c_team = next((c for c in df_l5.columns if c in ['TEAM', 'TEAM_ABBREVIATION']), 'TEAM')
             c_min = next((c for c in df_l5.columns if c in ['MIN_AVG', 'MIN']), None)
 
-            # Preenche mapas
             for _, row in df_l5.iterrows():
                 pid = int(float(row.get(c_id, 0)))
                 if pid == 0: continue
-                
-                name_full = normalize_name(str(row.get(c_name, '')))
-                team_code = normalize_team_signature(str(row.get(c_team, '')))
-                
-                # Mapa 1: Nome Completo -> ID
-                NAME_TO_ID[name_full] = {
-                    'id': pid, 
-                    'min': row.get(c_min, 0) if c_min else 0
-                }
-                
-                # Mapa 2: Sobrenome + Time -> ID (Para resolver "C. Thomas" -> "Cam Thomas")
-                parts = name_full.split()
-                if len(parts) > 0:
-                    lastname = parts[-1]
-                    key = f"{lastname}_{team_code}"
-                    LASTNAME_TEAM_TO_ID[key] = pid
-
+                name_norm = normalize_name_simple(str(row.get(c_name, '')))
+                NAME_TO_ID[name_norm] = {'id': pid, 'min': row.get(c_min, 0) if c_min else 0}
         except: pass
 
     # --- 5. CLASSIFICAÇÃO (VIP vs GERAL) ---
@@ -7510,64 +7511,59 @@ def show_depto_medico():
     general_ward = {}
 
     for p in injuries_flat:
-        raw_name = p.get('name') or p.get('player') or "Unknown"
-        raw_team = normalize_team_signature(p.get('team', 'UNK'))
+        raw_name = p.get('name') or "Unknown"
+        norm_name = normalize_name_simple(raw_name)
         status = str(p.get('status', '')).upper()
+        details = p.get('details', 'Sem detalhes reportados.')
+        source = p.get('source', 'ESPN')
         
-        # Ignora se estiver disponível
+        # Ignora disponíveis
         if "AVAILABLE" in status and "NOT" not in status: continue
 
-        # Busca ID Inteligente
-        norm_name = normalize_name(raw_name)
-        player_stats = NAME_TO_ID.get(norm_name)
+        # Recupera ID
+        player_stats = NAME_TO_ID.get(norm_name, {'id': 0, 'min': 0})
+        pid = player_stats['id']
+        minutes = float(player_stats['min'])
         
-        pid = 0
-        minutes = 0
+        # Define Cores e Labels
+        is_out = any(x in status for x in ['OUT', 'SURG', 'INJURED'])
+        status_display = "OUT" if is_out else "GTD / DÚVIDA"
+        color_hex = "#ef4444" if is_out else "#facc15"
+        bg_hex = "rgba(239, 68, 68, 0.15)" if is_out else "rgba(250, 204, 21, 0.15)"
         
-        if player_stats:
-            pid = player_stats['id']
-            minutes = float(player_stats['min'])
-        else:
-            # Tenta fallback pelo sobrenome + time
-            parts = norm_name.split()
-            if len(parts) > 0:
-                lastname = parts[-1]
-                key = f"{lastname}_{raw_team}"
-                pid = LASTNAME_TEAM_TO_ID.get(key, 0)
-        
-        # Define Gravidade (Impacto)
-        is_star = False
-        # Critério VIP: Média > 25min OU Jogador com ID encontrado e status crítico
-        if minutes >= 25 or (pid > 0 and any(x in status for x in ['OUT', 'DOUBT'])):
-            if minutes >= 20: is_star = True # Refinamento: Só é estrela se tiver minostragem relevante
-        
-        # Ajuste de Status Visual
-        status_color = "out" if "OUT" in status else "gtd"
-        status_display = "OUT" if "OUT" in status else ("DOUBTFUL" if "DOUBT" in status else "GTD")
-
         obj = {
             "name": raw_name,
-            "team": raw_team,
+            "team": p['team'],
             "id": pid,
             "status": status_display,
-            "color": status_color,
-            "desc": p.get('details', '') or p.get('notes', ''),
+            "color": color_hex,
+            "bg": bg_hex,
+            "desc": details[:100] + "..." if len(details) > 100 else details, # Trunca texto longo
+            "source": source,
             "min": minutes
         }
 
-        if is_star:
+        # Critério VIP: +20 min OU Titular (min > 25) OU Jogador com ID encontrado e status crítico
+        # Ajustei para ser mais inclusivo com o detalhe da lesão
+        if minutes >= 25 or (pid > 0 and minutes >= 18):
             vip_ward.append(obj)
         else:
-            if raw_team not in general_ward: general_ward[raw_team] = []
-            general_ward[raw_team].append(obj)
+            if p['team'] not in general_ward: general_ward[p['team']] = []
+            general_ward[p['team']].append(obj)
 
-    # Ordena VIPs por minutos (relevância)
     vip_ward.sort(key=lambda x: x['min'], reverse=True)
 
     # --- 6. RENDERIZAÇÃO ---
     
     st.markdown(f'<div class="med-title">🚑 HOSPITAL HUB <span style="font-size:14px; background:#ef4444; padding:2px 6px; border-radius:4px; margin-left:10px;">LIVE</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="med-sub">Monitoramento automático de integridade do elenco.</div>', unsafe_allow_html=True)
+    
+    # Header com última atualização
+    last_ts = monitor.cache.get('updated_at', '')
+    if last_ts:
+        try:
+            dt_ts = datetime.fromisoformat(last_ts)
+            st.markdown(f'<div class="med-sub">Monitoramento Inteligente (CBS & ESPN). Atualizado em: {dt_ts.strftime("%d/%m %H:%M")}</div>', unsafe_allow_html=True)
+        except: pass
 
     # SEÇÃO 1: UTI VIP (Estrelas)
     if vip_ward:
@@ -7575,22 +7571,28 @@ def show_depto_medico():
         cols = st.columns(3)
         for i, p in enumerate(vip_ward):
             with cols[i % 3]:
-                # Foto com Fallback duplo (NBA -> ESPN -> Default)
+                # Fotos
                 nba_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
-                espn_img = f"https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/{p['id']}.png"
                 fallback = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-                
                 img_src = nba_img if p['id'] > 0 else fallback
                 
-                border_col = "#ef4444" if p['color'] == 'out' else "#facc15"
-                
                 st.markdown(f"""
-                <div class="vip-card" style="border-left-color: {border_col}">
+                <div class="vip-card" style="border-left-color: {p['color']}">
                     <img src="{img_src}" class="vip-img" onerror="this.src='{fallback}'">
                     <div class="vip-info">
                         <div class="vip-name">{p['name']}</div>
                         <div class="vip-meta">{p['team']} • {p['min']:.0f} MPG</div>
-                        <div class="vip-status" style="color:{border_col}; border-color:{border_col}40; background:{border_col}10">{p['status']}</div>
+                        
+                        <div class="vip-status-row">
+                            <span class="vip-status" style="color:{p['color']}; background:{p['bg']}; border:1px solid {p['color']}40;">
+                                {p['status']}
+                            </span>
+                            <span class="vip-source">{p['source']}</span>
+                        </div>
+                        
+                        <div class="vip-desc" title="{p['desc']}">
+                            {p['desc'] if p['desc'] else 'Sem detalhes adicionais.'}
+                        </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -7598,16 +7600,14 @@ def show_depto_medico():
     st.divider()
 
     # SEÇÃO 2: ENFERMARIA GERAL (Por Time)
-    st.markdown("**📋 RELATÓRIO GERAL POR TIME**")
+    st.markdown("**📋 RELATÓRIO GERAL (Reservas & Banco)**")
     
     if not general_ward:
         st.info("Nenhuma lesão secundária reportada.")
     else:
-        # Ordena times alfabeticamente
         sorted_teams = sorted(general_ward.keys())
-        
-        # Grid de Times (3 colunas)
         row_cols = st.columns(3)
+        
         for idx, team in enumerate(sorted_teams):
             players = general_ward[team]
             with row_cols[idx % 3]:
@@ -7620,9 +7620,12 @@ def show_depto_medico():
                 """, unsafe_allow_html=True)
                 
                 for p in players:
-                    cls = "inj-stat-out" if p['color'] == 'out' else "inj-stat-gtd"
+                    cls = "inj-stat-out" if "OUT" in p['status'] else "inj-stat-gtd"
+                    # Usamos 'title' para mostrar o detalhe no hover
+                    detail_tooltip = p['desc'].replace('"', "'")
+                    
                     st.markdown(f"""
-                    <div class="inj-row">
+                    <div class="inj-row" title="{detail_tooltip}">
                         <span class="inj-name">{p['name']}</span>
                         <span class="{cls}">{p['status']}</span>
                     </div>
@@ -8639,6 +8642,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
