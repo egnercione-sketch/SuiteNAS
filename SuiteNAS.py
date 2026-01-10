@@ -3114,7 +3114,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V3.0 (L25 PRECISION + HIT RATES)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V3.1 (TEAM GROUPING)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3123,6 +3123,7 @@ def show_garimpo_page():
     import re
     import unicodedata
     import requests
+    from collections import defaultdict
     
     # --- 1. CONFIGURAÇÃO & CSS ---
     try:
@@ -3137,6 +3138,14 @@ def show_garimpo_page():
         .garimpo-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin:0; text-transform: uppercase; text-shadow: 0 0 10px rgba(251,191,36,0.3); }
         .garimpo-sub { font-family: 'Inter'; font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
         
+        /* TEAM HEADER */
+        .team-section-header {
+            font-family: 'Oswald'; font-size: 20px; color: #fff; 
+            border-left: 4px solid #fbbf24; padding-left: 10px; margin-top: 25px; margin-bottom: 15px;
+            background: linear-gradient(90deg, rgba(251, 191, 36, 0.1), transparent);
+            padding-top: 5px; padding-bottom: 5px; border-radius: 0 4px 4px 0;
+        }
+
         .nugget-card { 
             background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); 
             border: 1px solid #334155; 
@@ -3173,7 +3182,7 @@ def show_garimpo_page():
     c_head, c_filt = st.columns([2, 3])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">L25 Precision V3.0 (Real Data)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">L25 Precision V3.1 (Team View)</div>', unsafe_allow_html=True)
     
     with c_filt:
         cf1, cf2 = st.columns(2)
@@ -3236,7 +3245,7 @@ def show_garimpo_page():
             # Monte Carlo Baseado na Distribuição Real
             mean = np.mean(data_series)
             std = np.std(data_series)
-            if std == 0: std = 0.1 # Evita div por zero se for constante
+            if std == 0: std = 0.1 
             
             simulations = np.random.normal(mean, std, self.sims)
             successes = np.sum(simulations >= target)
@@ -3311,14 +3320,14 @@ def show_garimpo_page():
                 s_ast = self._safe_parse_list(raw_logs.get('AST', []), 25)
                 s_min = self._safe_parse_list(raw_logs.get('MIN', []), 25)
                 
-                if len(s_pts) < 3: continue # Amostra mínima
+                if len(s_pts) < 3: continue 
                 
                 # Médias
                 avg_pts = np.mean(s_pts)
                 avg_reb = np.mean(s_reb)
                 avg_ast = np.mean(s_ast)
                 
-                # Minutos (Real ou Estimado)
+                # Minutos
                 min_source = "L25"
                 if len(s_min) >= 3:
                     avg_min = np.mean(s_min)
@@ -3326,16 +3335,13 @@ def show_garimpo_page():
                     avg_min = self._smart_estimate_minutes(avg_pts, avg_reb, avg_ast)
                     min_source = "EST"
 
-                # Vacuum (Simplificado para o exemplo)
-                # No código real, passaríamos o roster aqui
+                # Vacuum (Placeholder)
                 vacuum_boost = 1.0
                 
-                # Aplica boost nas médias APENAS para verificação de tier
                 proj_pts = avg_pts * vacuum_boost
                 proj_reb = avg_reb * vacuum_boost
                 proj_ast = avg_ast * vacuum_boost
                 
-                # Filtro de Relevância
                 if avg_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
 
                 kits_priority = [
@@ -3352,10 +3358,8 @@ def show_garimpo_page():
                     
                     r_pts, r_reb, r_ast = kit['req']
                     
-                    # Pré-filtro rápido na média
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
-                    # Análise Monte Carlo com Dados Reais
                     prob_pts, hit_pts, _ = self.monte_carlo.analyze_series(s_pts, r_pts)
                     prob_reb, hit_reb, _ = self.monte_carlo.analyze_series(s_reb, r_reb)
                     prob_ast, hit_ast, _ = self.monte_carlo.analyze_series(s_ast, r_ast)
@@ -3363,11 +3367,8 @@ def show_garimpo_page():
                     min_prob = min(prob_pts, prob_reb, prob_ast)
                     avg_prob = (prob_pts + prob_reb + prob_ast) / 3
                     
-                    # Filtro de Confiança
                     if avg_prob >= min_conf and min_prob >= (min_conf - 15): 
                         combined = (prob_pts/100) * (prob_reb/100) * (prob_ast/100) * 100
-                        
-                        # Hit Rate Combinado (Média dos Hits das 3 pernas)
                         avg_hit_rate = (hit_pts + hit_reb + hit_ast) / 3
                         
                         selected_kit = {
@@ -3406,7 +3407,7 @@ def show_garimpo_page():
         nuggets = miner.mine_nuggets()
         st.session_state.garimpo_results = nuggets
 
-    # --- 7. EXIBIÇÃO ---
+    # --- 7. EXIBIÇÃO AGRUPADA POR TIME ---
     if 'garimpo_results' in st.session_state:
         results = st.session_state.garimpo_results
         
@@ -3414,54 +3415,68 @@ def show_garimpo_page():
             st.warning(f"Nenhum jogador encontrado com Confiança > {min_conf}% nos tiers selecionados.")
             return
             
-        # Ordenação
-        results.sort(key=lambda x: (x['rank'], x['combined_prob']), reverse=True)
-        st.success(f"✅ {len(results)} Cards Gerados (Base L25 Real)")
+        # 1. Agrupamento por Time
+        team_groups = defaultdict(list)
+        for item in results:
+            team_groups[item['team']].append(item)
+            
+        st.success(f"✅ {len(results)} Cards Gerados (Organizados por Time)")
         
-        cols = st.columns(3)
-        for i, item in enumerate(results):
-            col = cols[i % 3]
-            lines = item['lines']
-            probs = item['probs']
+        # 2. Exibição
+        # Itera pelos times
+        for team_name in sorted(team_groups.keys()):
+            players = team_groups[team_name]
             
-            min_badge = ""
-            if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ EST</span>'
+            # Ordena jogadores do time por Score (Rank + Prob)
+            players.sort(key=lambda x: (x['rank'], x['combined_prob']), reverse=True)
             
-            # Badge de Hit Rate
-            hit_badge = f'<span class="hit-tag">HIT {int(item["avg_hit_rate"])}% (L{item["sample"]})</span>'
+            # Cabeçalho do Time
+            st.markdown(f'<div class="team-section-header">🏀 {team_name} ({len(players)})</div>', unsafe_allow_html=True)
             
-            card_html = f"""
-<div class="nugget-card">
-    <div class="nugget-header">
-        <img src="{get_photo(item['player'], item.get('id'))}" class="nugget-img">
-        <div>
-            <div class="nugget-name">{item['player']}</div>
-            <div class="nugget-meta">{item['team']} • ~{int(item['proj_min'])}' {min_badge} {hit_badge}</div>
-        </div>
-    </div>
-    <div class="stat-row">
-        <div class="stat-label">{lines['PTS']}+ PTS</div>
-        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
-        <div class="stat-val">{int(probs['PTS'])}%</div>
-    </div>
-    <div class="stat-row">
-        <div class="stat-label">{lines['REB']}+ REB</div>
-        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
-        <div class="stat-val">{int(probs['REB'])}%</div>
-    </div>
-    <div class="stat-row">
-        <div class="stat-label">{lines['AST']}+ AST</div>
-        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
-        <div class="stat-val">{int(probs['AST'])}%</div>
-    </div>
-    <div class="nugget-footer">
-        <span class="badge-type">{item['kit_type']}</span>
-        <span class="conf-tag">{int(item['combined_prob'])}% CONF</span>
-    </div>
-</div>
-"""
-            with col:
-                st.markdown(card_html, unsafe_allow_html=True)
+            # Grid de Cards
+            cols = st.columns(3)
+            for i, item in enumerate(players):
+                col = cols[i % 3]
+                lines = item['lines']
+                probs = item['probs']
+                
+                min_badge = ""
+                if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ EST</span>'
+                
+                hit_badge = f'<span class="hit-tag">HIT {int(item["avg_hit_rate"])}% (L{item["sample"]})</span>'
+                
+                card_html = f"""
+                <div class="nugget-card">
+                    <div class="nugget-header">
+                        <img src="{get_photo(item['player'], item.get('id'))}" class="nugget-img">
+                        <div>
+                            <div class="nugget-name">{item['player']}</div>
+                            <div class="nugget-meta">{item['team']} • ~{int(item['proj_min'])}' {min_badge} {hit_badge}</div>
+                        </div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['PTS']}+ PTS</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
+                        <div class="stat-val">{int(probs['PTS'])}%</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['REB']}+ REB</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
+                        <div class="stat-val">{int(probs['REB'])}%</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">{lines['AST']}+ AST</div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
+                        <div class="stat-val">{int(probs['AST'])}%</div>
+                    </div>
+                    <div class="nugget-footer">
+                        <span class="badge-type">{item['kit_type']}</span>
+                        <span class="conf-tag">{int(item['combined_prob'])}% CONF</span>
+                    </div>
+                </div>
+                """
+                with col:
+                    st.markdown(card_html, unsafe_allow_html=True)
         
         
         
@@ -8419,6 +8434,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
