@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V17.0 - STABLE LAYOUT & PHOTO FIX)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V17.1 - WHITE FONT & PHOTO FIX)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6648,53 +6648,101 @@ def show_desdobramentos_inteligentes():
     except ImportError:
         def get_data_universal(key): return {}
 
-    # --- 2. HELPERS (FOTOS & NORMALIZAÇÃO) ---
+    # --- 2. HELPERS (FOTOS ROBUSTAS) ---
     def nuclear_normalize(text):
         if not text: return ""
-        # Remove acentos e caracteres especiais, tudo upper case
         text = str(text).replace('.', '').replace("'", "")
         return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8').upper())
 
-    # Lógica Robusta para IDs de Fotos
+    # Carregamento Inteligente de IDs
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    ID_VAULT = {}
-    
-    # Tenta carregar do cache universal se não estiver na sessão
-    if df_l5.empty:
-        df_l5 = get_data_universal('df_l5')
+    if df_l5.empty: df_l5 = get_data_universal('df_l5')
 
+    ID_VAULT = {}
     if isinstance(df_l5, pd.DataFrame) and not df_l5.empty:
-        # Tenta encontrar as colunas certas
-        cols_upper = [c.upper() for c in df_l5.columns]
-        id_col = next((c for c in df_l5.columns if 'PLAYER_ID' in c.upper() or 'PERSON_ID' in c.upper()), None)
-        name_col = next((c for c in df_l5.columns if 'PLAYER_NAME' in c.upper() or 'PLAYER' == c.upper()), None)
+        # Tenta achar a coluna de ID de várias formas
+        cols = df_l5.columns
+        id_col = next((c for c in cols if str(c).upper() in ['PLAYER_ID', 'PERSON_ID', 'ID']), None)
+        name_col = next((c for c in cols if str(c).upper() in ['PLAYER_NAME', 'PLAYER', 'NAME']), None)
         
         if id_col and name_col:
             for _, row in df_l5.iterrows():
                 try:
                     p_name = nuclear_normalize(str(row[name_col]))
+                    # Garante que é inteiro
                     p_id = int(float(row[id_col]))
                     ID_VAULT[p_name] = p_id
                 except: pass
 
     def get_photo_url(name):
-        # Normaliza o nome de entrada para bater com o Vault
         clean_name = nuclear_normalize(name)
         pid = ID_VAULT.get(clean_name, 0)
         
-        # Fallback para nomes comuns que as vezes dão erro
+        # Tentativa de busca aproximada se falhar
         if pid == 0:
-            # Tenta busca parcial se falhar
-            for v_name, v_id in ID_VAULT.items():
-                if clean_name in v_name or v_name in clean_name:
-                    pid = v_id
+            for k, v in ID_VAULT.items():
+                if clean_name in k: # Busca parcial
+                    pid = v
                     break
         
         if pid > 0: 
             return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 3. CLASSIFIER & ENGINE ---
+    # --- 3. CSS (FONTE BRANCA E AJUSTES) ---
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;600&display=swap');
+        
+        .strat-header { font-family: 'Oswald'; font-size: 30px; color: #fbbf24; margin: 0; text-transform: uppercase; }
+        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 15px; }
+        
+        /* CARD TICKET */
+        .ticket-box {
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            margin-bottom: 15px; overflow: hidden;
+        }
+        
+        .t-header { padding: 8px 12px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .t-title { font-family: 'Oswald'; font-size: 14px; color: #fff; letter-spacing: 0.5px; }
+        .t-badge { font-size: 10px; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #fff; }
+        
+        /* CORES TEMAS */
+        .th-attack { background: linear-gradient(90deg, rgba(220, 38, 38, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #dc2626; }
+        .th-pyramid { background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #2563eb; }
+        .th-wall { background: linear-gradient(90deg, rgba(5, 150, 105, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #059669; }
+        .th-scavenge { background: linear-gradient(90deg, rgba(147, 51, 234, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #9333ea; }
+
+        /* LINHA DO JOGADOR */
+        .sgp-row {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 10px 12px; border-bottom: 1px solid #1e293b;
+        }
+        .sgp-row:last-child { border-bottom: none; }
+        
+        .sgp-img { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; flex-shrink: 0; }
+        
+        .p-info { flex: 1; min-width: 0; }
+        
+        /* CORREÇÃO DO NOME: BRANCO E FORTE */
+        .sgp-name { 
+            font-family: 'Oswald'; 
+            font-size: 14px; 
+            color: #ffffff !important; /* FORÇA O BRANCO */
+            font-weight: 700; 
+            line-height: 1.1; 
+            margin-bottom: 4px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .sgp-team { font-family: 'Inter'; font-size: 10px; color: #94a3b8; font-weight: normal; margin-left: 4px; }
+        
+        .role-pill { font-size: 8px; padding: 1px 5px; border-radius: 3px; background: #334155; color: #cbd5e1; display: inline-block; margin-right: 5px; vertical-align: middle; }
+        .barrel-icon { color: #facc15; font-size: 10px; margin-left: 2px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- 4. ENGINE (Lógica Mantida V17) ---
     class LocalPlayerClassifier:
         def get_role_classification(self, ctx):
             pts = ctx.get('pts_L5', 0)
@@ -6771,7 +6819,6 @@ def show_desdobramentos_inteligentes():
                 if not valid_legs: continue
                 
                 role = 'BASE'
-                # ÂNCORA: Obrigatório ser Star/Starter E ter linha alta de pontos OU ser um Double Barrel de elite
                 if (role_tag in ['star', 'starter'] and any(l['stat']=='PTS' and l['line']>=18 for l in valid_legs)):
                     role = 'ANCHOR'
                 elif len(valid_legs) >= 2 and style_tag in ['playmaker', 'hustle', 'rebounder']:
@@ -6794,7 +6841,6 @@ def show_desdobramentos_inteligentes():
             self.master_inventory.sort(key=lambda x: x['score'], reverse=True)
             tickets = []
             
-            # Fórmulas
             formulas = ['ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL']
             
             def find_candidate(roles, exclude_teams, exclude_players, max_usage=2):
@@ -6805,7 +6851,6 @@ def show_desdobramentos_inteligentes():
                             return p
                 return None
 
-            # FASE 1: Fórmulas Estruturadas
             for form_type in formulas:
                 candidates = []
                 u_teams, u_players = set(), set()
@@ -6814,13 +6859,13 @@ def show_desdobramentos_inteligentes():
                 
                 if form_type == 'ATTACK':
                     slots = [(['ANCHOR'], 3), (['ANCHOR'], 3), (['WORKER', 'BASE'], 2), (['WORKER', 'BASE'], 2)]
-                    meta = {'title': '🚀 ATAQUE TOTAL', 'desc': 'Foco em pontuadores.', 'color': '#ef4444'} # Vermelho
+                    meta = {'title': '🚀 ATAQUE TOTAL', 'desc': 'Foco em pontuadores.', 'color': '#ef4444'}
                 elif form_type == 'PYRAMID':
                     slots = [(['ANCHOR'], 3), (['MOTOR', 'WORKER'], 3), (['WORKER', 'BASE'], 2), (['BASE', 'WORKER'], 2)]
-                    meta = {'title': '🛡️ A PIRÂMIDE', 'desc': 'Equilíbrio tático.', 'color': '#3b82f6'} # Azul
+                    meta = {'title': '🛡️ A PIRÂMIDE', 'desc': 'Equilíbrio tático.', 'color': '#3b82f6'}
                 elif form_type == 'WALL':
                     slots = [(['MOTOR', 'WORKER'], 3), (['WORKER'], 2), (['BASE'], 2), (['BASE'], 2)]
-                    meta = {'title': '🧱 O PAREDÃO', 'desc': 'Segurança máxima.', 'color': '#10b981'} # Verde
+                    meta = {'title': '🧱 O PAREDÃO', 'desc': 'Segurança máxima.', 'color': '#10b981'}
                 
                 valid_ticket = True
                 for roles, limit in slots:
@@ -6834,7 +6879,6 @@ def show_desdobramentos_inteligentes():
                 if valid_ticket and len(candidates) == 4:
                     self._commit_ticket(tickets, candidates, meta)
 
-            # FASE 2: Reciclagem (Scavenge) - Garante volume
             while len(tickets) < 20:
                 scavenge = []
                 u_teams, u_players = set(), set()
@@ -6846,7 +6890,7 @@ def show_desdobramentos_inteligentes():
                         u_teams.add(p['team']); u_players.add(p['player'])
                 
                 if len(scavenge) == 4:
-                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM', 'desc': 'Oportunidades extras.', 'color': '#a855f7'}) # Roxo
+                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM', 'desc': 'Oportunidades extras.', 'color': '#a855f7'})
                 else: break
             
             return tickets
@@ -6855,33 +6899,25 @@ def show_desdobramentos_inteligentes():
             final_legs = []
             for p in players:
                 p['usage'] += 1
-                # Lógica Double Barrel: pega as 2 melhores se possível (SGP)
-                # Cap de segurança: não deixar um jogador ter mais de 2 legs para não inflar o bilhete
                 legs_to_use = p['legs'][:2] if (len(p['legs']) > 1 and p['role'] in ['ANCHOR', 'MOTOR']) else p['legs'][:1]
-                
                 for l in legs_to_use:
                     final_legs.append({
                         'player': p['player'], 'team': p['team'], 'role': p['role'],
                         'stat': l['stat'], 'line': l['line'], 'hits': l['hits'],
                         'is_double': len(legs_to_use) > 1
                     })
-            
-            # HARD CAP VISUAL: Limita a 6 pernas no total para não quebrar layout
-            if len(final_legs) > 6:
-                final_legs = final_legs[:6]
-
+            if len(final_legs) > 6: final_legs = final_legs[:6]
             meta['title'] = f"{meta['title']} #{len(tickets)+1}"
             tickets.append({**meta, 'legs': final_legs})
 
-    # --- 4. EXECUÇÃO ---
+    # --- 5. EXECUÇÃO ---
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div style="font-family:Oswald; font-size:30px; color:#fbbf24; text-transform:uppercase;">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V17.0 Stable")
+        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V17.1 Visual Fix")
     with c_tog:
         debug_mode = st.toggle("Debug", value=False)
 
-    # Legenda Fixa
     st.markdown("**Legenda:** 👑 Anchor (Estrela) | ⚙️ Motor (Glue Guy) | 👷 Worker (Rotação) | 🛡️ Base (Segurança) | ⚡ Double Barrel")
 
     logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
@@ -6896,25 +6932,23 @@ def show_desdobramentos_inteligentes():
     tickets = maestro.manufacture_tickets()
 
     if debug_mode:
-        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes.")
+        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes. (ID Vault size: {len(ID_VAULT)})")
 
     if not tickets:
         st.info("😴 Sem combinações de alta confiança.")
         return
 
-    # --- 5. RENDERIZAÇÃO NATIVA SEGURA ---
+    # --- 6. RENDERIZAÇÃO ---
     cols = st.columns(3)
     for i, t in enumerate(tickets):
         with cols[i % 3]:
-            # Container com Borda Nativa
             with st.container(border=True):
-                # Header HTML Seguro (Resolve o problema de 'explosão' de texto cru)
+                # Header Seguro
                 st.markdown(f"<div style='border-left: 4px solid {t['color']}; padding-left: 10px; margin-bottom: 10px;'>"
                             f"<div style='font-family:Oswald; font-size:16px; color:white;'>{t['title']}</div>"
                             f"<div style='font-size:11px; color:#94a3b8;'>{t['desc']} • {len(t['legs'])} Legs</div>"
                             f"</div>", unsafe_allow_html=True)
 
-                # Agrupamento por Jogador
                 player_legs = defaultdict(list)
                 player_meta = {}
                 for leg in t['legs']:
@@ -6923,29 +6957,25 @@ def show_desdobramentos_inteligentes():
 
                 for p_name, legs in player_legs.items():
                     meta = player_meta[p_name]
-                    
-                    # Colunas internas (Layout Rígido)
                     c_img, c_data = st.columns([1, 4])
                     
                     with c_img:
-                        st.image(get_photo_url(p_name), width=40)
+                        st.image(get_photo_url(p_name), width=42)
                     
                     with c_data:
-                        # Info Principal
                         role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
                         barrel = "⚡" if meta['dbl'] else ""
-                        st.markdown(f"**{p_name}** {barrel}")
-                        st.caption(f"{role_icon} {meta['role']} • {meta['team']}")
                         
-                        # Stats em Chips (HTML inline seguro)
+                        # Nome Branco e Forte
+                        st.markdown(f"<div class='sgp-name'>{p_name} <span class='barrel-icon'>{barrel}</span> <span class='sgp-team'>({meta['team']})</span></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='margin-bottom:3px'><span class='role-pill'>{role_icon} {meta['role']}</span></div>", unsafe_allow_html=True)
+                        
                         chips_str = ""
                         for l in legs:
                             color = "#fbbf24" if l['stat'] == 'PTS' else "#60a5fa"
-                            # Chip Compacto
                             chips_str += f"""<span style='background:#1e293b; border:1px solid #475569; padding:2px 5px; border-radius:4px; font-size:10px; margin-right:4px; display:inline-block;'>
                                 <strong style='color:{color}'>{l['line']}+ {l['stat']}</strong> <span style='color:#64748b; font-size:8px'>({l['hits']}/10)</span>
                             </span>"""
-                        
                         st.markdown(chips_str, unsafe_allow_html=True)
                     
                     st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
@@ -8469,6 +8499,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
