@@ -503,37 +503,62 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# FUNÇÃO LOGS: MODO TURBO v2 (COM TIMEOUT DE 120s)
+# FUNÇÃO LOGS: MODO TURBO v3.0 (BLINDADO)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
     from nba_api.stats.endpoints import leaguegamelog
+    from nba_api.stats.library.parameters import SeasonAll
     import pandas as pd
-    import json
+    import time
     from datetime import datetime
     
+    # Configurações
     SEASON_CURRENT = "2025-26"
     KEY_LOGS = "real_game_logs"
+    
+    # Headers para evitar bloqueio da NBA (Crucial para ter todos os jogadores)
+    CUSTOM_HEADERS = {
+        'Connection': 'keep-alive',
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://stats.nba.com/',
+        'x-nba-stats-origin': 'stats',
+        'x-nba-stats-token': 'true'
+    }
 
     if progress_ui:
-        status_box = st.status("🚀 MODO TURBO: Baixando temporada inteira...", expanded=True)
-        status_box.write("📡 Conectando ao servidor da NBA (LeagueGameLog)...")
+        status_box = st.status("🚀 MODO TURBO V3: Baixando temporada inteira...", expanded=True)
+        status_box.write(f"📡 Conectando ao servidor da NBA ({SEASON_CURRENT})...")
 
     try:
-        # --- CORREÇÃO: TIMEOUT AUMENTADO PARA 120 SEGUNDOS ---
+        time.sleep(0.5) # Respeita rate limit inicial
+        
+        # --- FIX 1: HEADERS E SEASON TYPE EXPLÍCITO ---
         logs_api = leaguegamelog.LeagueGameLog(
             season=SEASON_CURRENT,
+            season_type_all_star='Regular Season', # <--- OBRIGATÓRIO
             player_or_team_abbreviation='P', 
             direction='DESC', 
             sorter='DATE',
-            timeout=120  # <--- AQUI ESTÁ A CORREÇÃO DO TIMEOUT
+            timeout=120,
+            headers=CUSTOM_HEADERS # <--- EVITA BLOQUEIO PARCIAL
         )
+        
         df_all = logs_api.get_data_frames()[0]
         
+        # --- FIX 2: VALIDAÇÃO DE TAMANHO ---
+        total_rows = len(df_all)
+        unique_players_count = df_all['PLAYER_ID'].nunique()
+        
         if df_all.empty:
-            if progress_ui: status_box.error("A API retornou vazio.")
+            if progress_ui: status_box.error("❌ A API retornou vazio. Verifique a temporada.")
             return {}
-
-        if progress_ui: status_box.write(f"📦 Processando {len(df_all)} registros de jogos...")
+            
+        if unique_players_count < 100:
+            # Se vier menos de 100 jogadores, algo está errado na API
+            if progress_ui: status_box.warning(f"⚠️ ALERTA: Apenas {unique_players_count} jogadores encontrados. Isso parece pouco para a liga toda.")
+        else:
+            if progress_ui: status_box.write(f"📦 Sucesso! {unique_players_count} jogadores encontrados em {total_rows} registros.")
 
         # Processamento Local
         cols_int = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M', 'TOV', 'PF']
@@ -541,16 +566,19 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             if c in df_all.columns: df_all[c] = df_all[c].fillna(0).astype(int)
 
         df_all['GAME_DATE'] = pd.to_datetime(df_all['GAME_DATE'])
+        # Ordena para garantir que o .head(30) pegue os mais recentes
         df_all = df_all.sort_values(by=['PLAYER_ID', 'GAME_DATE'], ascending=[True, False])
 
         results = {}
         unique_players = df_all['PLAYER_ID'].unique()
         total_p = len(unique_players)
         processed_count = 0
-        bar = status_box.progress(0)
+        
+        if progress_ui: bar = status_box.progress(0)
         
         for pid in unique_players:
-            player_games = df_all[df_all['PLAYER_ID'] == pid].head(30)
+            # Pega últimos 25 jogos (L25 é nosso padrão ouro, 30 é seguro)
+            player_games = df_all[df_all['PLAYER_ID'] == pid].head(28) 
             if player_games.empty: continue
             
             p_name = player_games.iloc[0]['PLAYER_NAME']
@@ -563,7 +591,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             
             if 'MIN' in player_games.columns:
                 def parse_min(x):
-                    try: return float(x)
+                    try: return float(str(x).replace(':', '.')) # Garante parse de "34:20"
                     except: return 0.0
                 clean_logs['MIN'] = player_games['MIN'].apply(parse_min).tolist()
 
@@ -576,22 +604,26 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             }
             
             processed_count += 1
-            if progress_ui and processed_count % 100 == 0:
+            if progress_ui and processed_count % 50 == 0:
                 bar.progress(processed_count / total_p)
 
         # Salva no Supabase
         if results:
-            if progress_ui: status_box.write("☁️ Enviando pacote para Nuvem...")
-            save_data_universal(KEY_LOGS, results)
+            if progress_ui: status_box.write(f"☁️ Enviando pacote de {len(results)} jogadores para Nuvem...")
             
-            if progress_ui:
-                status_box.update(label=f"⚡ TURBO COMPLETO! {len(results)} jogadores atualizados.", state="complete", expanded=False)
+            # Tenta salvar. Se o pacote for muito grande, o Supabase pode rejeitar.
+            # Idealmente, o save_data_universal deveria lidar com chunks, mas aqui confiamos nele.
+            try:
+                save_data_universal(KEY_LOGS, results)
+                if progress_ui:
+                    status_box.update(label=f"✅ CACHE RECONSTRUÍDO! {len(results)} Jogadores Prontos.", state="complete", expanded=False)
+            except Exception as e_save:
+                if progress_ui: status_box.error(f"Erro ao salvar no Supabase (Payload pode ser muito grande): {e_save}")
         
         return results
 
     except Exception as e:
-        # Mostra o erro exato na tela
-        if progress_ui: status_box.error(f"Erro no Modo Turbo: {e}")
+        if progress_ui: status_box.error(f"Erro Crítico no Fetcher: {e}")
         print(f"Erro Turbo: {e}")
         return {}
 
@@ -8579,6 +8611,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
