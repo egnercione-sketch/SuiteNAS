@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V6.2 - BUGFIX KEYERROR)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V6.3 - DEBUG PIPELINE)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6655,6 +6655,12 @@ def show_desdobramentos_inteligentes():
         MODULES_OK = True
     except: MODULES_OK = False
 
+    # Tenta recuperar dados globais se não estiverem na sessão
+    try:
+        from SuiteNAS import get_data_universal
+    except ImportError:
+        def get_data_universal(key): return {}
+
     # --- 2. CSS & LAYOUT ---
     st.markdown("""
     <style>
@@ -6663,7 +6669,7 @@ def show_desdobramentos_inteligentes():
         .strat-header { font-family: 'Oswald'; font-size: 30px; color: #fbbf24; margin: 0; text-transform: uppercase; text-shadow: 0 0 15px rgba(251,191,36,0.2); }
         .strat-meta { font-family: 'Inter'; font-size: 11px; color: #64748b; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         
-        /* LEGENDA COMPACTA */
+        /* LEGENDA */
         .legend-box {
             background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;
             padding: 10px 14px; margin-bottom: 20px; font-size: 11px; color: #94a3b8; font-family: 'Inter';
@@ -6673,7 +6679,7 @@ def show_desdobramentos_inteligentes():
         .legend-icon { font-size: 14px; }
         .legend-bold { color: #e2e8f0; font-weight: 600; }
         
-        /* TICKETS */
+        /* CARDS */
         .ticket-card {
             background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid #334155; border-radius: 12px;
@@ -6688,9 +6694,7 @@ def show_desdobramentos_inteligentes():
         .ticket-title { font-family: 'Oswald'; font-size: 16px; color: #fff; margin-bottom: 2px; display: block; }
         .ticket-desc { font-family: 'Inter'; font-size: 10px; color: #cbd5e1; margin-bottom: 10px; display: block; opacity: 0.7; }
         
-        /* ROW */
         .sgp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 8px; }
-        .sgp-row:last-child { border-bottom: none; }
         .sgp-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background:#000; }
         .sgp-info { flex: 1; }
         .sgp-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; }
@@ -6708,8 +6712,9 @@ def show_desdobramentos_inteligentes():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🤖 Engine V6.2</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🤖 Engine V6.3</span></div>', unsafe_allow_html=True)
     with c_tog:
+        # Debug ligado por padrão para teste, usuário pode desligar
         debug_mode = st.toggle("🛠️ Debug", value=True)
 
     st.markdown("""
@@ -6728,6 +6733,7 @@ def show_desdobramentos_inteligentes():
             return re.sub(r'[^A-Z0-9]', '', text)
         except: return ""
 
+    # Helpers de Foto
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -6743,7 +6749,7 @@ def show_desdobramentos_inteligentes():
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- CLASS ANALYST V6.2 (SAFE MODE) ---
+    # --- CLASS ANALYST V6.3 (TRANSPARENT PIPELINE) ---
     class AnalystEngineV6:
         def __init__(self, logs, games):
             self.logs = logs
@@ -6752,10 +6758,16 @@ def show_desdobramentos_inteligentes():
             self.vacuum = VacuumMatrixAnalyzer() if MODULES_OK else None
             self.active_teams = self._get_active_teams()
             
+            # Diagnóstico Detalhado
             self.diag = {
-                "analyzed": 0,
-                "rejected_score": [],
-                "passed": 0
+                "total_input": len(logs),
+                "active_teams_list": list(self.active_teams),
+                "skipped_team_inactive": 0,
+                "skipped_injury": 0,
+                "skipped_low_data": 0,
+                "skipped_low_score": 0,
+                "approved": 0,
+                "sample_rejections": []
             }
 
         def _get_active_teams(self):
@@ -6774,57 +6786,65 @@ def show_desdobramentos_inteligentes():
             candidates = []
             
             for name, data in self.logs.items():
-                self.diag['analyzed'] += 1
                 norm_name = nuclear_normalize(name)
                 team = self._norm(data.get('team'))
                 
-                if team not in self.active_teams: continue
-                if monitor and monitor.is_player_blocked(name, team): continue
+                # 1. Filtro de Time
+                if team not in self.active_teams: 
+                    self.diag['skipped_team_inactive'] += 1
+                    continue
+                
+                # 2. Filtro de Lesão (VIA MONITOR)
+                if monitor and monitor.is_player_blocked(name, team): 
+                    self.diag['skipped_injury'] += 1
+                    continue
                 
                 logs = data.get('logs', {})
+                if not logs:
+                    self.diag['skipped_low_data'] += 1
+                    continue
                 
                 for stat in ['PTS', 'REB', 'AST']:
                     vals = logs.get(stat, [])
-                    if len(vals) < 5: continue 
+                    # Precisa de pelo menos 5 jogos recentes para analisar
+                    if len(vals) < 5: 
+                        continue 
                     
                     l10 = vals[:10]
                     l5 = vals[:5]
                     
+                    # Definição de Linha (Segura)
                     try:
                         floor_val = sorted(l10)[1] if len(l10) >= 2 else min(l10)
                     except: continue
                     
+                    # Filtro de Relevância
                     min_req = {'PTS': 10, 'REB': 4, 'AST': 3}
                     if floor_val < min_req[stat]: continue
                     
-                    # MATH V6.1
+                    # --- MATH ---
                     hits_l10 = sum(1 for v in l10 if v >= floor_val)
                     hits_l5 = sum(1 for v in l5 if v >= floor_val)
                     
-                    score_l10 = hits_l10 * 5.0  
-                    score_l5 = hits_l5 * 8.0    
+                    score_l10 = hits_l10 * 5.0  # Max 50
+                    score_l5 = hits_l5 * 8.0    # Max 40
                     base_score = score_l10 + score_l5
                     
-                    boost_score = 0
-                    if self.dvp: pass # Boost desativado temporariamente para calibração base
-                        
-                    final_score = base_score + boost_score
+                    final_score = base_score # Adicionar boosts aqui depois se necessário
                     
                     # CORTE: 70
                     if final_score >= 70:
                         bucket = "SHIELD" if hits_l10 >= 9 else "MIX"
                         candidates.append({
-                            "player": name,
-                            "stat": stat,
-                            "line": floor_val,
-                            "score": int(final_score),
-                            "bucket": bucket,
+                            "player": name, "stat": stat, "line": floor_val,
+                            "score": int(final_score), "bucket": bucket,
                             "reason": f"Hit Rate {hits_l10}/10 (L5: {hits_l5}/5)"
                         })
-                        self.diag['passed'] += 1
+                        self.diag['approved'] += 1
                     else:
-                        if final_score >= 60 and len(self.diag['rejected_score']) < 10:
-                            self.diag['rejected_score'].append(f"{name} [{stat} {floor_val}+]: Score {final_score}")
+                        self.diag['skipped_low_score'] += 1
+                        if final_score >= 50 and len(self.diag['sample_rejections']) < 5:
+                            self.diag['sample_rejections'].append(f"{name} ({stat} {floor_val}+) Score {int(final_score)}")
                         
             return candidates
 
@@ -6850,59 +6870,64 @@ def show_desdobramentos_inteligentes():
             
             return tickets
 
-    # --- 5. EXECUÇÃO COM CACHE CONTROL ---
-    def get_daily_strategy():
-        today_key = f"smart_strat_v6_{datetime.now().strftime('%Y-%m-%d')}"
-        
-        if not debug_mode:
-            if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
-                return st.session_state.daily_strat_cache['data'], {}
-            if db:
-                cloud = db.get_data(today_key)
-                if cloud:
-                    st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud}
-                    return cloud, {}
-
-        logs = st.session_state.get("real_game_logs", {})
-        games = st.session_state.get("scoreboard", [])
-        
-        # Verifica se tem dados antes de instanciar
-        if not logs or not games:
-            return [], {"error": "Dados de Logs ou Jogos insuficientes. Atualize na Config."}
-            
-        engine = AnalystEngineV6(logs, games)
-        candidates = engine.analyze()
-        tickets = engine.build_tickets(candidates)
-        
-        if not debug_mode and db and tickets: db.save_data(today_key, tickets)
-        
-        return tickets, engine.diag
-
-    # --- MAIN ---
-    tickets, diag = get_daily_strategy()
+    # --- 5. EXECUÇÃO CONTROLADA ---
     
-    # FIX: Debug Report Seguro
-    if debug_mode and diag:
-        if "error" in diag:
-            st.error(f"❌ Erro no Motor: {diag['error']}")
-        else:
-            # Usa .get() para evitar KeyError se a chave não existir
-            analyzed = diag.get('analyzed', 0)
-            passed = diag.get('passed', 0)
-            rejected = diag.get('rejected_score', [])
-            
-            st.info(f"""
-            **DIAGNÓSTICO V6.2:**
-            - Analisados: {analyzed}
-            - Aprovados (Score > 70): {passed}
-            - Rejeitados por pouco (Amostra):
-            {', '.join(rejected)}
-            """)
+    # Tentativa de Carregamento de Dados (Robustez V6.3)
+    logs = st.session_state.get("real_game_logs", {})
+    games = st.session_state.get("scoreboard", [])
+    
+    # Se não achou na sessão, tenta forçar update do cache universal
+    if not logs:
+        logs = get_data_universal("real_game_logs")
+    if not games:
+        games = get_data_universal("scoreboard")
 
-    if not tickets and (not diag or "error" not in diag):
-        st.warning("⚠️ Nenhum padrão detectado hoje com os critérios atuais.")
+    # --- ÁREA DE DEBUG (VISÍVEL SEMPRE) ---
+    if debug_mode:
+        with st.expander("🛠️ PAINEL DE DIAGNÓSTICO (V6.3)", expanded=True):
+            col_d1, col_d2, col_d3 = st.columns(3)
+            col_d1.metric("Jogadores (L25)", len(logs))
+            col_d2.metric("Jogos Hoje", len(games))
+            
+            if not logs:
+                st.error("❌ ERRO CRÍTICO: Cache L25 vazio. Vá em Config > 'Reconstruir Cache'.")
+            elif not games:
+                st.error("❌ ERRO CRÍTICO: Scoreboard vazio. Vá em Config > 'Atualizar Jogos'.")
+            else:
+                st.success("✅ Dados carregados. Processando Engine...")
+
+    # Se faltar dados, para aqui
+    if not logs or not games:
         return
 
+    # Executa Engine
+    # Nota: Não estamos usando cache de DB para o 'tickets' neste momento de debug
+    # para garantir que você veja as mudanças em tempo real.
+    engine = AnalystEngineV6(logs, games)
+    candidates = engine.analyze()
+    tickets = engine.build_tickets(candidates)
+    
+    diag = engine.diag
+
+    # Exibe Resultado do Diagnóstico do Engine
+    if debug_mode:
+        st.info(f"""
+        **FLUXO DO MOTOR:**
+        1. Jogadores no time ativo: {len(logs) - diag['skipped_team_inactive']} (De {len(logs)} totais)
+        2. Barrados por Lesão: {diag['skipped_injury']}
+        3. Rejeitados (Dados insuficientes <5 jogos): {diag['skipped_low_data']}
+        4. Rejeitados (Score < 70): {diag['skipped_low_score']}
+        ---------------------------
+        ✅ **APROVADOS FINAIS: {diag['approved']}**
+        """)
+        if diag['sample_rejections']:
+            st.caption(f"Amostra de Rejeitados: {', '.join(diag['sample_rejections'])}")
+
+    if not tickets:
+        st.warning("⚠️ Nenhum padrão detectado. Verifique se os 'Jogos Hoje' no debug conferem com a realidade.")
+        return
+
+    # --- 6. RENDERIZAÇÃO ---
     c1, c2 = st.columns(2)
     for i, ticket in enumerate(tickets):
         col = c1 if i % 2 == 0 else c2
@@ -8513,6 +8538,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
