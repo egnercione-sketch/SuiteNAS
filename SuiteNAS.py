@@ -7350,10 +7350,7 @@ def show_escalacoes():
 
     progress_bar.empty()
 # ============================================================================
-# PÁGINA: DEPTO MÉDICO (V50.0 - AUTO-SYNC & VIP LAYOUT)
-# ============================================================================
-# ============================================================================
-# PÁGINA: DEPTO MÉDICO (V51.0 - RICH DETAILS & SOURCE TRACKING)
+# PÁGINA: DEPTO MÉDICO (V51.1 - IMPORT FIX)
 # ============================================================================
 def show_depto_medico():
     import streamlit as st
@@ -7362,15 +7359,17 @@ def show_depto_medico():
     import re
     from datetime import datetime, timedelta
     
-    # Tenta importar o monitor
+    # --- CORREÇÃO DO IMPORT ---
+    # Importamos a CLASSE, não a variável. Mais seguro.
     try:
-        from injuries import monitor  # Importa a instância global criada no final do injuries.py
+        from injuries import InjuryMonitor
+        monitor = InjuryMonitor() # Instancia aqui na hora
     except ImportError:
         monitor = None
-        st.error("⚠️ Módulo 'injuries.py' não encontrado.")
+        st.error("⚠️ Módulo 'injuries.py' ou classe 'InjuryMonitor' não encontrados.")
         return
 
-    # --- 1. CSS VISUAL (ATUALIZADO PARA DETALHES) ---
+    # --- 1. CSS VISUAL ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@400;600&display=swap');
@@ -7392,9 +7391,8 @@ def show_depto_medico():
         .vip-card:hover { transform: translateY(-2px); }
         
         .vip-img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #ef4444; object-fit: cover; background: #000; flex-shrink: 0; }
-        .vip-info { flex: 1; min-width: 0; } /* min-width garante wrap do texto */
+        .vip-info { flex: 1; min-width: 0; } 
         
-        .vip-header { display: flex; justify-content: space-between; align-items: flex-start; }
         .vip-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .vip-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
         
@@ -7417,12 +7415,12 @@ def show_depto_medico():
     """, unsafe_allow_html=True)
 
     # --- 2. LÓGICA DE AUTO-ATUALIZAÇÃO (3 HORAS) ---
-    def check_and_update_injuries():
-        if not monitor: return {}
+    def check_and_update_injuries(monitor_instance):
+        if not monitor_instance: return {}
 
-        # Carrega dados atuais da memória (que veio do Supabase)
-        data = monitor.get_all_injuries()
-        meta = monitor.cache.get('updated_at')
+        # Carrega dados atuais da memória (Supabase)
+        data = monitor_instance.get_all_injuries()
+        meta = monitor_instance.cache.get('updated_at')
         
         need_update = False
         time_diff_str = "Desconhecido"
@@ -7450,24 +7448,20 @@ def show_depto_medico():
                 priority_teams = []
                 if games:
                     for g in games:
-                        # Extrai sigla simples (ex: "LAL") do nome completo se necessário
                         priority_teams.append(g.get('home_abbr', g.get('home')))
                         priority_teams.append(g.get('away_abbr', g.get('away')))
                 else:
-                    # Fallback: Atualiza times populares se não houver jogos hoje
                     priority_teams = ["LAL", "GSW", "BOS", "PHI", "MIL", "DEN", "PHX", "DAL"]
 
-                # Chama a atualização do monitor (Lógica Híbrida v60.1)
-                monitor.update_all_teams(priority_teams)
+                monitor_instance.update_all_teams(priority_teams)
                 st.toast("Depto Médico Atualizado via Satélite!", icon="📡")
                 
-                # Retorna dados frescos
-                return monitor.get_all_injuries()
+                return monitor_instance.get_all_injuries()
         
         return data
 
     # --- 3. PROCESSAMENTO DE DADOS ---
-    raw_teams_data = check_and_update_injuries()
+    raw_teams_data = check_and_update_injuries(monitor)
     
     if not raw_teams_data:
         st.warning("⚠️ Não foi possível carregar dados de lesões.")
@@ -7481,8 +7475,7 @@ def show_depto_medico():
                 p['team'] = team
                 injuries_flat.append(p)
 
-    # --- 4. MOTOR DE FOTOS 2.0 (ID RECOVERY) ---
-    # (Mantido igual pois sua lógica de ID estava ótima)
+    # --- 4. MOTOR DE FOTOS (ID RECOVERY) ---
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     
     def normalize_name_simple(n):
@@ -7525,7 +7518,7 @@ def show_depto_medico():
         pid = player_stats['id']
         minutes = float(player_stats['min'])
         
-        # Define Cores e Labels
+        # Define Cores
         is_out = any(x in status for x in ['OUT', 'SURG', 'INJURED'])
         status_display = "OUT" if is_out else "GTD / DÚVIDA"
         color_hex = "#ef4444" if is_out else "#facc15"
@@ -7538,13 +7531,11 @@ def show_depto_medico():
             "status": status_display,
             "color": color_hex,
             "bg": bg_hex,
-            "desc": details[:100] + "..." if len(details) > 100 else details, # Trunca texto longo
+            "desc": details[:100] + "..." if len(details) > 100 else details,
             "source": source,
             "min": minutes
         }
 
-        # Critério VIP: +20 min OU Titular (min > 25) OU Jogador com ID encontrado e status crítico
-        # Ajustei para ser mais inclusivo com o detalhe da lesão
         if minutes >= 25 or (pid > 0 and minutes >= 18):
             vip_ward.append(obj)
         else:
@@ -7554,10 +7545,8 @@ def show_depto_medico():
     vip_ward.sort(key=lambda x: x['min'], reverse=True)
 
     # --- 6. RENDERIZAÇÃO ---
-    
     st.markdown(f'<div class="med-title">🚑 HOSPITAL HUB <span style="font-size:14px; background:#ef4444; padding:2px 6px; border-radius:4px; margin-left:10px;">LIVE</span></div>', unsafe_allow_html=True)
     
-    # Header com última atualização
     last_ts = monitor.cache.get('updated_at', '')
     if last_ts:
         try:
@@ -7565,13 +7554,12 @@ def show_depto_medico():
             st.markdown(f'<div class="med-sub">Monitoramento Inteligente (CBS & ESPN). Atualizado em: {dt_ts.strftime("%d/%m %H:%M")}</div>', unsafe_allow_html=True)
         except: pass
 
-    # SEÇÃO 1: UTI VIP (Estrelas)
+    # SEÇÃO 1: UTI VIP
     if vip_ward:
         st.markdown("**🚨 IMPACTO ALTO (Titulares/Rotação)**")
         cols = st.columns(3)
         for i, p in enumerate(vip_ward):
             with cols[i % 3]:
-                # Fotos
                 nba_img = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{p['id']}.png"
                 fallback = "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
                 img_src = nba_img if p['id'] > 0 else fallback
@@ -7582,55 +7570,32 @@ def show_depto_medico():
                     <div class="vip-info">
                         <div class="vip-name">{p['name']}</div>
                         <div class="vip-meta">{p['team']} • {p['min']:.0f} MPG</div>
-                        
                         <div class="vip-status-row">
-                            <span class="vip-status" style="color:{p['color']}; background:{p['bg']}; border:1px solid {p['color']}40;">
-                                {p['status']}
-                            </span>
+                            <span class="vip-status" style="color:{p['color']}; background:{p['bg']}; border:1px solid {p['color']}40;">{p['status']}</span>
                             <span class="vip-source">{p['source']}</span>
                         </div>
-                        
-                        <div class="vip-desc" title="{p['desc']}">
-                            {p['desc'] if p['desc'] else 'Sem detalhes adicionais.'}
-                        </div>
+                        <div class="vip-desc" title="{p['desc']}">{p['desc'] if p['desc'] else 'Sem detalhes adicionais.'}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
     
     st.divider()
 
-    # SEÇÃO 2: ENFERMARIA GERAL (Por Time)
+    # SEÇÃO 2: GERAL
     st.markdown("**📋 RELATÓRIO GERAL (Reservas & Banco)**")
-    
     if not general_ward:
         st.info("Nenhuma lesão secundária reportada.")
     else:
         sorted_teams = sorted(general_ward.keys())
         row_cols = st.columns(3)
-        
         for idx, team in enumerate(sorted_teams):
             players = general_ward[team]
             with row_cols[idx % 3]:
-                st.markdown(f"""
-                <div class="team-block">
-                    <div class="team-header">
-                        <span>{team}</span>
-                        <span style="color:#94a3b8">{len(players)}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-                
+                st.markdown(f"""<div class="team-block"><div class="team-header"><span>{team}</span><span style="color:#94a3b8">{len(players)}</span></div>""", unsafe_allow_html=True)
                 for p in players:
                     cls = "inj-stat-out" if "OUT" in p['status'] else "inj-stat-gtd"
-                    # Usamos 'title' para mostrar o detalhe no hover
                     detail_tooltip = p['desc'].replace('"', "'")
-                    
-                    st.markdown(f"""
-                    <div class="inj-row" title="{detail_tooltip}">
-                        <span class="inj-name">{p['name']}</span>
-                        <span class="{cls}">{p['status']}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    st.markdown(f"""<div class="inj-row" title="{detail_tooltip}"><span class="inj-name">{p['name']}</span><span class="{cls}">{p['status']}</span></div>""", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             
 # ============================================================================
@@ -8642,6 +8607,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
