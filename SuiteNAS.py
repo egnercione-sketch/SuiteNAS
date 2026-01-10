@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V9.0 - THE STRATEGY FACTORY)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V9.1 - SCOPE FIX)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6651,13 +6651,11 @@ def show_desdobramentos_inteligentes():
         def get_data_universal(key): return {}
 
     # --- 2. INTEGRAÇÃO PLAYER CLASSIFIER (LOCAL ADAPTER) ---
-    # Adaptado do arquivo que você forneceu para rodar inline
     class LocalPlayerClassifier:
         def __init__(self):
             pass
             
         def get_role_classification(self, ctx):
-            # Lógica baseada no seu player_classifier.py
             pts = ctx.get('pts_L5', 0)
             reb = ctx.get('reb_L5', 0)
             ast = ctx.get('ast_L5', 0)
@@ -6671,14 +6669,13 @@ def show_desdobramentos_inteligentes():
             return "deep_bench", "high"
 
         def get_play_style(self, ctx):
-            # Define o estilo baseado nas médias per minute (simulado aqui pelos totais)
             reb = ctx.get('reb_L5', 0)
             ast = ctx.get('ast_L5', 0)
             pts = ctx.get('pts_L5', 0)
             
             if ast >= 5.5: return "playmaker"
             if reb >= 8.0: return "rebounder"
-            if reb >= 5 and ast >= 4: return "hustle" # O motorzinho
+            if reb >= 5 and ast >= 4: return "hustle"
             if pts >= 18: return "scorer"
             return "role_player"
 
@@ -6731,15 +6728,39 @@ def show_desdobramentos_inteligentes():
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 4. HEADER & CONTROLES ---
+    # --- 4. HELPERS (MOVIDOS PARA CIMA PARA EVITAR ERRO DE ESCOPO) ---
+    def nuclear_normalize(text):
+        if not text: return ""
+        try:
+            text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper()
+            return re.sub(r'[^A-Z0-9]', '', text)
+        except: return ""
+
+    # Carrega Mapa de Fotos
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    ID_VAULT = {}
+    if not df_l5.empty:
+        try:
+            c_id = next((c for c in df_l5.columns if 'ID' in c), 'PLAYER_ID')
+            c_name = next((c for c in df_l5.columns if 'PLAYER' in c), 'PLAYER')
+            for _, row in df_l5.iterrows():
+                try: ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
+                except: pass
+        except: pass
+
+    def get_photo(name):
+        pid = ID_VAULT.get(nuclear_normalize(name), 0)
+        return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    # --- 5. HEADER & CONTROLES ---
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🧩 V9.0 Strategy Factory</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🧩 V9.1 Strategy Factory</span></div>', unsafe_allow_html=True)
     with c_tog:
         debug_mode = st.toggle("🛠️ Debug", value=False)
 
-    # --- 5. FACTORY ENGINE V9.0 ---
+    # --- 6. FACTORY ENGINE V9.0 ---
     class StrategyFactoryV9:
         def __init__(self, logs, games):
             self.logs = logs
@@ -6846,10 +6867,9 @@ def show_desdobramentos_inteligentes():
                     continue
 
         def _add_to_inventory(self, category, name, team, legs, ctx):
-            # Escolhe a melhor perna (maior hit rate, depois maior valor relativo)
+            # Escolhe a melhor perna
             best_leg = sorted(legs, key=lambda x: (x['hits'], x['score']), reverse=True)[0]
             
-            # Se for Motor/Anchor com multi-pernas, guardamos info extra
             is_barrel = len(legs) >= 2
             
             self.inventory[category].append({
@@ -6880,16 +6900,16 @@ def show_desdobramentos_inteligentes():
                     if p['usage_count'] < max_usage and p['team'] not in exclude_teams:
                         p['usage_count'] += 1
                         return p
-                return None # Falta de estoque
+                return None 
 
             # --- LOOP DE PRODUÇÃO ---
-            # Alternamos entre as fórmulas para diversificar
             formulas = ['PYRAMID', 'WALL', 'ATTACK']
             
             for i in range(max_tickets):
                 formula = formulas[i % 3]
                 legs = []
                 used_teams = set()
+                meta = {}
                 
                 # Tenta montar baseado na fórmula
                 if formula == 'PYRAMID': # 1 Anchor, 1 Motor, 1 Worker, 1 Base
@@ -6918,7 +6938,6 @@ def show_desdobramentos_inteligentes():
                     meta = {'title': f"O PAREDÃO #{i+1}", 'theme': 'header-wall', 'desc': 'Foco em segurança e linhas baixas.'}
 
                 elif formula == 'ATTACK': # 2 Anchors, 1 Worker (Upside)
-                    # Aqui permitimos Anchors com mais uso
                     for _ in range(2):
                         p = pick_player('ANCHOR', used_teams, True)
                         if p: legs.append(p); used_teams.add(p['team'])
@@ -6928,19 +6947,17 @@ def show_desdobramentos_inteligentes():
                     
                     meta = {'title': f"ATAQUE TOTAL #{i+1}", 'theme': 'header-attack', 'desc': 'Potencial alto com líderes de pontuação.'}
 
-                # Validação Final do Bilhete
-                if len(legs) >= 3: # Aceitamos triplas ou quadruplas
+                if len(legs) >= 3: 
                     ticket = meta.copy()
                     ticket['legs'] = legs
                     tickets.append(ticket)
             
             return tickets
 
-    # --- 6. EXECUÇÃO CONTROLADA ---
+    # --- 7. EXECUÇÃO CONTROLADA ---
     def run_process():
         today_key = f"strat_v9_{datetime.now().strftime('%Y-%m-%d')}"
         
-        # Cache Check
         if not debug_mode:
             if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
                 return st.session_state.daily_strat_cache['data'], {}
@@ -6950,19 +6967,16 @@ def show_desdobramentos_inteligentes():
                     st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud}
                     return cloud, {}
 
-        # Load Data
         logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
         games = st.session_state.get("scoreboard") or get_data_universal("scoreboard")
         
         if not logs or not games:
             return [], {"error": "Dados indisponíveis (Logs ou Scoreboard)."}
             
-        # Run Factory
         factory = StrategyFactoryV9(logs, games)
         factory.ingest_and_classify()
         tickets = factory.manufacture_tickets()
         
-        # Save
         if not debug_mode and db and tickets: db.save_data(today_key, tickets)
         
         return tickets, factory.diag
@@ -6970,7 +6984,6 @@ def show_desdobramentos_inteligentes():
     # --- MAIN ---
     tickets, diag = run_process()
     
-    # Debug
     if debug_mode and diag:
         if "error" in diag: st.error(diag['error'])
         else:
@@ -6991,13 +7004,6 @@ def show_desdobramentos_inteligentes():
     for i, t in enumerate(tickets):
         col = cols[i % 2]
         with col:
-            # Cor da tag de Role
-            def get_role_style(r):
-                if 'ANCHOR' in r: return 'rt-anchor', '👑 ÂNCORA'
-                if 'MOTOR' in r: return 'rt-motor', '⚙️ MOTOR'
-                if 'WORKER' in r: return 'rt-worker', '👷 OPERÁRIO'
-                return 'rt-base', '🛡️ BASE'
-
             st.markdown(f"""
             <div class="ticket-card">
                 <div class="ticket-top {t['theme']}">
@@ -7010,17 +7016,7 @@ def show_desdobramentos_inteligentes():
             
             for leg in t['legs']:
                 photo = get_photo(leg['player'])
-                # Identifica qual lista original ele veio (reversa do loop de montagem é complexa, 
-                # simplificamos assumindo pelo role implícito se não tiver salvo)
-                # No código V9, não salvei o 'role' explícito no dict final, vou inferir visualmente
-                # ou podemos adicionar no _add_to_inventory se precisar.
-                # Como não temos o role salvo no objeto leg final, vamos usar lógica simples de display:
                 
-                # Mas espera! No _add_to_inventory eu salvei em listas separadas, mas ao juntar no manufacture 
-                # eu perdi a key da lista. Vamos corrigir visualmente pelo stat ou assumir genérico.
-                # (Para V9.1 podemos adicionar 'role' no objeto leg).
-                
-                # Display Genérico Rico
                 barrel_html = '<span class="barrel-icon">⚡</span>' if leg['is_barrel'] else ''
                 stat_clr = "#fbbf24" if "PTS" in leg['stat'] else ("#60a5fa" if "REB" in leg['stat'] else "#facc15")
                 
@@ -7039,27 +7035,6 @@ def show_desdobramentos_inteligentes():
                 """, unsafe_allow_html=True)
                 
             st.markdown("</div></div>", unsafe_allow_html=True)
-
-    # Legenda Helpers
-    def nuclear_normalize(text):
-        if not text: return ""
-        try: return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
-        except: return ""
-    
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    ID_VAULT = {}
-    if not df_l5.empty:
-        try:
-            c_id = next((c for c in df_l5.columns if 'ID' in c), 'PLAYER_ID')
-            c_name = next((c for c in df_l5.columns if 'PLAYER' in c), 'PLAYER')
-            for _, row in df_l5.iterrows():
-                try: ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
-                except: pass
-        except: pass
-
-    def get_photo(name):
-        pid = ID_VAULT.get(nuclear_normalize(name), 0)
-        return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
         
 # ============================================================================
 # FUNÇÃO AUXILIAR: RENDERIZAÇÃO DO BANCO (ESCALAÇÕES)
@@ -8643,6 +8618,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
