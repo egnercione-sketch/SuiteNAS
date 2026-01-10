@@ -1,8 +1,9 @@
 # ============================================================================
-# INJURIES.PY - INTELLIGENCE MODULE v60.1 (SUPABASE PURE)
+# INJURIES.PY - INTELLIGENCE MODULE v60.2 (FIXED ATTRIBUTE ERROR)
 # ============================================================================
 # Lógica: Híbrida (ESPN API + CBS Scraping)
 # Persistência: 100% Supabase (Key: 'injuries')
+# FIX: Reintroduzido método 'get_all_injuries' necessário para a UI.
 # ============================================================================
 
 import os
@@ -106,7 +107,6 @@ class InjuryMonitor:
             try:
                 data = db.get_data("injuries")
                 if data and isinstance(data, dict) and "teams" in data:
-                    # print("✅ [InjuryMonitor] Dados carregados do Supabase.")
                     return data
             except Exception as e:
                 print(f"⚠️ [InjuryMonitor] Falha ao ler Supabase: {e}")
@@ -117,7 +117,6 @@ class InjuryMonitor:
     def refresh_market_intelligence(self):
         """Atualiza dados da CBS (Scraping) a cada 30 min."""
         if time.time() - self.last_cbs_update > 1800:
-            # print("🕵️ [InjuryMonitor] Consultando CBS Sports...")
             self.cbs_data = fetch_cbs_injuries()
             self.last_cbs_update = time.time()
 
@@ -174,10 +173,7 @@ class InjuryMonitor:
                 cbs_info = self.cbs_data.get(norm_name)
                 
                 if cbs_info:
-                    # Se CBS diz que tem lesão, consideramos (mesmo que ESPN diga active)
                     is_hurt = True
-                    
-                    # Combina status para maior clareza
                     cbs_status = cbs_info.get('status', '')
                     if cbs_status and cbs_status != "Unknown":
                         final_status = f"{final_status} | CBS: {cbs_status}"
@@ -208,7 +204,6 @@ class InjuryMonitor:
         self.refresh_market_intelligence()
         
         success_count = 0
-        # print(f"🔄 [InjuryMonitor] Cruzando dados de {len(team_list)} times...")
         
         for team in team_list:
             if self.fetch_injuries_for_team(team):
@@ -225,40 +220,36 @@ class InjuryMonitor:
         
         if db:
             try:
-                # Salva na chave original que o sistema todo usa
                 db.save_data("injuries", self.cache)
-                # print("☁️ [InjuryMonitor] Dados sincronizados com Supabase (Key: injuries).")
             except Exception as e:
                 print(f"❌ [InjuryMonitor] Erro ao salvar no Supabase: {e}")
 
     def get_team_injuries(self, team_abbr):
-        """Retorna lesões de um time (Lê da memória que foi carregada do Supabase)."""
+        """Retorna lesões de um time específico."""
         return self.cache.get("teams", {}).get(team_abbr.upper(), [])
+
+    # --- MÉTODO RESTAURADO (CRÍTICO PARA A UI) ---
+    def get_all_injuries(self):
+        """Retorna o dicionário completo de times e lesões."""
+        return self.cache.get("teams", {})
 
     def is_player_blocked(self, player_name, team_abbr):
         """
         Verifica se o jogador deve ser bloqueado.
-        Usa Fuzzy Match e palavras-chave de risco.
         """
         target = normalize_name(player_name)
         injuries = self.get_team_injuries(team_abbr)
         
-        # Palavras que indicam risco inaceitável para aposta
         block_keywords = ['out', 'surg', 'injur', 'doubt', 'protocol', 'g-league']
-        
-        # 'Questionable' (quest) e 'Day-to-Day' (day) são riscos.
-        # Se quiser ser conservador, mantenha na lista.
         block_keywords.extend(['quest', 'day', 'gtd', 'game time']) 
         
         for inj in injuries:
             inj_name = inj.get("name_norm", "")
-            # Se nome bate
             if target in inj_name or inj_name in target:
                 status = str(inj.get("status", "")).lower()
-                # Se status contém palavra proibida
                 if any(x in status for x in block_keywords):
                     return True
         return False
 
-# Instância Global
+# Instância Global (Opcional, mas útil para testes)
 monitor = InjuryMonitor()
