@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V9.2 - THE FINAL ORCHESTRATOR)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V9.3 - FULL ORCHESTRATOR & BUGFIX)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6638,282 +6638,362 @@ def show_desdobramentos_inteligentes():
     import unicodedata
     import random
     from collections import defaultdict
-
-    # --- 1. INFRAESTRUTURA & CSS ---
+    
+    # --- 1. INFRAESTRUTURA ---
     try: from db_manager import db 
     except ImportError: db = None
     
-    try: 
-        from injuries import InjuryMonitor
-        monitor = InjuryMonitor()
+    try: from injuries import InjuryMonitor; monitor = InjuryMonitor()
     except ImportError: monitor = None
         
     try: from SuiteNAS import get_data_universal
     except ImportError:
         def get_data_universal(key): return {}
 
+    # --- 2. INTEGRAÇÃO PLAYER CLASSIFIER (LOCAL ADAPTER) ---
+    class LocalPlayerClassifier:
+        def __init__(self):
+            pass
+            
+        def get_role_classification(self, ctx):
+            pts = ctx.get('pts_L5', 0)
+            reb = ctx.get('reb_L5', 0)
+            ast = ctx.get('ast_L5', 0)
+            combined = pts + reb + ast
+            is_starter = ctx.get('is_starter', False)
+            
+            if is_starter and combined >= 25: return "star", "low"
+            elif is_starter and combined >= 15: return "starter", "low"
+            elif not is_starter and combined >= 20: return "bench_scorer", "medium"
+            elif not is_starter and combined >= 12: return "rotation", "medium"
+            return "deep_bench", "high"
+
+        def get_play_style(self, ctx):
+            reb = ctx.get('reb_L5', 0)
+            ast = ctx.get('ast_L5', 0)
+            pts = ctx.get('pts_L5', 0)
+            
+            if ast >= 5.5: return "playmaker"
+            if reb >= 8.0: return "rebounder"
+            if reb >= 5 and ast >= 4: return "hustle"
+            if pts >= 18: return "scorer"
+            return "role_player"
+
+    # --- 3. CSS VISUAL ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
-        .strat-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin: 0; text-transform: uppercase; }
-        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 20px; }
         
-        /* LEGENDA COMPACTA */
-        .legend-box {
-            background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;
-            padding: 10px; margin-bottom: 20px; font-size: 11px; color: #94a3b8; display: flex; gap: 15px;
-        }
-        .legend-item { display: flex; align-items: center; gap: 4px; }
-        .legend-bold { color: #e2e8f0; font-weight: 600; }
-
-        /* TICKET CARD */
+        .strat-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin: 0; text-transform: uppercase; text-shadow: 0 0 15px rgba(251,191,36,0.2); }
+        .strat-meta { font-family: 'Inter'; font-size: 12px; color: #94a3b8; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        
+        /* CARD TICKET */
         .ticket-card {
             background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
             border: 1px solid #334155; border-radius: 12px;
             padding: 0; margin-bottom: 20px; overflow: hidden;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
         }
-        .header-pyramid { background: rgba(59, 130, 246, 0.2); border-bottom: 1px solid #3b82f6; }
-        .header-wall { background: rgba(16, 185, 129, 0.2); border-bottom: 1px solid #10b981; }
-        .header-attack { background: rgba(239, 68, 68, 0.2); border-bottom: 1px solid #ef4444; }
+        .ticket-card:hover { transform: translateY(-3px); border-color: #fbbf24; }
+        
+        /* HEADER CORES POR FÓRMULA */
+        .header-pyramid { background: rgba(59, 130, 246, 0.2); border-bottom: 1px solid #3b82f6; } /* Azul */
+        .header-wall { background: rgba(16, 185, 129, 0.2); border-bottom: 1px solid #10b981; } /* Verde */
+        .header-attack { background: rgba(239, 68, 68, 0.2); border-bottom: 1px solid #ef4444; } /* Vermelho */
         
         .ticket-top { padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
-        .ticket-title { font-family: 'Oswald'; font-size: 15px; color: #fff; letter-spacing: 0.5px; }
-        .ticket-body { padding: 12px 15px; }
+        .ticket-title { font-family: 'Oswald'; font-size: 16px; color: #fff; letter-spacing: 0.5px; }
+        .ticket-badge { font-family: 'Inter'; font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; background: rgba(0,0,0,0.3); color: #fff; }
         
-        /* PLAYER ROW */
-        .player-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.05); }
-        .player-row:last-child { border-bottom: none; margin-bottom: 0; }
-        .p-img { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #334155; object-fit: cover; background: #000; }
-        .p-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1; }
-        .p-meta { font-size: 9px; color: #64748b; font-family: 'Inter'; }
+        .ticket-body { padding: 10px 15px; }
         
-        .stat-badge { background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; border-radius: 6px; padding: 2px 8px; text-align: center; min-width: 55px; }
-        .stat-val { font-family: 'Oswald'; font-size: 15px; font-weight: bold; color: #fff; line-height: 1; }
-        .stat-lbl { font-family: 'Inter'; font-size: 8px; color: #94a3b8; text-transform: uppercase; }
+        /* LINHA DO JOGADOR */
+        .player-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .p-img { width: 42px; height: 42px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; }
+        .p-info { flex: 1; }
+        .p-name { font-family: 'Oswald'; font-size: 14px; color: #e2e8f0; line-height: 1.1; }
         
-        .role-tag { font-size: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-top: 2px; display: inline-block; }
-        .rt-anchor { background: #7f1d1d; color: #fca5a5; }
-        .rt-motor { background: #14532d; color: #86efac; }
-        .rt-worker { background: #1e3a8a; color: #93c5fd; }
-        .rt-base { background: #334155; color: #cbd5e1; }
+        .p-stat-box { text-align: right; min-width: 60px; }
+        .p-val { font-family: 'Oswald'; font-size: 16px; font-weight: bold; color: #fff; line-height: 1; }
+        .p-lbl { font-family: 'Inter'; font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 700; }
+        
+        .barrel-icon { color: #facc15; font-size: 10px; margin-left: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 2. HELPERS & CLASSIFIER ---
+    # --- 4. HELPERS (ESCOPO GLOBAL DA FUNÇÃO) ---
     def nuclear_normalize(text):
         if not text: return ""
-        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
-
-    # Carregamento de IDs para fotos
-    df_l5_raw = st.session_state.get('df_l5', pd.DataFrame())
-    ID_VAULT = {}
-    if not df_l5_raw.empty:
         try:
-            c_id = next((c for c in df_l5_raw.columns if 'ID' in c), 'PLAYER_ID')
-            c_name = next((c for c in df_l5_raw.columns if 'PLAYER' in c), 'PLAYER')
-            for _, row in df_l5_raw.iterrows():
-                ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
+            text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper()
+            return re.sub(r'[^A-Z0-9]', '', text)
+        except: return ""
+
+    # Carrega Mapa de Fotos
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    ID_VAULT = {}
+    if not df_l5.empty:
+        try:
+            c_id = next((c for c in df_l5.columns if any(x in c.upper() for x in ['ID', 'PERSON'])), 'PLAYER_ID')
+            c_name = next((c for c in df_l5.columns if any(x in c.upper() for x in ['PLAYER', 'NAME'])), 'PLAYER')
+            for _, row in df_l5.iterrows():
+                try: 
+                    pid = int(float(row.get(c_id, 0)))
+                    if pid > 0: ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = pid
+                except: continue
         except: pass
 
     def get_photo(name):
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 3. ENGINE O MAESTRO V9.2 ---
-    class OrchestratorV9_2:
+    # --- 5. HEADER & CONTROLES ---
+    c_head, c_tog = st.columns([4, 1])
+    with c_head:
+        st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🧩 V9.3 Full Orchestrator</span></div>', unsafe_allow_html=True)
+    with c_tog:
+        debug_mode = st.toggle("🛠️ Debug", value=False)
+
+    # --- 6. FACTORY ENGINE V9.3 ---
+    class StrategyFactoryV9:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
+            self.classifier = LocalPlayerClassifier()
             self.active_teams = self._get_active_teams()
-            self.inventory = {'ANCHOR': [], 'MOTOR': [], 'WORKER': [], 'BASE': []}
-            self.diag = {"analyzed": 0, "approved_legs": 0}
+            
+            # Inventário de Ativos (Pernas)
+            self.inventory = {
+                'ANCHOR': [],   # Elite / Pontuadores
+                'MOTOR': [],    # Double Barrel (AST/REB/Hustle)
+                'WORKER': [],   # Rotação Sólida
+                'BASE': []      # Banco Confiável
+            }
+            
+            self.diag = {"analyzed": 0, "approved": 0, "rejected_injury": 0, "legs_total": 0}
 
         def _get_active_teams(self):
             teams = set()
             for g in self.games:
-                teams.add(self._norm(g.get('home'))); teams.add(self._norm(g.get('away')))
+                h = g.get('home_abbr') or g.get('home')
+                a = g.get('away_abbr') or g.get('away')
+                if h: teams.add(self._norm(h))
+                if a: teams.add(self._norm(a))
             return teams
 
         def _norm(self, t):
             if not t: return ""
             map_nba = {"GS": "GSW", "PHX": "PHX", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "BK": "BKN"}
-            return map_nba.get(t.upper(), t.upper())
+            return map_nba.get(str(t).upper(), str(t).upper())
 
-        def process_inventory(self):
-            """Analisa cada stat de cada jogador como um ativo separado."""
+        def ingest_and_classify(self):
+            """Fase 1: Classificação e Enriquecimento de Ativos"""
             for name, data in self.logs.items():
                 self.diag['analyzed'] += 1
                 team = self._norm(data.get('team'))
+                
                 if team not in self.active_teams: continue
-                if monitor and monitor.is_player_blocked(name, team): continue
+                if monitor and monitor.is_player_blocked(name, team): 
+                    self.diag['rejected_injury'] += 1
+                    continue
                 
                 logs = data.get('logs', {})
                 if not logs: continue
-
-                # Contexto estatístico básico
-                pts_l5 = statistics.mean(logs.get('PTS', [0])[:5])
-                reb_l5 = statistics.mean(logs.get('REB', [0])[:5])
-                ast_l5 = statistics.mean(logs.get('AST', [0])[:5])
-                min_l5 = statistics.mean(logs.get('min', [0])[:5]) if 'min' in logs else 0
                 
-                # Coleta pernas que passaram no teste de 80%
-                player_legs = []
+                # Contexto para o Classificador
+                ctx = {
+                    'pts_L5': statistics.mean(logs.get('PTS', [0])[:5]),
+                    'reb_L5': statistics.mean(logs.get('REB', [0])[:5]),
+                    'ast_L5': statistics.mean(logs.get('AST', [0])[:5]),
+                    'min_L5': statistics.mean(logs.get('min', [0])[:5]) if 'min' in logs else 0,
+                    'is_starter': True if statistics.mean(logs.get('min', [0])[:5]) > 22 else False
+                }
+                
+                role_tag, risk = self.classifier.get_role_classification(ctx)
+                style_tag = self.classifier.get_play_style(ctx)
+                
+                # Coleta todas as pernas válidas (Hit Rate > 80%)
+                valid_player_legs = []
                 for stat in ['PTS', 'REB', 'AST']:
                     vals = logs.get(stat, [])
-                    if len(vals) < 10: continue
-                    l10, l5 = vals[:10], vals[:5]
-                    try: floor_val = sorted(l10)[1] # Piso 90%
+                    if len(vals) < 5: continue
+                    l10 = vals[:10]
+                    l5 = vals[:5]
+                    
+                    try: floor_val = sorted(l10)[1] if len(l10) >= 2 else min(l10)
                     except: continue
                     
-                    if floor_val < {'PTS': 8, 'REB': 3, 'AST': 2}[stat]: continue
+                    min_req = {'PTS': 8, 'REB': 3, 'AST': 2}
+                    if floor_val < min_req[stat]: continue
                     
                     hits_l10 = sum(1 for v in l10 if v >= floor_val)
                     if hits_l10 >= 8:
-                        player_legs.append({
+                        valid_player_legs.append({
                             'stat': stat, 'line': floor_val, 'hits': hits_l10,
-                            'score': (hits_l10 * 8) + statistics.mean(l5)
+                            'score': (hits_l10 * 10) + statistics.mean(l5)
                         })
-
-                if not player_legs: continue
-
-                # CLASSIFICAÇÃO HIERÁRQUICA DE CADA PERNA
-                is_barrel = len(player_legs) >= 2
                 
-                for leg in player_legs:
-                    role = 'BASE' # Default
-                    
-                    # 1. ÂNCORA: Star/Starter + Foco Pontos
-                    if min_l5 >= 28 and leg['stat'] == 'PTS' and leg['line'] >= 18:
-                        role = 'ANCHOR'
-                    # 2. MOTOR: Glue Guy (Stats suporte + Barrel)
-                    elif is_barrel and leg['stat'] in ['AST', 'REB'] and (ast_l5 > 4.5 or reb_l5 > 6.5):
-                        role = 'MOTOR'
-                    # 3. OPERÁRIO: Rotação sólida
-                    elif min_l5 >= 22 and (leg['stat'] == 'PTS' and leg['line'] >= 10):
-                        role = 'WORKER'
-                    
-                    # Salva no inventário
-                    self.inventory[role].append({
-                        'player': name, 'team': team, 'stat': leg['stat'], 'line': leg['line'],
-                        'is_barrel': is_barrel, 'score': leg['score'], 'usage': 0, 'role': role
-                    })
-                    self.diag['approved_legs'] += 1
+                if not valid_player_legs: continue
+                self.diag['legs_total'] += len(valid_player_legs)
+                is_barrel = len(valid_player_legs) >= 2
 
-        def manufacture_desdobramento(self):
-            """Montagem cirúrgica de bilhetes (Quartetos Obrigatórios)."""
-            for cat in self.inventory: self.inventory[cat].sort(key=lambda x: x['score'], reverse=True)
+                # Distribui cada perna para o inventário correto
+                for leg in valid_player_legs:
+                    asset = {
+                        'player': name, 'team': team, 'is_barrel': is_barrel,
+                        'stat': leg['stat'], 'line': leg['line'], 'score': leg['score'],
+                        'usage_count': 0
+                    }
+                    
+                    # 1. ÂNCORA: Star/Starter + PTS ou Triple Barrel
+                    if (role_tag in ['star', 'starter'] and leg['stat'] == 'PTS' and leg['line'] >= 18) or (is_barrel and len(valid_player_legs) >= 3):
+                        self.inventory['ANCHOR'].append(asset)
+                    # 2. MOTOR: Glue Guy (Stats suporte + Double Barrel)
+                    elif is_barrel and leg['stat'] in ['AST', 'REB'] and style_tag in ['playmaker', 'hustle', 'rebounder']:
+                        self.inventory['MOTOR'].append(asset)
+                    # 3. OPERÁRIO: Rotação sólida 10-15 pts
+                    elif (role_tag in ['starter', 'rotation'] and leg['stat'] == 'PTS' and leg['line'] >= 10):
+                        self.inventory['WORKER'].append(asset)
+                    # 4. BASE: Segurança absoluta
+                    else:
+                        self.inventory['BASE'].append(asset)
+                
+                self.diag['approved'] += 1
+
+        def manufacture_tickets(self):
+            """Fase 2: Montagem balanceada de quartetos"""
+            # Ordena por Score
+            for cat in self.inventory:
+                self.inventory[cat].sort(key=lambda x: x['score'], reverse=True)
             
             tickets = []
-            max_tickets = 12
+            max_tickets = 15
             
-            def pick_leg(category, exclude_teams, used_players_in_ticket, allow_usage_limit=2):
-                for leg in self.inventory[category]:
-                    if leg['usage'] < allow_usage_limit and \
-                       leg['team'] not in exclude_teams and \
-                       leg['player'] not in used_players_in_ticket:
-                        leg['usage'] += 1
-                        return leg
+            def pick_asset(category, exclude_teams, exclude_players, max_usage=2):
+                for p in self.inventory[category]:
+                    if p['usage_count'] < max_usage and p['team'] not in exclude_teams and p['player'] not in exclude_players:
+                        p['usage_count'] += 1
+                        return p
                 return None
 
-            # Loop de produção por Fórmulas
-            formulas = ['ATTACK', 'PYRAMID', 'WALL']
+            # Ordem de Fórmulas para garantir desdobramento
+            formulas = ['PYRAMID', 'ATTACK', 'WALL', 'PYRAMID', 'ATTACK', 'WALL']
+            
             for i in range(max_tickets):
-                formula = formulas[i % 3]
-                legs, teams, players = [], set(), set()
-                
-                if formula == 'ATTACK': # 2 Anchor + 2 Worker
-                    for _ in range(2):
-                        l = pick_leg('ANCHOR', teams, players, 3) # Anchors permitem usage 3
-                        if l: legs.append(l); teams.add(l['team']); players.add(l['player'])
-                    for _ in range(2):
-                        l = pick_leg('WORKER', teams, players)
-                        if l: legs.append(l); teams.add(l['team']); players.add(l['player'])
-                    meta = {'title': f"🚀 ATAQUE TOTAL #{i+1}", 'class': 'header-attack', 'desc': 'Foco em pontuadores elite.'}
+                formula = formulas[i % len(formulas)]
+                legs = []
+                u_teams = set()
+                u_players = set()
+                meta = {}
 
-                elif formula == 'PYRAMID': # 1 Anchor + 1 Motor + 1 Worker + 1 Base
-                    l1 = pick_leg('ANCHOR', teams, players, 3)
-                    if l1: legs.append(l1); teams.add(l1['team']); players.add(l1['player'])
-                    l2 = pick_leg('MOTOR', teams, players, 3) # Motors permitem usage 3
-                    if l2: legs.append(l2); teams.add(l2['team']); players.add(l2['player'])
-                    l3 = pick_leg('WORKER', teams, players)
-                    if l3: legs.append(l3); teams.add(l3['team']); players.add(l3['player'])
-                    l4 = pick_leg('BASE', teams, players)
-                    if l4: legs.append(l4); teams.add(l4['team']); players.add(l4['player'])
-                    meta = {'title': f"🛡️ A PIRÂMIDE #{i+1}", 'class': 'header-pyramid', 'desc': 'Equilíbrio entre líder e suporte.'}
+                if formula == 'PYRAMID': # 1 Anchor, 1 Motor, 1 Worker, 1 Base
+                    p1 = pick_asset('ANCHOR', u_teams, u_players, 3)
+                    if p1: legs.append(p1); u_teams.add(p1['team']); u_players.add(p1['player'])
+                    p2 = pick_asset('MOTOR', u_teams, u_players, 3)
+                    if p2: legs.append(p2); u_teams.add(p2['team']); u_players.add(p2['player'])
+                    p3 = pick_asset('WORKER', u_teams, u_players)
+                    if p3: legs.append(p3); u_teams.add(p3['team']); u_players.add(p3['player'])
+                    p4 = pick_asset('BASE', u_teams, u_players)
+                    if p4: legs.append(p4); u_teams.add(p4['team']); u_players.add(p4['player'])
+                    meta = {'title': f"A PIRÂMIDE #{i+1}", 'theme': 'header-pyramid', 'desc': 'Estrutura equilibrada hierárquica.'}
 
-                elif formula == 'WALL': # 1 Motor + 1 Worker + 2 Base
-                    l1 = pick_leg('MOTOR', teams, players, 3)
-                    if l1: legs.append(l1); teams.add(l1['team']); players.add(l1['player'])
-                    l2 = pick_leg('WORKER', teams, players)
-                    if l2: legs.append(l2); teams.add(l2['team']); players.add(l2['player'])
+                elif formula == 'ATTACK': # 2 Anchors, 2 Workers (ou fallback para Base)
                     for _ in range(2):
-                        l = pick_leg('BASE', teams, players)
-                        if l: legs.append(l); teams.add(l['team']); players.add(l['player'])
-                    meta = {'title': f"🧱 O PAREDÃO #{i+1}", 'class': 'header-wall', 'desc': 'Máxima segurança e consistência.'}
+                        p = pick_asset('ANCHOR', u_teams, u_players, 3)
+                        if p: legs.append(p); u_teams.add(p['team']); u_players.add(p['player'])
+                    for _ in range(2):
+                        p = pick_asset('WORKER', u_teams, u_players) or pick_asset('BASE', u_teams, u_players)
+                        if p: legs.append(p); u_teams.add(p['team']); u_players.add(p['player'])
+                    meta = {'title': f"ATAQUE TOTAL #{i+1}", 'theme': 'header-attack', 'desc': 'Potencial alto com pontuadores.'}
 
-                if len(legs) == 4: # RIGOROSO: SÓ ACEITA QUARTETOS
-                    tkt = meta.copy(); tkt['legs'] = legs
+                elif formula == 'WALL': # 1 Motor, 1 Worker, 2 Bases
+                    p1 = pick_asset('MOTOR', u_teams, u_players, 3)
+                    if p1: legs.append(p1); u_teams.add(p1['team']); u_players.add(p1['player'])
+                    p2 = pick_asset('WORKER', u_teams, u_players)
+                    if p2: legs.append(p2); u_teams.add(p2['team']); u_players.add(p2['player'])
+                    for _ in range(2):
+                        p = pick_asset('BASE', u_teams, u_players)
+                        if p: legs.append(p); u_teams.add(p['team']); u_players.add(p['player'])
+                    meta = {'title': f"O PAREDÃO #{i+1}", 'theme': 'header-wall', 'desc': 'Foco em segurança e linhas baixas.'}
+
+                if len(legs) == 4: # APENAS QUARTETOS SÃO EXIBIDOS
+                    tkt = meta.copy()
+                    tkt['legs'] = legs
                     tickets.append(tkt)
-
+            
             return tickets
 
-    # --- 4. EXECUÇÃO CONTROLADA ---
-    logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
-    games = st.session_state.get("scoreboard") or get_data_universal("scoreboard")
+    # --- 7. EXECUÇÃO ---
+    def run_process():
+        today_key = f"strat_v9_3_{datetime.now().strftime('%Y-%m-%d')}"
+        
+        if not debug_mode:
+            if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
+                return st.session_state.daily_strat_cache['data'], {}
+            if db:
+                cloud = db.get_data(today_key)
+                if cloud:
+                    st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud}
+                    return cloud, {}
 
-    if not logs or not games:
-        st.warning("⚠️ Dados insuficientes (L25 ou Jogos).")
-        return
+        logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
+        games = st.session_state.get("scoreboard") or get_data_universal("scoreboard")
+        
+        if not logs or not games:
+            return [], {"error": "Dados indisponíveis (Logs ou Scoreboard)."}
+            
+        factory = StrategyFactoryV9(logs, games)
+        factory.ingest_and_classify()
+        tickets = factory.manufacture_tickets()
+        
+        if not debug_mode and db and tickets: db.save_data(today_key, tickets)
+        
+        return tickets, factory.diag
 
-    maestro = OrchestratorV9_2(logs, games)
-    maestro.process_inventory()
-    tickets = maestro.manufacture_desdobramento()
-
-    # --- 5. RENDERIZAÇÃO ---
-    st.markdown('<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 Inteligência V9.2</div>', unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="legend-box">
-        <div class="legend-item"><span class="legend-bold">🚀 ATAQUE:</span> 2x Âncoras.</div>
-        <div class="legend-item"><span class="legend-bold">🛡️ PIRÂMIDE:</span> Mix Equilibrado.</div>
-        <div class="legend-item"><span class="legend-bold">🧱 PAREDÃO:</span> Segurança/Bases.</div>
-        <div class="legend-item">⚡ <span class="legend-bold">BARREL:</span> Jogador com 2+ mercados fortes.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if debug_mode:
-        st.info(f"⚙️ **ORCHESTRATOR:** {maestro.diag['approved_legs']} pernas aprovadas. Gerados {len(tickets)} quartetos.")
+    # --- MAIN UI ---
+    tickets, diag = run_process()
+    
+    if debug_mode and diag:
+        if "error" in diag: st.error(diag['error'])
+        else:
+            st.info(f"""
+            **🏭 FACTORY DIAGNOSTICS (V9.3):**
+            - Analisados: {diag.get('analyzed', 0)} | Barrados (Inj): {diag.get('rejected_injury', 0)}
+            - Aprovados: {diag.get('approved', 0)} | Total de Pernas (Assets): {diag.get('legs_total', 0)}
+            - Bilhetes Gerados (4 pernas): {len(tickets)}
+            """)
 
     if not tickets:
-        st.info("😴 Sem quartetos de alta confiança para os jogos de hoje.")
+        st.warning("⚠️ Não foi possível gerar quartetos com os critérios atuais.")
         return
 
-    cols = st.columns(3)
+    # Renderização em Grid
+    cols = st.columns(2)
     for i, t in enumerate(tickets):
-        with cols[i % 3]:
+        col = cols[i % 2]
+        with col:
             st.markdown(f"""
             <div class="ticket-card">
-                <div class="ticket-top {t['class']}">
+                <div class="ticket-top {t['theme']}">
                     <span class="ticket-title">{t['title']}</span>
                     <span class="ticket-badge">4 LEGS</span>
                 </div>
                 <div class="ticket-body">
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:10px;">{t['desc']}</div>
             """, unsafe_allow_html=True)
             
             for leg in t['legs']:
-                tag_cls = {'ANCHOR':'rt-anchor','MOTOR':'rt-motor','WORKER':'rt-worker','BASE':'rt-base'}[leg['role']]
-                tag_name = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}[leg['role']]
-                stat_clr = "#fbbf24" if leg['stat']=='PTS' else "#60a5fa"
-                barrel = "⚡" if leg['is_barrel'] else ""
+                photo = get_photo(leg['player'])
+                stat_clr = "#fbbf24" if leg['stat'] == "PTS" else ("#60a5fa" if leg['stat'] == "REB" else "#facc15")
                 
                 st.markdown(f"""
                 <div class="player-row">
-                    <img src="{get_photo(leg['player'])}" class="p-img">
+                    <img src="{photo}" class="p-img">
                     <div class="p-info">
-                        <div class="p-name">{leg['player']} {barrel}</div>
-                        <span class="role-tag {tag_cls}">{tag_name} {leg['role']}</span>
+                        <div class="p-name">{leg['player']} {"⚡" if leg['is_barrel'] else ""}</div>
+                        <div style="font-size:10px; color:#64748b;">{leg['team']}</div>
                     </div>
                     <div class="p-stat-box">
                         <div class="p-val" style="color:{stat_clr}">{leg['line']}+</div>
@@ -6922,6 +7002,8 @@ def show_desdobramentos_inteligentes():
                 </div>
                 """, unsafe_allow_html=True)
             st.markdown("</div></div>", unsafe_allow_html=True)
+
+# Final da Função
         
 # ============================================================================
 # FUNÇÃO AUXILIAR: RENDERIZAÇÃO DO BANCO (ESCALAÇÕES)
@@ -8505,6 +8587,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
