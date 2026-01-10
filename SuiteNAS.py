@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V2.2 (SMART SCALING)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V2.1 (HOTFIX KEYERROR)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3211,7 +3211,7 @@ def show_garimpo_page():
     c_head, c_filt = st.columns([2, 3])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">Smart Scaling V2.2 (Max Tier)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">Role Player Finder V2.1 (Fix)</div>', unsafe_allow_html=True)
     
     with c_filt:
         cf1, cf2 = st.columns(2)
@@ -3219,10 +3219,10 @@ def show_garimpo_page():
             tier_filter = st.multiselect(
                 "🎯 Kits Desejados:",
                 ['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE'],
-                default=['🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE'] # Base removido do default pra forçar valor
+                default=['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO']
             )
         with cf2:
-            min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 65, 5)
+            min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 70, 5)
 
     # --- 3. DADOS (L5) ---
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
@@ -3285,7 +3285,7 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ENGINE (SCALING) ---
+    # --- 5. MINER ENGINE (CORRIGIDO) ---
     class GoldMinerL5:
         def __init__(self, df_data, blacklist, rosters):
             self.df = df_data
@@ -3312,15 +3312,6 @@ def show_garimpo_page():
             c_ast = next((c for c in cols if 'AST' in c), 'AST')
             c_min = next((c for c in cols if 'MIN' in c), None)
 
-            # ORDEM DE PRIORIDADE: Do Maior para o Menor
-            # Isso garante que se o jogador bater Elite, a gente pega Elite primeiro e ignora o resto.
-            kits_priority = [
-                {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE', 'rank': 4},
-                {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO', 'rank': 3},
-                {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA', 'rank': 2},
-                {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE', 'rank': 1},
-            ]
-
             for _, row in self.df.iterrows():
                 name = str(row.get(c_name, 'Unknown'))
                 norm = nuclear_normalize(name)
@@ -3340,21 +3331,19 @@ def show_garimpo_page():
                     proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast)
                     min_source = "EST"
 
-                # Vacuum (Simplificado)
                 if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
                 
-                # --- LOOP INTELIGENTE ---
-                # Varre do Elite para o Base. O primeiro que passar na confiança mínima é o vencedor.
+                kits = [
+                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, 
+                    {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
+                    {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO'},
+                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE'}
+                ]
                 
-                selected_kit = None
-                
-                for kit in kits_priority:
-                    # Se o user não quer esse tier, pula
+                for kit in kits:
                     if kit['label'] not in tier_filter: continue
                     
                     r_pts, r_reb, r_ast = kit['req']
-                    
-                    # Se média L5 for menor que o requisito, nem tenta Monte Carlo (economiza CPU)
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
                     p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS", forced_std=proj_pts*0.25)['prob_percent']
@@ -3364,32 +3353,41 @@ def show_garimpo_page():
                     min_prob = min(p_pts, p_reb, p_ast)
                     avg_prob = (p_pts + p_reb + p_ast) / 3
                     
-                    # Filtro de Confiança: O kit precisa ser SÓLIDO para ser escolhido como "Teto"
-                    # Usamos min_conf definida pelo usuário
-                    if avg_prob >= min_conf and min_prob >= (min_conf - 15): 
-                        combined = (p_pts/100) * (p_reb/100) * (p_ast/100) * 100
+                    # Filtro de Confiança Global (Hard Cutoff 50%)
+                    if min_prob < 50 or avg_prob < (min_conf / 100 * 80): continue 
+                    
+                    combined = (p_pts/100) * (p_reb/100) * (p_ast/100) * 100
+                    
+                    if combined >= min_conf:
+                        current_best = best_nuggets.get(norm)
+                        should_update = False
                         
-                        selected_kit = {
-                            'kit': kit,
-                            'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
-                            'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
-                            'combined_prob': combined
-                        }
-                        break # ACHOU O MELHOR TIER POSSÍVEL, PARA O LOOP!
+                        # CORREÇÃO DO KEYERROR AQUI:
+                        if not current_best:
+                            should_update = True
+                        else:
+                            # Comparamos a 'combined_prob' que está salva no NÍVEL SUPERIOR do dicionário
+                            current_prob = current_best.get('combined_prob', 0)
+                            
+                            # Se for o mesmo tipo de kit, pega o de maior probabilidade
+                            if kit['label'] == current_best['kit_type']: 
+                                if combined > current_prob: should_update = True
+                            # Se forem tipos diferentes, prioriza confiança
+                            elif combined > current_prob:
+                                should_update = True
 
-                if selected_kit:
-                    tm = str(row.get(c_t, 'UNK'))
-                    best_nuggets[norm] = {
-                        'player': name, 
-                        'team': tm, 
-                        'kit_type': selected_kit['kit']['label'],
-                        'lines': selected_kit['lines'],
-                        'probs': selected_kit['probs'],
-                        'proj_min': proj_min, 
-                        'min_source': min_source,
-                        'combined_prob': selected_kit['combined_prob'],
-                        'rank': selected_kit['kit']['rank'] # Usado para ordenar
-                    }
+                        if should_update:
+                            tm = str(row.get(c_t, 'UNK'))
+                            best_nuggets[norm] = {
+                                'player': name, 
+                                'team': tm, 
+                                'kit_type': kit['label'], # Salvamos o label direto para facilitar
+                                'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
+                                'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
+                                'proj_min': proj_min, 
+                                'min_source': min_source,
+                                'combined_prob': combined
+                            }
                             
             return list(best_nuggets.values())
 
@@ -3408,9 +3406,9 @@ def show_garimpo_page():
             st.warning(f"Nenhum jogador encontrado com Confiança > {min_conf}% nos tiers selecionados.")
             return
             
-        # Ordenação: Rank do Kit (Elite > Operário) -> Depois Confiança
-        results.sort(key=lambda x: (x['rank'], x['combined_prob']), reverse=True)
-        st.success(f"✅ {len(results)} Cards Gerados (Escalonados pelo Teto)")
+        # Ordenação
+        results.sort(key=lambda x: x['combined_prob'], reverse=True)
+        st.success(f"✅ {len(results)} Oportunidades Filtradas")
         
         cols = st.columns(3)
         for i, item in enumerate(results):
@@ -8630,6 +8628,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
