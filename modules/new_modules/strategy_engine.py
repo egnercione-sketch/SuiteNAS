@@ -1,17 +1,11 @@
 # modules/new_modules/strategy_engine.py
-# VERSÃO V80.0 - SUPABASE NATIVE & TURBO FLOW
-# - Remoção completa de cache local de lesões (JSON).
-# - Integração nativa com Supabase para blacklist.
-# - Fluxo: Lesão -> Vacuum -> DvP -> Tese.
+# VERSÃO V80.0 - ANALYST CORE (SEM ODDS, SUPABASE NATIVE)
 
 import logging
 import random
 import uuid
 import sys
 import os
-import hashlib
-import json
-import math
 import unicodedata
 import statistics
 from datetime import datetime
@@ -23,254 +17,156 @@ try:
 except ImportError:
     DB_AVAILABLE = False
 
-logger = logging.getLogger("StrategyEngine_V80_0")
+logger = logging.getLogger("StrategyEngine_V80")
 
-# =========================================================================
-# IMPORTAÇÃO DOS MÓDULOS DE INTELIGÊNCIA
-# =========================================================================
+# Importação Dinâmica dos Módulos
 MODULES = {}
-try:
-    from modules.new_modules.monte_carlo import MonteCarloEngine
-    MODULES['monte_carlo'] = MonteCarloEngine
+try: from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer; MODULES['vacuum'] = VacuumMatrixAnalyzer
 except: pass
-
-try:
-    from modules.new_modules.pace_adjuster import PaceAdjuster
-    MODULES['pace'] = PaceAdjuster
+try: from modules.new_modules.thesis_engine import ThesisEngine; MODULES['thesis'] = ThesisEngine
 except: pass
-
-try:
-    from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
-    MODULES['vacuum'] = VacuumMatrixAnalyzer
-except: pass
-
-try:
-    from modules.new_modules.thesis_engine import ThesisEngine
-    MODULES['thesis'] = ThesisEngine
-except: pass
-
-try:
-    from modules.new_modules.dvp_analyzer import DvPAnalyzer
-    MODULES['dvp'] = DvPAnalyzer
+try: from modules.new_modules.dvp_analyzer import DvPAnalyzer; MODULES['dvp'] = DvPAnalyzer
 except: pass
 
 class StrategyEngine:
     def __init__(self, external_blacklist=None):
-        self.version = "80.0_SUPABASE"
+        self.version = "80.0_ANALYST"
         
         # Inicializa Módulos
         self.dvp = MODULES['dvp']() if 'dvp' in MODULES else None
         self.vacuum = MODULES['vacuum']() if 'vacuum' in MODULES else None
         self.thesis_eng = MODULES['thesis']() if 'thesis' in MODULES else None
-        self.monte_carlo = MODULES['monte_carlo']() if 'monte_carlo' in MODULES else None
-        self.pace = MODULES['pace']() if 'pace' in MODULES else None
         
-        # Carrega Lesões (Supabase ou Externo)
+        # Carrega Blacklist (Lesões)
         self.injuries_banned = self._load_injuries(external_blacklist)
         
     def _normalize_name(self, text):
         if not text: return ""
         text = str(text).lower().strip()
-        try:
-            text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+        try: text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
         except: pass
         return " ".join(text.replace(".", "").replace(",", "").replace("'", "").split())
 
     def _load_injuries(self, external_list):
-        """Carrega lista de lesionados do Supabase ou usa lista externa"""
+        """Carrega lesionados (Prioridade: Lista Externa > Supabase)"""
         banned = set()
         
-        # 1. Se veio lista externa (do Frontend), usa ela (mais rápida/fresca)
+        # 1. Lista Externa (Passada pela UI - Mais fresca)
         if external_list:
-            for name in external_list:
-                banned.add(self._normalize_name(name))
-            logger.info(f"Injuries: {len(banned)} carregados via lista externa.")
+            for name in external_list: banned.add(self._normalize_name(name))
             return banned
 
-        # 2. Se não, busca no Supabase
+        # 2. Supabase (Backup)
         if DB_AVAILABLE and db:
             try:
-                # Busca na tabela 'injuries' do Supabase
-                # Assume que o db_manager tem um método get_data ou query direta
-                raw_data = db.get_data("injuries") 
-                
-                # Adapta conforme o formato que você guarda no Supabase
-                # Se for lista de dicts: [{'player': 'Curry', 'status': 'Out'}, ...]
-                if isinstance(raw_data, list):
-                    for item in raw_data:
-                        status = str(item.get('status', '')).lower()
-                        if any(x in status for x in ['out', 'inj', 'gtd', 'doubt']):
-                            p_name = item.get('player') or item.get('name')
-                            if p_name:
-                                banned.add(self._normalize_name(p_name))
-                
-                # Se for dict agrupado por time
-                elif isinstance(raw_data, dict):
-                    for team, players in raw_data.items():
+                raw = db.get_data("injuries") 
+                if isinstance(raw, dict) and 'teams' in raw:
+                    for team, players in raw['teams'].items():
                         for p in players:
-                            status = str(p.get('status', '')).lower()
-                            if any(x in status for x in ['out', 'inj', 'gtd']):
+                            if any(x in str(p.get('status','')).lower() for x in ['out', 'inj', 'doubt']):
                                 banned.add(self._normalize_name(p.get('name')))
-                                
-                logger.info(f"Injuries: {len(banned)} carregados do Supabase.")
-                return banned
-            except Exception as e:
-                logger.error(f"Erro ao carregar injuries do Supabase: {e}")
-        
+            except: pass
         return banned
 
-    def refresh_context(self, external_blacklist=None):
-        """Atualiza o contexto de lesões manualmente"""
-        self.injuries_banned = self._load_injuries(external_blacklist)
-
     # =========================================================================
-    # CORE: GERAÇÃO DE TRIXIES (FLUXO TURBO)
+    # CORE: GERAÇÃO DE TRIXIES
     # =========================================================================
     def generate_basic_trixies_by_category(self, players_ctx, game_ctx, category):
-        """
-        Gera sugestões aplicando o fluxo: Vacuum -> DvP -> Tese.
-        """
+        """Fluxo: Vacuum -> Filtro Lesão -> DvP -> Tese -> Score"""
         candidates = []
         
-        # 1. ANALISA VACUUM (Oportunidades por lesão no time)
-        vacuum_report = {}
+        # 1. VACUUM (Quem ganha bônus?)
+        vacuum_boosts = {}
         if self.vacuum:
-            # Reconstrói estrutura de roster para o VacuumAnalyzer
-            # Precisamos passar uma lista plana de todos os jogadores do time
             for team, p_list in players_ctx.items():
-                roster_for_vacuum = []
+                roster_vac = []
                 for p in p_list:
-                    # Marca status baseado na blacklist
-                    p_norm = self._normalize_name(p.get('name'))
-                    status = "Out" if p_norm in self.injuries_banned else "Active"
-                    
-                    roster_for_vacuum.append({
-                        'name': p.get('name'),
-                        'status': status,
-                        'position': p.get('position', 'F'),
-                        'min_L5': float(p.get('min_L5', 0)),
-                        'is_starter': p.get('is_starter', False)
+                    # Marca status para o Vacuum saber quem está fora
+                    status = "Out" if self._normalize_name(p.get('name')) in self.injuries_banned else "Active"
+                    roster_vac.append({
+                        'name': p.get('name'), 'status': status, 
+                        'position': p.get('position','F'), 
+                        'min_L5': float(p.get('min_L5',0)), 'is_starter': p.get('is_starter', False)
                     })
-                
-                # Roda análise
-                team_vacuum = self.vacuum.analyze_team_vacuum(roster_for_vacuum, team)
-                if team_vacuum:
-                    vacuum_report.update(team_vacuum)
+                rep = self.vacuum.analyze_team_vacuum(roster_vac, team)
+                if rep:
+                    for name, info in rep.items(): vacuum_boosts[self._normalize_name(name)] = info
 
-        # 2. PROCESSA JOGADORES
+        # 2. VARREDURA
         for team, p_list in players_ctx.items():
             for p in p_list:
-                # A. Filtro Nuclear de Lesão
-                p_norm = self._normalize_name(p.get('name'))
-                if p_norm in self.injuries_banned:
-                    continue
-
-                # B. Prepara Dados Numéricos
-                stats = {}
-                for k in ['pts', 'reb', 'ast', '3pm', 'stl', 'blk', 'min']:
-                    stats[k] = float(p.get(f'{k}_L5', 0))
+                norm_name = self._normalize_name(p.get('name'))
                 
-                # C. Aplica Vacuum Boost (Se houver)
-                is_vacuum_boosted = False
-                vacuum_reason = ""
-                if p.get('name') in vacuum_report:
-                    vac_info = vacuum_report[p.get('name')]
-                    boost = vac_info['boost'] # ex: 1.25
-                    vacuum_reason = f"Beneficiado por {vac_info['source']} ({vac_info['type']})"
-                    
-                    # Inflaciona as projeções
-                    for k in stats:
-                        stats[k] = stats[k] * boost
-                    is_vacuum_boosted = True
+                # A. Filtro Lesão
+                if norm_name in self.injuries_banned: continue
 
-                # D. Aplica DvP (Defesa vs Posição)
-                matchup_score = 50 # Neutro
-                matchup_reason = ""
+                # B. Stats & Boosts
+                stats = {k: float(p.get(f'{k}_L5', 0)) for k in ['pts','reb','ast','min']}
+                
+                is_vacuum = False
+                vac_info = vacuum_boosts.get(norm_name)
+                narrative_parts = []
+                
+                if vac_info:
+                    boost = vac_info['boost']
+                    for k in stats: stats[k] *= boost
+                    is_vacuum = True
+                    narrative_parts.append(f"Beneficiado: {vac_info['source']} OUT")
+
+                # C. Matchup (DvP)
+                matchup_rank = 15
                 if self.dvp:
-                    opp = p.get('opponent', 'UNK') # Precisa vir do context
+                    opp = p.get('opponent', 'UNK')
                     pos = self._estimate_position(p)
-                    rank = self.dvp.get_position_rank(opp, pos) # 1=Forte, 30=Fraca
+                    matchup_rank = self.dvp.get_position_rank(opp, pos)
                     
-                    # Ajuste fino no score
-                    if rank >= 25: 
-                        matchup_score = 80
-                        matchup_reason = f"Matchup Top (Defesa #{rank})"
-                    elif rank <= 5: 
-                        matchup_score = 20
-                        matchup_reason = f"Matchup Ruim (Defesa #{rank})"
+                    if matchup_rank >= 25: narrative_parts.append(f"Defesa Fraca (#{matchup_rank})")
+                    elif matchup_rank <= 5: narrative_parts.append(f"Defesa Elite (#{matchup_rank})")
 
-                # E. Gera Tese (Narrativa)
+                # D. Tese
                 thesis_txt = "Análise Técnica"
                 win_rate = 0.5
-                
                 if self.thesis_eng:
-                    # Monta objeto enriquecido para o Thesis
-                    p_enriched = p.copy()
-                    p_enriched.update({
-                        'pts_L5': stats['pts'], # Passa os stats já boostados!
-                        'reb_L5': stats['reb'],
-                        'ast_L5': stats['ast'],
-                        'min_L5': stats['min'],
-                        'matchup_rank': rank if self.dvp else 15,
-                        'is_vacuum': is_vacuum_boosted
-                    })
-                    
-                    # Gera
+                    p_enriched = {**p, **stats, 'matchup_rank': matchup_rank, 'is_vacuum': is_vacuum}
                     theses = self.thesis_eng.generate_theses(p_enriched, {})
                     if theses:
-                        best_t = theses[0]
-                        thesis_txt = best_t['reason']
-                        win_rate = best_t['win_rate']
-                        
-                        # Se tiver vacuum, força a tese de vacuum no topo
-                        if is_vacuum_boosted:
-                            thesis_txt = f"💎 {vacuum_reason} | {thesis_txt}"
-                        elif matchup_score > 70:
-                            thesis_txt = f"🔥 {matchup_reason} | {thesis_txt}"
+                        thesis_txt = theses[0]['reason']
+                        win_rate = theses[0]['win_rate']
+                        if is_vacuum: thesis_txt = f"💎 {thesis_txt}" # Destaque visual
 
-                # F. Cria Candidato
-                # Define mercado alvo baseado nos stats projetados
+                # E. Score & Candidatura
+                # Define alvos
                 targets = []
-                if stats['pts'] >= 15: targets.append(('PTS', stats['pts']))
+                if stats['pts'] >= 12: targets.append(('PTS', stats['pts']))
                 if stats['reb'] >= 6: targets.append(('REB', stats['reb']))
                 if stats['ast'] >= 4: targets.append(('AST', stats['ast']))
                 
                 for mkt, val in targets:
-                    # Linha Segura (90% da projeção)
-                    safe_line = max(1, int(val * 0.9))
+                    # Linha Segura (Piso)
+                    safe_line = max(1, int(val * 0.85)) # 85% da média projetada
                     
-                    # Score Final (0-100)
-                    # Base (Win Rate) + Contexto (Matchup/Vacuum)
-                    final_score = (win_rate * 100) 
-                    if is_vacuum_boosted: final_score += 15
-                    if matchup_score > 60: final_score += 10
-                    if matchup_score < 40: final_score -= 10
+                    # Score (0-100)
+                    base_score = win_rate * 100
+                    if is_vacuum: base_score += 15
+                    if matchup_rank >= 25: base_score += 10
+                    elif matchup_rank <= 5: base_score -= 15
                     
                     candidates.append({
-                        "player_name": p.get('name'),
-                        "team": p.get('team'),
-                        "market_type": mkt,
-                        "market_display": f"{safe_line}+ {mkt}",
-                        "line": safe_line,
-                        "odds": 1.0, # Sem odds financeiras
-                        "thesis": thesis_txt,
-                        "score": final_score
+                        "player_name": p.get('name'), "team": team, 
+                        "market_type": mkt, "market_display": f"{safe_line}+ {mkt}",
+                        "line": safe_line, "odds": 1.0, 
+                        "thesis": thesis_txt, "score": int(base_score)
                     })
 
-        # Ordena e Retorna
         candidates.sort(key=lambda x: x['score'], reverse=True)
         return self._pack_trixie(candidates[:3], category, "AUTO", game_ctx)
 
     def _pack_trixie(self, legs, cat, sub, ctx):
         if len(legs) < 2: return None
         return {
-            "id": uuid.uuid4().hex[:6],
-            "category": cat,
-            "sub_category": sub,
-            "game_info": ctx,
-            "players": legs,
-            "score": int(sum(l['score'] for l in legs)/len(legs)),
-            "estimated_total_odd": 1.0
+            "id": uuid.uuid4().hex[:6], "category": cat, "sub_category": sub,
+            "game_info": ctx, "players": legs, 
+            "score": int(sum(l['score'] for l in legs)/len(legs)), "estimated_total_odd": 1.0
         }
 
     def _estimate_position(self, p):
