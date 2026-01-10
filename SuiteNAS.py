@@ -503,58 +503,92 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# FUNÇÃO LOGS: MODO TURBO v3.2 (LIGHTWEIGHT - ÚLTIMOS 30 DIAS)
+# FUNÇÃO LOGS: MODO TURBO v3.3 (DIRECT REQUESTS + FALLBACK AUTOMÁTICO)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
-    from nba_api.stats.endpoints import leaguegamelog
     import pandas as pd
     import time
-    from datetime import datetime, timedelta
     import requests
-
-    SEASON_CURRENT = "2025-26"
+    from datetime import datetime, timedelta
+    
+    # URL Direta da API da NBA (Bypass na lib wrapper para controle total)
+    ENDPOINT_URL = "https://stats.nba.com/stats/leaguegamelog"
     KEY_LOGS = "real_game_logs"
     
-    # Define janela de 30 dias para não estourar timeout
-    date_from = (datetime.now() - timedelta(days=45)).strftime("%m/%d/%Y") # 45 dias segurança
-    
-    HEADERS_LIST = {
-        'Host': 'stats.nba.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-        'Referer': 'https://www.nba.com/',
-        'Origin': 'https://www.nba.com',
-        'Connection': 'keep-alive'
+    # Headers de Navegador Real (Anti-Bot Rigoroso)
+    HEADERS = {
+        'Connection': 'keep-alive',
+        'Accept': 'application/json, text/plain, */*',
+        'x-nba-stats-token': 'true',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'x-nba-stats-origin': 'stats',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'cors',
+        'Referer': 'https://stats.nba.com/',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9'
     }
 
     if progress_ui:
-        status = st.status("🚀 MODO TURBO LEVE (L45 Dias)...", expanded=True)
-        status.write(f"📅 Buscando jogos a partir de {date_from}...")
+        status = st.status("🚀 MODO TURBO V3.3 (Conexão Direta)...", expanded=True)
 
+    def try_fetch(days_back):
+        """Tenta buscar dados com uma janela de dias específica"""
+        try:
+            date_from = (datetime.now() - timedelta(days=days_back)).strftime("%m/%d/%Y")
+            
+            # Parâmetros exatos que o site da NBA usa
+            params = {
+                'Counter': '1000',
+                'DateFrom': date_from,
+                'DateTo': '',
+                'Direction': 'DESC',
+                'LeagueID': '00',
+                'PlayerOrTeam': 'P',
+                'Season': '2024-25', # Temporada Atual
+                'SeasonType': 'Regular Season',
+                'Sorter': 'DATE'
+            }
+            
+            if progress_ui: status.write(f"📡 Tentando janela de {days_back} dias...")
+            
+            # Request com Timeout curto para falhar rápido se estiver bloqueado
+            response = requests.get(ENDPOINT_URL, headers=HEADERS, params=params, timeout=15)
+            
+            if response.status_code == 200:
+                data_json = response.json()
+                headers = data_json['resultSets'][0]['headers']
+                row_set = data_json['resultSets'][0]['rowSet']
+                return pd.DataFrame(row_set, columns=headers)
+            else:
+                print(f"Erro API {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"Erro no fetch ({days_back}d): {e}")
+            return None
+
+    # --- LÓGICA DE TENTATIVAS (FALLBACK) ---
+    df_all = try_fetch(30) # Tenta 1 mês
+    
+    if df_all is None or df_all.empty:
+        if progress_ui: status.warning("⚠️ Janela de 30 dias falhou (Timeout). Tentando 7 dias...")
+        time.sleep(1)
+        df_all = try_fetch(7) # Tenta 1 semana (Pacote leve)
+
+    if df_all is None or df_all.empty:
+        if progress_ui: status.error("❌ Falha total na conexão com a NBA. Tente mais tarde.")
+        return {}
+
+    # --- PROCESSAMENTO DOS DADOS ---
     try:
-        time.sleep(0.5)
+        if progress_ui: status.write(f"📦 Processando {len(df_all)} registros...")
         
-        # FIX: Pede apenas dados recentes para evitar Timeout
-        logs_api = leaguegamelog.LeagueGameLog(
-            season=SEASON_CURRENT,
-            season_type_all_star='Regular Season',
-            player_or_team_abbreviation='P', 
-            direction='DESC', 
-            sorter='DATE',
-            date_from_nullable=date_from, # <--- O SEGREDO DO SUCESSO
-            timeout=60,
-            headers=HEADERS_LIST
-        )
-        
-        df_all = logs_api.get_data_frames()[0]
-        
-        if df_all.empty:
-            if progress_ui: status.error("API respondeu vazio.")
-            return {}
-
-        # Processamento
+        # Conversão de Tipos
         cols_int = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M', 'TOV', 'PF']
         for c in cols_int:
-            if c in df_all.columns: df_all[c] = df_all[c].fillna(0).astype(int)
+            if c in df_all.columns: 
+                df_all[c] = pd.to_numeric(df_all[c], errors='coerce').fillna(0).astype(int)
 
         df_all['GAME_DATE'] = pd.to_datetime(df_all['GAME_DATE'])
         df_all = df_all.sort_values(by=['PLAYER_ID', 'GAME_DATE'], ascending=[True, False])
@@ -565,7 +599,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
         if progress_ui: bar = status.progress(0)
 
         for i, pid in enumerate(unique_ids):
-            player_games = df_all[df_all['PLAYER_ID'] == pid] # Já está cortado por data
+            player_games = df_all[df_all['PLAYER_ID'] == pid]
             if player_games.empty: continue
             
             p_name = player_games.iloc[0]['PLAYER_NAME']
@@ -578,7 +612,7 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             
             if 'MIN' in player_games.columns:
                 clean_logs['MIN'] = player_games['MIN'].astype(str).apply(
-                    lambda x: float(str(x).replace(':', '.')) if x else 0.0
+                    lambda x: float(x.replace(':', '.')) if ':' in x else float(x) if x else 0.0
                 ).tolist()
 
             results[p_name] = {
@@ -588,16 +622,18 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
             
             if progress_ui and i % 50 == 0: bar.progress(i / len(unique_ids))
 
-        # Upload
+        # --- UPLOAD FINAL ---
         if results:
+            if progress_ui: status.write("☁️ Salvando na nuvem...")
             save_data_universal(KEY_LOGS, results)
+            
             if progress_ui:
-                status.update(label=f"✅ SUCESSO! {len(results)} Jogadores (Recentes).", state="complete", expanded=False)
+                status.update(label=f"✅ SUCESSO! {len(results)} Jogadores Atualizados.", state="complete", expanded=False)
         
         return results
 
     except Exception as e:
-        if progress_ui: status.error(f"Erro: {e}")
+        if progress_ui: status.error(f"Erro no processamento: {e}")
         return {}
 
 # ==============================================================================
@@ -8604,6 +8640,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
