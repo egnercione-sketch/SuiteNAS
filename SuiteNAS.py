@@ -6626,17 +6626,15 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V15.1 - LAYOUT FIX)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V16.0 - NATIVE SGP LAYOUT)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
     import pandas as pd
-    import time
     from datetime import datetime
     import statistics
     import re
     import unicodedata
-    import random
     from collections import defaultdict
 
     # --- 1. INFRAESTRUTURA ---
@@ -6670,71 +6668,7 @@ def show_desdobramentos_inteligentes():
         if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 3. CSS (CORRIGIDO PARA NÃO ESTOURAR) ---
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
-        
-        .strat-header { font-family: 'Oswald'; font-size: 30px; color: #fbbf24; margin: 0; text-transform: uppercase; }
-        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 15px; }
-        
-        /* LEGENDA FIXA */
-        .legend-container {
-            display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
-            padding-bottom: 10px; border-bottom: 1px solid #334155;
-        }
-        .legend-item { display: flex; align-items: center; gap: 5px; font-family: 'Inter'; font-size: 10px; color: #cbd5e1; }
-        .l-icon { font-size: 12px; }
-        
-        /* TICKET CONTAINER */
-        .ticket-box {
-            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
-            margin-bottom: 15px; overflow: hidden;
-        }
-        
-        .t-header { padding: 8px 12px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .t-title { font-family: 'Oswald'; font-size: 14px; color: #fff; letter-spacing: 0.5px; }
-        .t-badge { font-size: 10px; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #fff; }
-        
-        /* THEMES */
-        .th-attack { background: linear-gradient(90deg, rgba(220, 38, 38, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #dc2626; }
-        .th-pyramid { background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #2563eb; }
-        .th-wall { background: linear-gradient(90deg, rgba(5, 150, 105, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #059669; }
-        .th-scavenge { background: linear-gradient(90deg, rgba(147, 51, 234, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #9333ea; }
-
-        /* LINHA DO JOGADOR */
-        .sgp-row {
-            display: flex; align-items: flex-start; gap: 10px; /* Flex start para alinhar topo se crescer */
-            padding: 10px 12px; border-bottom: 1px solid #1e293b;
-        }
-        .sgp-row:last-child { border-bottom: none; }
-        
-        .sgp-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; flex-shrink: 0; }
-        
-        .p-info { flex: 1; min-width: 0; } /* min-width 0 é vital para flexbox wrapping */
-        .sgp-name { font-family: 'Oswald'; font-size: 13px; color: #fff; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sgp-team { font-family: 'Inter'; font-size: 9px; color: #64748b; font-weight: bold; margin-left: 4px; }
-        
-        /* CONTAINER DE CHIPS (A CORREÇÃO) */
-        .chip-box {
-            display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
-        }
-        
-        /* CHIP INDIVIDUAL */
-        .stat-chip {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: #1e293b; border: 1px solid #475569; border-radius: 5px;
-            padding: 2px 6px; min-width: 50px; 
-        }
-        .sc-val { font-family: 'Oswald'; font-size: 12px; font-weight: bold; line-height: 1; }
-        .sc-lbl { font-family: 'Inter'; font-size: 7px; color: #94a3b8; text-transform: uppercase; margin-top: 1px; }
-        
-        .role-pill { font-size: 7px; padding: 1px 4px; border-radius: 3px; background: #334155; color: #cbd5e1; display: inline-block; margin-right: 4px; vertical-align: middle; }
-        .barrel-icon { color: #facc15; font-size: 9px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- 4. ENGINE LÓGICA V15 (Mantida V13/14) ---
+    # --- 3. CLASSIFIER & ENGINE ---
     class LocalPlayerClassifier:
         def get_role_classification(self, ctx):
             pts = ctx.get('pts_L5', 0)
@@ -6752,14 +6686,14 @@ def show_desdobramentos_inteligentes():
             if reb >= 4.5 and ast >= 3.5: return "hustle"
             return "scorer"
 
-    class OrchestratorV15:
+    class OrchestratorV16:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
             self.active_teams = self._get_active_teams()
             self.classifier = LocalPlayerClassifier()
             self.master_inventory = [] 
-            self.diag = {"analyzed": 0, "approved_players": 0, "legs_total": 0}
+            self.diag = {"analyzed": 0, "approved_players": 0}
 
         def _get_active_teams(self):
             teams = set()
@@ -6798,10 +6732,8 @@ def show_desdobramentos_inteligentes():
                     l10 = vals[:10]
                     try: floor_val = sorted(l10)[1] 
                     except: continue
-                    
                     min_req = {'PTS': 8, 'REB': 3, 'AST': 2}
                     if floor_val < min_req[stat]: continue
-                    
                     hits_l10 = sum(1 for v in l10 if v >= floor_val)
                     if hits_l10 >= 8:
                         valid_legs.append({
@@ -6830,7 +6762,6 @@ def show_desdobramentos_inteligentes():
                     'usage': 0
                 })
                 self.diag['approved_players'] += 1
-                self.diag['legs_total'] += len(valid_legs)
 
         def manufacture_tickets(self):
             self.master_inventory.sort(key=lambda x: x['score'], reverse=True)
@@ -6846,7 +6777,7 @@ def show_desdobramentos_inteligentes():
                             return p
                 return None
 
-            # 1. Fórmulas
+            # FASE 1: Fórmulas
             for form_type in formulas:
                 candidates = []
                 u_teams, u_players = set(), set()
@@ -6855,13 +6786,13 @@ def show_desdobramentos_inteligentes():
                 
                 if form_type == 'ATTACK':
                     slots = [(['ANCHOR'], 3), (['ANCHOR'], 3), (['WORKER', 'BASE'], 2), (['WORKER', 'BASE'], 2)]
-                    meta = {'title': '🚀 ATAQUE TOTAL', 'class': 'th-attack'}
+                    meta = {'title': '🚀 ATAQUE TOTAL', 'desc': 'Foco em pontuadores.', 'color': 'red'}
                 elif form_type == 'PYRAMID':
                     slots = [(['ANCHOR'], 3), (['MOTOR', 'WORKER'], 3), (['WORKER', 'BASE'], 2), (['BASE', 'WORKER'], 2)]
-                    meta = {'title': '🛡️ A PIRÂMIDE', 'class': 'th-pyramid'}
+                    meta = {'title': '🛡️ A PIRÂMIDE', 'desc': 'Equilíbrio tático.', 'color': 'blue'}
                 elif form_type == 'WALL':
                     slots = [(['MOTOR', 'WORKER'], 3), (['WORKER'], 2), (['BASE'], 2), (['BASE'], 2)]
-                    meta = {'title': '🧱 O PAREDÃO', 'class': 'th-wall'}
+                    meta = {'title': '🧱 O PAREDÃO', 'desc': 'Segurança máxima.', 'color': 'green'}
                 
                 valid_ticket = True
                 for roles, limit in slots:
@@ -6875,7 +6806,7 @@ def show_desdobramentos_inteligentes():
                 if valid_ticket and len(candidates) == 4:
                     self._commit_ticket(tickets, candidates, meta)
 
-            # 2. Scavenge
+            # FASE 2: Reciclagem
             while len(tickets) < 20:
                 scavenge = []
                 u_teams, u_players = set(), set()
@@ -6887,7 +6818,7 @@ def show_desdobramentos_inteligentes():
                         u_teams.add(p['team']); u_players.add(p['player'])
                 
                 if len(scavenge) == 4:
-                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM TÁTICA', 'class': 'th-scavenge'})
+                    self._commit_ticket(tickets, scavenge, {'title': '♻️ RECICLAGEM', 'desc': 'Oportunidades extras.', 'color': 'purple'})
                 else: break
             
             return tickets
@@ -6896,6 +6827,7 @@ def show_desdobramentos_inteligentes():
             final_legs = []
             for p in players:
                 p['usage'] += 1
+                # Lógica Double Barrel: pega as 2 melhores se possível
                 legs_to_use = p['legs'][:2] if (len(p['legs']) > 1 and p['role'] in ['ANCHOR', 'MOTOR']) else p['legs'][:1]
                 
                 for l in legs_to_use:
@@ -6908,24 +6840,16 @@ def show_desdobramentos_inteligentes():
             meta['title'] = f"{meta['title']} #{len(tickets)+1}"
             tickets.append({**meta, 'legs': final_legs})
 
-    # --- 5. EXECUÇÃO ---
+    # --- 4. EXECUÇÃO ---
     c_head, c_tog = st.columns([4, 1])
     with c_head:
-        st.markdown('<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 V15.1 Layout Safe</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Oswald; font-size:30px; color:#fbbf24; text-transform:uppercase;">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
+        st.caption(f"📅 {datetime.now().strftime('%d/%m/%Y')} • 🧩 V16.0 Native Layout")
     with c_tog:
-        debug_mode = st.toggle("🛠️ Debug", value=False)
+        debug_mode = st.toggle("Debug", value=False)
 
-    # LEGENDA FIXA
-    st.markdown("""
-    <div class="legend-container">
-        <div class="legend-item"><span class="l-icon">👑</span> ANCHOR</div>
-        <div class="legend-item"><span class="l-icon">⚙️</span> MOTOR</div>
-        <div class="legend-item"><span class="l-icon">👷</span> WORKER</div>
-        <div class="legend-item"><span class="l-icon">🛡️</span> BASE</div>
-        <div class="legend-item"><span class="l-icon">⚡</span> BARREL</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Legenda Simples (Texto Nativo)
+    st.markdown("**Legenda:** 👑 Anchor (Estrela) | ⚙️ Motor (Glue Guy) | 👷 Worker (Rotação) | 🛡️ Base (Segurança) | ⚡ Double Barrel")
 
     logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
     games = st.session_state.get("scoreboard") or get_data_universal("scoreboard")
@@ -6934,71 +6858,65 @@ def show_desdobramentos_inteligentes():
         st.warning("⚠️ Dados insuficientes. Atualize em Config.")
         return
 
-    maestro = OrchestratorV15(logs, games)
+    maestro = OrchestratorV16(logs, games)
     maestro.ingest_and_bundle()
     tickets = maestro.manufacture_tickets()
 
     if debug_mode:
-        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores. {len(tickets)} Bilhetes.")
+        st.info(f"⚙️ Analisados: {maestro.diag['approved_players']} Jogadores. Gerados: {len(tickets)} Bilhetes.")
 
     if not tickets:
-        st.info("😴 Sem combinações.")
+        st.info("😴 Sem combinações de alta confiança.")
         return
 
-    # --- 6. RENDERIZAÇÃO ---
+    # --- 5. RENDERIZAÇÃO NATIVA (ANTI-EXPLOSÃO) ---
     cols = st.columns(3)
     for i, t in enumerate(tickets):
         with cols[i % 3]:
-            # CABEÇALHO
-            st.markdown(f"""
-            <div class="ticket-box {t['class']}">
-                <div class="t-header {t['class']}">
-                    <span class="t-title">{t['title']}</span>
-                    <span class="t-badge">{len(t['legs'])} LEGS</span>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # AGRUPAMENTO POR JOGADOR (Visual SuperBilhete)
-            player_legs = defaultdict(list)
-            player_meta = {}
-            for leg in t['legs']:
-                player_legs[leg['player']].append(leg)
-                player_meta[leg['player']] = {'team': leg['team'], 'role': leg['role'], 'dbl': leg['is_double']}
-            
-            # LOOP JOGADORES
-            for p_name, legs in player_legs.items():
-                meta = player_meta[p_name]
-                photo = get_photo_url(p_name)
-                role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
-                barrel_icon = '<span class="barrel-icon">⚡</span>' if meta['dbl'] else ''
-                
-                # CHIPS (Construção Limpa)
-                chips_html = ""
-                for l in legs:
-                    clr = "#fbbf24" if l['stat'] == "PTS" else ("#60a5fa" if l['stat'] == "REB" else "#facc15")
-                    chips_html += f"""
-                    <div class="stat-chip">
-                        <div class="sc-val" style="color:{clr}">{l['line']}+ {l['stat']}</div>
-                        <div class="sc-lbl">Hit {l['hits']}/10</div>
-                    </div>
-                    """
-                
-                st.markdown(f"""
-                <div class="sgp-row">
-                    <img src="{photo}" class="sgp-img">
-                    <div class="p-info">
-                        <div class="sgp-name">{p_name} {barrel_icon} <span class="sgp-team">({meta['team']})</span></div>
-                        <div style="margin-bottom:4px;">
-                            <span class="role-pill">{role_icon} {meta['role']}</span>
-                        </div>
-                        <div class="chip-box">
-                            {chips_html}
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+            # Usa o container nativo com borda para o Card
+            with st.container(border=True):
+                # Header colorido usando sintaxe nativa de cor do Streamlit
+                st.markdown(f":{t['color']}[**{t['title']}**]")
+                st.caption(f"{t['desc']} • {len(t['legs'])} Legs")
+                st.divider()
+
+                # Agrupamento por Jogador (SGP Style)
+                player_legs = defaultdict(list)
+                player_meta = {}
+                for leg in t['legs']:
+                    player_legs[leg['player']].append(leg)
+                    player_meta[leg['player']] = {'team': leg['team'], 'role': leg['role'], 'dbl': leg['is_double']}
+
+                for p_name, legs in player_legs.items():
+                    meta = player_meta[p_name]
+                    
+                    # Colunas internas para alinhar Imagem e Texto
+                    c_img, c_data = st.columns([1, 4])
+                    
+                    with c_img:
+                        st.image(get_photo_url(p_name), width=40)
+                    
+                    with c_data:
+                        # Ícones e Tags
+                        role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
+                        barrel = "⚡" if meta['dbl'] else ""
+                        
+                        st.markdown(f"**{p_name}** {barrel}")
+                        st.caption(f"{role_icon} {meta['role']} • {meta['team']}")
+                        
+                        # Stats Chips (Usando HTML inline simples e seguro dentro do Markdown)
+                        chips_str = ""
+                        for l in legs:
+                            color = "#fbbf24" if l['stat'] == 'PTS' else "#60a5fa"
+                            # Badge HTML Simples (<span> não quebra layout)
+                            chips_str += f"""<span style='background:#1e293b; border:1px solid #334155; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:4px; display:inline-block;'>
+                                <strong style='color:{color}'>{l['line']}+ {l['stat']}</strong> <span style='color:#64748b; font-size:9px'>({l['hits']}/10)</span>
+                            </span>"""
+                        
+                        st.markdown(chips_str, unsafe_allow_html=True)
+                    
+                    # Espaçamento leve entre jogadores
+                    st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
 # ============================================================================
 # PÁGINA: MATCHUP CENTER (V3.3 - HIERARCHY SORT FIX)
 # ============================================================================
@@ -8519,6 +8437,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
