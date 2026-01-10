@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V12.0 - BARREL MASTER)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V13.0 - YIELD & STABILITY)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6650,84 +6650,80 @@ def show_desdobramentos_inteligentes():
     except ImportError:
         def get_data_universal(key): return {}
 
-    # --- 2. HELPERS VISUAIS ---
-    def nuclear_normalize(text):
-        if not text: return ""
-        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
-
-    # Recuperação de IDs e Fotos
-    df_l5_raw = st.session_state.get('df_l5', pd.DataFrame())
-    ID_VAULT = {}
-    if not df_l5_raw.empty:
-        try:
-            c_id = next((c for c in df_l5_raw.columns if 'ID' in c or 'PERSON' in c), 'PLAYER_ID')
-            c_name = next((c for c in df_l5_raw.columns if 'PLAYER' in c or 'NAME' in c), 'PLAYER')
-            for _, row in df_l5_raw.iterrows():
-                try: ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
-                except: pass
-        except: pass
-
-    def get_photo_url(name):
-        pid = ID_VAULT.get(nuclear_normalize(name), 0)
-        if pid > 0: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
-
-    # --- 3. CSS (VISUAL REFINADO) ---
+    # --- 2. CSS SIMPLIFICADO (ESTÁVEL) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
         
-        .strat-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin: 0; text-transform: uppercase; }
-        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 20px; }
+        .strat-header { font-family: 'Oswald'; font-size: 30px; color: #fbbf24; margin: 0; text-transform: uppercase; }
+        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #94a3b8; margin-bottom: 15px; }
         
-        /* CARDS */
-        .ticket-card {
-            background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
-            border: 1px solid #334155; border-radius: 12px;
-            padding: 0; margin-bottom: 20px; overflow: hidden;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        /* CARD LIMPO */
+        .ticket-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
         }
-        .header-pyramid { background: rgba(59, 130, 246, 0.2); border-bottom: 1px solid #3b82f6; }
-        .header-wall { background: rgba(16, 185, 129, 0.2); border-bottom: 1px solid #10b981; }
-        .header-attack { background: rgba(239, 68, 68, 0.2); border-bottom: 1px solid #ef4444; }
         
-        .ticket-top { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
-        .ticket-title { font-family: 'Oswald'; font-size: 14px; color: #fff; letter-spacing: 0.5px; }
-        .ticket-badge { font-family: 'Inter'; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.4); color: #fff; }
+        .t-header { padding: 8px 12px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .t-title { font-family: 'Oswald'; font-size: 14px; color: #fff; }
+        .t-badge { font-size: 10px; font-weight: bold; background: #1e293b; padding: 2px 6px; border-radius: 4px; color: #cbd5e1; }
         
-        /* PLAYER ROW */
-        .player-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed rgba(255,255,255,0.05); }
-        .player-row:last-child { border-bottom: none; margin-bottom: 0; }
-        .p-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; flex-shrink: 0; }
+        /* TEMAS DE COR */
+        .th-attack { background: rgba(220, 38, 38, 0.15); border-left: 3px solid #dc2626; }
+        .th-pyramid { background: rgba(37, 99, 235, 0.15); border-left: 3px solid #2563eb; }
+        .th-wall { background: rgba(5, 150, 105, 0.15); border-left: 3px solid #059669; }
+        .th-scavenge { background: rgba(147, 51, 234, 0.15); border-left: 3px solid #9333ea; }
         
-        .p-info { flex: 1; min-width: 0; }
-        .p-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .p-team { font-family: 'Inter'; font-size: 10px; color: #94a3b8; font-weight: bold; }
+        /* LINHA JOGADOR (SIMPLIFICADA) */
+        .p-row { 
+            display: flex; align-items: center; 
+            padding: 8px 12px; 
+            border-bottom: 1px solid #1e293b; 
+        }
+        .p-row:last-child { border-bottom: none; }
         
-        .role-tag { font-size: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 5px; text-transform: uppercase; display: inline-block; vertical-align: middle; }
-        .rt-anchor { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
-        .rt-motor { background: #052e16; color: #86efac; border: 1px solid #22c55e; }
-        .rt-worker { background: #172554; color: #93c5fd; border: 1px solid #3b82f6; }
-        .rt-base { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; }
+        .p-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #475569; margin-right: 10px; }
+        .p-main { flex: 1; }
+        .p-name { font-family: 'Oswald'; font-size: 13px; color: #e2e8f0; line-height: 1.2; }
+        .p-sub { font-family: 'Inter'; font-size: 9px; color: #64748b; }
         
-        .stats-container { display: flex; gap: 4px; }
-        .stat-badge { background: rgba(15, 23, 42, 0.6); border: 1px solid #475569; border-radius: 4px; padding: 2px 6px; text-align: center; min-width: 40px; }
-        .stat-val { font-family: 'Oswald'; font-size: 13px; font-weight: bold; color: #fff; line-height: 1; }
-        .stat-lbl { font-family: 'Inter'; font-size: 7px; color: #94a3b8; text-transform: uppercase; }
+        .p-stat { text-align: right; }
+        .s-val { font-family: 'Oswald'; font-size: 14px; font-weight: bold; color: #fff; }
+        .s-lbl { font-size: 8px; color: #94a3b8; text-transform: uppercase; }
         
-        .barrel-pill { background: #facc15; color: #000; font-size: 8px; font-weight: bold; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+        .role-pill { 
+            font-size: 8px; padding: 1px 4px; border-radius: 3px; 
+            background: #334155; color: #cbd5e1; display: inline-block; margin-left: 4px; 
+        }
+        .barrel-mark { color: #facc15; font-weight: bold; font-size: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 4. HEADER & CONTROLES ---
-    c_head, c_tog = st.columns([4, 1])
-    with c_head:
-        st.markdown('<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 V12.0 Barrel Master</div>', unsafe_allow_html=True)
-    with c_tog:
-        debug_mode = st.toggle("🛠️ Debug", value=False)
+    # --- 3. HELPERS ---
+    def nuclear_normalize(text):
+        if not text: return ""
+        return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
 
-    # --- 5. ENGINE V12 (PACKAGES) ---
+    # Vault IDs
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
+    ID_VAULT = {}
+    if not df_l5.empty:
+        try:
+            c_id = next((c for c in df_l5.columns if 'ID' in c), 'PLAYER_ID')
+            c_name = next((c for c in df_l5.columns if 'PLAYER' in c), 'PLAYER')
+            for _, row in df_l5.iterrows():
+                ID_VAULT[nuclear_normalize(str(row.get(c_name, '')))] = int(float(row.get(c_id, 0)))
+        except: pass
+
+    def get_photo_url(name):
+        pid = ID_VAULT.get(nuclear_normalize(name), 0)
+        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
+        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+
+    # --- 4. ENGINE V13 ---
     class LocalPlayerClassifier:
         def get_role_classification(self, ctx):
             pts = ctx.get('pts_L5', 0)
@@ -6745,14 +6741,14 @@ def show_desdobramentos_inteligentes():
             if reb >= 4.5 and ast >= 3.5: return "hustle"
             return "scorer"
 
-    class OrchestratorV12:
+    class OrchestratorV13:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
             self.active_teams = self._get_active_teams()
             self.classifier = LocalPlayerClassifier()
-            # Inventário agora armazena PACOTES de jogador, não pernas soltas
-            self.inventory = {'ANCHOR': [], 'MOTOR': [], 'WORKER': [], 'BASE': []}
+            # Inventário Global (Lista única para facilitar o Scavenge)
+            self.master_inventory = [] 
             self.diag = {"analyzed": 0, "approved_players": 0, "legs_total": 0}
 
         def _get_active_teams(self):
@@ -6769,7 +6765,6 @@ def show_desdobramentos_inteligentes():
             return map_nba.get(str(t).upper(), str(t).upper())
 
         def ingest_and_bundle(self):
-            """Analisa jogadores e cria PACOTES de stats (Bundles)"""
             for name, data in self.logs.items():
                 self.diag['analyzed'] += 1
                 team = self._norm(data.get('team'))
@@ -6780,12 +6775,12 @@ def show_desdobramentos_inteligentes():
                 if not logs: continue
 
                 l5_stats = {k: statistics.mean(logs.get(k, [0])[:5]) for k in ['PTS','REB','AST','min']}
-                ctx = {'pts_L5': l5_stats['PTS'], 'reb_L5': l5_stats['REB'], 'ast_L5': l5_stats['AST'], 'min_L5': l5_stats['min'], 'is_starter': l5_stats['min'] > 22}
+                is_starter = l5_stats['min'] > 22
+                ctx = {'pts_L5': l5_stats['PTS'], 'reb_L5': l5_stats['REB'], 'ast_L5': l5_stats['AST'], 'min_L5': l5_stats['min'], 'is_starter': is_starter}
                 
                 role_tag = self.classifier.get_role_classification(ctx)
                 style_tag = self.classifier.get_play_style(ctx)
                 
-                # 1. Coleta TODAS as pernas válidas
                 valid_legs = []
                 for stat in ['PTS', 'REB', 'AST']:
                     vals = logs.get(stat, [])
@@ -6806,192 +6801,183 @@ def show_desdobramentos_inteligentes():
 
                 if not valid_legs: continue
                 
-                # 2. Definição de Role do JOGADOR (não da perna)
-                # O jogador entra inteiro numa categoria
+                # Classificação
                 role = 'BASE'
-                
-                # ÂNCORA: Estrela com pontos fortes
                 if role_tag in ['star', 'starter'] and any(l['stat']=='PTS' and l['line']>=18 for l in valid_legs):
                     role = 'ANCHOR'
-                # MOTOR: Playmaker/Rebounder com Double Barrel
                 elif len(valid_legs) >= 2 and style_tag in ['playmaker', 'hustle', 'rebounder']:
                     role = 'MOTOR'
-                # OPERÁRIO
                 elif any(l['stat']=='PTS' and l['line']>=10 for l in valid_legs):
                     role = 'WORKER'
                 
-                # Score do Pacote (Soma das legs)
-                total_score = sum(l['score'] for l in valid_legs)
+                # Ordena pernas por score
+                valid_legs.sort(key=lambda x: x['score'], reverse=True)
                 
-                # 3. Adiciona PACOTE ao inventário
-                self.inventory[role].append({
+                # Adiciona ao Inventário Mestre
+                self.master_inventory.append({
                     'player': name, 'team': team, 
-                    'legs': valid_legs, # Lista de dicts
+                    'legs': valid_legs, # Todas as pernas disponíveis
                     'role': role,
-                    'score': total_score,
+                    'score': sum(l['score'] for l in valid_legs),
                     'usage': 0
                 })
                 self.diag['approved_players'] += 1
                 self.diag['legs_total'] += len(valid_legs)
 
         def manufacture_tickets(self):
-            for cat in self.inventory: self.inventory[cat].sort(key=lambda x: x['score'], reverse=True)
+            # Ordena inventário global
+            self.master_inventory.sort(key=lambda x: x['score'], reverse=True)
             tickets = []
-            max_tickets = 18 
             
-            def get_player_package(roles_pref, exclude_teams, exclude_players, max_usage=2):
-                for role in roles_pref:
-                    for p in self.inventory[role]:
-                        usage_limit = max_usage + 1 if role in ['ANCHOR', 'MOTOR'] else max_usage
-                        if p['usage'] < usage_limit and p['team'] not in exclude_teams and p['player'] not in exclude_players:
-                            p['usage'] += 1
-                            return p # Retorna o objeto jogador inteiro com todas as legs
+            # --- 1. FASE DE FÓRMULAS ESTRUTURADAS ---
+            formulas = ['ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL', 'ATTACK', 'PYRAMID', 'WALL']
+            
+            # Helper de busca (Não incrementa uso aqui, só busca)
+            def find_candidate(roles, exclude_teams, exclude_players, max_usage=2):
+                for p in self.master_inventory:
+                    usage_limit = max_usage + 1 if p['role'] in ['ANCHOR', 'MOTOR'] else max_usage
+                    if p['role'] in roles and p['usage'] < usage_limit:
+                        if p['team'] not in exclude_teams and p['player'] not in exclude_players:
+                            return p
                 return None
 
-            formulas = ['ATTACK', 'PYRAMID', 'WALL', 'PYRAMID', 'ATTACK']
-            
-            # Loop de produção
-            consecutive_fails = 0
-            while len(tickets) < max_tickets and consecutive_fails < 6:
-                formula = formulas[len(tickets) % len(formulas)]
-                bundle_list = []
+            for form_type in formulas:
+                candidates = []
                 u_teams, u_players = set(), set()
                 meta = {}
+                
+                # Definição de Slots com Fallback
+                slots = []
+                if form_type == 'ATTACK':
+                    slots = [(['ANCHOR'], 3), (['ANCHOR'], 3), (['WORKER', 'BASE'], 2), (['WORKER', 'BASE'], 2)]
+                    meta = {'title': '🚀 ATAQUE TOTAL', 'class': 'th-attack'}
+                elif form_type == 'PYRAMID':
+                    slots = [(['ANCHOR'], 3), (['MOTOR', 'WORKER'], 3), (['WORKER', 'BASE'], 2), (['BASE', 'WORKER'], 2)]
+                    meta = {'title': '🛡️ A PIRÂMIDE', 'class': 'th-pyramid'}
+                elif form_type == 'WALL':
+                    slots = [(['MOTOR', 'WORKER'], 3), (['WORKER'], 2), (['BASE'], 2), (['BASE'], 2)]
+                    meta = {'title': '🧱 O PAREDÃO', 'class': 'th-wall'}
+                
+                # Tenta preencher slots
+                valid_ticket = True
+                for roles, limit in slots:
+                    cand = find_candidate(roles, u_teams, u_players, limit)
+                    if cand:
+                        candidates.append(cand)
+                        u_teams.add(cand['team'])
+                        u_players.add(cand['player'])
+                    else:
+                        valid_ticket = False
+                        break
+                
+                # Commit se válido
+                if valid_ticket and len(candidates) == 4:
+                    self._commit_ticket(tickets, candidates, meta)
 
-                # SELEÇÃO DE JOGADORES (PACOTES)
-                if formula == 'ATTACK': # 2 Anchors + 2 Workers (ou Bases)
-                    for _ in range(2):
-                        p = get_player_package(['ANCHOR'], u_teams, u_players)
-                        if p: bundle_list.append(p); u_teams.add(p['team']); u_players.add(p['player'])
-                    for _ in range(2):
-                        p = get_player_package(['WORKER', 'BASE'], u_teams, u_players)
-                        if p: bundle_list.append(p); u_teams.add(p['team']); u_players.add(p['player'])
-                    meta = {'title': f"🚀 ATAQUE TOTAL #{len(tickets)+1}", 'class': 'header-attack'}
-
-                elif formula == 'PYRAMID': # 1 Anchor + 1 Motor + 1 Worker + 1 Base
-                    p1 = get_player_package(['ANCHOR'], u_teams, u_players)
-                    if p1: bundle_list.append(p1); u_teams.add(p1['team']); u_players.add(p1['player'])
+            # --- 2. FASE "SCAVENGER" (VARREDURA FINAL) ---
+            # Monta bilhetes com o que sobrou, sem fórmula rígida, só qualidade
+            # Tenta gerar mais bilhetes até esgotar possibilidades ou chegar a 20
+            
+            while len(tickets) < 20:
+                scavenge_legs = []
+                u_teams, u_players = set(), set()
+                
+                # Tenta pegar 4 jogadores disponíveis de qualquer role
+                for p in self.master_inventory:
+                    if len(scavenge_legs) == 4: break
+                    limit = 4 if p['role'] == 'ANCHOR' else 3
                     
-                    p2 = get_player_package(['MOTOR', 'WORKER'], u_teams, u_players)
-                    if p2: bundle_list.append(p2); u_teams.add(p2['team']); u_players.add(p2['player'])
-                    
-                    p3 = get_player_package(['WORKER', 'BASE'], u_teams, u_players)
-                    if p3: bundle_list.append(p3); u_teams.add(p3['team']); u_players.add(p3['player'])
-                    
-                    p4 = get_player_package(['BASE', 'WORKER'], u_teams, u_players)
-                    if p4: bundle_list.append(p4); u_teams.add(p4['team']); u_players.add(p4['player'])
-                    meta = {'title': f"🛡️ A PIRÂMIDE #{len(tickets)+1}", 'class': 'header-pyramid'}
-
-                elif formula == 'WALL': # 1 Motor + 3 Bases/Workers
-                    p1 = get_player_package(['MOTOR', 'WORKER'], u_teams, u_players)
-                    if p1: bundle_list.append(p1); u_teams.add(p1['team']); u_players.add(p1['player'])
-                    for _ in range(3):
-                        p = get_player_package(['BASE', 'WORKER'], u_teams, u_players)
-                        if p: bundle_list.append(p); u_teams.add(p['team']); u_players.add(p['player'])
-                    meta = {'title': f"🧱 O PAREDÃO #{len(tickets)+1}", 'class': 'header-wall'}
-
-                # EXTRAÇÃO DE LEGS (EXPANSÃO DE BARRIS)
-                final_legs = []
-                for player in bundle_list:
-                    # Aqui está a mágica: Se o jogador tem 2 ou 3 legs, ADICIONA TODAS
-                    # Mas limitamos para não ficar gigante (Max 2 legs por jogador no mesmo bilhete, salvo se for Anchor forte)
-                    legs_to_add = player['legs']
-                    if len(legs_to_add) > 2 and player['role'] != 'ANCHOR':
-                        legs_to_add = legs_to_add[:2] # Pega as 2 melhores
-                    
-                    for leg in legs_to_add:
-                        # Reconstrói objeto leg com info do jogador para o display
-                        final_legs.append({
-                            'player': player['player'], 'team': player['team'], 'role': player['role'],
-                            'stat': leg['stat'], 'line': leg['line'], 
-                            'is_double': len(legs_to_add) > 1
-                        })
-
-                # VALIDAÇÃO (Mínimo 4 legs totais, Máximo 8)
-                if 4 <= len(final_legs) <= 9:
-                    tickets.append({**meta, 'legs': final_legs})
-                    consecutive_fails = 0
+                    if p['usage'] < limit and p['team'] not in u_teams and p['player'] not in u_players:
+                        scavenge_legs.append(p)
+                        u_teams.add(p['team'])
+                        u_players.add(p['player'])
+                
+                if len(scavenge_legs) == 4:
+                    self._commit_ticket(tickets, scavenge_legs, {'title': '♻️ RECICLAGEM TÁTICA', 'class': 'th-scavenge'})
                 else:
-                    consecutive_fails += 1
+                    break # Acabou o estoque
             
             return tickets
 
-    # --- 6. EXECUÇÃO ---
+        def _commit_ticket(self, tickets, players, meta):
+            final_legs = []
+            for p in players:
+                p['usage'] += 1
+                # Double Barrel Logic: Se tem >1 leg e é forte, usa 2. Senão 1.
+                legs_to_use = p['legs'][:2] if (len(p['legs']) > 1 and p['role'] in ['ANCHOR', 'MOTOR']) else p['legs'][:1]
+                
+                for l in legs_to_use:
+                    final_legs.append({
+                        'player': p['player'], 'team': p['team'], 'role': p['role'],
+                        'stat': l['stat'], 'line': l['line'],
+                        'is_double': len(legs_to_use) > 1
+                    })
+            
+            # Formata Título com número
+            meta['title'] = f"{meta['title']} #{len(tickets)+1}"
+            tickets.append({**meta, 'legs': final_legs})
+
+    # --- 5. EXECUÇÃO ---
+    c_head, c_tog = st.columns([4, 1])
+    with c_head:
+        st.markdown('<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 V13.0 High Yield</div>', unsafe_allow_html=True)
+    with c_tog:
+        debug_mode = st.toggle("🛠️ Debug", value=False)
+
     logs = st.session_state.get("real_game_logs") or get_data_universal("real_game_logs")
     games = st.session_state.get("scoreboard") or get_data_universal("scoreboard")
 
     if not logs or not games:
-        st.warning("⚠️ Dados insuficientes (L25 ou Jogos).")
+        st.warning("⚠️ Dados insuficientes.")
         return
 
-    maestro = OrchestratorV12(logs, games)
+    maestro = OrchestratorV13(logs, games)
     maestro.ingest_and_bundle()
     tickets = maestro.manufacture_tickets()
 
     if debug_mode:
-        st.info(f"⚙️ **DIAGNOSTICS V12:** {maestro.diag['approved_players']} jogadores aprovados ({maestro.diag['legs_total']} pernas). {len(tickets)} bilhetes.")
+        st.info(f"⚙️ DIAGNOSTICS: {maestro.diag['approved_players']} Jogadores Aprovados. {len(tickets)} Bilhetes Gerados.")
 
     if not tickets:
-        st.info("😴 Sem combinações de alta confiança.")
+        st.info("😴 Sem combinações.")
         return
 
-    # --- 7. RENDERIZAÇÃO ---
+    # --- 6. RENDERIZAÇÃO LIMPA ---
     cols = st.columns(3)
     for i, t in enumerate(tickets):
         with cols[i % 3]:
-            st.markdown(f"""
-            <div class="ticket-card">
-                <div class="ticket-top {t['class']}">
-                    <span class="ticket-title">{t['title']}</span>
-                    <span class="ticket-badge">{len(t['legs'])} LEGS</span>
-                </div>
-                <div style="padding:10px;">
-            """, unsafe_allow_html=True)
-            
-            # Agrupa legs por jogador para exibição bonita
-            grouped_legs = defaultdict(list)
-            player_info = {}
+            # HTML Construído de forma segura e plana
+            rows_html = ""
             for leg in t['legs']:
-                grouped_legs[leg['player']].append(leg)
-                player_info[leg['player']] = {'team': leg['team'], 'role': leg['role'], 'double': leg['is_double']}
-            
-            for player_name, legs in grouped_legs.items():
-                info = player_info[player_name]
-                photo = get_photo_url(player_name)
+                photo = get_photo_url(leg['player'])
+                role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(leg['role'],'')
+                clr = "#fbbf24" if leg['stat'] == "PTS" else "#60a5fa"
+                barrel = "<span class='barrel-mark'>⚡</span>" if leg['is_double'] else ""
                 
-                # Tags
-                tag_map = {'ANCHOR':('👑','rt-anchor'), 'MOTOR':('⚙️','rt-motor'), 'WORKER':('👷','rt-worker'), 'BASE':('🛡️','rt-base')}
-                icon, cls = tag_map.get(info['role'], ('',''))
-                barrel_pill = '<span class="barrel-pill">DOUBLE BARREL</span>' if len(legs) > 1 else ''
-                
-                # HTML dos Stats
-                stats_html = ""
-                for l in legs:
-                    clr = "#fbbf24" if l['stat']=='PTS' else ("#60a5fa" if l['stat']=='REB' else "#facc15")
-                    stats_html += f"""
-                    <div class="stat-badge">
-                        <div class="stat-val" style="color:{clr}">{l['line']}+</div>
-                        <div class="stat-lbl">{l['stat']}</div>
-                    </div>
-                    """
-
-                st.markdown(f"""
-                <div class="player-row">
+                rows_html += f"""
+                <div class="p-row">
                     <img src="{photo}" class="p-img">
-                    <div class="p-info">
-                        <div class="p-name">{player_name} {barrel_pill}</div>
-                        <div style="display:flex; align-items:center; margin-top:2px;">
-                            <span class="p-team">{info['team']}</span>
-                            <span class="role-tag {cls}">{icon} {info['role']}</span>
-                        </div>
+                    <div class="p-main">
+                        <div class="p-name">{leg['player']} {barrel}</div>
+                        <div class="p-sub"><span class="role-pill">{role_icon} {leg['role']}</span> {leg['team']}</div>
                     </div>
-                    <div class="stats-container">
-                        {stats_html}
+                    <div class="p-stat">
+                        <div class="s-val" style="color:{clr}">{leg['line']}+</div>
+                        <div class="s-lbl">{leg['stat']}</div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-            st.markdown("</div></div>", unsafe_allow_html=True)
+                """
+            
+            st.markdown(f"""
+            <div class="ticket-box {t['class']}">
+                <div class="t-header {t['class']}">
+                    <span class="t-title">{t['title']}</span>
+                    <span class="t-badge">{len(t['legs'])} LEGS</span>
+                </div>
+                {rows_html}
+            </div>
+            """, unsafe_allow_html=True)
         
 # ============================================================================
 # FUNÇÃO AUXILIAR: RENDERIZAÇÃO DO BANCO (ESCALAÇÕES)
@@ -8575,6 +8561,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
