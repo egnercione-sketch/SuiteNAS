@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V1.0
+# PÁGINA: O GARIMPO (SGP FACTORY) - V1.1 (CALIBRADO + DEBUG)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3164,99 +3164,69 @@ def show_garimpo_page():
     import requests
     import re
     import unicodedata
-    import time
     from collections import defaultdict
 
-    # --- 1. CONFIGURAÇÃO & IMPORTAÇÃO DE MÓDULOS ---
+    # --- 1. CONFIGURAÇÃO ---
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
         from modules.new_modules.player_classifier import PlayerClassifier
         from modules.new_modules.monte_carlo import MonteCarloEngine
         from modules.new_modules.dvp_analyzer import DvPAnalyzer
-        from modules.new_modules.thesis_engine import ThesisEngine
         MODULES_OK = True
     except ImportError as e:
-        st.error(f"Erro ao importar módulos do Garimpo: {e}")
-        MODULES_OK = False
+        st.error(f"Erro de Módulos: {e}")
         return
 
-    # --- 2. IDENTIDADE VISUAL (TEMA: MINERAÇÃO/OURO) ---
+    # --- 2. CSS (MANTIDO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
-        
-        .garimpo-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin-bottom: 0px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0px 0px 10px rgba(251, 191, 36, 0.3); }
-        .garimpo-sub { font-family: 'Inter'; font-size: 13px; color: #94a3b8; margin-bottom: 25px; }
-        
-        /* CARD DE PEPITA (NUGGET CARD) */
-        .nugget-card {
-            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            border-left: 4px solid #fbbf24; /* Ouro */
-            position: relative;
-            transition: all 0.3s ease;
-        }
-        .nugget-card:hover { border-color: #f59e0b; transform: translateY(-3px); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-        
-        .nugget-header { display: flex; align-items: center; gap: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
-        .nugget-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background: #000; }
-        .nugget-info { flex: 1; }
-        .nugget-name { font-family: 'Oswald'; font-size: 18px; color: #fff; line-height: 1.1; }
-        .nugget-meta { font-size: 11px; color: #94a3b8; font-weight: 600; display: flex; gap: 8px; align-items: center; margin-top: 3px; }
-        
-        /* BADGES */
-        .badge-vacuum { background: #4c1d95; color: #d8b4fe; padding: 2px 8px; border-radius: 4px; font-size: 10px; border: 1px solid #8b5cf6; display: flex; align-items: center; gap: 4px; }
-        .badge-safe { background: #064e3b; color: #6ee7b7; padding: 2px 8px; border-radius: 4px; font-size: 10px; border: 1px solid #10b981; }
-        
-        /* BARRAS DE PROGRESSO (STATS) */
-        .stat-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 12px; color: #cbd5e1; }
-        .stat-label { width: 80px; font-weight: bold; font-family: 'Inter'; }
-        .stat-bar-bg { flex: 1; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 10px; }
+        .garimpo-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin:0; text-transform: uppercase; text-shadow: 0 0 10px rgba(251,191,36,0.3); }
+        .garimpo-sub { font-family: 'Inter'; font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+        .nugget-card { background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 12px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #fbbf24; }
+        .nugget-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+        .nugget-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background:#000; }
+        .nugget-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; }
+        .stat-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 11px; color: #cbd5e1; }
+        .stat-label { width: 70px; font-weight: bold; }
+        .stat-bar-bg { flex: 1; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 8px; }
         .stat-bar-fill { height: 100%; border-radius: 3px; }
-        .stat-val { width: 40px; text-align: right; font-family: 'Oswald'; color: #fff; }
-        
-        /* CORES DAS BARRAS */
-        .fill-pts { background: #ef4444; }
-        .fill-reb { background: #3b82f6; }
-        .fill-ast { background: #fbbf24; }
-        
-        /* RODAPÉ DO CARD */
-        .nugget-footer { margin-top: 12px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; }
-        .footer-odds { color: #fbbf24; font-family: 'Oswald'; font-size: 14px; }
+        .stat-val { width: 35px; text-align: right; font-family: 'Oswald'; color: #fff; }
+        .fill-pts { background: #ef4444; } .fill-reb { background: #3b82f6; } .fill-ast { background: #fbbf24; }
+        .badge-vacuum { background: #4c1d95; color: #d8b4fe; padding: 2px 6px; border-radius: 4px; font-size: 9px; border: 1px solid #8b5cf6; }
+        .badge-safe { background: #064e3b; color: #6ee7b7; padding: 2px 6px; border-radius: 4px; font-size: 9px; border: 1px solid #10b981; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="garimpo-header">⚒️ O GARIMPO <span style="font-size:18px; color:#64748b; vertical-align:middle;">| SGP Factory</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="garimpo-sub">Identificando "Operários de Luxo" para combinadas de valor (PTS+REB+AST).</div>', unsafe_allow_html=True)
+    c_head, c_tog = st.columns([4, 1])
+    with c_head:
+        st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">Fábrica de SGP (Pontos + Rebotes + Assistências)</div>', unsafe_allow_html=True)
+    with c_tog:
+        debug_mode = st.toggle("🛠️ Debug", value=True)
 
-    # --- 3. DADOS ---
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.warning("⚠️ Scoreboard vazio. Vá em Config > Atualizar Jogos.")
+        st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
         return
 
-    # Tenta usar cache V3.5 (Real) ou Snapshot
+    # Tenta obter dados
     try:
-        from SuiteNAS import get_data_universal # Ajuste conforme seu arquivo principal
+        from SuiteNAS import get_data_universal
         cache_logs = get_data_universal("real_game_logs")
     except:
         cache_logs = st.session_state.get("real_game_logs", {})
 
     if not cache_logs:
-        st.error("❌ Cache de Logs vazio. Vá em Config > Reconstruir Cache.")
+        st.error("❌ Cache de Logs vazio.")
         return
 
-    # --- 4. HELPERS ---
+    # --- 3. HELPERS ---
     def nuclear_normalize(text):
         if not text: return ""
-        try:
-            text = unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
-            return re.sub(r'[^A-Z0-9]', '', text.upper())
+        try: return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
         except: return ""
 
-    # Carrega ID Map para Fotos
+    # Carrega IDs
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -3267,143 +3237,105 @@ def show_garimpo_page():
 
     def get_photo(name):
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
-        if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
-        return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
+        return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 5. INJURY SCAN (OBRIGATÓRIO) ---
+    # --- 4. INJURY SCAN ---
     @st.cache_data(ttl=600)
     def scan_injuries_live(games):
         blacklist = set()
-        active_rosters = {} # {team: [players...]}
-        
+        active_rosters = {}
         map_espn = {"UTA":"utah","NOP":"no","NYK":"ny","GSW":"gs","SAS":"sa","PHX":"pho","WAS":"wsh","BKN":"bkn"}
-        
-        # Lista de times jogando hoje
         teams = set()
-        for g in games:
-            teams.add(g['home']); teams.add(g['away'])
-            
+        for g in games: teams.add(g['home']); teams.add(g['away'])
+        
         for t in teams:
             t_code = map_espn.get(t.upper(), t.lower())
             try:
-                # Simulação de request (Substitua pela sua lógica real ou import do injury monitor)
                 url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{t_code}/roster"
                 r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=2)
                 if r.status_code == 200:
-                    data = r.json()
                     active_rosters[t] = []
-                    for ath in data.get('athletes', []):
+                    for ath in r.json().get('athletes', []):
                         name = ath.get('fullName', '')
                         status = ath.get('status', {}).get('type', {}).get('name', 'Active')
-                        
-                        # Guardamos info para o Vacuum
-                        p_info = {'name': name, 'status': status, 'pos': ath.get('position',{}).get('abbreviation','F')}
-                        active_rosters[t].append(p_info)
-                        
-                        if status != 'Active':
-                            blacklist.add(nuclear_normalize(name))
+                        active_rosters[t].append({'name': name, 'status': status, 'pos': ath.get('position',{}).get('abbreviation','F')})
+                        if status != 'Active': blacklist.add(nuclear_normalize(name))
             except: pass
         return blacklist, active_rosters
 
-    # --- 6. MOTOR DO GARIMPO (MINER) ---
-    class GoldMiner:
+    # --- 5. MINER ENGINE (COM DIAGNÓSTICO) ---
+    class GoldMinerV2:
         def __init__(self, logs, blacklist, rosters):
             self.logs = logs
             self.blacklist = blacklist
             self.rosters = rosters
-            
-            # Instancia Módulos
             self.vacuum = VacuumMatrixAnalyzer()
             self.classifier = PlayerClassifier()
-            self.monte_carlo = MonteCarloEngine(default_sims=2000) # Rápido
-            self.dvp = DvPAnalyzer()
+            self.monte_carlo = MonteCarloEngine(default_sims=1500) # Rápido
+            
+            # Contadores de Debug
+            self.diag = {"total": 0, "skip_min": 0, "skip_data": 0, "fail_mc": 0, "approved": 0, "failures": []}
 
         def mine_nuggets(self):
             nuggets = []
             
-            # 1. Analisa Vacuum por Time
+            # 1. Vacuum
             vacuum_boosts = {}
             for team, roster in self.rosters.items():
-                # Adapta roster para o formato esperado pelo VacuumMatrix
                 vac_roster = []
                 for p in roster:
                     p_norm = nuclear_normalize(p['name'])
-                    # Tenta pegar média de minutos do cache para ajudar na decisão
                     min_l5 = 0
                     if p_norm in self.logs:
-                        raw_mins = self.logs[p_norm].get('logs', {}).get('MIN', [])
-                        if raw_mins: min_l5 = np.mean(raw_mins[:5])
-                    
-                    vac_roster.append({
-                        'name': p['name'],
-                        'status': p['status'], # Active/Out
-                        'position': p['pos'],
-                        'min_L5': min_l5,
-                        'is_starter': min_l5 > 24 # Heurística simples
-                    })
+                        raw = self.logs[p_norm].get('logs', {}).get('MIN', [])
+                        if raw: min_l5 = np.mean([float(str(x).replace(':','.')) for x in raw[:5]])
+                    vac_roster.append({'name': p['name'], 'status': p['status'], 'position': p['pos'], 'min_L5': min_l5, 'is_starter': min_l5 > 24})
                 
-                # Roda o Vacuum
-                report = self.vacuum.analyze_team_vacuum(vac_roster, team)
-                if report:
-                    for name, info in report.items():
-                        vacuum_boosts[nuclear_normalize(name)] = info
+                rep = self.vacuum.analyze_team_vacuum(vac_roster, team)
+                if rep:
+                    for name, info in rep.items(): vacuum_boosts[nuclear_normalize(name)] = info
 
-            # 2. Processa Jogadores
+            # 2. Processamento
             for name, data in self.logs.items():
+                self.diag['total'] += 1
                 norm = nuclear_normalize(name)
-                
-                # FILTRO DE SEGURANÇA 1: LESÃO
                 if norm in self.blacklist: continue
                 
-                # Dados Brutos
                 logs = data.get('logs', {})
-                if not logs or len(logs.get('PTS', [])) < 5: continue
+                if not logs or len(logs.get('PTS', [])) < 5: 
+                    self.diag['skip_data'] += 1; continue
                 
-                # Stats Básicas
-                pts = logs.get('PTS', [])[:10] # L10
-                reb = logs.get('REB', [])[:10]
-                ast = logs.get('AST', [])[:10]
-                mins = logs.get('MIN', [])[:5] # L5 para minutos (mais sensível a rotação)
+                # Stats
+                try:
+                    pts = logs.get('PTS', [])[:15] # L15 (Amostra maior)
+                    reb = logs.get('REB', [])[:15]
+                    ast = logs.get('AST', [])[:15]
+                    mins = [float(str(x).replace(':','.')) for x in logs.get('MIN', [])[:5]]
+                except: continue
                 
                 if not pts or not mins: continue
                 
-                # Projeções Base
                 proj_pts = np.mean(pts)
                 proj_reb = np.mean(reb)
                 proj_ast = np.mean(ast)
                 proj_min = np.mean(mins)
                 
-                # Aplica Vacuum Boost
+                # Vacuum Boost
                 vac_info = vacuum_boosts.get(norm)
-                is_vacuum = False
                 if vac_info:
                     boost = vac_info['boost']
-                    proj_pts *= boost
-                    proj_reb *= boost
-                    proj_ast *= boost
-                    proj_min *= boost
-                    is_vacuum = True
+                    proj_pts *= boost; proj_reb *= boost; proj_ast *= boost; proj_min *= boost
                 
-                # FILTRO DE SEGURANÇA 2: OPERÁRIO
-                # Queremos jogadores com 24+ minutos projetados e participação ativa
-                if proj_min < 24: continue
+                # Filtro Minutos (Relaxado para 22)
+                if proj_min < 22: 
+                    self.diag['skip_min'] += 1; continue
                 
-                # Classifica Role
-                p_ctx = {
-                    'pts_L5': proj_pts, 'reb_L5': proj_reb, 'ast_L5': proj_ast, 'min_L5': proj_min,
-                    'is_starter': proj_min > 28
-                }
-                role_info = self.classifier.get_role_classification(p_ctx)
-                
-                # TESTE DOS KITS (TEMPLATES)
-                # Kit 1: Piso Seguro (8-3-2)
-                # Kit 2: Operário Padrão (12-4-2) - O favorito
-                # Kit 3: Triple Threat (15-5-4)
-                
+                # KITS DEFINIDOS (Relaxados)
                 kits = [
+                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, # Muito Fácil
                     {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
-                    {'name': 'Kit Operário', 'req': (12, 4, 2), 'label': '⚙️ PADRÃO'},
-                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ALAVANCAGEM'}
+                    {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO'},
+                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE'}
                 ]
                 
                 best_kit = None
@@ -3411,119 +3343,111 @@ def show_garimpo_page():
                 for kit in kits:
                     r_pts, r_reb, r_ast = kit['req']
                     
-                    # Validação Monte Carlo (Rápida)
-                    # Usamos Poisson para REB/AST e Normal para PTS
-                    prob_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS")['prob_percent']
-                    prob_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB")['prob_percent']
-                    prob_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST")['prob_percent']
+                    # Se a projeção for MENOR que o requisito, nem roda Monte Carlo (economiza CPU)
+                    if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast:
+                        continue
+
+                    # Monte Carlo (Probabilidades)
+                    p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS")['prob_percent']
+                    p_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB")['prob_percent']
+                    p_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST")['prob_percent']
                     
-                    # Critério de Aceitação: Todos > 70% (Segurança Combinada)
-                    if prob_pts > 70 and prob_reb > 70 and prob_ast > 70:
-                        combined_prob = (prob_pts/100) * (prob_reb/100) * (prob_ast/100)
-                        
-                        # Estima Odd (Inversa da prob combinada com margem da casa)
-                        fair_odd = 1 / combined_prob if combined_prob > 0 else 99
-                        est_odd = max(2.50, min(15.0, fair_odd * 0.85)) # Ajuste conservador
+                    # REGRA DE CORTE (Relaxada):
+                    # Aceita se todos forem > 60% (era 70%)
+                    # OU se a média for > 75% (Compensação: um muito bom salva um ruim)
+                    avg_prob = (p_pts + p_reb + p_ast) / 3
+                    min_prob = min(p_pts, p_reb, p_ast)
+                    
+                    if min_prob > 60 or (avg_prob > 75 and min_prob > 50):
+                        combined = (p_pts/100) * (p_reb/100) * (p_ast/100)
+                        odd_fair = 1/combined if combined > 0 else 99
                         
                         best_kit = {
                             'type': kit['label'],
                             'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
-                            'probs': {'PTS': prob_pts, 'REB': prob_reb, 'AST': prob_ast},
-                            'odd': est_odd,
-                            'combined_prob': combined_prob * 100
+                            'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
+                            'odd': max(2.0, min(20.0, odd_fair * 0.8)),
+                            'combined_prob': combined * 100
                         }
                     else:
-                        # Se falhou no kit mais leve, nem tenta os pesados
-                        if kit['name'] == 'Kit Piso': break 
+                        # Debug Falha (Só guarda os quase lá)
+                        if avg_prob > 50 and len(self.diag['failures']) < 5:
+                            self.diag['failures'].append(f"{name} falhou no {kit['name']}: PTS {int(p_pts)}% | REB {int(p_reb)}% | AST {int(p_ast)}%")
                 
                 if best_kit:
-                    # Verifica DvP (Alerta de Matchup)
-                    opp = "UNK" # Pegar do scoreboard se possível
-                    rank_def = 15
-                    # ... lógica de DvP simplificada ...
-                    
                     nuggets.append({
-                        'player': name,
-                        'team': data['team'],
-                        'kit': best_kit,
-                        'vacuum': vac_info,
-                        'role': role_info['style'],
+                        'player': name, 'team': data['team'],
+                        'kit': best_kit, 'vacuum': vac_info,
                         'proj_min': proj_min
                     })
+                    self.diag['approved'] += 1
+                else:
+                    self.diag['fail_mc'] += 1
                     
             return nuggets
 
-    # --- 7. EXECUÇÃO ---
-    if st.button("⚒️ INICIAR GARIMPO (PROSPECTAR)", type="primary", use_container_width=True):
+    # --- 6. EXECUÇÃO ---
+    if st.button("⚒️ PROSPECTAR (V1.1)", type="primary", use_container_width=True):
         
-        with st.status("⛏️ Minerando Oportunidades...", expanded=True) as status:
-            status.write("🚑 Verificando Departamento Médico (Filtro de Lesões)...")
+        with st.status("⛏️ Minerando...", expanded=True) as status:
+            status.write("🚑 Checando Lesões...")
             blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
             
-            status.write("🧠 Ativando Vacuum Matrix & Classificadores...")
-            miner = GoldMiner(cache_logs, blacklist, rosters)
-            
-            status.write("🎲 Rodando Simulações Monte Carlo nos Kits SGP...")
+            status.write("🧠 Rodando Minerador V2...")
+            miner = GoldMinerV2(cache_logs, blacklist, rosters)
             nuggets = miner.mine_nuggets()
             
+            # DEBUG BOX
+            if debug_mode:
+                d = miner.diag
+                st.info(f"""
+                **DIAGNÓSTICO:**
+                - Total Analisado: {d['total']}
+                - Ignorado (Dados Insuficientes): {d['skip_data']}
+                - Ignorado (Minutos < 22): {d['skip_min']}
+                - Falha no Monte Carlo (Prob Baixa): {d['fail_mc']}
+                - **APROVADOS:** {d['approved']}
+                """)
+                if d['failures']:
+                    with st.expander("Exemplos de Falha (Quase lá)"):
+                        for f in d['failures']: st.write(f)
+            
             st.session_state.garimpo_results = nuggets
-            status.update(label=f"✅ ENCONTRADO! {len(nuggets)} Pepitas de Valor.", state="complete", expanded=False)
+            status.update(label="✅ Concluído!", state="complete", expanded=False)
 
-    # --- 8. EXIBIÇÃO (CARDS) ---
+    # --- 7. EXIBIÇÃO ---
     if 'garimpo_results' in st.session_state:
         results = st.session_state.garimpo_results
         
         if not results:
-            st.info("Nenhum jogador passou nos critérios rígidos de SGP hoje.")
+            st.warning("Nenhum resultado. O filtro ainda está barrando todos. Verifique o Debug acima.")
             return
             
-        # Ordena por Odd (Maior para menor) ou Probabilidade
         results.sort(key=lambda x: x['kit']['combined_prob'], reverse=True)
         
         c1, c2 = st.columns(2)
         for i, item in enumerate(results):
             col = c1 if i % 2 == 0 else c2
-            
             kit = item['kit']
             lines = kit['lines']
             probs = kit['probs']
-            vac = item['vacuum']
-            
-            # Badges
-            badges_html = ""
-            if vac: badges_html += f'<span class="badge-vacuum">💎 VACUUM ({vac["source"]} OUT)</span>'
-            if kit['combined_prob'] > 60: badges_html += f'<span class="badge-safe">🛡️ SAFE</span>'
             
             with col:
                 st.markdown(f"""
                 <div class="nugget-card">
                     <div class="nugget-header">
                         <img src="{get_photo(item['player'])}" class="nugget-img">
-                        <div class="nugget-info">
+                        <div>
                             <div class="nugget-name">{item['player']}</div>
-                            <div class="nugget-meta">{item['team']} • {item['role'].upper()} • {int(item['proj_min'])} MIN {badges_html}</div>
+                            <div style="font-size:10px; color:#94a3b8;">{item['team']} • {int(item['proj_min'])} MIN</div>
                         </div>
                     </div>
-                    
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['PTS']}+ PTS</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
-                        <div class="stat-val">{int(probs['PTS'])}%</div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['REB']}+ REB</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
-                        <div class="stat-val">{int(probs['REB'])}%</div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['AST']}+ AST</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
-                        <div class="stat-val">{int(probs['AST'])}%</div>
-                    </div>
-                    
-                    <div class="nugget-footer">
-                        <div>{kit['type']}</div>
-                        <div class="footer-odds">Odd Est: @{kit['odd']:.2f}</div>
+                    <div class="stat-row"><div class="stat-label">{lines['PTS']}+ PTS</div><div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div><div class="stat-val">{int(probs['PTS'])}%</div></div>
+                    <div class="stat-row"><div class="stat-label">{lines['REB']}+ REB</div><div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div><div class="stat-val">{int(probs['REB'])}%</div></div>
+                    <div class="stat-row"><div class="stat-label">{lines['AST']}+ AST</div><div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div><div class="stat-val">{int(probs['AST'])}%</div></div>
+                    <div style="margin-top:10px; display:flex; justify-content:space-between; font-size:11px; border-top:1px solid #334155; padding-top:5px;">
+                        <span style="color:#fbbf24; font-weight:bold;">{kit['type']}</span>
+                        <span>Odd: @{kit['odd']:.2f}</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -8704,6 +8628,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
