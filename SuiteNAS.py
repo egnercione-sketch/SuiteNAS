@@ -6566,7 +6566,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS ESTRATÉGICOS (V4.1 - SAFETY FIRST)
+# PÁGINA: DESDOBRAMENTOS ESTRATÉGICOS (V5.0 - ANALYST BUCKETS)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6574,8 +6574,23 @@ def show_desdobramentos_inteligentes():
     import requests
     import re
     import unicodedata
-    
-    # --- 1. CSS VISUAL (IDENTIDADE VISUAL UNIFICADA) ---
+    import time
+    import statistics
+    import random
+    import uuid
+    from collections import defaultdict
+
+    # --- 1. IMPORTAÇÃO DOS MÓDULOS (COM FALLBACK) ---
+    try:
+        from modules.new_modules.dvp_analyzer import DvPAnalyzer
+        from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
+        from modules.new_modules.thesis_engine import ThesisEngine
+        MODULES_ACTIVE = True
+    except ImportError:
+        MODULES_ACTIVE = False
+        # st.toast("Modo Offline: Módulos avançados não carregados.", icon="⚠️")
+
+    # --- 2. DESIGN SYSTEM (CSS UNIFICADO) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -6583,7 +6598,7 @@ def show_desdobramentos_inteligentes():
         .strat-header { font-family: 'Oswald'; font-size: 28px; color: #fff; margin-bottom: 5px; }
         .strat-sub { font-family: 'Inter'; font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
         
-        /* CARD TICKET (Estilo Betslip) */
+        /* TICKET CARD (Visual Betslip) */
         .ticket-card {
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid #334155;
@@ -6593,48 +6608,48 @@ def show_desdobramentos_inteligentes():
             border-left: 4px solid #3b82f6;
             transition: transform 0.2s;
         }
-        .ticket-card:hover { border-color: #94a3b8; }
+        .ticket-card:hover { border-color: #94a3b8; transform: translateY(-2px); }
         
         .ticket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
-        .ticket-title { font-family: 'Oswald'; font-size: 16px; color: #fff; }
+        .ticket-title { font-family: 'Oswald'; font-size: 16px; color: #fff; letter-spacing: 0.5px; }
         
-        /* CORES POR TEMA */
-        .theme-cofre { border-left-color: #10b981; } /* Verde - Segurança */
-        .theme-matchup { border-left-color: #3b82f6; } /* Azul - Tático */
-        .theme-fire { border-left-color: #f59e0b; } /* Laranja - Momento */
+        /* TEMAS (Cores das Bordas) */
+        .theme-shield { border-left-color: #10b981; } /* Verde - Segurança */
+        .theme-vacuum { border-left-color: #a855f7; } /* Roxo - Valor Oculto */
+        .theme-surgical { border-left-color: #3b82f6; } /* Azul - Tático */
+        .theme-mix { border-left-color: #f59e0b; } /* Laranja - Geral */
         
-        /* LINHA JOGADOR (Clone Superbilhete) */
+        /* LINHA DO JOGADOR (Clone Perfeito do Superbilhete) */
         .sgp-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 8px; }
         .sgp-row:last-child { border-bottom: none; }
         .sgp-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #475569; background:#000; flex-shrink: 0; }
         .sgp-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; margin-bottom: 2px; }
         .sgp-meta { font-size: 10px; color: #94a3b8; font-family: 'Inter'; }
         
-        /* CHIP STAT */
+        /* CHIP DE STAT */
         .stat-chip-compact {
             display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
             background: #1e293b; border: 1px solid #334155; border-radius: 6px;
-            padding: 4px 8px; min-width: 60px;
+            padding: 4px 8px; min-width: 65px;
         }
         .scc-top { font-family: 'Oswald'; font-size: 14px; font-weight: bold; line-height: 1; }
         .scc-bot { font-family: 'Inter'; font-size: 8px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
     </style>
     """, unsafe_allow_html=True)
 
+    # --- 3. DADOS E HELPERS ---
     st.markdown('<div class="strat-header">🎯 DESDOBRAMENTOS ESTRATÉGICOS</div>', unsafe_allow_html=True)
-    st.markdown('<div class="strat-sub">SISTEMA ANALISTA V4.1 • <span style="color:#f87171">Filtro de Lesão Ativo</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="strat-sub">GESTÃO DE PORTFÓLIO V5.0 • <span style="color:#10b981">Buckets & Templates</span></div>', unsafe_allow_html=True)
 
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
         st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
         return
 
-    # Cache
     cache_data = get_data_universal("real_game_logs")
     if not cache_data:
         st.error("❌ Cache de logs vazio.")
         return
 
-    # --- 2. PREPARAÇÃO: HELPER NUCLEAR E INJURY SCAN ---
     def nuclear_normalize(text):
         if not text: return ""
         try:
@@ -6644,7 +6659,6 @@ def show_desdobramentos_inteligentes():
             return text
         except: return ""
 
-    # ID VAULT (Fotos)
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -6667,7 +6681,6 @@ def show_desdobramentos_inteligentes():
         clean = nuclear_normalize(name)
         pid = ID_VAULT.get(clean, 0)
         if pid == 0:
-            # Tenta sobrenome
             parts = name.split()
             if len(parts) > 1: pid = ID_VAULT.get(nuclear_normalize(parts[-1]), 0)
         if pid > 0: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
@@ -6681,13 +6694,11 @@ def show_desdobramentos_inteligentes():
         if '3PM' in s: return "#22d3ee"
         return "#e2e8f0"
 
-    # --- 3. INJURY WATCH (O GUARDIÃO) ---
-    @st.cache_data(ttl=1800) # Cache de 30min para não pesar a API
+    # --- 4. INJURY SCANNER (SEGURANÇA) ---
+    @st.cache_data(ttl=900) # 15 min cache
     def fetch_injury_blacklist(games_list):
-        """Varre todos os jogos e retorna set de jogadores fora."""
         blacklist = set()
-        
-        # Mapeamento ESPN para URL
+        active_rosters = {} 
         map_espn = {"UTA": "utah", "NOP": "no", "NYK": "ny", "GSW": "gs", "SAS": "sa", "PHX": "pho", "WAS": "wsh", "BKN": "bkn"}
         
         teams_to_scan = set()
@@ -6705,26 +6716,37 @@ def show_desdobramentos_inteligentes():
                 if r.status_code == 200:
                     data = r.json()
                     athletes = data.get('athletes', [])
+                    active_rosters[team_abbr] = []
+                    
                     for ath in athletes:
                         status_obj = ath.get('status', {})
                         status_type = status_obj.get('type', {}).get('name', 'Active')
                         name = ath.get('fullName', ath.get('displayName', ''))
                         
-                        # CRITÉRIO DE CORTE: Se não for Active, cai fora.
-                        # (Inclui Out, Day-To-Day, Suspended, Injured Reserve)
+                        p_obj = {'name': name, 'status': status_type, 'position': ath.get('position',{}).get('abbreviation','F')}
+                        
                         if status_type != 'Active':
                             blacklist.add(nuclear_normalize(name))
+                            p_obj['status'] = 'Out'
+                        
+                        active_rosters[team_abbr].append(p_obj)
             except: pass
             
-        return blacklist
+        return blacklist, active_rosters
 
-    # --- 4. ANALYST ENGINE (COM FILTRO) ---
-    class AnalystEngine:
-        def __init__(self, cache_logs, games, blacklist):
+    # --- 5. ANALYST ENGINE V5 (BUCKETS & TEMPLATES) ---
+    class AnalystEngineV5:
+        def __init__(self, cache_logs, games, blacklist, active_rosters):
             self.logs = cache_logs
             self.games = games
-            self.blacklist = blacklist # Lista negra de lesionados
+            self.blacklist = blacklist
+            self.active_rosters = active_rosters
             self.active_teams = self._map_games()
+            
+            # Inicializa Módulos (Se disponíveis)
+            self.dvp = DvPAnalyzer() if MODULES_ACTIVE else None
+            self.vacuum = VacuumMatrixAnalyzer() if MODULES_ACTIVE else None
+            self.thesis_eng = ThesisEngine() if MODULES_ACTIVE else None
 
         def _map_games(self):
             mapping = {}
@@ -6744,131 +6766,216 @@ def show_desdobramentos_inteligentes():
         def analyze_market(self):
             candidates = []
             
+            # 1. Vacuum Scan
+            vacuum_boosts = {}
+            if self.vacuum:
+                for team, roster in self.active_rosters.items():
+                    for p in roster:
+                        p_norm = nuclear_normalize(p['name'])
+                        if p_norm in self.logs:
+                            # Injeta minutos históricos para ajudar na decisão do Vacuum
+                            min_hist = statistics.mean(self.logs[p_norm].get('logs',{}).get('min', [0])) if 'min' in self.logs[p_norm].get('logs',{}) else 0
+                            p['min_L5'] = min_hist
+                    
+                    rep = self.vacuum.analyze_team_vacuum(roster, team)
+                    if rep:
+                        for p_name, info in rep.items():
+                            vacuum_boosts[nuclear_normalize(p_name)] = info
+
+            # 2. Varredura de Jogadores
             for name, data in self.logs.items():
-                # 1. FILTRO DE LESÃO (PRIMEIRA COISA QUE FAZ)
-                if nuclear_normalize(name) in self.blacklist:
-                    continue # Pula lesionado
+                norm_name = nuclear_normalize(name)
+                # FILTRO DE SEGURANÇA 1: LESÃO
+                if norm_name in self.blacklist: continue
                 
                 team = self._norm(data.get('team'))
                 if team not in self.active_teams: continue
-                
                 info = self.active_teams[team]
+                opp = info['opp']
                 pid = data.get('id', 0)
                 logs = data.get('logs', {})
+                
+                # Dados Contextuais
+                vac_info = vacuum_boosts.get(norm_name)
                 
                 for stat in ['PTS', 'REB', 'AST']:
                     vals = logs.get(stat, [])
                     if len(vals) < 10: continue
                     
-                    # Análise de Piso Seguro
                     l10 = vals[:10]
                     l5 = vals[:5]
+                    floor_l10 = sorted(l10)[1] # Piso 90%
                     
-                    # Linha Base: Pega o 2º menor valor dos últimos 10 (Piso 90%)
-                    floor_l10 = sorted(l10)[1] 
-                    
-                    # Filtro de Relevância (Ignora bagre)
+                    # FILTRO DE SEGURANÇA 2: RELEVÂNCIA
                     min_req = {'PTS': 10, 'REB': 4, 'AST': 3}
                     if floor_l10 < min_req[stat]: continue
                     
-                    # Score de Confiança
+                    # Score Base (Consistência)
                     hits_l10 = sum(1 for v in l10 if v >= floor_l10)
                     hits_l5 = sum(1 for v in l5 if v >= floor_l10)
+                    base_score = (hits_l10 * 4) + (hits_l5 * 6) # Max 70
                     
-                    # Fórmula Analista V4
-                    # Base (40 pts) + Momento (30 pts) + Volume (30 pts)
-                    confidence = (hits_l10 * 4) + (hits_l5 * 6)
+                    # Boosts
+                    boost_score = 0
+                    narrative_parts = []
                     
-                    # Define Perfil
-                    tag = "NORMAL"
-                    if hits_l10 >= 9 and hits_l5 >= 4: tag = "COFRE" # Muito Seguro
-                    elif hits_l5 == 5: tag = "FIRE" # Momento
+                    # A. Vacuum (Valor Oculto)
+                    is_vacuum = False
+                    if vac_info:
+                        boost_score += 15
+                        is_vacuum = True
+                        narrative_parts.append(f"Beneficiado: {vac_info['source']} OUT")
                     
-                    if confidence >= 70:
-                        candidates.append({
-                            "player": name, "team": team, "opp": info['opp'], "id": pid,
-                            "stat": stat, "line": int(floor_l10),
-                            "confidence": confidence, "tag": tag,
-                            "game": info['game']
-                        })
+                    # B. Matchup (DvP)
+                    matchup_rank = 15
+                    if self.dvp:
+                        # Estima posição simples
+                        pos = "SF"
+                        if 'AST' in logs and sum(logs['AST'][:5])/5 > 5: pos = "PG"
+                        elif 'REB' in logs and sum(logs['REB'][:5])/5 > 7: pos = "C"
+                        
+                        matchup_rank = self.dvp.get_position_rank(opp, pos)
+                        if matchup_rank >= 25:
+                            boost_score += 10
+                            narrative_parts.append(f"Defesa Fraca (#{matchup_rank})")
+                        elif matchup_rank <= 5:
+                            boost_score -= 15 # Penalidade severa para matchup ruim
+                            narrative_parts.append(f"Defesa Elite (#{matchup_rank})")
+
+                    final_score = base_score + boost_score
+                    
+                    # FILTRO DE SEGURANÇA 3: SCORE MÍNIMO
+                    if final_score < 75: continue
+                    
+                    # Classificação em BUCKETS
+                    bucket = "GERAL"
+                    if hits_l10 >= 9 and matchup_rank > 10: bucket = "SHIELD" # Seguro e sem matchup ruim
+                    elif is_vacuum: bucket = "OPPORTUNITY"
+                    elif matchup_rank >= 25: bucket = "SURGICAL"
+                    
+                    # Tese via Engine (se disponível) ou Manual
+                    thesis_txt = f"Consistência {hits_l10}/10 L10"
+                    if narrative_parts: thesis_txt = " + ".join(narrative_parts)
+                    
+                    if self.thesis_eng:
+                        # Prepara contexto enriquecido
+                        p_ctx = {'pts_L5': sum(l5)/5, 'min_L5': 30, 'is_vacuum': is_vacuum, 'matchup_rank': matchup_rank}
+                        theses = self.thesis_eng.generate_theses(p_ctx, {})
+                        if theses: thesis_txt = theses[0]['reason']
+
+                    candidates.append({
+                        "player": name, "team": team, "opp": opp, "id": pid,
+                        "stat": stat, "line": int(floor_l10),
+                        "score": final_score, "bucket": bucket,
+                        "thesis": thesis_txt,
+                        "game": info['game']
+                    })
             return candidates
 
-        def build_tickets(self, candidates):
+        def assemble_portfolio(self, candidates):
             tickets = []
-            candidates.sort(key=lambda x: x['confidence'], reverse=True)
+            candidates.sort(key=lambda x: x['score'], reverse=True)
             
-            # Helper para evitar repetição de jogador no mesmo ticket
-            def get_unique(pool, count):
+            # Helper de Unicidade Global
+            used_players = set()
+            
+            def get_legs(pool, count, exclude_set):
                 selected = []
-                seen = set()
                 for c in pool:
-                    if c['player'] not in seen:
+                    if c['player'] not in exclude_set:
                         selected.append(c)
-                        seen.add(c['player'])
+                        exclude_set.add(c['player'])
                     if len(selected) == count: break
                 return selected
 
-            # 1. O COFRE
-            safest = [c for c in candidates if c['tag'] == 'COFRE']
-            legs_cofre = get_unique(safest, 3)
-            if len(legs_cofre) == 3:
+            # 1. TICKET: O ESCUDO (Safety First)
+            # Requisitos: Bucket SHIELD, Top Scores
+            shield_pool = [c for c in candidates if c['bucket'] == 'SHIELD']
+            legs_shield = get_legs(shield_pool, 3, used_players)
+            
+            if len(legs_shield) == 3:
                 tickets.append({
-                    "title": "🛡️ O COFRE (Segurança Máxima)",
-                    "theme": "theme-cofre",
-                    "desc": "Jogadores com consistência acima de 90% L10 e confirmados.",
-                    "legs": legs_cofre
+                    "title": "🛡️ O ESCUDO (Segurança)",
+                    "theme": "theme-shield",
+                    "desc": "Jogadores com consistência histórica extrema e sem riscos de matchup.",
+                    "legs": legs_shield
                 })
 
-            # 2. MÃO QUENTE
-            hot = [c for c in candidates if c['tag'] == 'FIRE']
-            legs_hot = get_unique(hot, 3)
-            # Garante que não repete o ticket anterior
-            if len(legs_hot) == 3 and legs_hot != legs_cofre:
-                tickets.append({
-                    "title": "🔥 MÃO QUENTE (Tendência de Alta)",
-                    "theme": "theme-fire",
-                    "desc": "Jogadores com 100% de aproveitamento nos últimos 5 jogos.",
-                    "legs": legs_hot
-                })
+            # 2. TICKET: O OPORTUNISTA (Vacuum Play)
+            # Requisitos: Pelo menos 2 do Bucket OPPORTUNITY
+            opp_pool = [c for c in candidates if c['bucket'] == 'OPPORTUNITY']
+            legs_opp = get_legs(opp_pool, 2, used_players)
+            
+            if len(legs_opp) > 0:
+                # Completa com o melhor disponível (pode ser Shield ou Surgical)
+                filler = get_legs(candidates, 3 - len(legs_opp), used_players)
+                final_legs_opp = legs_opp + filler
                 
-            # 3. SELEÇÃO GERAL (MIX)
-            # Pega os melhores gerais que sobraram ou mistura
-            general = get_unique(candidates, 3)
-            if len(general) == 3 and general != legs_cofre and general != legs_hot:
+                if len(final_legs_opp) == 3:
+                    tickets.append({
+                        "title": "💎 O OPORTUNISTA (Valor Oculto)",
+                        "theme": "theme-vacuum",
+                        "desc": "Explorando falhas de precificação causadas por lesões de última hora.",
+                        "legs": final_legs_opp
+                    })
+
+            # 3. TICKET: O CIRÚRGICO (Matchup Exploiter)
+            # Requisitos: Bucket SURGICAL
+            surg_pool = [c for c in candidates if c['bucket'] == 'SURGICAL']
+            legs_surg = get_legs(surg_pool, 3, used_players)
+            
+            if len(legs_surg) == 3:
                 tickets.append({
-                    "title": "⚖️ SELEÇÃO DO ANALISTA",
-                    "theme": "theme-matchup",
-                    "desc": "As melhores oportunidades disponíveis no mercado hoje.",
-                    "legs": general
+                    "title": "🎯 O CIRÚRGICO (Matchup)",
+                    "theme": "theme-surgical",
+                    "desc": "Apostando contra as piores defesas da rodada para cada posição.",
+                    "legs": legs_surg
+                })
+
+            # 4. TICKET: MIX DO ANALISTA (Best of Rest)
+            # Sobras de alta qualidade
+            legs_mix = get_legs(candidates, 3, used_players)
+            if len(legs_mix) == 3:
+                tickets.append({
+                    "title": "⚖️ MIX DO ANALISTA",
+                    "theme": "theme-mix",
+                    "desc": "Melhores oportunidades restantes combinando forma e consistência.",
+                    "legs": legs_mix
                 })
 
             return tickets
 
-    # --- 5. EXECUÇÃO ---
-    if st.button("🎲 GERAR ESTRATÉGIAS V4.1", type="primary", use_container_width=True):
+    # --- 6. EXECUÇÃO ---
+    if st.button("🎲 GERAR PORTFÓLIO ESTRATÉGICO", type="primary", use_container_width=True):
         
-        # 1. Scaneia Lesões
-        with st.status("🔍 Verificando Departamento Médico...", expanded=True) as status:
-            blacklist = fetch_injury_blacklist(st.session_state.scoreboard)
-            status.write(f"⚠️ {len(blacklist)} jogadores detectados como 'OUT' ou 'Questionable'.")
+        with st.status("🏗️ Construindo Portfólio de Apostas...", expanded=True) as status:
+            status.write("🚑 Escaneando Relatórios de Lesão (Supabase/API)...")
+            blacklist, active_rosters = fetch_injury_blacklist(st.session_state.scoreboard)
+            st.session_state.last_blacklist_count = len(blacklist)
             
-            status.write("🧠 Analisando métricas de consistência...")
-            engine = AnalystEngine(cache_data, st.session_state.scoreboard, blacklist)
+            status.write("🧠 Instanciando Analyst Engine V5.0...")
+            engine = AnalystEngineV5(cache_data, st.session_state.scoreboard, blacklist, active_rosters)
+            
+            status.write("📊 Calculando Scores & Definindo Buckets...")
             candidates = engine.analyze_market()
             
-            status.write("✍️ Montando bilhetes estratégicos...")
-            tickets = engine.build_tickets(candidates)
-            st.session_state.smart_tickets = tickets
+            status.write("✍️ Preenchendo Templates de Bilhetes...")
+            tickets = engine.assemble_portfolio(candidates)
+            st.session_state.smart_portfolio = tickets
             
-            status.update(label="✅ Análise Concluída!", state="complete", expanded=False)
-    
-    # --- 6. EXIBIÇÃO ---
-    if 'smart_tickets' in st.session_state and st.session_state.smart_tickets:
-        tickets = st.session_state.smart_tickets
+            status.update(label="✅ Portfólio Gerado!", state="complete", expanded=False)
+
+    # --- 7. VISUALIZAÇÃO ---
+    if 'smart_portfolio' in st.session_state and st.session_state.smart_portfolio:
+        tickets = st.session_state.smart_portfolio
         
         if not tickets:
-            st.warning("Não foram encontradas oportunidades seguras (todos os candidatos podem estar lesionados ou sem consistência).")
+            st.warning("⚠️ O mercado está difícil hoje. Nenhuma combinação atingiu os critérios de segurança mínima (Score 75+).")
             return
+
+        # Exibe Blacklist Info
+        if 'last_blacklist_count' in st.session_state:
+            st.caption(f"🛡️ Filtro de Segurança Ativo: {st.session_state.last_blacklist_count} jogadores bloqueados por lesão.")
 
         c1, c2 = st.columns(2)
         for i, ticket in enumerate(tickets):
@@ -6893,33 +7000,33 @@ def show_desdobramentos_inteligentes():
                         <img src="{photo}" class="sgp-img">
                         <div style="flex:1">
                             <div class="sgp-name">{leg['player']}</div>
-                            <div class="sgp-meta">{leg['team']} vs {leg['opp']}</div>
+                            <div class="sgp-meta">{leg['thesis']}</div>
                         </div>
                         <div class="stat-chip-compact">
                             <div class="scc-top" style="color:{clr}">{leg['line']}+ {leg['stat']}</div>
-                            <div class="scc-bot">Score {leg['confidence']}</div>
+                            <div class="scc-bot">Score {leg['score']}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
                 
                 st.markdown("</div>", unsafe_allow_html=True)
                 
-                if st.button(f"💾 Salvar #{i+1}", key=f"sv4_{i}"):
+                if st.button(f"💾 Salvar Ticket", key=f"save_pf_{i}"):
                     if 'audit_system' in st.session_state:
                         legs_audit = []
                         for l in ticket['legs']:
                             legs_audit.append({
                                 "player_name": l['player'], "team": l['team'], "market_type": l['stat'],
                                 "market_display": f"{l['line']}+ {l['stat']}", "line": float(l['line']),
-                                "game_id": "UNK", "thesis": f"Score {l['confidence']} | {l['tag']}"
+                                "game_id": "UNK", "thesis": l['thesis']
                             })
                         st.session_state.audit_system.log_trixie(
-                            {"players": legs_audit, "total_odd": 1.0, "category": "SMART_V4", "score": 99},
-                            {"home": "MIX", "away": "MIX", "game_id": "MULTI"}, "SMART_V4"
+                            {"players": legs_audit, "total_odd": 1.0, "category": "PORTFOLIO_V5", "score": 99},
+                            {"home": "MIX", "away": "MIX", "game_id": "MULTI"}, "PORTFOLIO_V5"
                         )
-                        st.toast("Salvo!", icon="✅")
+                        st.toast("Bilhete salvo no Auditor!", icon="✅")
     else:
-        st.info("👆 Clique para iniciar a análise.")
+        st.info("👆 Clique no botão acima para gerar as estratégias do dia.")
         
 # ============================================================================
 # FUNÇÃO AUXILIAR: RENDERIZAÇÃO DO BANCO (ESCALAÇÕES)
@@ -8535,6 +8642,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
