@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V15.0 - VISUAL UNIFICADO)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V15.1 - LAYOUT FIX)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6670,7 +6670,7 @@ def show_desdobramentos_inteligentes():
         if pid: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png"
         return "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 3. CSS (DESIGN SYSTEM SUPERBILHETE) ---
+    # --- 3. CSS (CORRIGIDO PARA NÃO ESTOURAR) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -6680,10 +6680,10 @@ def show_desdobramentos_inteligentes():
         
         /* LEGENDA FIXA */
         .legend-container {
-            display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;
+            display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
             padding-bottom: 10px; border-bottom: 1px solid #334155;
         }
-        .legend-item { display: flex; align-items: center; gap: 6px; font-family: 'Inter'; font-size: 10px; color: #cbd5e1; }
+        .legend-item { display: flex; align-items: center; gap: 5px; font-family: 'Inter'; font-size: 10px; color: #cbd5e1; }
         .l-icon { font-size: 12px; }
         
         /* TICKET CONTAINER */
@@ -6702,33 +6702,39 @@ def show_desdobramentos_inteligentes():
         .th-wall { background: linear-gradient(90deg, rgba(5, 150, 105, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #059669; }
         .th-scavenge { background: linear-gradient(90deg, rgba(147, 51, 234, 0.2), rgba(15, 23, 42, 0)); border-left: 3px solid #9333ea; }
 
-        /* LINHA DO JOGADOR (SUPERBILHETE STYLE) */
+        /* LINHA DO JOGADOR */
         .sgp-row {
-            display: flex; align-items: center; gap: 12px;
+            display: flex; align-items: flex-start; gap: 10px; /* Flex start para alinhar topo se crescer */
             padding: 10px 12px; border-bottom: 1px solid #1e293b;
         }
         .sgp-row:last-child { border-bottom: none; }
         
-        .sgp-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; }
+        .sgp-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #334155; object-fit: cover; background: #000; flex-shrink: 0; }
         
-        .sgp-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; margin-bottom: 4px; }
-        .sgp-team { font-family: 'Inter'; font-size: 10px; color: #64748b; font-weight: bold; margin-left: 5px; }
+        .p-info { flex: 1; min-width: 0; } /* min-width 0 é vital para flexbox wrapping */
+        .sgp-name { font-family: 'Oswald'; font-size: 13px; color: #fff; line-height: 1.1; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sgp-team { font-family: 'Inter'; font-size: 9px; color: #64748b; font-weight: bold; margin-left: 4px; }
         
-        /* CHIPS DE ESTATÍSTICA */
-        .stat-chip-compact {
-            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-            background: #1e293b; border: 1px solid #475569; border-radius: 6px;
-            padding: 2px 8px; min-width: 60px; margin-right: 6px; margin-bottom: 2px;
+        /* CONTAINER DE CHIPS (A CORREÇÃO) */
+        .chip-box {
+            display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
         }
-        .scc-top { font-family: 'Oswald'; font-size: 13px; font-weight: bold; line-height: 1; }
-        .scc-bot { font-family: 'Inter'; font-size: 8px; color: #94a3b8; text-transform: uppercase; margin-top: 1px; }
         
-        .role-pill { font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #334155; color: #cbd5e1; display: inline-block; margin-right: 5px; }
-        .barrel-icon { color: #facc15; font-size: 10px; }
+        /* CHIP INDIVIDUAL */
+        .stat-chip {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #1e293b; border: 1px solid #475569; border-radius: 5px;
+            padding: 2px 6px; min-width: 50px; 
+        }
+        .sc-val { font-family: 'Oswald'; font-size: 12px; font-weight: bold; line-height: 1; }
+        .sc-lbl { font-family: 'Inter'; font-size: 7px; color: #94a3b8; text-transform: uppercase; margin-top: 1px; }
+        
+        .role-pill { font-size: 7px; padding: 1px 4px; border-radius: 3px; background: #334155; color: #cbd5e1; display: inline-block; margin-right: 4px; vertical-align: middle; }
+        .barrel-icon { color: #facc15; font-size: 9px; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 4. ENGINE LÓGICA V15 (Mantém a lógica V13/14, melhora o output) ---
+    # --- 4. ENGINE LÓGICA V15 (Mantida V13/14) ---
     class LocalPlayerClassifier:
         def get_role_classification(self, ctx):
             pts = ctx.get('pts_L5', 0)
@@ -6800,7 +6806,7 @@ def show_desdobramentos_inteligentes():
                     if hits_l10 >= 8:
                         valid_legs.append({
                             'stat': stat, 'line': floor_val, 
-                            'hits': hits_l10, # IMPORTANTE PARA O VISUAL
+                            'hits': hits_l10,
                             'score': (hits_l10 * 8) + l5_stats[stat]
                         })
 
@@ -6890,7 +6896,6 @@ def show_desdobramentos_inteligentes():
             final_legs = []
             for p in players:
                 p['usage'] += 1
-                # Usa 2 legs se for forte e tiver disponível
                 legs_to_use = p['legs'][:2] if (len(p['legs']) > 1 and p['role'] in ['ANCHOR', 'MOTOR']) else p['legs'][:1]
                 
                 for l in legs_to_use:
@@ -6907,18 +6912,18 @@ def show_desdobramentos_inteligentes():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 V15.0 Visual Unificado</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta">📅 {datetime.now().strftime("%d/%m/%Y")} • 🧩 V15.1 Layout Safe</div>', unsafe_allow_html=True)
     with c_tog:
         debug_mode = st.toggle("🛠️ Debug", value=False)
 
     # LEGENDA FIXA
     st.markdown("""
     <div class="legend-container">
-        <div class="legend-item"><span class="l-icon">👑</span> ANCHOR (Estrela)</div>
-        <div class="legend-item"><span class="l-icon">⚙️</span> MOTOR (Glue Guy)</div>
-        <div class="legend-item"><span class="l-icon">👷</span> WORKER (Rotação)</div>
-        <div class="legend-item"><span class="l-icon">🛡️</span> BASE (Segurança)</div>
-        <div class="legend-item"><span class="l-icon">⚡</span> DOUBLE BARREL (2 Stats)</div>
+        <div class="legend-item"><span class="l-icon">👑</span> ANCHOR</div>
+        <div class="legend-item"><span class="l-icon">⚙️</span> MOTOR</div>
+        <div class="legend-item"><span class="l-icon">👷</span> WORKER</div>
+        <div class="legend-item"><span class="l-icon">🛡️</span> BASE</div>
+        <div class="legend-item"><span class="l-icon">⚡</span> BARREL</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -6940,53 +6945,53 @@ def show_desdobramentos_inteligentes():
         st.info("😴 Sem combinações.")
         return
 
-    # --- 6. RENDERIZAÇÃO (AGRUPADA POR JOGADOR) ---
+    # --- 6. RENDERIZAÇÃO ---
     cols = st.columns(3)
     for i, t in enumerate(tickets):
         with cols[i % 3]:
-            # Cabeçalho do Bilhete
+            # CABEÇALHO
             st.markdown(f"""
-            <div class="ticket-box">
+            <div class="ticket-box {t['class']}">
                 <div class="t-header {t['class']}">
                     <span class="t-title">{t['title']}</span>
                     <span class="t-badge">{len(t['legs'])} LEGS</span>
                 </div>
             """, unsafe_allow_html=True)
             
-            # Agrupa legs por jogador
+            # AGRUPAMENTO POR JOGADOR (Visual SuperBilhete)
             player_legs = defaultdict(list)
             player_meta = {}
             for leg in t['legs']:
                 player_legs[leg['player']].append(leg)
                 player_meta[leg['player']] = {'team': leg['team'], 'role': leg['role'], 'dbl': leg['is_double']}
             
-            # Renderiza Jogadores
+            # LOOP JOGADORES
             for p_name, legs in player_legs.items():
                 meta = player_meta[p_name]
                 photo = get_photo_url(p_name)
                 role_icon = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}.get(meta['role'],'')
                 barrel_icon = '<span class="barrel-icon">⚡</span>' if meta['dbl'] else ''
                 
-                # Monta Chips
+                # CHIPS (Construção Limpa)
                 chips_html = ""
                 for l in legs:
                     clr = "#fbbf24" if l['stat'] == "PTS" else ("#60a5fa" if l['stat'] == "REB" else "#facc15")
                     chips_html += f"""
-                    <div class="stat-chip-compact">
-                        <div class="scc-top" style="color:{clr}">{l['line']}+ {l['stat']}</div>
-                        <div class="scc-bot">Hit {l['hits']}/10</div>
+                    <div class="stat-chip">
+                        <div class="sc-val" style="color:{clr}">{l['line']}+ {l['stat']}</div>
+                        <div class="sc-lbl">Hit {l['hits']}/10</div>
                     </div>
                     """
                 
                 st.markdown(f"""
                 <div class="sgp-row">
                     <img src="{photo}" class="sgp-img">
-                    <div style="flex:1">
+                    <div class="p-info">
                         <div class="sgp-name">{p_name} {barrel_icon} <span class="sgp-team">({meta['team']})</span></div>
-                        <div style="display:flex; align-items:center; margin-bottom:4px;">
+                        <div style="margin-bottom:4px;">
                             <span class="role-pill">{role_icon} {meta['role']}</span>
                         </div>
-                        <div style="display:flex; flex-wrap:wrap;">
+                        <div class="chip-box">
                             {chips_html}
                         </div>
                     </div>
@@ -6994,7 +6999,6 @@ def show_desdobramentos_inteligentes():
                 """, unsafe_allow_html=True)
             
             st.markdown("</div>", unsafe_allow_html=True)
-
 # ============================================================================
 # PÁGINA: MATCHUP CENTER (V3.3 - HIERARCHY SORT FIX)
 # ============================================================================
@@ -8515,6 +8519,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
