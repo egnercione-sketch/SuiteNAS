@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V1.8 (FIXED MONTE CARLO)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V1.9 (HTML RENDER FIX)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3168,11 +3168,10 @@ def show_garimpo_page():
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
     except ImportError:
-        # Fallback se não tiver o Vacuum (apenas ignora o boost)
         class VacuumMatrixAnalyzer:
             def analyze_team_vacuum(self, roster, team): return {}
-    
-    # --- 2. CSS (Visual Premium) ---
+
+    # --- 2. CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -3192,9 +3191,10 @@ def show_garimpo_page():
         
         .nugget-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
         .nugget-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background:#000; }
-        .nugget-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; }
+        .nugget-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin: 0; }
+        .nugget-meta { font-size: 10px; color: #94a3b8; margin: 0; }
         
-        .stat-row { display: flex; align-items: center; margin-bottom: 5px; font-size: 11px; color: #cbd5e1; }
+        .stat-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; color: #cbd5e1; }
         .stat-label { width: 70px; font-weight: bold; }
         .stat-bar-bg { flex: 1; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 8px; }
         .stat-bar-fill { height: 100%; border-radius: 3px; }
@@ -3211,21 +3211,21 @@ def show_garimpo_page():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">SGP Factory V1.8 • Local Engine Fix</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">SGP Factory V1.9 • HTML Fixed</div>', unsafe_allow_html=True)
     with c_tog:
         debug_mode = st.toggle("🛠️ Debug", value=False)
 
-    # --- 3. DADOS (L5) ---
+    # --- 3. DADOS ---
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
+        st.warning("⚠️ Scoreboard vazio.")
         return
 
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     if df_l5.empty:
-        st.error("❌ Base L5 vazia. Vá em Config e clique em 'UPDATE L5'.")
+        st.error("❌ Base L5 vazia.")
         return
 
-    # --- 4. HELPERS E CLASSES LOCAIS ---
+    # --- 4. ENGINE LOCAL ---
     def nuclear_normalize(text):
         if not text: return ""
         try: return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
@@ -3244,27 +3244,16 @@ def show_garimpo_page():
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- CLASSE MONTE CARLO LOCAL (FIX PARA O ERRO) ---
     class LocalMonteCarlo:
-        def __init__(self, sims=1000):
-            self.sims = sims
-        
+        def __init__(self, sims=1000): self.sims = sims
         def analyze_bet_probability(self, mean_val, target, stat_type, forced_std=None):
             if mean_val <= 0: return {'prob_percent': 0}
-            
-            # Se não passar desvio padrão, assume 25% da média (heurística para NBA)
             std_dev = forced_std if forced_std else (mean_val * 0.25)
-            
-            # Simula distribuição normal
             simulations = np.random.normal(mean_val, std_dev, self.sims)
-            
-            # Conta sucessos (Ex: Pts >= Target)
             successes = np.sum(simulations >= target)
             prob = (successes / self.sims) * 100
-            
             return {'prob_percent': min(99, max(1, prob))}
 
-    # --- 5. INJURY SCAN ---
     @st.cache_data(ttl=600)
     def scan_injuries_live(games):
         blacklist = set()
@@ -3272,7 +3261,6 @@ def show_garimpo_page():
         map_espn = {"UTA":"utah","NOP":"no","NYK":"ny","GSW":"gs","SAS":"sa","PHX":"pho","WAS":"wsh","BKN":"bkn"}
         teams = set()
         for g in games: teams.add(g['home']); teams.add(g['away'])
-        
         for t in teams:
             t_code = map_espn.get(t.upper(), t.lower())
             try:
@@ -3288,15 +3276,14 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 6. MINER ENGINE V1.8 ---
+    # --- 5. MINER ---
     class GoldMinerL5:
         def __init__(self, df_data, blacklist, rosters):
             self.df = df_data
             self.blacklist = blacklist
             self.rosters = rosters
-            self.vacuum = VacuumMatrixAnalyzer()
-            self.monte_carlo = LocalMonteCarlo(sims=1000) # Usa a classe local
-            self.diag = {"total": 0, "approved": 0, "skipped_injury": 0, "skipped_low_stats": 0}
+            self.monte_carlo = LocalMonteCarlo(sims=800)
+            self.diag = {"total": 0, "approved": 0}
 
         def _smart_estimate_minutes(self, pts, reb, ast):
             prod = pts + (reb * 1.2) + (ast * 1.5)
@@ -3307,20 +3294,6 @@ def show_garimpo_page():
 
         def mine_nuggets(self):
             nuggets = []
-            
-            # 1. Vacuum
-            vacuum_boosts = {}
-            for team, roster in self.rosters.items():
-                vac_roster = []
-                for p in roster:
-                    vac_roster.append({'name': p['name'], 'status': p['status'], 'position': p['pos'], 'min_L5': 25, 'is_starter': True})
-                try:
-                    rep = self.vacuum.analyze_team_vacuum(vac_roster, team)
-                    if rep:
-                        for name, info in rep.items(): vacuum_boosts[nuclear_normalize(name)] = info
-                except: pass
-
-            # 2. Identificação de Colunas
             cols = self.df.columns
             c_name = next((c for c in cols if c in ['PLAYER_NAME', 'NAME', 'Player', 'PLAYER']), 'PLAYER')
             c_t = next((c for c in cols if 'TEAM' in c), 'TEAM')
@@ -3329,14 +3302,11 @@ def show_garimpo_page():
             c_ast = next((c for c in cols if 'AST' in c), 'AST')
             c_min = next((c for c in cols if 'MIN' in c), None)
 
-            # 3. Varredura
             for _, row in self.df.iterrows():
                 self.diag['total'] += 1
                 name = str(row.get(c_name, 'Unknown'))
                 norm = nuclear_normalize(name)
-                
-                if norm in self.blacklist:
-                    self.diag['skipped_injury'] += 1; continue
+                if norm in self.blacklist: continue
                 
                 try:
                     proj_pts = float(row.get(c_pts, 0))
@@ -3344,7 +3314,6 @@ def show_garimpo_page():
                     proj_ast = float(row.get(c_ast, 0))
                 except: continue
 
-                # Minutos
                 min_source = "L5"
                 if c_min and row.get(c_min):
                     try: proj_min = float(row.get(c_min))
@@ -3353,18 +3322,8 @@ def show_garimpo_page():
                     proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast)
                     min_source = "EST"
 
-                # Vacuum Boost
-                vac_info = vacuum_boosts.get(norm)
-                if vac_info:
-                    boost = vac_info['boost']
-                    proj_pts *= boost; proj_reb *= boost; proj_ast *= boost
-                    if min_source == "EST": proj_min *= boost
+                if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
                 
-                # Filtro
-                if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): 
-                    self.diag['skipped_low_stats'] += 1; continue
-                
-                # Kits
                 kits = [
                     {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, 
                     {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
@@ -3373,13 +3332,10 @@ def show_garimpo_page():
                 ]
                 
                 best_kit = None
-                
                 for kit in kits:
                     r_pts, r_reb, r_ast = kit['req']
-                    
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
-                    # Usa o motor local
                     p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS", forced_std=proj_pts*0.25)['prob_percent']
                     p_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB", forced_std=proj_reb*0.25)['prob_percent']
                     p_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST", forced_std=proj_ast*0.25)['prob_percent']
@@ -3400,36 +3356,28 @@ def show_garimpo_page():
                     tm = str(row.get(c_t, 'UNK'))
                     nuggets.append({
                         'player': name, 'team': tm, 'kit': best_kit, 
-                        'vacuum': vac_info, 'proj_min': proj_min, 'min_source': min_source
+                        'proj_min': proj_min, 'min_source': min_source
                     })
                     self.diag['approved'] += 1
-                    
             return nuggets
 
-    # --- 7. EXECUÇÃO ---
+    # --- 6. EXECUÇÃO ---
     if st.button("⚒️ PROSPECTAR (BASE L5)", type="primary", use_container_width=True):
-        
-        with st.status("⛏️ Minerando Dados da RAM...", expanded=True) as status:
+        with st.status("⛏️ Minerando...", expanded=True) as status:
             status.write("🚑 Checando Lesões...")
             blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
-            
-            status.write("🧠 Analisando Médias L5...")
+            status.write("🧠 Analisando L5...")
             miner = GoldMinerL5(df_l5, blacklist, rosters)
             nuggets = miner.mine_nuggets()
-            
-            if debug_mode:
-                d = miner.diag
-                st.info(f"**DIAGNÓSTICO:** Analisados: {d['total']} | Aprovados: {d['approved']}")
-
             st.session_state.garimpo_results = nuggets
-            status.update(label=f"✅ Sucesso! {len(nuggets)} Oportunidades Encontradas.", state="complete", expanded=False)
+            status.update(label=f"✅ Sucesso! {len(nuggets)} Cards.", state="complete", expanded=False)
 
-    # --- 8. EXIBIÇÃO ---
+    # --- 7. EXIBIÇÃO (FIXED HTML) ---
     if 'garimpo_results' in st.session_state:
         results = st.session_state.garimpo_results
         
         if not results:
-            st.warning("Sem resultados compatíveis com os Kits.")
+            st.warning("Sem resultados.")
             return
             
         kit_rank = {'🚀 ELITE': 4, '⚙️ OPERÁRIO': 3, '🛡️ SEGURANÇA': 2, '👶 BASE': 1}
@@ -3445,39 +3393,40 @@ def show_garimpo_page():
             min_badge = ""
             if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ MIN EST</span>'
             
+            # ATENÇÃO: AQUI ESTÁ A CORREÇÃO DA INDENTAÇÃO HTML
+            # As strings f"""...""" estão coladas à esquerda para o Markdown não bugar.
+            card_html = f"""
+<div class="nugget-card">
+    <div class="nugget-header">
+        <img src="{get_photo(item['player'])}" class="nugget-img">
+        <div>
+            <div class="nugget-name">{item['player']}</div>
+            <div class="nugget-meta">{item['team']} • ~{int(item['proj_min'])} MIN {min_badge}</div>
+        </div>
+    </div>
+    <div class="stat-row">
+        <div class="stat-label">{lines['PTS']}+ PTS</div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
+        <div class="stat-val">{int(probs['PTS'])}%</div>
+    </div>
+    <div class="stat-row">
+        <div class="stat-label">{lines['REB']}+ REB</div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
+        <div class="stat-val">{int(probs['REB'])}%</div>
+    </div>
+    <div class="stat-row">
+        <div class="stat-label">{lines['AST']}+ AST</div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
+        <div class="stat-val">{int(probs['AST'])}%</div>
+    </div>
+    <div class="nugget-footer">
+        <span class="badge-type">{kit['type']}</span>
+        <span class="conf-tag">{int(kit['combined_prob'])}% CONF</span>
+    </div>
+</div>
+"""
             with col:
-                st.markdown(f"""
-                <div class="nugget-card">
-                    <div class="nugget-header">
-                        <img src="{get_photo(item['player'])}" class="nugget-img">
-                        <div>
-                            <div class="nugget-name">{item['player']}</div>
-                            <div style="font-size:10px; color:#94a3b8;">{item['team']} • ~{int(item['proj_min'])} MIN {min_badge}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['PTS']}+ PTS</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div>
-                        <div class="stat-val">{int(probs['PTS'])}%</div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['REB']}+ REB</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-reb" style="width: {probs['REB']}%;"></div></div>
-                        <div class="stat-val">{int(probs['REB'])}%</div>
-                    </div>
-                    <div class="stat-row">
-                        <div class="stat-label">{lines['AST']}+ AST</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill fill-ast" style="width: {probs['AST']}%;"></div></div>
-                        <div class="stat-val">{int(probs['AST'])}%</div>
-                    </div>
-                    
-                    <div class="nugget-footer">
-                        <span class="badge-type">{kit['type']}</span>
-                        <span class="conf-tag">{int(kit['combined_prob'])}% CONF</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(card_html, unsafe_allow_html=True)
         
         
         
@@ -8655,6 +8604,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
