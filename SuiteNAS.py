@@ -3114,7 +3114,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V2.1 (HOTFIX KEYERROR)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V3.0 (L25 PRECISION + HIT RATES)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3151,6 +3151,7 @@ def show_garimpo_page():
         .nugget-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
         .nugget-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background:#000; }
         .nugget-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; margin: 0; }
+        .nugget-meta { font-size: 10px; color: #94a3b8; }
         
         .stat-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 10px; color: #cbd5e1; }
         .stat-label { width: 60px; font-weight: bold; }
@@ -3161,6 +3162,8 @@ def show_garimpo_page():
         
         .nugget-footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; border-top: 1px solid #334155; padding-top: 6px; }
         .conf-tag { color: #10b981; font-weight: bold; font-family: 'Oswald'; font-size: 13px; }
+        .hit-tag { background: #064e3b; color: #6ee7b7; padding: 1px 4px; border-radius: 3px; font-size: 9px; border: 1px solid #059669; }
+        
         .badge-est { background: #451a03; color: #fdba74; padding: 1px 4px; border-radius: 3px; font-size: 8px; border: 1px solid #f97316; }
         .badge-type { background: rgba(251, 191, 36, 0.1); color: #fbbf24; padding: 2px 5px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(251, 191, 36, 0.3); }
     </style>
@@ -3170,7 +3173,7 @@ def show_garimpo_page():
     c_head, c_filt = st.columns([2, 3])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">Role Player Finder V2.1 (Fix)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">L25 Precision V3.0 (Real Data)</div>', unsafe_allow_html=True)
     
     with c_filt:
         cf1, cf2 = st.columns(2)
@@ -3178,19 +3181,25 @@ def show_garimpo_page():
             tier_filter = st.multiselect(
                 "🎯 Kits Desejados:",
                 ['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE'],
-                default=['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO']
+                default=['🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE']
             )
         with cf2:
-            min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 70, 5)
+            min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 65, 5)
 
-    # --- 3. DADOS (L5) ---
+    # --- 3. DADOS (L25 REAL) ---
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
-        st.warning("⚠️ Scoreboard vazio.")
+        st.warning("⚠️ Scoreboard vazio. Atualize na aba Config.")
         return
 
-    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
-    if df_l5.empty:
-        st.error("❌ Base L5 vazia.")
+    # Tenta pegar os LOGS REAIS (L25)
+    try:
+        from SuiteNAS import get_data_universal
+        cache_logs = get_data_universal("real_game_logs")
+    except:
+        cache_logs = st.session_state.get("real_game_logs", {})
+
+    if not cache_logs:
+        st.error("❌ Cache L25 vazio. Vá em Config > Reconstruir Cache (V3.5).")
         return
 
     # --- 4. ENGINE LOCAL ---
@@ -3199,28 +3208,44 @@ def show_garimpo_page():
         try: return re.sub(r'[^A-Z0-9]', '', unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8').upper())
         except: return ""
 
+    # Recupera ID map do L5 apenas para fotos (se disponível)
+    df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
-    cols = df_l5.columns
-    c_id = next((c for c in cols if 'ID' in c and 'PLAYER' in c), None)
-    c_name = next((c for c in cols if 'NAME' in c), None)
-    if c_id and c_name:
-        for _, row in df_l5.iterrows():
-            try: ID_VAULT[nuclear_normalize(str(row[c_name]))] = int(row[c_id])
-            except: pass
+    if not df_l5.empty:
+        try:
+            for _, row in df_l5.iterrows():
+                if row.get('PLAYER_ID'): ID_VAULT[nuclear_normalize(row['PLAYER'])] = int(row['PLAYER_ID'])
+        except: pass
 
-    def get_photo(name):
+    def get_photo(name, pid_direct=None):
+        if pid_direct: return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid_direct}.png"
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
     class LocalMonteCarlo:
         def __init__(self, sims=1000): self.sims = sims
-        def analyze_bet_probability(self, mean_val, target, stat_type, forced_std=None):
-            if mean_val <= 0: return {'prob_percent': 0}
-            std_dev = forced_std if forced_std else (mean_val * 0.25)
-            simulations = np.random.normal(mean_val, std_dev, self.sims)
+        
+        def analyze_series(self, data_series, target):
+            """Analisa uma série real de dados (L25)"""
+            if not data_series: return 0
+            
+            # Hit Rate Real (Quantas vezes bateu na amostra)
+            hits = sum(1 for x in data_series if x >= target)
+            hit_rate = (hits / len(data_series)) * 100
+            
+            # Monte Carlo Baseado na Distribuição Real
+            mean = np.mean(data_series)
+            std = np.std(data_series)
+            if std == 0: std = 0.1 # Evita div por zero se for constante
+            
+            simulations = np.random.normal(mean, std, self.sims)
             successes = np.sum(simulations >= target)
-            prob = (successes / self.sims) * 100
-            return {'prob_percent': min(99, max(1, prob))}
+            mc_prob = (successes / self.sims) * 100
+            
+            # Média Ponderada: 40% Hit Rate Histórico + 60% Probabilidade Estatística
+            final_prob = (hit_rate * 0.4) + (mc_prob * 0.6)
+            
+            return min(99, max(1, final_prob)), hit_rate, len(data_series)
 
     @st.cache_data(ttl=600)
     def scan_injuries_live(games):
@@ -3229,6 +3254,7 @@ def show_garimpo_page():
         map_espn = {"UTA":"utah","NOP":"no","NYK":"ny","GSW":"gs","SAS":"sa","PHX":"pho","WAS":"wsh","BKN":"bkn"}
         teams = set()
         for g in games: teams.add(g['home']); teams.add(g['away'])
+        
         for t in teams:
             t_code = map_espn.get(t.upper(), t.lower())
             try:
@@ -3244,17 +3270,26 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ENGINE (CORRIGIDO) ---
-    class GoldMinerL5:
-        def __init__(self, df_data, blacklist, rosters):
-            self.df = df_data
+    # --- 5. MINER ENGINE (L25 REAL DATA) ---
+    class GoldMinerL25:
+        def __init__(self, logs_data, blacklist, rosters):
+            self.logs = logs_data
             self.blacklist = blacklist
             self.rosters = rosters
             self.monte_carlo = LocalMonteCarlo(sims=800)
             self.vacuum = VacuumMatrixAnalyzer()
 
-        def _smart_estimate_minutes(self, pts, reb, ast):
-            prod = pts + (reb * 1.2) + (ast * 1.5)
+        def _safe_parse_list(self, data_list, max_len=25):
+            clean = []
+            if not isinstance(data_list, list): return []
+            for x in data_list[:max_len]:
+                if x is None: continue
+                try: clean.append(float(str(x).replace(':', '.')))
+                except: pass
+            return clean
+
+        def _smart_estimate_minutes(self, pts_avg, reb_avg, ast_avg):
+            prod = pts_avg + (reb_avg * 1.2) + (ast_avg * 1.5)
             if prod >= 30: return 34.0
             if prod >= 20: return 29.0
             if prod >= 12: return 24.0
@@ -3263,97 +3298,111 @@ def show_garimpo_page():
         def mine_nuggets(self):
             best_nuggets = {} 
             
-            cols = self.df.columns
-            c_name = next((c for c in cols if c in ['PLAYER_NAME', 'NAME', 'Player', 'PLAYER']), 'PLAYER')
-            c_t = next((c for c in cols if 'TEAM' in c), 'TEAM')
-            c_pts = next((c for c in cols if 'PTS' in c), 'PTS')
-            c_reb = next((c for c in cols if 'REB' in c), 'REB')
-            c_ast = next((c for c in cols if 'AST' in c), 'AST')
-            c_min = next((c for c in cols if 'MIN' in c), None)
-
-            for _, row in self.df.iterrows():
-                name = str(row.get(c_name, 'Unknown'))
-                norm = nuclear_normalize(name)
+            for player_name, p_data in self.logs.items():
+                norm = nuclear_normalize(player_name)
                 if norm in self.blacklist: continue
                 
-                try:
-                    proj_pts = float(row.get(c_pts, 0))
-                    proj_reb = float(row.get(c_reb, 0))
-                    proj_ast = float(row.get(c_ast, 0))
-                except: continue
-
-                min_source = "L5"
-                if c_min and row.get(c_min):
-                    try: proj_min = float(row.get(c_min))
-                    except: proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast); min_source = "EST"
+                raw_logs = p_data.get('logs', {})
+                if not raw_logs: continue
+                
+                # Extrai Séries Reais (Até 25 jogos)
+                s_pts = self._safe_parse_list(raw_logs.get('PTS', []), 25)
+                s_reb = self._safe_parse_list(raw_logs.get('REB', []), 25)
+                s_ast = self._safe_parse_list(raw_logs.get('AST', []), 25)
+                s_min = self._safe_parse_list(raw_logs.get('MIN', []), 25)
+                
+                if len(s_pts) < 3: continue # Amostra mínima
+                
+                # Médias
+                avg_pts = np.mean(s_pts)
+                avg_reb = np.mean(s_reb)
+                avg_ast = np.mean(s_ast)
+                
+                # Minutos (Real ou Estimado)
+                min_source = "L25"
+                if len(s_min) >= 3:
+                    avg_min = np.mean(s_min)
                 else:
-                    proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast)
+                    avg_min = self._smart_estimate_minutes(avg_pts, avg_reb, avg_ast)
                     min_source = "EST"
 
-                if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
+                # Vacuum (Simplificado para o exemplo)
+                # No código real, passaríamos o roster aqui
+                vacuum_boost = 1.0
                 
-                kits = [
-                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE'}, 
-                    {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA'},
-                    {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO'},
-                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE'}
+                # Aplica boost nas médias APENAS para verificação de tier
+                proj_pts = avg_pts * vacuum_boost
+                proj_reb = avg_reb * vacuum_boost
+                proj_ast = avg_ast * vacuum_boost
+                
+                # Filtro de Relevância
+                if avg_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
+
+                kits_priority = [
+                    {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE', 'rank': 4},
+                    {'name': 'Kit Padrão', 'req': (12, 4, 2), 'label': '⚙️ OPERÁRIO', 'rank': 3},
+                    {'name': 'Kit Piso', 'req': (8, 3, 2), 'label': '🛡️ SEGURANÇA', 'rank': 2},
+                    {'name': 'Kit Iniciante', 'req': (6, 2, 1), 'label': '👶 BASE', 'rank': 1},
                 ]
+
+                selected_kit = None
                 
-                for kit in kits:
+                for kit in kits_priority:
                     if kit['label'] not in tier_filter: continue
                     
                     r_pts, r_reb, r_ast = kit['req']
+                    
+                    # Pré-filtro rápido na média
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
-                    p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS", forced_std=proj_pts*0.25)['prob_percent']
-                    p_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB", forced_std=proj_reb*0.25)['prob_percent']
-                    p_ast = self.monte_carlo.analyze_bet_probability(proj_ast, r_ast, "AST", forced_std=proj_ast*0.25)['prob_percent']
+                    # Análise Monte Carlo com Dados Reais
+                    prob_pts, hit_pts, _ = self.monte_carlo.analyze_series(s_pts, r_pts)
+                    prob_reb, hit_reb, _ = self.monte_carlo.analyze_series(s_reb, r_reb)
+                    prob_ast, hit_ast, _ = self.monte_carlo.analyze_series(s_ast, r_ast)
                     
-                    min_prob = min(p_pts, p_reb, p_ast)
-                    avg_prob = (p_pts + p_reb + p_ast) / 3
+                    min_prob = min(prob_pts, prob_reb, prob_ast)
+                    avg_prob = (prob_pts + prob_reb + prob_ast) / 3
                     
-                    # Filtro de Confiança Global (Hard Cutoff 50%)
-                    if min_prob < 50 or avg_prob < (min_conf / 100 * 80): continue 
-                    
-                    combined = (p_pts/100) * (p_reb/100) * (p_ast/100) * 100
-                    
-                    if combined >= min_conf:
-                        current_best = best_nuggets.get(norm)
-                        should_update = False
+                    # Filtro de Confiança
+                    if avg_prob >= min_conf and min_prob >= (min_conf - 15): 
+                        combined = (prob_pts/100) * (prob_reb/100) * (prob_ast/100) * 100
                         
-                        # CORREÇÃO DO KEYERROR AQUI:
-                        if not current_best:
-                            should_update = True
-                        else:
-                            # Comparamos a 'combined_prob' que está salva no NÍVEL SUPERIOR do dicionário
-                            current_prob = current_best.get('combined_prob', 0)
-                            
-                            # Se for o mesmo tipo de kit, pega o de maior probabilidade
-                            if kit['label'] == current_best['kit_type']: 
-                                if combined > current_prob: should_update = True
-                            # Se forem tipos diferentes, prioriza confiança
-                            elif combined > current_prob:
-                                should_update = True
+                        # Hit Rate Combinado (Média dos Hits das 3 pernas)
+                        avg_hit_rate = (hit_pts + hit_reb + hit_ast) / 3
+                        
+                        selected_kit = {
+                            'kit': kit,
+                            'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
+                            'probs': {'PTS': prob_pts, 'REB': prob_reb, 'AST': prob_ast},
+                            'combined_prob': combined,
+                            'avg_hit_rate': avg_hit_rate,
+                            'sample_size': len(s_pts)
+                        }
+                        break 
 
-                        if should_update:
-                            tm = str(row.get(c_t, 'UNK'))
-                            best_nuggets[norm] = {
-                                'player': name, 
-                                'team': tm, 
-                                'kit_type': kit['label'], # Salvamos o label direto para facilitar
-                                'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
-                                'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
-                                'proj_min': proj_min, 
-                                'min_source': min_source,
-                                'combined_prob': combined
-                            }
+                if selected_kit:
+                    tm = p_data.get('team', 'UNK')
+                    best_nuggets[norm] = {
+                        'player': player_name, 
+                        'team': tm, 
+                        'id': p_data.get('id'),
+                        'kit_type': selected_kit['kit']['label'],
+                        'lines': selected_kit['lines'],
+                        'probs': selected_kit['probs'],
+                        'proj_min': avg_min, 
+                        'min_source': min_source,
+                        'combined_prob': selected_kit['combined_prob'],
+                        'rank': selected_kit['kit']['rank'],
+                        'avg_hit_rate': selected_kit['avg_hit_rate'],
+                        'sample': selected_kit['sample_size']
+                    }
                             
             return list(best_nuggets.values())
 
     # --- 6. EXECUÇÃO ---
-    if st.button("⚒️ PROSPECTAR OPORTUNIDADES", type="primary", use_container_width=True):
+    if st.button("⚒️ PROSPECTAR (L25 MODE)", type="primary", use_container_width=True):
         blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
-        miner = GoldMinerL5(df_l5, blacklist, rosters)
+        miner = GoldMinerL25(cache_logs, blacklist, rosters)
         nuggets = miner.mine_nuggets()
         st.session_state.garimpo_results = nuggets
 
@@ -3366,8 +3415,8 @@ def show_garimpo_page():
             return
             
         # Ordenação
-        results.sort(key=lambda x: x['combined_prob'], reverse=True)
-        st.success(f"✅ {len(results)} Oportunidades Filtradas")
+        results.sort(key=lambda x: (x['rank'], x['combined_prob']), reverse=True)
+        st.success(f"✅ {len(results)} Cards Gerados (Base L25 Real)")
         
         cols = st.columns(3)
         for i, item in enumerate(results):
@@ -3378,13 +3427,16 @@ def show_garimpo_page():
             min_badge = ""
             if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ EST</span>'
             
+            # Badge de Hit Rate
+            hit_badge = f'<span class="hit-tag">HIT {int(item["avg_hit_rate"])}% (L{item["sample"]})</span>'
+            
             card_html = f"""
 <div class="nugget-card">
     <div class="nugget-header">
-        <img src="{get_photo(item['player'])}" class="nugget-img">
+        <img src="{get_photo(item['player'], item.get('id'))}" class="nugget-img">
         <div>
             <div class="nugget-name">{item['player']}</div>
-            <div style="font-size:10px; color:#94a3b8;">{item['team']} • ~{int(item['proj_min'])}' {min_badge}</div>
+            <div class="nugget-meta">{item['team']} • ~{int(item['proj_min'])}' {min_badge} {hit_badge}</div>
         </div>
     </div>
     <div class="stat-row">
@@ -8587,6 +8639,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
