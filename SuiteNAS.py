@@ -503,152 +503,101 @@ if 'use_advanced_features' not in st.session_state: st.session_state.use_advance
 if 'advanced_features_config' not in st.session_state: st.session_state.advanced_features_config = FEATURE_CONFIG_DEFAULT
 
 # ============================================================================
-# FUNÇÃO LOGS: MODO TURBO v3.1 (DIAGNÓSTICO & ANTI-BLOCK)
+# FUNÇÃO LOGS: MODO TURBO v3.2 (LIGHTWEIGHT - ÚLTIMOS 30 DIAS)
 # ============================================================================
 def fetch_and_upload_real_game_logs(progress_ui=True):
     from nba_api.stats.endpoints import leaguegamelog
     import pandas as pd
     import time
-    from datetime import datetime
-    import requests.exceptions
+    from datetime import datetime, timedelta
+    import requests
 
-    # Configurações
     SEASON_CURRENT = "2025-26"
     KEY_LOGS = "real_game_logs"
     
-    # Headers "Disfarçados" (Rotação de User-Agent)
+    # Define janela de 30 dias para não estourar timeout
+    date_from = (datetime.now() - timedelta(days=45)).strftime("%m/%d/%Y") # 45 dias segurança
+    
     HEADERS_LIST = {
         'Host': 'stats.nba.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
         'Referer': 'https://www.nba.com/',
         'Origin': 'https://www.nba.com',
-        'Connection': 'keep-alive',
-        'x-nba-stats-origin': 'stats',
-        'x-nba-stats-token': 'true'
+        'Connection': 'keep-alive'
     }
 
     if progress_ui:
-        status_container = st.status("🚀 INICIANDO CONEXÃO...", expanded=True)
-        status_container.write(f"⏱️ Timeout definido para 45s...")
+        status = st.status("🚀 MODO TURBO LEVE (L45 Dias)...", expanded=True)
+        status.write(f"📅 Buscando jogos a partir de {date_from}...")
 
-    print("--- INÍCIO DO FETCH V3.1 ---")
-    
     try:
-        # Checkpoint 1
-        msg = "📡 Enviando requisição para stats.nba.com..."
-        print(msg)
-        if progress_ui: status_container.write(msg)
+        time.sleep(0.5)
         
-        time.sleep(1) # Respire antes de pedir
-
-        # TENTA BAIXAR
+        # FIX: Pede apenas dados recentes para evitar Timeout
         logs_api = leaguegamelog.LeagueGameLog(
             season=SEASON_CURRENT,
             season_type_all_star='Regular Season',
             player_or_team_abbreviation='P', 
             direction='DESC', 
             sorter='DATE',
-            timeout=45, # Timeout mais agressivo para não travar a UI
+            date_from_nullable=date_from, # <--- O SEGREDO DO SUCESSO
+            timeout=60,
             headers=HEADERS_LIST
         )
         
-        # Checkpoint 2 (Onde geralmente trava)
-        print("⏳ Aguardando resposta da NBA...")
         df_all = logs_api.get_data_frames()[0]
-        print(f"✅ Resposta recebida! Linhas: {len(df_all)}")
-
-        # --- SE CHEGOU AQUI, A CONEXÃO FUNCIONOU ---
         
         if df_all.empty:
-            err = "❌ A API respondeu, mas a tabela veio vazia."
-            print(err)
-            if progress_ui: status_container.error(err)
+            if progress_ui: status.error("API respondeu vazio.")
             return {}
 
-        total_rows = len(df_all)
-        unique_players = df_all['PLAYER_ID'].nunique()
-        
-        if progress_ui: 
-            status_container.write(f"📦 Processando {total_rows} linhas ({unique_players} jogadores)...")
-
-        # Conversão de Tipos (Otimizada)
+        # Processamento
         cols_int = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FGA', 'FG3M', 'TOV', 'PF']
         for c in cols_int:
-            if c in df_all.columns: 
-                df_all[c] = pd.to_numeric(df_all[c], errors='coerce').fillna(0).astype(int)
+            if c in df_all.columns: df_all[c] = df_all[c].fillna(0).astype(int)
 
         df_all['GAME_DATE'] = pd.to_datetime(df_all['GAME_DATE'])
         df_all = df_all.sort_values(by=['PLAYER_ID', 'GAME_DATE'], ascending=[True, False])
 
-        # Montagem do Dicionário (Cache)
         results = {}
         unique_ids = df_all['PLAYER_ID'].unique()
         
-        # Barra de progresso visual
-        if progress_ui: 
-            prog_bar = status_container.progress(0, text="Organizando dados...")
+        if progress_ui: bar = status.progress(0)
 
         for i, pid in enumerate(unique_ids):
-            # Pega L25
-            player_games = df_all[df_all['PLAYER_ID'] == pid].head(25)
+            player_games = df_all[df_all['PLAYER_ID'] == pid] # Já está cortado por data
             if player_games.empty: continue
             
-            first_row = player_games.iloc[0]
-            p_name = first_row['PLAYER_NAME']
-            p_team = first_row['TEAM_ABBREVIATION']
+            p_name = player_games.iloc[0]['PLAYER_NAME']
+            p_team = player_games.iloc[0]['TEAM_ABBREVIATION']
             
             clean_logs = {}
             for col in cols_int:
                 if col in player_games.columns:
                     clean_logs[col] = player_games[col].tolist()
             
-            # Tratamento especial para Minutos
             if 'MIN' in player_games.columns:
                 clean_logs['MIN'] = player_games['MIN'].astype(str).apply(
-                    lambda x: float(x.replace(':', '.')) if ':' in x else float(x) if x else 0.0
+                    lambda x: float(str(x).replace(':', '.')) if x else 0.0
                 ).tolist()
 
             results[p_name] = {
-                "name": p_name,
-                "id": int(pid),
-                "team": p_team,
-                "logs": clean_logs,
-                "updated_at": datetime.now().strftime("%Y-%m-%d")
+                "name": p_name, "id": int(pid), "team": p_team,
+                "logs": clean_logs, "updated_at": datetime.now().strftime("%Y-%m-%d")
             }
             
-            # Atualiza barra a cada 10%
-            if progress_ui and i % max(1, int(len(unique_ids)/10)) == 0:
-                prog_bar.progress(i / len(unique_ids))
+            if progress_ui and i % 50 == 0: bar.progress(i / len(unique_ids))
 
-        # Upload final
+        # Upload
         if results:
-            if progress_ui: 
-                status_container.write("☁️ Salvando no Supabase...")
-                prog_bar.empty()
-            
-            try:
-                save_data_universal(KEY_LOGS, results)
-                if progress_ui:
-                    status_container.update(label=f"✅ SUCESSO! {len(results)} Jogadores Atualizados.", state="complete", expanded=False)
-            except Exception as e_save:
-                print(f"Erro Supabase: {e_save}")
-                if progress_ui: status_container.warning("Dados processados, mas erro ao salvar na nuvem.")
+            save_data_universal(KEY_LOGS, results)
+            if progress_ui:
+                status.update(label=f"✅ SUCESSO! {len(results)} Jogadores (Recentes).", state="complete", expanded=False)
         
-        print("--- FIM DO FETCH ---")
         return results
 
-    except requests.exceptions.ReadTimeout:
-        msg = "⚠️ Timeout: O servidor da NBA demorou demais para responder."
-        print(msg)
-        if progress_ui: status_container.error(msg)
-        return {}
-        
     except Exception as e:
-        msg = f"❌ Erro Crítico: {str(e)}"
-        print(msg)
-        if progress_ui: status_container.error(msg)
+        if progress_ui: status.error(f"Erro: {e}")
         return {}
 
 # ==============================================================================
@@ -8655,6 +8604,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
