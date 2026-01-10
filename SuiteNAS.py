@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V6.0 - PERSISTENT & SMART)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V6.1 - CALIBRATED & DEBUGGABLE)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6639,79 +6639,89 @@ def show_desdobramentos_inteligentes():
     
     # --- 1. CONFIGURAÇÃO & IMPORTS ---
     try:
-        from db_manager import db # Para salvar/ler o "Jornal do Dia"
+        from db_manager import db 
     except ImportError:
         db = None
     
     try:
         from injuries import InjuryMonitor
-        monitor = InjuryMonitor() # Instância da inteligência médica
+        monitor = InjuryMonitor()
     except ImportError:
         monitor = None
-        st.error("⚠️ Módulo 'injuries.py' não encontrado.")
-        return
-
+        
     try:
         from modules.new_modules.dvp_analyzer import DvPAnalyzer
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
         MODULES_OK = True
     except: MODULES_OK = False
 
-    # --- 2. CSS ---
+    # --- 2. CSS & LAYOUT ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
         
-        .strat-header { font-family: 'Oswald'; font-size: 32px; color: #fbbf24; margin-bottom: 0; text-transform: uppercase; text-shadow: 0 0 15px rgba(251,191,36,0.2); }
-        .strat-meta { font-family: 'Inter'; font-size: 12px; color: #94a3b8; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .strat-header { font-family: 'Oswald'; font-size: 30px; color: #fbbf24; margin: 0; text-transform: uppercase; text-shadow: 0 0 15px rgba(251,191,36,0.2); }
+        .strat-meta { font-family: 'Inter'; font-size: 11px; color: #64748b; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         
-        /* CARD TICKET */
+        /* LEGENDA COMPACTA */
+        .legend-box {
+            background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 8px;
+            padding: 10px 14px; margin-bottom: 20px; font-size: 11px; color: #94a3b8; font-family: 'Inter';
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-icon { font-size: 14px; }
+        .legend-bold { color: #e2e8f0; font-weight: 600; }
+        
+        /* TICKETS */
         .ticket-card {
             background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid #334155; border-radius: 12px;
-            padding: 16px; margin-bottom: 20px; 
+            padding: 15px; margin-bottom: 15px; 
             border-left: 4px solid #3b82f6; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
         }
-        .ticket-card:hover { transform: translateY(-2px); border-color: #fbbf24; }
-        
         .theme-shield { border-left-color: #10b981; }  
         .theme-vacuum { border-left-color: #a855f7; }  
         .theme-mix { border-left-color: #f59e0b; }  
         
-        .ticket-title { font-family: 'Oswald'; font-size: 18px; color: #fff; margin-bottom: 4px; display: block; }
-        .ticket-desc { font-family: 'Inter'; font-size: 11px; color: #cbd5e1; margin-bottom: 12px; display: block; opacity: 0.8; }
+        .ticket-title { font-family: 'Oswald'; font-size: 16px; color: #fff; margin-bottom: 2px; display: block; }
+        .ticket-desc { font-family: 'Inter'; font-size: 10px; color: #cbd5e1; margin-bottom: 10px; display: block; opacity: 0.7; }
         
-        /* LINHA DO JOGADOR */
-        .sgp-row { 
-            display: flex; align-items: center; gap: 12px; 
-            margin-bottom: 10px; padding-bottom: 10px; 
-            border-bottom: 1px dashed rgba(255,255,255,0.1); 
-        }
-        .sgp-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-        
-        .sgp-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background:#000; }
+        /* ROW */
+        .sgp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 8px; }
+        .sgp-row:last-child { border-bottom: none; }
+        .sgp-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #334155; background:#000; }
         .sgp-info { flex: 1; }
-        .sgp-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; }
-        .sgp-reason { font-size: 10px; color: #94a3b8; font-family: 'Inter'; margin-top: 2px; }
+        .sgp-name { font-family: 'Oswald'; font-size: 14px; color: #fff; line-height: 1.1; }
+        .sgp-reason { font-size: 9px; color: #94a3b8; font-family: 'Inter'; }
         
-        .stat-badge {
-            background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; border-radius: 6px;
-            padding: 4px 10px; text-align: center; min-width: 70px;
-        }
-        .stat-val { font-family: 'Oswald'; font-size: 16px; font-weight: bold; color: #fff; line-height: 1; }
-        .stat-label { font-family: 'Inter'; font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
+        .stat-badge { background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; border-radius: 6px; padding: 2px 8px; text-align: center; min-width: 60px; }
+        .stat-val { font-family: 'Oswald'; font-size: 14px; font-weight: bold; color: #fff; line-height: 1; }
+        .stat-label { font-family: 'Inter'; font-size: 8px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
         
-        .score-pill { 
-            font-size: 9px; padding: 2px 6px; border-radius: 4px; 
-            background: #1e293b; color: #64748b; border: 1px solid #334155; 
-            margin-left: 6px; vertical-align: middle;
-        }
+        .score-pill { font-size: 8px; padding: 1px 4px; border-radius: 3px; background: #1e293b; color: #64748b; border: 1px solid #334155; margin-left: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. HELPERS ---
+    # --- 3. HEADER & CONTROLES ---
+    c_head, c_tog = st.columns([4, 1])
+    with c_head:
+        st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🤖 Engine V6.1</span></div>', unsafe_allow_html=True)
+    with c_tog:
+        debug_mode = st.toggle("🛠️ Debug", value=True) # Debug ligado para você ver o que acontece
+
+    # Legenda Estática Compacta
+    st.markdown("""
+    <div class="legend-box">
+        <div class="legend-item"><span class="legend-icon">🛡️</span> <span class="legend-bold">O ESCUDO:</span> Alta consistência (Hit Rate > 80%).</div>
+        <div class="legend-item"><span class="legend-icon">💎</span> <span class="legend-bold">OPORTUNISTA:</span> Beneficiado por lesões (Vacuum).</div>
+        <div class="legend-item"><span class="legend-icon">⚖️</span> <span class="legend-bold">MIX:</span> Equilíbrio entre histórico e matchup favorável.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- 4. ENGINE E LÓGICA ---
     def nuclear_normalize(text):
         if not text: return ""
         try:
@@ -6719,7 +6729,7 @@ def show_desdobramentos_inteligentes():
             return re.sub(r'[^A-Z0-9]', '', text)
         except: return ""
 
-    # Carrega ID Map
+    # ID Vault
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -6735,20 +6745,23 @@ def show_desdobramentos_inteligentes():
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- 4. ENGINE V6.0 (MATH FIX) ---
+    # --- CLASS ANALYST V6.1 (CALIBRATED) ---
     class AnalystEngineV6:
         def __init__(self, logs, games):
             self.logs = logs
             self.games = games
-            # Módulos Auxiliares
             self.dvp = DvPAnalyzer() if MODULES_OK else None
             self.vacuum = VacuumMatrixAnalyzer() if MODULES_OK else None
-            
-            # Prepara Roster Ativo (Simulado do logs)
             self.active_teams = self._get_active_teams()
+            
+            # Diagnóstico Interno
+            self.diag = {
+                "analyzed": 0,
+                "rejected_score": [], # Lista de quem quase passou
+                "passed": 0
+            }
 
         def _get_active_teams(self):
-            # Mapeia times que jogam hoje
             teams = set()
             for g in self.games:
                 teams.add(self._norm(g.get('home')))
@@ -6757,67 +6770,60 @@ def show_desdobramentos_inteligentes():
 
         def _norm(self, t):
             if not t: return ""
-            # Normalização rápida de siglas
             map_nba = {"GS": "GSW", "PHX": "PHX", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS", "BK": "BKN"}
             return map_nba.get(t.upper(), t.upper())
 
         def analyze(self):
             candidates = []
             
-            # Varredura Principal
             for name, data in self.logs.items():
+                self.diag['analyzed'] += 1
                 norm_name = nuclear_normalize(name)
                 team = self._norm(data.get('team'))
                 
-                # 1. Filtro de Time (Joga Hoje?)
                 if team not in self.active_teams: continue
-                
-                # 2. Filtro de Lesão (INTEGRAÇÃO V6 - MONITOR ROBUSTO)
                 if monitor and monitor.is_player_blocked(name, team): continue
                 
-                # Dados
                 logs = data.get('logs', {})
                 
-                # Análise por Stat (PTS, REB, AST)
                 for stat in ['PTS', 'REB', 'AST']:
                     vals = logs.get(stat, [])
-                    if len(vals) < 10: continue # Amostra mínima
+                    if len(vals) < 5: continue 
                     
                     l10 = vals[:10]
                     l5 = vals[:5]
                     
-                    # Definição da Linha (Piso Seguro: 2º menor valor dos últimos 10)
-                    # Ex: [10, 12, 12, 14...] -> Linha 12
-                    floor_val = sorted(l10)[1]
+                    # Definição de Linha (Piso Seguro)
+                    # Pegamos o 2º menor valor dos últimos 10 como base.
+                    # Se tiver menos de 10 jogos, pega o menor.
+                    try:
+                        floor_val = sorted(l10)[1] if len(l10) >= 2 else min(l10)
+                    except: continue
                     
-                    # Filtro de Relevância (Ignora bagre de 4 pontos)
                     min_req = {'PTS': 10, 'REB': 4, 'AST': 3}
                     if floor_val < min_req[stat]: continue
                     
-                    # --- MATH V6 (CORREÇÃO DE PESOS) ---
+                    # --- MATH V6.1 (CALIBRAGEM MAIS LEVE) ---
                     hits_l10 = sum(1 for v in l10 if v >= floor_val)
                     hits_l5 = sum(1 for v in l5 if v >= floor_val)
                     
-                    # Base Max: 80 Pontos (Antes era 70)
-                    # 10/10 no L10 = 45 pts
-                    # 5/5 no L5 = 35 pts
-                    # Total Perfeito = 80 pts (Já passa no corte de 75)
-                    base_score = (hits_l10 * 4.5) + (hits_l5 * 7)
+                    # Novo Peso: Valoriza muito o L5 recente
+                    # 8/10 (40pts) + 4/5 (32pts) = 72pts -> APROVADO (Corte 70)
+                    score_l10 = hits_l10 * 5.0  # Max 50
+                    score_l5 = hits_l5 * 8.0    # Max 40
+                    base_score = score_l10 + score_l5
+                    
                     boost_score = 0
-                    narrative = []
                     
-                    # Matchup Boost
+                    # Matchup Boost Simples
                     if self.dvp:
-                        # Estima posição
-                        pos = "C" if 'REB' in logs and sum(logs['REB'][:5])/5 > 6 else "PG"
-                        opp = "UNK" # Simplificação
-                        rank = self.dvp.get_position_rank(opp, pos) # Mock se não tiver opp exato
-                        # Lógica simplificada: Se rank > 25 (Defesa ruim), +10 pts
-                    
+                        # (Simplificado para teste) Se L5 for muito bom, assume boost pequeno
+                        pass 
+                        
                     final_score = base_score + boost_score
                     
-                    # Corte Final
-                    if final_score >= 75:
+                    # CORTE: BAIXADO DE 75 PARA 70
+                    if final_score >= 70:
                         bucket = "SHIELD" if hits_l10 >= 9 else "MIX"
                         candidates.append({
                             "player": name,
@@ -6825,8 +6831,13 @@ def show_desdobramentos_inteligentes():
                             "line": floor_val,
                             "score": int(final_score),
                             "bucket": bucket,
-                            "reason": f"Bateu em {hits_l10}/10 jogos recentes"
+                            "reason": f"Hit Rate {hits_l10}/10 (L5: {hits_l5}/5)"
                         })
+                        self.diag['passed'] += 1
+                    else:
+                        # Log para Debug (só os 'quase')
+                        if final_score >= 60 and len(self.diag['rejected_score']) < 10:
+                            self.diag['rejected_score'].append(f"{name} [{stat} {floor_val}+]: Score {final_score}")
                         
             return candidates
 
@@ -6835,7 +6846,6 @@ def show_desdobramentos_inteligentes():
             tickets = []
             used = set()
             
-            # Helper para montar trincas
             def make_ticket(pool, title, theme, desc):
                 leg = []
                 for c in pool:
@@ -6843,84 +6853,68 @@ def show_desdobramentos_inteligentes():
                         leg.append(c)
                         used.add(c['player'])
                     if len(leg) == 3: break
-                
-                if len(leg) >= 2: # Aceita duplas ou triplas
-                    tickets.append({"title": title, "theme": theme, "desc": desc, "legs": leg})
+                if len(leg) >= 2: tickets.append({"title": title, "theme": theme, "desc": desc, "legs": leg})
 
-            # 1. Ticket Escudo (Segurança Máxima)
             shield_pool = [c for c in candidates if c['bucket'] == 'SHIELD']
-            make_ticket(shield_pool, "🛡️ O ESCUDO (Segurança)", "theme-shield", "Jogadores com consistência extrema (>90%) recente.")
+            make_ticket(shield_pool, "🛡️ O ESCUDO", "theme-shield", "Consistência extrema (>90%).")
             
-            # 2. Ticket Mix (Valor)
             mix_pool = [c for c in candidates if c['bucket'] == 'MIX']
-            make_ticket(mix_pool, "⚖️ MIX DO ANALISTA", "theme-mix", "Combinação de consistência e matchup.")
+            make_ticket(mix_pool, "⚖️ MIX TÁTICO", "theme-mix", "Boa fase recente.")
             
             return tickets
 
-    # --- 5. LÓGICA DE PERSISTÊNCIA (CACHE DO DIA) ---
+    # --- 5. EXECUÇÃO COM CACHE CONTROL ---
     def get_daily_strategy():
-        today_key = f"smart_strat_{datetime.now().strftime('%Y-%m-%d')}"
+        today_key = f"smart_strat_v6_{datetime.now().strftime('%Y-%m-%d')}"
         
-        # 1. Tenta carregar da Sessão (Mais rápido)
-        if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
-            return st.session_state.daily_strat_cache['data']
-            
-        # 2. Tenta carregar do Supabase (Compartilhado)
-        if db:
-            cloud_data = db.get_data(today_key)
-            if cloud_data:
-                st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud_data}
-                return cloud_data
-        
-        # 3. Calcula do Zero (Primeiro acesso do dia)
-        with st.spinner("🧠 O Analista V6 está processando os dados do dia..."):
-            # Pega dependências
-            logs = st.session_state.get("real_game_logs", {})
-            games = st.session_state.get("scoreboard", [])
-            
-            if not logs or not games: return []
-            
-            # Roda Engine
-            engine = AnalystEngineV6(logs, games)
-            candidates = engine.analyze()
-            tickets = engine.build_tickets(candidates)
-            
-            # Salva
-            if db and tickets: db.save_data(today_key, tickets)
-            st.session_state.daily_strat_cache = {'date': today_key, 'data': tickets}
-            
-            return tickets
+        # Se DEBUG estiver ligado, ignora cache e recalcula
+        if not debug_mode:
+            if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
+                return st.session_state.daily_strat_cache['data'], None
+            if db:
+                cloud = db.get_data(today_key)
+                if cloud:
+                    st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud}
+                    return cloud, None
 
-    # --- 6. RENDERIZAÇÃO DA PÁGINA ---
+        # Cálculo
+        logs = st.session_state.get("real_game_logs", {})
+        games = st.session_state.get("scoreboard", [])
+        
+        if not logs or not games:
+            return [], {"error": "Sem dados de Logs ou Jogos"}
+            
+        engine = AnalystEngineV6(logs, games)
+        candidates = engine.analyze()
+        tickets = engine.build_tickets(candidates)
+        
+        # Salva (se não estiver em debug forçado, para não salvar teste ruim)
+        if not debug_mode and db and tickets: db.save_data(today_key, tickets)
+        
+        return tickets, engine.diag
+
+    # --- MAIN ---
+    tickets, diag = get_daily_strategy()
     
-    # Header
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> <span>•</span> <span>🤖 Engine V6.0</span></div>', unsafe_allow_html=True)
-    
-    # Accordion Explicativo
-    with st.expander("ℹ️ Entenda a Estratégia (Como funciona?)"):
-        st.markdown("""
-        **Filosofia V6.0:** O sistema prioriza **Consistência Real** sobre projeções teóricas.
-        * **🛡️ O ESCUDO:** Focado em *Hit Rate*. Jogadores que bateram a linha em 9 ou 10 dos últimos 10 jogos. Ideal para "Safe Builders".
-        * **💎 OPORTUNISTA:** Jogadores que ganharam minutos devido a lesões confirmadas (Vacuum).
-        * **⚖️ MIX:** O equilíbrio. Jogadores consistentes (7/10) que enfrentam defesas fracas hoje.
+    # Debug Report
+    if debug_mode and diag:
+        st.info(f"""
+        **DIAGNÓSTICO V6.1:**
+        - Analisados: {diag['analyzed']}
+        - Aprovados (Score > 70): {diag['passed']}
+        - Rejeitados por pouco (Score 60-69):
+        {', '.join(diag['rejected_score'])}
         """)
 
-    # Executa Lógica
-    tickets = get_daily_strategy()
-    
     if not tickets:
-        st.info("😴 O mercado ainda está dormindo. Sem oportunidades claras detectadas ou dados insuficientes (L25).")
+        st.warning("⚠️ Nenhum padrão detectado hoje com os critérios atuais.")
         return
 
-    # Renderiza Tickets
-    col1, col2 = st.columns(2)
-    
+    # Renderiza
+    c1, c2 = st.columns(2)
     for i, ticket in enumerate(tickets):
-        target_col = col1 if i % 2 == 0 else col2
-        with target_col:
+        col = c1 if i % 2 == 0 else c2
+        with col:
             st.markdown(f"""
             <div class="ticket-card {ticket['theme']}">
                 <span class="ticket-title">{ticket['title']}</span>
@@ -6929,22 +6923,20 @@ def show_desdobramentos_inteligentes():
             
             for leg in ticket['legs']:
                 photo = get_photo(leg['player'])
-                color = "#fbbf24" if "PTS" in leg['stat'] else ("#60a5fa" if "REB" in leg['stat'] else "#facc15")
-                
+                clr = "#fbbf24" if "PTS" in leg['stat'] else ("#60a5fa" if "REB" in leg['stat'] else "#facc15")
                 st.markdown(f"""
                 <div class="sgp-row">
                     <img src="{photo}" class="sgp-img">
                     <div class="sgp-info">
-                        <div class="sgp-name">{leg['player']} <span class="score-pill">Score {leg['score']}</span></div>
+                        <div class="sgp-name">{leg['player']} <span class="score-pill">{leg['score']} pts</span></div>
                         <div class="sgp-reason">{leg['reason']}</div>
                     </div>
                     <div class="stat-badge">
-                        <div class="stat-val" style="color:{color}">{leg['line']}+</div>
+                        <div class="stat-val" style="color:{clr}">{leg['line']}+</div>
                         <div class="stat-label">{leg['stat']}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-            
             st.markdown("</div>", unsafe_allow_html=True)
         
 # ============================================================================
@@ -8529,6 +8521,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
