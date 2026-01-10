@@ -3466,7 +3466,7 @@ def show_garimpo_page():
         
         
 # ==============================================================================
-# ☢️ HIT PROP HUNTER V74.1 - CRITICAL BUGFIX (KEYERROR)
+# ☢️ HIT PROP HUNTER V74.2 - SUPERBILHETE LOOP FIX
 # ==============================================================================
 
 def show_hit_prop_page():
@@ -3609,7 +3609,7 @@ def show_hit_prop_page():
                                 "hits": hits,
                                 "tag": tag, "score": role_score * hits,
                                 "game_display": g_str, 
-                                "game_info": g_info, # <--- CORREÇÃO: REINSERIDO
+                                "game_info": g_info,
                                 "game_id": g_id, "player_id": pid, "active": is_active
                             })
                             
@@ -3739,7 +3739,7 @@ def show_hit_prop_page():
         return {"3PM": sorted(specs_3pm, key=lambda x: x['line'], reverse=True), "DEF": specs_def}
 
     # ==============================================================================
-    # 3. RENDER UI (TOTAL NATIVE - ALL TABS FIXED)
+    # 3. RENDER UI
     # ==============================================================================
     
     st.markdown('<div class="prop-title">🎯 HIT PROP HUNTER</div>', unsafe_allow_html=True)
@@ -3807,7 +3807,7 @@ def show_hit_prop_page():
                             st.markdown(chips, unsafe_allow_html=True)
                         st.markdown("<div style='margin-bottom:6px'></div>", unsafe_allow_html=True)
 
-    # --- ABA 2: TOP TRENDS (VISUAL NATIVE) ---
+    # --- ABA 2: TOP TRENDS ---
     with tab_trends:
         trends_by_stat = defaultdict(list)
         for p in atomic_props: trends_by_stat[p['stat']].append(p)
@@ -3818,7 +3818,6 @@ def show_hit_prop_page():
         for i, stat in enumerate(display_stats):
             with stat_cols[i]:
                 st.markdown(f"#### 🏆 Top {stat}")
-                # Filtra melhores
                 props_list = trends_by_stat.get(stat, [])
                 unique = {}
                 for p in props_list:
@@ -3836,7 +3835,7 @@ def show_hit_prop_page():
                             clr = get_stat_color(p['stat'])
                             st.markdown(f"<span class='stat-chip-simple'><strong style='font-family:Oswald; color:{clr}; font-size:12px'>{p['line']}+ {p['stat']}</strong></span>", unsafe_allow_html=True)
 
-    # --- ABA 3: ESPECIALIDADES (VISUAL NATIVE) ---
+    # --- ABA 3: ESPECIALIDADES ---
     with tab_specs:
         c1, c2 = st.columns(2)
         with c1:
@@ -3858,22 +3857,39 @@ def show_hit_prop_page():
                         st.markdown(f"<div class='sgp-name'>{s['player']}</div>", unsafe_allow_html=True)
                         st.markdown(f"<span class='stat-chip-simple'><strong style='font-family:Oswald; color:#f87171; font-size:12px'>1+ {s['stat']}</strong></span>", unsafe_allow_html=True)
 
-    # --- ABA 4: SUPERBILHETE (VISUAL NATIVE) ---
+    # --- ABA 4: SUPERBILHETE (CORRIGIDO) ---
     with tab_sgp:
         if not sgp_data: st.info("Vazio.")
-        for game_str, players in sgp_data.items():
-            st.markdown(f"#### 🏀 {game_str}")
-            for p in players:
-                # Agrupa props do jogador
-                props_sorted = sorted(p['props'], key=lambda x: {"PTS":1,"REB":2,"AST":3}.get(x['stat'], 99))
-                # Remove duplicatas de stat (mantem melhor)
+        # Correção do loop: Itera sobre IDs e extrai dados
+        for gid, game_data in sgp_data.items():
+            st.markdown(f"#### 🏀 {game_data['title']}")
+            
+            # Prepara lista flat de jogadores para o jogo atual
+            display_players = []
+            for p_name, props in game_data['players'].items():
+                total_score = sum(pr['score'] for pr in props)
+                display_players.append({
+                    'player': p_name, 
+                    'props': props, 
+                    'id': props[0]['player_id'],
+                    'score': total_score
+                })
+            
+            # Ordena por score
+            display_players.sort(key=lambda x: x['score'], reverse=True)
+
+            for p in display_players:
+                # Agrupa props do jogador e remove duplicatas de stat
                 unique_props = {}
-                for pr in props_sorted: 
+                # Ordena props para priorizar PTS > REB > AST
+                p['props'].sort(key=lambda x: {"PTS":1,"REB":2,"AST":3}.get(x['stat'], 99))
+                
+                for pr in p['props']: 
                     if pr['stat'] not in unique_props: unique_props[pr['stat']] = pr
                 
                 with st.container(border=True):
                     ci, cd = st.columns([1, 5])
-                    with ci: st.image(get_photo(p['player'], p.get('id', 0)), width=42)
+                    with ci: st.image(get_photo(p['player'], p['id']), width=42)
                     with cd:
                         st.markdown(f"<div class='sgp-name'>{p['player']}</div>", unsafe_allow_html=True)
                         chips = ""
@@ -8403,6 +8419,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
