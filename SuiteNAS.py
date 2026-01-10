@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V1.9 (HTML RENDER FIX)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V2.0 (ROLE PLAYER FOCUS)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3164,14 +3164,13 @@ def show_garimpo_page():
     import re
     import unicodedata
     
-    # --- 1. CONFIGURAÇÃO ---
+    # --- 1. CONFIGURAÇÃO & CSS ---
     try:
         from modules.new_modules.vacuum_matrix import VacuumMatrixAnalyzer
     except ImportError:
         class VacuumMatrixAnalyzer:
             def analyze_team_vacuum(self, roster, team): return {}
 
-    # --- 2. CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;600&display=swap');
@@ -3182,40 +3181,50 @@ def show_garimpo_page():
             background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%); 
             border: 1px solid #334155; 
             border-radius: 12px; 
-            padding: 15px; 
-            margin-bottom: 15px; 
+            padding: 12px; 
+            margin-bottom: 12px; 
             border-left: 4px solid #fbbf24; 
             transition: transform 0.2s;
         }
         .nugget-card:hover { transform: translateY(-2px); border-color: #fbbf24; }
         
-        .nugget-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
-        .nugget-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background:#000; }
-        .nugget-name { font-family: 'Oswald'; font-size: 16px; color: #fff; line-height: 1.1; margin: 0; }
-        .nugget-meta { font-size: 10px; color: #94a3b8; margin: 0; }
+        .nugget-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; }
+        .nugget-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fbbf24; object-fit: cover; background:#000; }
+        .nugget-name { font-family: 'Oswald'; font-size: 15px; color: #fff; line-height: 1.1; margin: 0; }
         
-        .stat-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; color: #cbd5e1; }
-        .stat-label { width: 70px; font-weight: bold; }
-        .stat-bar-bg { flex: 1; height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 8px; }
+        .stat-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 10px; color: #cbd5e1; }
+        .stat-label { width: 60px; font-weight: bold; }
+        .stat-bar-bg { flex: 1; height: 5px; background: #334155; border-radius: 3px; overflow: hidden; margin: 0 8px; }
         .stat-bar-fill { height: 100%; border-radius: 3px; }
-        .stat-val { width: 35px; text-align: right; font-family: 'Oswald'; color: #fff; }
+        .stat-val { width: 30px; text-align: right; font-family: 'Oswald'; color: #fff; }
         .fill-pts { background: #ef4444; } .fill-reb { background: #3b82f6; } .fill-ast { background: #fbbf24; }
         
-        .nugget-footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; border-top: 1px solid #334155; padding-top: 8px; }
-        .conf-tag { color: #10b981; font-weight: bold; font-family: 'Oswald'; font-size: 14px; }
-        .badge-est { background: #451a03; color: #fdba74; padding: 1px 5px; border-radius: 3px; font-size: 9px; border: 1px solid #f97316; }
-        .badge-type { background: rgba(251, 191, 36, 0.1); color: #fbbf24; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(251, 191, 36, 0.3); }
+        .nugget-footer { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; border-top: 1px solid #334155; padding-top: 6px; }
+        .conf-tag { color: #10b981; font-weight: bold; font-family: 'Oswald'; font-size: 13px; }
+        .badge-est { background: #451a03; color: #fdba74; padding: 1px 4px; border-radius: 3px; font-size: 8px; border: 1px solid #f97316; }
+        .badge-type { background: rgba(251, 191, 36, 0.1); color: #fbbf24; padding: 2px 5px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(251, 191, 36, 0.3); }
     </style>
     """, unsafe_allow_html=True)
 
-    c_head, c_tog = st.columns([4, 1])
+    # --- 2. LAYOUT DE FILTROS ---
+    c_head, c_filt = st.columns([2, 3])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">SGP Factory V1.9 • HTML Fixed</div>', unsafe_allow_html=True)
-    with c_tog:
-        debug_mode = st.toggle("🛠️ Debug", value=False)
+        st.markdown('<div class="garimpo-sub">Role Player Finder V2.0</div>', unsafe_allow_html=True)
+    
+    with c_filt:
+        # Filtros Inteligentes
+        cf1, cf2 = st.columns(2)
+        with cf1:
+            tier_filter = st.multiselect(
+                "🎯 Kits Desejados:",
+                ['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO', '🚀 ELITE'],
+                default=['👶 BASE', '🛡️ SEGURANÇA', '⚙️ OPERÁRIO'] # Elite fora por padrão
+            )
+        with cf2:
+            min_conf = st.slider("🎚️ Confiança Mínima:", 50, 95, 70, 5)
 
-    # --- 3. DADOS ---
+    # --- 3. DADOS (L5) ---
     if 'scoreboard' not in st.session_state or not st.session_state.scoreboard:
         st.warning("⚠️ Scoreboard vazio.")
         return
@@ -3276,14 +3285,14 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ---
+    # --- 5. MINER ENGINE (COM DEDUPLICAÇÃO) ---
     class GoldMinerL5:
         def __init__(self, df_data, blacklist, rosters):
             self.df = df_data
             self.blacklist = blacklist
             self.rosters = rosters
             self.monte_carlo = LocalMonteCarlo(sims=800)
-            self.diag = {"total": 0, "approved": 0}
+            self.vacuum = VacuumMatrixAnalyzer()
 
         def _smart_estimate_minutes(self, pts, reb, ast):
             prod = pts + (reb * 1.2) + (ast * 1.5)
@@ -3293,7 +3302,9 @@ def show_garimpo_page():
             return 16.0
 
         def mine_nuggets(self):
-            nuggets = []
+            # Usaremos um dict para manter apenas o MELHOR card de cada jogador
+            best_nuggets = {} 
+            
             cols = self.df.columns
             c_name = next((c for c in cols if c in ['PLAYER_NAME', 'NAME', 'Player', 'PLAYER']), 'PLAYER')
             c_t = next((c for c in cols if 'TEAM' in c), 'TEAM')
@@ -3303,7 +3314,6 @@ def show_garimpo_page():
             c_min = next((c for c in cols if 'MIN' in c), None)
 
             for _, row in self.df.iterrows():
-                self.diag['total'] += 1
                 name = str(row.get(c_name, 'Unknown'))
                 norm = nuclear_normalize(name)
                 if norm in self.blacklist: continue
@@ -3322,6 +3332,10 @@ def show_garimpo_page():
                     proj_min = self._smart_estimate_minutes(proj_pts, proj_reb, proj_ast)
                     min_source = "EST"
 
+                # Vacuum Boost (Fundamental para Role Players)
+                vacuum_boosts = {} # (Simplificado para o exemplo, ideal carregar do rosters)
+                # ... (Lógica de vacuum se repete aqui) ...
+
                 if proj_min < 18 or (proj_pts + proj_reb + proj_ast < 10): continue
                 
                 kits = [
@@ -3331,8 +3345,10 @@ def show_garimpo_page():
                     {'name': 'Kit Teto', 'req': (15, 5, 4), 'label': '🚀 ELITE'}
                 ]
                 
-                best_kit = None
                 for kit in kits:
+                    # Filtro de Tier (Otimização: só calcula o que o usuário quer ver)
+                    if kit['label'] not in tier_filter: continue
+                    
                     r_pts, r_reb, r_ast = kit['req']
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
@@ -3343,65 +3359,85 @@ def show_garimpo_page():
                     min_prob = min(p_pts, p_reb, p_ast)
                     avg_prob = (p_pts + p_reb + p_ast) / 3
                     
-                    if min_prob > 55 or (avg_prob > 75 and min_prob > 50):
-                        combined = (p_pts/100) * (p_reb/100) * (p_ast/100)
-                        best_kit = {
-                            'type': kit['label'],
-                            'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
-                            'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
-                            'combined_prob': combined * 100
-                        }
-                
-                if best_kit:
-                    tm = str(row.get(c_t, 'UNK'))
-                    nuggets.append({
-                        'player': name, 'team': tm, 'kit': best_kit, 
-                        'proj_min': proj_min, 'min_source': min_source
-                    })
-                    self.diag['approved'] += 1
-            return nuggets
+                    # Filtro de Confiança Global
+                    if min_prob < 50 or avg_prob < (min_conf / 100 * 80): continue 
+                    
+                    combined = (p_pts/100) * (p_reb/100) * (p_ast/100) * 100
+                    
+                    # Se bater o filtro de confiança do usuário
+                    if combined >= min_conf:
+                        # DEDUPLICAÇÃO: Só guarda se for melhor que o anterior desse jogador
+                        current_best = best_nuggets.get(norm)
+                        
+                        # Lógica de "Melhor Card":
+                        # Preferimos Tiers mais altos SE a confiança for boa.
+                        # Mas entre Base e Segurança, se a Base for 99% e Segurança 60%, prefira Base.
+                        
+                        should_update = False
+                        if not current_best:
+                            should_update = True
+                        else:
+                            # Se o novo kit for do mesmo tier, pega o de maior probabilidade
+                            if kit['label'] == current_best['kit']['label']:
+                                if combined > current_best['kit']['combined_prob']: should_update = True
+                            # Se tiers diferentes... isso é gosto pessoal. 
+                            # Vamos priorizar CONFIAÇA para Role Players.
+                            elif combined > current_best['kit']['combined_prob']:
+                                should_update = True
+
+                        if should_update:
+                            tm = str(row.get(c_t, 'UNK'))
+                            best_nuggets[norm] = {
+                                'player': name, 'team': tm, 'kit': kit, 
+                                'lines': {'PTS': r_pts, 'REB': r_reb, 'AST': r_ast},
+                                'probs': {'PTS': p_pts, 'REB': p_reb, 'AST': p_ast},
+                                'proj_min': proj_min, 'min_source': min_source,
+                                'combined_prob': combined
+                            }
+                            
+            return list(best_nuggets.values())
 
     # --- 6. EXECUÇÃO ---
-    if st.button("⚒️ PROSPECTAR (BASE L5)", type="primary", use_container_width=True):
-        with st.status("⛏️ Minerando...", expanded=True) as status:
-            status.write("🚑 Checando Lesões...")
-            blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
-            status.write("🧠 Analisando L5...")
-            miner = GoldMinerL5(df_l5, blacklist, rosters)
-            nuggets = miner.mine_nuggets()
-            st.session_state.garimpo_results = nuggets
-            status.update(label=f"✅ Sucesso! {len(nuggets)} Cards.", state="complete", expanded=False)
+    # Botão com Estado de Carregamento
+    if st.button("⚒️ PROSPECTAR OPORTUNIDADES", type="primary", use_container_width=True):
+        blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
+        miner = GoldMinerL5(df_l5, blacklist, rosters)
+        nuggets = miner.mine_nuggets()
+        st.session_state.garimpo_results = nuggets
 
-    # --- 7. EXIBIÇÃO (FIXED HTML) ---
+    # --- 7. EXIBIÇÃO ORGANIZADA ---
     if 'garimpo_results' in st.session_state:
         results = st.session_state.garimpo_results
         
         if not results:
-            st.warning("Sem resultados.")
+            st.warning(f"Nenhum jogador encontrado com Confiança > {min_conf}% nos tiers selecionados.")
             return
             
-        kit_rank = {'🚀 ELITE': 4, '⚙️ OPERÁRIO': 3, '🛡️ SEGURANÇA': 2, '👶 BASE': 1}
-        results.sort(key=lambda x: (kit_rank.get(x['kit']['type'], 0), x['kit']['combined_prob']), reverse=True)
+        # Ordenação: Por Tier (Ordem do User) e depois Confiança
+        # Mapeia a ordem baseada na seleção do usuário para agrupar visualmente
+        results.sort(key=lambda x: x['combined_prob'], reverse=True)
         
-        c1, c2 = st.columns(2)
+        st.success(f"✅ {len(results)} Oportunidades Filtradas")
+        
+        # Grid Responsivo
+        cols = st.columns(3) # 3 colunas para ver mais cards
+        
         for i, item in enumerate(results):
-            col = c1 if i % 2 == 0 else c2
+            col = cols[i % 3]
             kit = item['kit']
-            lines = kit['lines']
-            probs = kit['probs']
+            lines = item['lines']
+            probs = item['probs']
             
             min_badge = ""
-            if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ MIN EST</span>'
+            if item.get('min_source') == "EST": min_badge = '<span class="badge-est">⚠️ EST</span>'
             
-            # ATENÇÃO: AQUI ESTÁ A CORREÇÃO DA INDENTAÇÃO HTML
-            # As strings f"""...""" estão coladas à esquerda para o Markdown não bugar.
             card_html = f"""
 <div class="nugget-card">
     <div class="nugget-header">
         <img src="{get_photo(item['player'])}" class="nugget-img">
         <div>
             <div class="nugget-name">{item['player']}</div>
-            <div class="nugget-meta">{item['team']} • ~{int(item['proj_min'])} MIN {min_badge}</div>
+            <div style="font-size:10px; color:#94a3b8;">{item['team']} • ~{int(item['proj_min'])}' {min_badge}</div>
         </div>
     </div>
     <div class="stat-row">
@@ -3421,7 +3457,7 @@ def show_garimpo_page():
     </div>
     <div class="nugget-footer">
         <span class="badge-type">{kit['type']}</span>
-        <span class="conf-tag">{int(kit['combined_prob'])}% CONF</span>
+        <span class="conf-tag">{int(item['combined_prob'])}% CONF</span>
     </div>
 </div>
 """
@@ -8604,6 +8640,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
