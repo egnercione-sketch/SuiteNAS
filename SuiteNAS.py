@@ -628,6 +628,26 @@ def fetch_and_upload_real_game_logs(progress_ui=True):
         return {}
 
 # ==============================================================================
+# FUNÇÃO PONTE (WRAPPER) PARA COMPATIBILIDADE
+# ==============================================================================
+def update_batch_cache(games_list, force_all=False):
+    """
+    Função de compatibilidade. 
+    O botão 'Reconstruir Cache' chama esta função.
+    Ela redireciona para o novo Motor Turbo V3.0.
+    """
+    import streamlit as st
+    
+    # Ignoramos 'games_list' e 'force_all' porque o Turbo V3 baixa a liga inteira
+    # de uma vez só, o que é mais seguro e garante que temos todos os jogadores.
+    
+    st.toast("Iniciando Motor Turbo V3...", icon="🚀")
+    
+    # Chama a função V3.0 (que você deve ter colado anteriormente)
+    return fetch_and_upload_real_game_logs(progress_ui=True)
+    
+
+# ==============================================================================
 # 8. DATA FETCHING & NORMALIZATION (ATUALIZADO V59.0)
 # ==============================================================================    
 def normalize_cache_keys(cache_data):
@@ -8611,6 +8631,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
