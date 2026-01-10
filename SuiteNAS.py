@@ -3832,39 +3832,112 @@ def show_hit_prop_page():
         "🧬 COMBOS", "🔥 TOP TRENDS", "💎 ESPECIALIDADES", "🧪 SUPERBILHETE", "📋 RADAR"
     ])
 
-    # --- ABA 1: COMBOS (VISUAL SGP) ---
+# --- ABA 1: COMBOS (VISUAL NATIVE STANDARD V18) ---
     with tab_combos:
-        if not combo_tickets: st.info("Nenhum combo automático.")
+        # CSS Específico para garantir a consistência nesta aba
+        st.markdown("""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;600&display=swap');
+            
+            .sgp-name { 
+                font-family: 'Oswald'; font-size: 14px; color: #ffffff !important; 
+                font-weight: 700; line-height: 1.1; margin-bottom: 4px;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            }
+            .role-pill { 
+                font-size: 8px; padding: 1px 5px; border-radius: 3px; 
+                background: #334155; color: #cbd5e1; display: inline-block; 
+                margin-right: 5px; vertical-align: middle; 
+            }
+            .stat-chip-simple {
+                display: inline-block;
+                background: #1e293b; border: 1px solid #475569; 
+                padding: 3px 8px; border-radius: 4px; 
+                margin-right: 4px; margin-bottom: 4px;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        if not combo_tickets:
+            st.info("Nenhum combo automático encontrado hoje.")
+        
+        # Grid Nativo
         t_col1, t_col2 = st.columns(2)
+        
         for i, ticket in enumerate(combo_tickets):
             col_target = t_col1 if i % 2 == 0 else t_col2
+            
             with col_target:
-                legs_html = ""
-                for leg in ticket['legs']:
-                    clr = get_stat_color(leg['stat'])
-                    rec_val = leg.get('record', 'N/A').replace('💎','').replace('🔥','').strip()
-                    photo_url = get_photo(leg['player'], leg.get('id', 0))
+                # Container Nativo (Anti-Explosão)
+                with st.container(border=True):
+                    # Header HTML Seguro
+                    # Define uma cor padrão azul/roxa para combos
+                    header_color = "#8b5cf6" 
+                    st.markdown(f"<div style='border-left: 4px solid {header_color}; padding-left: 10px; margin-bottom: 10px;'>"
+                                f"<div style='font-family:Oswald; font-size:16px; color:white;'>{ticket['title']}</div>"
+                                f"<div style='font-size:11px; color:#94a3b8;'>Combo Automático • {len(ticket['legs'])} Legs</div>"
+                                f"</div>", unsafe_allow_html=True)
+
+                    # 1. Agrupamento por Jogador (Lógica SGP)
+                    # Isso junta stats se o mesmo jogador aparecer 2x no combo
+                    from collections import defaultdict
+                    player_legs = defaultdict(list)
+                    player_meta = {}
                     
-                    legs_html += f"""
-                    <div class="sgp-row">
-                        <img src="{photo_url}" class="sgp-img">
-                        <div style="flex:1">
-                            <div class="sgp-name">
-                                {leg['player']} <span class="sgp-role">{leg['role']}</span>
-                            </div>
-                            <div class="stat-chip-compact">
-                                <div class="scc-top" style="color:{clr}">{leg['line']}+ {leg['stat']}</div>
-                                <div class="scc-bot">{rec_val}</div>
-                            </div>
-                        </div>
-                    </div>
-                    """
-                col_target.markdown(f"""
-                <div class="combo-container">
-                    <div class="combo-title">{ticket['title']}</div>
-                    {legs_html}
-                </div>
-                """, unsafe_allow_html=True)
+                    for leg in ticket['legs']:
+                        p_name = leg['player']
+                        player_legs[p_name].append(leg)
+                        # Salva metadados (ID, Role, Time se tiver)
+                        player_meta[p_name] = {
+                            'id': leg.get('id', 0),
+                            'role': leg.get('role', 'BASE'),
+                            'team': leg.get('team', '') # Se tiver info de time
+                        }
+
+                    # 2. Renderização dos Jogadores
+                    for p_name, legs in player_legs.items():
+                        meta = player_meta[p_name]
+                        
+                        # Layout Rígido: Imagem (1) | Texto (4)
+                        c_img, c_data = st.columns([1, 4])
+                        
+                        with c_img:
+                            # Usa a função get_photo que já está no escopo global
+                            photo_url = get_photo(p_name, meta['id'])
+                            st.image(photo_url, width=42)
+                        
+                        with c_data:
+                            # Ícones de Role
+                            role_map = {'ANCHOR':'👑','MOTOR':'⚙️','WORKER':'👷','BASE':'🛡️'}
+                            # Tenta mapear o role (pode vir minúsculo ou diferente, normalizamos)
+                            role_key = str(meta['role']).upper()
+                            icon = role_map.get(role_key, '🎯')
+                            
+                            # Título (Nome Branco)
+                            st.markdown(f"<div class='sgp-name'>{p_name}</div>", unsafe_allow_html=True)
+                            
+                            # Role Pill
+                            st.markdown(f"<div style='margin-bottom:4px'><span class='role-pill'>{icon} {role_key}</span></div>", unsafe_allow_html=True)
+                            
+                            # Chips de Stats (Visual Limpo V18)
+                            chips_str = ""
+                            for l in legs:
+                                clr = "#fbbf24" if l['stat'] == 'PTS' else ("#60a5fa" if l['stat'] == 'REB' else "#facc15")
+                                line_display = f"{l['line']}+ {l['stat']}"
+                                
+                                # Adiciona hit rate pequeno se existir, senão só a linha
+                                rec_val = l.get('record', '').replace('💎','').replace('🔥','').strip()
+                                # Se quiser super limpo igual V18, remove o rec_val. 
+                                # Vou deixar apenas a linha para manter o padrão "Clean UI" que você aprovou.
+                                
+                                chips_str += f"""<span class='stat-chip-simple'>
+                                    <strong style='font-family:Oswald; color:{clr}; font-size:12px'>{line_display}</strong>
+                                </span>"""
+                            
+                            st.markdown(chips_str, unsafe_allow_html=True)
+
+                        # Espaçamento entre jogadores
+                        st.markdown("<div style='margin-bottom:6px'></div>", unsafe_allow_html=True)
 
     # --- ABA 2: TOP TRENDS (VISÃO DE MERCADO / RANKING) ---
     with tab_trends:
@@ -8510,6 +8583,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
