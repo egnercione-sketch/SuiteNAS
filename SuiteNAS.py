@@ -6626,7 +6626,7 @@ def show_estatisticas_jogador():
         st.info("Nenhum jogador encontrado com os filtros atuais.")
 
 # ============================================================================
-# PÁGINA: DESDOBRAMENTOS DO DIA (V6.1 - CALIBRATED & DEBUGGABLE)
+# PÁGINA: DESDOBRAMENTOS DO DIA (V6.2 - BUGFIX KEYERROR)
 # ============================================================================
 def show_desdobramentos_inteligentes():
     import streamlit as st
@@ -6708,11 +6708,10 @@ def show_desdobramentos_inteligentes():
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown(f'<div class="strat-header">DESDOBRAMENTOS DO DIA</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🤖 Engine V6.1</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="strat-meta"><span>📅 {datetime.now().strftime("%d/%m/%Y")}</span> • <span>🤖 Engine V6.2</span></div>', unsafe_allow_html=True)
     with c_tog:
-        debug_mode = st.toggle("🛠️ Debug", value=True) # Debug ligado para você ver o que acontece
+        debug_mode = st.toggle("🛠️ Debug", value=True)
 
-    # Legenda Estática Compacta
     st.markdown("""
     <div class="legend-box">
         <div class="legend-item"><span class="legend-icon">🛡️</span> <span class="legend-bold">O ESCUDO:</span> Alta consistência (Hit Rate > 80%).</div>
@@ -6729,7 +6728,6 @@ def show_desdobramentos_inteligentes():
             return re.sub(r'[^A-Z0-9]', '', text)
         except: return ""
 
-    # ID Vault
     df_l5 = st.session_state.get('df_l5', pd.DataFrame())
     ID_VAULT = {}
     if not df_l5.empty:
@@ -6745,7 +6743,7 @@ def show_desdobramentos_inteligentes():
         pid = ID_VAULT.get(nuclear_normalize(name), 0)
         return f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else "https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png"
 
-    # --- CLASS ANALYST V6.1 (CALIBRATED) ---
+    # --- CLASS ANALYST V6.2 (SAFE MODE) ---
     class AnalystEngineV6:
         def __init__(self, logs, games):
             self.logs = logs
@@ -6754,10 +6752,9 @@ def show_desdobramentos_inteligentes():
             self.vacuum = VacuumMatrixAnalyzer() if MODULES_OK else None
             self.active_teams = self._get_active_teams()
             
-            # Diagnóstico Interno
             self.diag = {
                 "analyzed": 0,
-                "rejected_score": [], # Lista de quem quase passou
+                "rejected_score": [],
                 "passed": 0
             }
 
@@ -6793,9 +6790,6 @@ def show_desdobramentos_inteligentes():
                     l10 = vals[:10]
                     l5 = vals[:5]
                     
-                    # Definição de Linha (Piso Seguro)
-                    # Pegamos o 2º menor valor dos últimos 10 como base.
-                    # Se tiver menos de 10 jogos, pega o menor.
                     try:
                         floor_val = sorted(l10)[1] if len(l10) >= 2 else min(l10)
                     except: continue
@@ -6803,26 +6797,20 @@ def show_desdobramentos_inteligentes():
                     min_req = {'PTS': 10, 'REB': 4, 'AST': 3}
                     if floor_val < min_req[stat]: continue
                     
-                    # --- MATH V6.1 (CALIBRAGEM MAIS LEVE) ---
+                    # MATH V6.1
                     hits_l10 = sum(1 for v in l10 if v >= floor_val)
                     hits_l5 = sum(1 for v in l5 if v >= floor_val)
                     
-                    # Novo Peso: Valoriza muito o L5 recente
-                    # 8/10 (40pts) + 4/5 (32pts) = 72pts -> APROVADO (Corte 70)
-                    score_l10 = hits_l10 * 5.0  # Max 50
-                    score_l5 = hits_l5 * 8.0    # Max 40
+                    score_l10 = hits_l10 * 5.0  
+                    score_l5 = hits_l5 * 8.0    
                     base_score = score_l10 + score_l5
                     
                     boost_score = 0
-                    
-                    # Matchup Boost Simples
-                    if self.dvp:
-                        # (Simplificado para teste) Se L5 for muito bom, assume boost pequeno
-                        pass 
+                    if self.dvp: pass # Boost desativado temporariamente para calibração base
                         
                     final_score = base_score + boost_score
                     
-                    # CORTE: BAIXADO DE 75 PARA 70
+                    # CORTE: 70
                     if final_score >= 70:
                         bucket = "SHIELD" if hits_l10 >= 9 else "MIX"
                         candidates.append({
@@ -6835,7 +6823,6 @@ def show_desdobramentos_inteligentes():
                         })
                         self.diag['passed'] += 1
                     else:
-                        # Log para Debug (só os 'quase')
                         if final_score >= 60 and len(self.diag['rejected_score']) < 10:
                             self.diag['rejected_score'].append(f"{name} [{stat} {floor_val}+]: Score {final_score}")
                         
@@ -6867,28 +6854,26 @@ def show_desdobramentos_inteligentes():
     def get_daily_strategy():
         today_key = f"smart_strat_v6_{datetime.now().strftime('%Y-%m-%d')}"
         
-        # Se DEBUG estiver ligado, ignora cache e recalcula
         if not debug_mode:
             if 'daily_strat_cache' in st.session_state and st.session_state.daily_strat_cache.get('date') == today_key:
-                return st.session_state.daily_strat_cache['data'], None
+                return st.session_state.daily_strat_cache['data'], {}
             if db:
                 cloud = db.get_data(today_key)
                 if cloud:
                     st.session_state.daily_strat_cache = {'date': today_key, 'data': cloud}
-                    return cloud, None
+                    return cloud, {}
 
-        # Cálculo
         logs = st.session_state.get("real_game_logs", {})
         games = st.session_state.get("scoreboard", [])
         
+        # Verifica se tem dados antes de instanciar
         if not logs or not games:
-            return [], {"error": "Sem dados de Logs ou Jogos"}
+            return [], {"error": "Dados de Logs ou Jogos insuficientes. Atualize na Config."}
             
         engine = AnalystEngineV6(logs, games)
         candidates = engine.analyze()
         tickets = engine.build_tickets(candidates)
         
-        # Salva (se não estiver em debug forçado, para não salvar teste ruim)
         if not debug_mode and db and tickets: db.save_data(today_key, tickets)
         
         return tickets, engine.diag
@@ -6896,21 +6881,28 @@ def show_desdobramentos_inteligentes():
     # --- MAIN ---
     tickets, diag = get_daily_strategy()
     
-    # Debug Report
+    # FIX: Debug Report Seguro
     if debug_mode and diag:
-        st.info(f"""
-        **DIAGNÓSTICO V6.1:**
-        - Analisados: {diag['analyzed']}
-        - Aprovados (Score > 70): {diag['passed']}
-        - Rejeitados por pouco (Score 60-69):
-        {', '.join(diag['rejected_score'])}
-        """)
+        if "error" in diag:
+            st.error(f"❌ Erro no Motor: {diag['error']}")
+        else:
+            # Usa .get() para evitar KeyError se a chave não existir
+            analyzed = diag.get('analyzed', 0)
+            passed = diag.get('passed', 0)
+            rejected = diag.get('rejected_score', [])
+            
+            st.info(f"""
+            **DIAGNÓSTICO V6.2:**
+            - Analisados: {analyzed}
+            - Aprovados (Score > 70): {passed}
+            - Rejeitados por pouco (Amostra):
+            {', '.join(rejected)}
+            """)
 
-    if not tickets:
+    if not tickets and (not diag or "error" not in diag):
         st.warning("⚠️ Nenhum padrão detectado hoje com os critérios atuais.")
         return
 
-    # Renderiza
     c1, c2 = st.columns(2)
     for i, ticket in enumerate(tickets):
         col = c1 if i % 2 == 0 else c2
@@ -8521,6 +8513,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
