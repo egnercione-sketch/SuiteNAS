@@ -3488,7 +3488,7 @@ def show_garimpo_page():
                         <span>Odd: @{kit['odd']:.2f}</span>
                     </div>
                 </div>
-                """, unsafe
+                """, unsafe_allow_html=True)
         
         
         
@@ -8666,6 +8666,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
