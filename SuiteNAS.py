@@ -3155,7 +3155,7 @@ class FiveSevenTenEngine:
         return sorted(candidates, key=lambda x: (x['archetype'] == "⭐ SUPERSTAR", x['metrics']['Ceiling_10']), reverse=True), diagnostics
 
 # ============================================================================
-# PÁGINA: O GARIMPO (SGP FACTORY) - V1.4 (MODO ESCASSEZ + INSPETOR)
+# PÁGINA: O GARIMPO (SGP FACTORY) - V1.5 (BYPASS DE MINUTOS)
 # ============================================================================
 def show_garimpo_page():
     import streamlit as st
@@ -3190,13 +3190,14 @@ def show_garimpo_page():
         .stat-bar-fill { height: 100%; border-radius: 3px; }
         .fill-pts { background: #ef4444; } .fill-reb { background: #3b82f6; } .fill-ast { background: #fbbf24; }
         .badge-safe { background: #064e3b; color: #6ee7b7; padding: 2px 6px; border-radius: 4px; font-size: 9px; border: 1px solid #10b981; }
+        .badge-warn { background: #451a03; color: #fdba74; padding: 2px 6px; border-radius: 4px; font-size: 9px; border: 1px solid #f97316; }
     </style>
     """, unsafe_allow_html=True)
 
     c_head, c_tog = st.columns([4, 1])
     with c_head:
         st.markdown('<div class="garimpo-header">⚒️ O GARIMPO</div>', unsafe_allow_html=True)
-        st.markdown('<div class="garimpo-sub">SGP Factory V1.4 • Modo Escassez (Low Data)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="garimpo-sub">SGP Factory V1.5 • Bypass de Minutos Ativo</div>', unsafe_allow_html=True)
     with c_tog:
         debug_mode = st.toggle("🛠️ Debug", value=True)
 
@@ -3256,8 +3257,8 @@ def show_garimpo_page():
             except: pass
         return blacklist, active_rosters
 
-    # --- 5. MINER ENGINE V1.4 ---
-    class GoldMinerV4:
+    # --- 5. MINER ENGINE V1.5 (FALLBACK MINUTOS) ---
+    class GoldMinerV5:
         def __init__(self, logs, blacklist, rosters):
             self.logs = logs
             self.blacklist = blacklist
@@ -3266,8 +3267,7 @@ def show_garimpo_page():
             self.monte_carlo = MonteCarloEngine(default_sims=1500)
             
             self.diag = {
-                "total": 0, "skip_injury": 0, "skip_data_insuf": 0, "skip_min": 0, 
-                "skip_kit_req": 0, "fail_mc": 0, "approved": 0, "failures": []
+                "total": 0, "skip_data_insuf": 0, "skip_min": 0, "approved": 0, "min_bypassed": 0
             }
 
         def _safe_parse_list(self, data_list, max_len=15):
@@ -3287,14 +3287,8 @@ def show_garimpo_page():
             for team, roster in self.rosters.items():
                 vac_roster = []
                 for p in roster:
-                    p_norm = nuclear_normalize(p['name'])
-                    min_l5 = 0
-                    if p_norm in self.logs:
-                        raw = self.logs[p_norm].get('logs', {}).get('MIN', [])
-                        safe = self._safe_parse_list(raw, 5)
-                        if safe: min_l5 = np.mean(safe)
-                    
-                    vac_roster.append({'name': p['name'], 'status': p['status'], 'position': p['pos'], 'min_L5': min_l5, 'is_starter': min_l5 > 24})
+                    # Vacuum simplificado
+                    vac_roster.append({'name': p['name'], 'status': p['status'], 'position': p['pos'], 'min_L5': 25, 'is_starter': True})
                 
                 rep = self.vacuum.analyze_team_vacuum(vac_roster, team)
                 if rep:
@@ -3305,31 +3299,38 @@ def show_garimpo_page():
                 self.diag['total'] += 1
                 norm = nuclear_normalize(name)
                 
-                if norm in self.blacklist:
-                    self.diag['skip_injury'] += 1; continue
+                if norm in self.blacklist: continue
                 
                 logs = data.get('logs', {})
-                if not logs:
+                if not logs: 
                     self.diag['skip_data_insuf'] += 1; continue
                 
-                try:
-                    # FIX V1.4: Aceita qualquer lista com tamanho > 0 (Mesmo que seja 1 jogo)
-                    pts = self._safe_parse_list(logs.get('PTS', []), 20)
-                    reb = self._safe_parse_list(logs.get('REB', []), 20)
-                    ast = self._safe_parse_list(logs.get('AST', []), 20)
-                    mins = self._safe_parse_list(logs.get('MIN', []), 10)
-                    
-                    # Se tiver pelo menos 1 registro, tentamos projetar
-                    if len(pts) < 1 or len(mins) < 1:
-                        self.diag['skip_data_insuf'] += 1; continue
-                        
-                    proj_pts = np.mean(pts)
-                    proj_reb = np.mean(reb)
-                    proj_ast = np.mean(ast)
-                    proj_min = np.mean(mins)
-                    
-                except:
+                # FIX V1.5: Minutos são opcionais agora
+                pts = self._safe_parse_list(logs.get('PTS', []), 20)
+                reb = self._safe_parse_list(logs.get('REB', []), 20)
+                ast = self._safe_parse_list(logs.get('AST', []), 20)
+                mins = self._safe_parse_list(logs.get('MIN', []), 10)
+                
+                # Se não tiver PONTOS, aí sim é dado inválido
+                if len(pts) < 1:
                     self.diag['skip_data_insuf'] += 1; continue
+                
+                proj_pts = np.mean(pts)
+                proj_reb = np.mean(reb)
+                proj_ast = np.mean(ast)
+                
+                # LÓGICA DE FALLBACK PARA MINUTOS
+                min_estimated = False
+                if len(mins) > 0:
+                    proj_min = np.mean(mins)
+                else:
+                    # Se não tem minuto, mas tem média decente, assume que joga
+                    if proj_pts + proj_reb + proj_ast > 10:
+                        proj_min = 28.0 # Valor seguro
+                        min_estimated = True
+                        self.diag['min_bypassed'] += 1
+                    else:
+                        proj_min = 10.0 # Jogador irrelevante
                 
                 # Vacuum
                 vac_info = vacuum_boosts.get(norm)
@@ -3337,7 +3338,7 @@ def show_garimpo_page():
                     boost = vac_info['boost']
                     proj_pts *= boost; proj_reb *= boost; proj_ast *= boost; proj_min *= boost
                 
-                # Filtro Minutos (Relaxado para 20)
+                # Filtro Minutos (Agora passa se for bypass)
                 if proj_min < 20: 
                     self.diag['skip_min'] += 1; continue
                 
@@ -3350,13 +3351,12 @@ def show_garimpo_page():
                 ]
                 
                 best_kit = None
-                passed_any_req = False
                 
                 for kit in kits:
                     r_pts, r_reb, r_ast = kit['req']
+                    
                     if proj_pts < r_pts or proj_reb < r_reb or proj_ast < r_ast: continue
                     
-                    passed_any_req = True
                     try:
                         p_pts = self.monte_carlo.analyze_bet_probability(proj_pts, r_pts, "PTS")['prob_percent']
                         p_reb = self.monte_carlo.analyze_bet_probability(proj_reb, r_reb, "REB")['prob_percent']
@@ -3366,7 +3366,6 @@ def show_garimpo_page():
                     avg_prob = (p_pts + p_reb + p_ast) / 3
                     min_prob = min(p_pts, p_reb, p_ast)
                     
-                    # Regra Super Relaxada (55% de confiança mínima)
                     if min_prob > 55 or (avg_prob > 70 and min_prob > 45):
                         combined = (p_pts/100) * (p_reb/100) * (p_ast/100)
                         odd_fair = 1/combined if combined > 0 else 99
@@ -3377,54 +3376,34 @@ def show_garimpo_page():
                             'odd': max(1.5, min(15.0, odd_fair * 0.8)),
                             'combined_prob': combined * 100
                         }
-                    else:
-                        if avg_prob > 50 and len(self.diag['failures']) < 5:
-                            self.diag['failures'].append(f"{name} MC Fail: {kit['name']} (Avg {int(avg_prob)}%)")
                 
                 if best_kit:
-                    nuggets.append({'player': name, 'team': data['team'], 'kit': best_kit, 'vacuum': vac_info, 'proj_min': proj_min})
+                    nuggets.append({'player': name, 'team': data['team'], 'kit': best_kit, 'vacuum': vac_info, 'proj_min': proj_min, 'min_est': min_estimated})
                     self.diag['approved'] += 1
-                else:
-                    if not passed_any_req: self.diag['skip_kit_req'] += 1
-                    else: self.diag['fail_mc'] += 1
                     
             return nuggets
 
     # --- 6. EXECUÇÃO ---
-    if st.button("⚒️ PROSPECTAR (V1.4 ESCASSEZ)", type="primary", use_container_width=True):
+    if st.button("⚒️ PROSPECTAR (V1.5 - SEM MINUTOS)", type="primary", use_container_width=True):
         
         with st.status("⛏️ Minerando...", expanded=True) as status:
             status.write("🚑 Checando Lesões...")
             blacklist, rosters = scan_injuries_live(st.session_state.scoreboard)
             
-            status.write("🧠 Rodando Minerador V4...")
-            miner = GoldMinerV4(cache_logs, blacklist, rosters)
+            status.write("🧠 Rodando Minerador V5...")
+            miner = GoldMinerV5(cache_logs, blacklist, rosters)
             nuggets = miner.mine_nuggets()
             
             # DIAGNÓSTICO
             if debug_mode:
                 d = miner.diag
                 st.info(f"""
-                **DIAGNÓSTICO V1.4:**
+                **DIAGNÓSTICO V1.5:**
                 1. Total Analisado: **{d['total']}**
-                2. 📉 Dados Insuficientes: **{d['skip_data_insuf']}** (Se > 0, o jogador não tem NEM 1 JOGO)
-                3. ⏱️ Poucos Minutos (<20): **{d['skip_min']}**
+                2. 📉 Dados Insuficientes (Sem Pontos): **{d['skip_data_insuf']}**
+                3. 🤖 Minutos Simulados (Bypass): **{d['min_bypassed']}** (Jogadores salvos pelo fix)
                 4. ✅ **APROVADOS:** **{d['approved']}**
                 """)
-                
-                # INSPETOR DE DADOS
-                if d['skip_data_insuf'] > 0:
-                    st.write("🕵️ **Inspetor de Jogador (Ver o Cache):**")
-                    p_names = list(cache_logs.keys())
-                    sel_p = st.selectbox("Escolha um jogador para ver os dados brutos:", p_names[:50])
-                    if sel_p:
-                        raw = cache_logs[sel_p]
-                        pts_len = len(raw.get('logs', {}).get('PTS', []))
-                        st.json({
-                            "Nome": sel_p,
-                            "Jogos Encontrados (PTS)": pts_len,
-                            "Dados Brutos": raw.get('logs', {})
-                        })
 
             st.session_state.garimpo_results = nuggets
             status.update(label="✅ Concluído!", state="complete", expanded=False)
@@ -3434,7 +3413,7 @@ def show_garimpo_page():
         results = st.session_state.garimpo_results
         
         if not results:
-            st.warning("Ainda sem resultados. Use o Inspetor acima para ver se os jogadores têm pelo menos 1 jogo.")
+            st.warning("Sem resultados. Tente atualizar os jogos e logs novamente.")
             return
             
         results.sort(key=lambda x: x['kit']['combined_prob'], reverse=True)
@@ -3446,6 +3425,10 @@ def show_garimpo_page():
             lines = kit['lines']
             probs = kit['probs']
             
+            # Badge de Minutos Estimados
+            min_badge = ""
+            if item.get('min_est'): min_badge = '<span class="badge-warn">⚠️ MIN EST.</span>'
+            
             with col:
                 st.markdown(f"""
                 <div class="nugget-card">
@@ -3453,7 +3436,7 @@ def show_garimpo_page():
                         <img src="{get_photo(item['player'])}" class="nugget-img">
                         <div>
                             <div class="nugget-name">{item['player']}</div>
-                            <div style="font-size:10px; color:#94a3b8;">{item['team']} • {int(item['proj_min'])} MIN</div>
+                            <div style="font-size:10px; color:#94a3b8;">{item['team']} • {int(item['proj_min'])} MIN {min_badge}</div>
                         </div>
                     </div>
                     <div class="stat-row"><div class="stat-label">{lines['PTS']}+ PTS</div><div class="stat-bar-bg"><div class="stat-bar-fill fill-pts" style="width: {probs['PTS']}%;"></div></div><div class="stat-val">{int(probs['PTS'])}%</div></div>
@@ -8642,6 +8625,7 @@ def main():
 if __name__ == "__main__":
     main()
                 
+
 
 
 
